@@ -1,9 +1,10 @@
-use crate::math_utils::boys_function;
-use nalgebra::{distance, distance_squared, DMatrix};
+use nalgebra::DMatrix;
 use std::f64::consts::PI;
 
 use crate::{
-    basis::gaussian::basis::{gaussian_norm_const, Basis},
+    basis::gaussian::basis::{
+        coulomb_auxiliary, gaussian_norm_const, gaussian_product_center, hermite_coeff, Basis,
+    },
     molecules::geometry::Geometry,
 };
 
@@ -26,21 +27,62 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
                         gaussian_norm_const(exp_i, l_i.x as u32, l_i.y as u32, l_i.z as u32);
                     let norm_j =
                         gaussian_norm_const(exp_j, l_j.x as u32, l_j.y as u32, l_j.z as u32);
-                    let prefactor = coeff_i
-                        * coeff_j
-                        * norm_i
-                        * norm_j
-                        * (-exp_i * exp_j * distance_squared(&shell_i.origin, &shell_j.origin)
-                            / alpha)
-                            .exp();
-                    let p = (exp_i * shell_i.origin + exp_j * shell_j.origin.coords) / alpha;
+                    let p_center =
+                        gaussian_product_center(exp_i, &shell_i.origin, exp_j, &shell_j.origin);
+                    let prefactor = coeff_i * coeff_j * norm_i * norm_j;
+
+                    let e_x = (0..=l_i.x + l_j.x)
+                        .map(|t| {
+                            hermite_coeff(
+                                l_i.x,
+                                l_j.x,
+                                t,
+                                shell_i.origin.x - shell_j.origin.x,
+                                exp_i,
+                                exp_j,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let e_y = (0..=l_i.y + l_j.y)
+                        .map(|u| {
+                            hermite_coeff(
+                                l_i.y,
+                                l_j.y,
+                                u,
+                                shell_i.origin.y - shell_j.origin.y,
+                                exp_i,
+                                exp_j,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let e_z = (0..=l_i.z + l_j.z)
+                        .map(|v| {
+                            hermite_coeff(
+                                l_i.z,
+                                l_j.z,
+                                v,
+                                shell_i.origin.z - shell_j.origin.z,
+                                exp_i,
+                                exp_j,
+                            )
+                        })
+                        .collect::<Vec<_>>();
 
                     for atom in &mol.atoms {
                         let z = atom.element.atomic_number as f64;
-                        let r_pa = distance(&p, &atom.position);
-                        let boys_arg = alpha * r_pa.powi(2);
-                        let f0 = boys_function(0, boys_arg);
-                        integral -= z * prefactor * f0 * (2.0 * PI / alpha);
+                        let pc = p_center - atom.position.coords;
+                        let mut primitive = 0.0;
+                        for t in 0..=l_i.x + l_j.x {
+                            for u in 0..=l_i.y + l_j.y {
+                                for v in 0..=l_i.z + l_j.z {
+                                    primitive += e_x[t as usize]
+                                        * e_y[u as usize]
+                                        * e_z[v as usize]
+                                        * coulomb_auxiliary(t, u, v, 0, alpha, &pc);
+                                }
+                            }
+                        }
+                        integral -= z * prefactor * (2.0 * PI / alpha) * primitive;
                     }
                 }
             }

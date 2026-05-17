@@ -3,8 +3,9 @@
 
 use std::f64::consts::PI;
 
-use crate::basis::gaussian::basis::{gaussian_norm_const, Basis};
-use crate::math_utils::boys_function;
+use crate::basis::gaussian::basis::{
+    coulomb_auxiliary, gaussian_norm_const, gaussian_product_center, hermite_coeff, Basis,
+};
 use nalgebra::Point3;
 use ndarray::Array4;
 
@@ -67,7 +68,7 @@ pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) ->
 /// # Retourne
 ///
 /// La valeur de l'intégrale ERI primitive.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, dead_code)]
 pub fn compute_eri_primitive(
     alpha_p: f64,
     alpha_q: f64,
@@ -96,7 +97,7 @@ pub fn compute_eri_primitive(
     let K_cd = (-alpha_r * alpha_s * CD_sq / q).exp();
     // Calcul de la fonction de Boys
     let T = alpha * PQ_sq;
-    let F0 = boys_function(0, T);
+    let F0 = crate::math_utils::boys_function(0, T);
 
     // Calcul du préfacteur
     let prefactor = (2.0 * PI.powf(2.5)) / (p * q * (p + q).sqrt());
@@ -189,11 +190,9 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
                                                     let B = origin_q;
                                                     let C = origin_r;
                                                     let D = origin_s;
-
-                                                    // Calcul des ERI primitives
-                                                    let eri = compute_eri_primitive(
+                                                    let eri = compute_eri_cartesian_primitive(
                                                         alpha_p, alpha_q, alpha_r, alpha_s, A, B,
-                                                        C, D,
+                                                        C, D, &l_p, &l_q, &l_r, &l_s,
                                                     );
 
                                                     // Contribution à l'ERI total
@@ -222,6 +221,73 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
     }
 
     eri_tensor
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_eri_cartesian_primitive(
+    alpha_p: f64,
+    alpha_q: f64,
+    alpha_r: f64,
+    alpha_s: f64,
+    a: Point3<f64>,
+    b: Point3<f64>,
+    c: Point3<f64>,
+    d: Point3<f64>,
+    l_p: &nalgebra::Vector3<u8>,
+    l_q: &nalgebra::Vector3<u8>,
+    l_r: &nalgebra::Vector3<u8>,
+    l_s: &nalgebra::Vector3<u8>,
+) -> f64 {
+    let p = alpha_p + alpha_q;
+    let q = alpha_r + alpha_s;
+    let alpha = p * q / (p + q);
+    let p_center = gaussian_product_center(alpha_p, &a, alpha_q, &b);
+    let q_center = gaussian_product_center(alpha_r, &c, alpha_s, &d);
+    let pq = p_center - q_center;
+
+    let e_ab_x = (0..=l_p.x + l_q.x)
+        .map(|t| hermite_coeff(l_p.x, l_q.x, t, a.x - b.x, alpha_p, alpha_q))
+        .collect::<Vec<_>>();
+    let e_ab_y = (0..=l_p.y + l_q.y)
+        .map(|u| hermite_coeff(l_p.y, l_q.y, u, a.y - b.y, alpha_p, alpha_q))
+        .collect::<Vec<_>>();
+    let e_ab_z = (0..=l_p.z + l_q.z)
+        .map(|v| hermite_coeff(l_p.z, l_q.z, v, a.z - b.z, alpha_p, alpha_q))
+        .collect::<Vec<_>>();
+    let e_cd_x = (0..=l_r.x + l_s.x)
+        .map(|t| hermite_coeff(l_r.x, l_s.x, t, c.x - d.x, alpha_r, alpha_s))
+        .collect::<Vec<_>>();
+    let e_cd_y = (0..=l_r.y + l_s.y)
+        .map(|u| hermite_coeff(l_r.y, l_s.y, u, c.y - d.y, alpha_r, alpha_s))
+        .collect::<Vec<_>>();
+    let e_cd_z = (0..=l_r.z + l_s.z)
+        .map(|v| hermite_coeff(l_r.z, l_s.z, v, c.z - d.z, alpha_r, alpha_s))
+        .collect::<Vec<_>>();
+
+    let mut eri = 0.0;
+    for t in 0..=l_p.x + l_q.x {
+        for u in 0..=l_p.y + l_q.y {
+            for v in 0..=l_p.z + l_q.z {
+                for tau in 0..=l_r.x + l_s.x {
+                    for nu in 0..=l_r.y + l_s.y {
+                        for phi in 0..=l_r.z + l_s.z {
+                            let sign = if (tau + nu + phi) % 2 == 0 { 1.0 } else { -1.0 };
+                            eri += e_ab_x[t as usize]
+                                * e_ab_y[u as usize]
+                                * e_ab_z[v as usize]
+                                * e_cd_x[tau as usize]
+                                * e_cd_y[nu as usize]
+                                * e_cd_z[phi as usize]
+                                * sign
+                                * coulomb_auxiliary(t + tau, u + nu, v + phi, 0, alpha, &pq);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    2.0 * PI.powf(2.5) / (p * q * (p + q).sqrt()) * eri
 }
 
 #[cfg(test)]
@@ -356,6 +422,21 @@ mod tests {
             for q in 0..basis.nbasis() {
                 for r in 0..basis.nbasis() {
                     for s in 0..basis.nbasis() {
+                        assert_abs_diff_eq!(
+                            eri_tensor[(p, q, r, s)],
+                            eri_tensor[(q, p, r, s)],
+                            epsilon = 1e-6
+                        );
+                        assert_abs_diff_eq!(
+                            eri_tensor[(p, q, r, s)],
+                            eri_tensor[(p, q, s, r)],
+                            epsilon = 1e-6
+                        );
+                        assert_abs_diff_eq!(
+                            eri_tensor[(p, q, r, s)],
+                            eri_tensor[(r, s, p, q)],
+                            epsilon = 1e-6
+                        );
                         assert_abs_diff_eq!(
                             eri_tensor[(p, q, r, s)],
                             eri_tensor[(q, p, s, r)],

@@ -1,7 +1,7 @@
 // basis.rs
 #![allow(non_snake_case)]
 
-use nalgebra::{DMatrix, Vector3};
+use nalgebra::{DMatrix, Point3, Vector3};
 use std::f64::consts::PI;
 
 use super::contraction::Contraction;
@@ -142,9 +142,8 @@ impl Basis {
                                     l_j.z as u32,
                                 );
 
-                                let s_xyz = compute_overlap_3d(
-                                    l_i, l_j, &origin_i, &origin_j, exp_i, exp_j,
-                                );
+                                let s_xyz =
+                                    primitive_overlap(l_i, l_j, &origin_i, &origin_j, exp_i, exp_j);
 
                                 s_ij += coeff_i * coeff_j * norm_i * norm_j * s_xyz;
                             }
@@ -199,9 +198,8 @@ impl Basis {
                                     l_j.z as u32,
                                 );
 
-                                let t_xyz = compute_kinetic_3d(
-                                    l_i, l_j, &origin_i, &origin_j, exp_i, exp_j,
-                                );
+                                let t_xyz =
+                                    primitive_kinetic(l_i, l_j, &origin_i, &origin_j, exp_i, exp_j);
 
                                 t_ij += coeff_i * coeff_j * norm_i * norm_j * t_xyz;
                             }
@@ -258,7 +256,7 @@ pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
         / ((l_factor * m_factor * n_factor).sqrt())
 }
 
-fn compute_overlap_3d(
+pub(crate) fn primitive_overlap(
     l_i: &Vector3<u8>,
     l_j: &Vector3<u8>,
     origin_i: &Vector3<f64>,
@@ -266,29 +264,14 @@ fn compute_overlap_3d(
     exp_i: f64,
     exp_j: f64,
 ) -> f64 {
-    let la_x = l_i.x as i32;
-    let lb_x = l_j.x as i32;
-    let la_y = l_i.y as i32;
-    let lb_y = l_j.y as i32;
-    let la_z = l_i.z as i32;
-    let lb_z = l_j.z as i32;
     let p = exp_i + exp_j;
-    let reduced_exp = (exp_i * exp_j) / p;
-    let P = (exp_i * origin_i + exp_j * origin_j) / p;
-    let PA = P - origin_i;
-    let PB = P - origin_j;
-    let d_sq = (origin_i - origin_j).norm_squared();
-
-    // Calcul des intégrales 1D pour chaque axe
-    let s_x = overlap_1d(la_x, lb_x, PA.x, PB.x, p);
-    let s_y = overlap_1d(la_y, lb_y, PA.y, PB.y, p);
-    let s_z = overlap_1d(la_z, lb_z, PA.z, PB.z, p);
-
-    // Produit des intégrales 1D
-    (-reduced_exp * d_sq).exp() * s_x * s_y * s_z
+    (PI / p).powf(1.5)
+        * hermite_coeff(l_i.x, l_j.x, 0, origin_i.x - origin_j.x, exp_i, exp_j)
+        * hermite_coeff(l_i.y, l_j.y, 0, origin_i.y - origin_j.y, exp_i, exp_j)
+        * hermite_coeff(l_i.z, l_j.z, 0, origin_i.z - origin_j.z, exp_i, exp_j)
 }
 
-fn compute_kinetic_3d(
+pub(crate) fn primitive_kinetic(
     l_i: &Vector3<u8>,
     l_j: &Vector3<u8>,
     origin_i: &Vector3<f64>,
@@ -296,93 +279,105 @@ fn compute_kinetic_3d(
     exp_i: f64,
     exp_j: f64,
 ) -> f64 {
-    if l_i == &Vector3::new(0, 0, 0) && l_j == &Vector3::new(0, 0, 0) {
-        let p = exp_i + exp_j;
-        let reduced_exp = exp_i * exp_j / p;
-        let r2 = (origin_i - origin_j).norm_squared();
-        let overlap = (PI / p).powf(1.5) * (-reduced_exp * r2).exp();
-        return reduced_exp * (3.0 - 2.0 * reduced_exp * r2) * overlap;
+    let l_b = [l_j.x as i32, l_j.y as i32, l_j.z as i32];
+    let s = |dx: i32, dy: i32, dz: i32| {
+        let shifted = Vector3::new(
+            (l_b[0] + dx).max(0) as u8,
+            (l_b[1] + dy).max(0) as u8,
+            (l_b[2] + dz).max(0) as u8,
+        );
+        primitive_overlap(l_i, &shifted, origin_i, origin_j, exp_i, exp_j)
+    };
+
+    let mut result = exp_j * (2.0 * (l_b[0] + l_b[1] + l_b[2]) as f64 + 3.0) * s(0, 0, 0);
+    result -= 2.0 * exp_j.powi(2) * (s(2, 0, 0) + s(0, 2, 0) + s(0, 0, 2));
+
+    if l_b[0] >= 2 {
+        result -= 0.5 * (l_b[0] * (l_b[0] - 1)) as f64 * s(-2, 0, 0);
+    }
+    if l_b[1] >= 2 {
+        result -= 0.5 * (l_b[1] * (l_b[1] - 1)) as f64 * s(0, -2, 0);
+    }
+    if l_b[2] >= 2 {
+        result -= 0.5 * (l_b[2] * (l_b[2] - 1)) as f64 * s(0, 0, -2);
+    }
+    result
+}
+
+pub(crate) fn gaussian_product_center(
+    exp_i: f64,
+    origin_i: &Point3<f64>,
+    exp_j: f64,
+    origin_j: &Point3<f64>,
+) -> Vector3<f64> {
+    (exp_i * origin_i.coords + exp_j * origin_j.coords) / (exp_i + exp_j)
+}
+
+pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64 {
+    if t > i + j {
+        return 0.0;
+    }
+    if i == 0 && j == 0 && t == 0 {
+        let p = a + b;
+        let reduced_exp = a * b / p;
+        return (-reduced_exp * qx.powi(2)).exp();
+    }
+    if i == 0 && j == 0 {
+        return 0.0;
     }
 
-    let gamma = exp_i + exp_j;
-    let p = gamma;
-    let P = (exp_i * origin_i + exp_j * origin_j) / p;
-    let PAx = P.x - origin_i.x;
-    let PAy = P.y - origin_i.y;
-    let PAz = P.z - origin_i.z;
-    let PBx = P.x - origin_j.x;
-    let PBy = P.y - origin_j.y;
-    let PBz = P.z - origin_j.z;
-
-    let la_x = l_i.x as i32;
-    let lb_x = l_j.x as i32;
-    let la_y = l_i.y as i32;
-    let lb_y = l_j.y as i32;
-    let la_z = l_i.z as i32;
-    let lb_z = l_j.z as i32;
-
-    // Calcul des intégrales de recouvrement 1D
-    let s_x = overlap_1d(la_x, lb_x, PAx, PBx, gamma);
-    let s_y = overlap_1d(la_y, lb_y, PAy, PBy, gamma);
-    let s_z = overlap_1d(la_z, lb_z, PAz, PBz, gamma);
-
-    // Calcul des intégrales cinétiques 1D
-    let t_x = kinetic_1d(la_x, lb_x, PAx, PBx, gamma, exp_i, exp_j);
-    let t_y = kinetic_1d(la_y, lb_y, PAy, PBy, gamma, exp_i, exp_j);
-    let t_z = kinetic_1d(la_z, lb_z, PAz, PBz, gamma, exp_i, exp_j);
-
-    // Combinaison pour obtenir l'intégrale cinétique 3D
-    t_x * s_y * s_z + s_x * t_y * s_z + s_x * s_y * t_z
-}
-
-fn overlap_1d(la: i32, lb: i32, PAx: f64, PBx: f64, gamma: f64) -> f64 {
-    let mut sum = 0.0;
-
-    for i in 0..=la {
-        for j in 0..=lb {
-            let order = i + j;
-            if order % 2 != 0 {
-                continue;
-            }
-
-            let moment = if order == 0 {
-                1.0
-            } else {
-                let double_factorial = (order as u64 - 1).double_factorial() as f64;
-                double_factorial / (2.0 * gamma).powi(order / 2)
-            };
-
-            sum += binomial_coefficient(la as u32, i as u32)
-                * binomial_coefficient(lb as u32, j as u32)
-                * PAx.powi(la - i)
-                * PBx.powi(lb - j)
-                * moment;
-        }
-    }
-
-    (PI / gamma).sqrt() * sum
-}
-
-fn kinetic_1d(la: i32, lb: i32, PAx: f64, PBx: f64, gamma: f64, exp_a: f64, exp_b: f64) -> f64 {
-    let overlap = overlap_1d(la, lb, PAx, PBx, gamma);
-    let pre_factor = (exp_a * exp_b) / gamma;
-    let term = pre_factor * (2.0 * (la + lb) as f64 + 3.0);
-    term * overlap
-}
-
-/// Calcul du coefficient binomial (n sur k)
-fn binomial_coefficient(n: u32, k: u32) -> f64 {
-    if k > n {
-        0.0
-    } else if k == 0 || k == n {
-        1.0
+    let p = a + b;
+    let reduced_exp = a * b / p;
+    if i > 0 {
+        let lower_i = i - 1;
+        let left = if t > 0 {
+            hermite_coeff(lower_i, j, t - 1, qx, a, b) / (2.0 * p)
+        } else {
+            0.0
+        };
+        let middle = -(reduced_exp * qx / a) * hermite_coeff(lower_i, j, t, qx, a, b);
+        let right = (t as f64 + 1.0) * hermite_coeff(lower_i, j, t + 1, qx, a, b);
+        left + middle + right
     } else {
-        let mut result = 1.0;
-        for i in 1..=k {
-            result *= (n - k + i) as f64 / i as f64;
-        }
-        result
+        let lower_j = j - 1;
+        let left = if t > 0 {
+            hermite_coeff(i, lower_j, t - 1, qx, a, b) / (2.0 * p)
+        } else {
+            0.0
+        };
+        let middle = (reduced_exp * qx / b) * hermite_coeff(i, lower_j, t, qx, a, b);
+        let right = (t as f64 + 1.0) * hermite_coeff(i, lower_j, t + 1, qx, a, b);
+        left + middle + right
     }
+}
+
+pub(crate) fn coulomb_auxiliary(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -> f64 {
+    if t == 0 && u == 0 && v == 0 {
+        return (-2.0 * p).powi(n as i32)
+            * crate::math_utils::boys_function(n as u64, p * pc.norm_squared());
+    }
+    if t > 0 {
+        let lower = if t >= 2 {
+            (t as f64 - 1.0) * coulomb_auxiliary(t - 2, u, v, n + 1, p, pc)
+        } else {
+            0.0
+        };
+        return lower + pc.x * coulomb_auxiliary(t - 1, u, v, n + 1, p, pc);
+    }
+    if u > 0 {
+        let lower = if u >= 2 {
+            (u as f64 - 1.0) * coulomb_auxiliary(t, u - 2, v, n + 1, p, pc)
+        } else {
+            0.0
+        };
+        return lower + pc.y * coulomb_auxiliary(t, u - 1, v, n + 1, p, pc);
+    }
+    let lower = if v >= 2 {
+        (v as f64 - 1.0) * coulomb_auxiliary(t, u, v - 2, n + 1, p, pc)
+    } else {
+        0.0
+    };
+    lower + pc.z * coulomb_auxiliary(t, u, v - 1, n + 1, p, pc)
 }
 
 #[cfg(test)]
@@ -413,11 +408,9 @@ mod tests {
     fn test_overlap_1d_simple() {
         let la = 0;
         let lb = 0;
-        let PAx = 0.0;
-        let PBx = 0.0;
         let gamma = 1.0;
 
-        let computed = overlap_1d(la, lb, PAx, PBx, gamma);
+        let computed = hermite_coeff(la, lb, 0, 0.0, 0.5, 0.5) * (PI / gamma).sqrt();
 
         // L'intégrale de recouvrement devrait être (pi / gamma)^0.5
         let expected = (PI / gamma).sqrt();
@@ -431,16 +424,18 @@ mod tests {
 
     #[test]
     fn test_kinetic_1d_simple() {
-        let la = 0;
-        let lb = 0;
-        let PAx = 0.0;
-        let PBx = 0.0;
         let exp_a = 0.5;
         let exp_b = 0.5;
-        let gamma = exp_a + exp_b;
 
-        let computed = kinetic_1d(la, lb, PAx, PBx, gamma, exp_a, exp_b);
-        let expected = 0.75 * (PI).sqrt(); // Inclure le facteur sqrt(PI)
+        let computed = primitive_kinetic(
+            &Vector3::new(0, 0, 0),
+            &Vector3::new(0, 0, 0),
+            &Vector3::zeros(),
+            &Vector3::zeros(),
+            exp_a,
+            exp_b,
+        );
+        let expected = 0.75 * PI.powf(1.5);
 
         assert!(
             (computed - expected).abs() < 1e-6,
