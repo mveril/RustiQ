@@ -32,10 +32,10 @@ cargo test
 Run the sample calculation:
 
 ```sh
-cargo run -- run --file samples/calculation.toml
+cargo run -- run --file samples/h2/calculation.toml
 ```
 
-The sample TOML uses `samples/molecule.xyz` by default because the CLI changes the working directory to the run file location before reading relative paths.
+The H2 sample TOML uses `samples/h2/molecule.xyz` by default because the CLI changes the working directory to the run file location before reading relative paths.
 
 ## Input Files
 
