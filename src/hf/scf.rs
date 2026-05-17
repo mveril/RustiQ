@@ -328,6 +328,7 @@ mod tests {
     use crate::molecules::geometry::Geometry;
     use crate::molecules::units::Units;
     use crate::test_utils;
+    use approx::assert_abs_diff_eq;
     use nalgebra::point;
 
     /// Simple implementation of DensityGuess for testing purposes.
@@ -492,29 +493,61 @@ mod tests {
 
     #[test]
     fn test_scf_h2_sto3g_reference_energy() {
-        let basis_file = test_utils::load_minimal_basis_file();
-        let elements = periodic_table::periodic_table();
-        let h = &elements[0];
-        let geometry = Geometry::new(
-            "Hydrogen molecule (H2)".to_string(),
-            vec![
-                Atom::new(h, point![0.0, 0.0, -0.37 / 0.52917721092]),
-                Atom::new(h, point![0.0, 0.0, 0.37 / 0.52917721092]),
-            ],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
-        );
-        let basis = Basis::load(&basis_file, &geometry);
-        let molecule = Molecule::from(geometry);
-        let density_guess = Box::new(crate::hf::density_guess::one_electron::OneElectron);
-        let mut scf = ScfCalculation::new(&molecule, &basis, 50, 1e-8, density_guess);
+        let result = test_utils::run_sto3g_scf_for_sample("samples/h2/molecule.xyz");
 
-        scf.run();
-
-        let total_energy = scf.energy + molecule.geometry.nucl_repulsion();
-        assert!(
-            (total_energy - -1.116759307396425).abs() < 1e-8,
-            "H2/STO-3G total energy is {total_energy}"
+        assert_abs_diff_eq!(
+            result.electronic_energy,
+            -1.8318636464775062,
+            epsilon = 1e-8
         );
+        assert_abs_diff_eq!(
+            result.nuclear_repulsion_energy,
+            0.7151043390810812,
+            epsilon = 1e-8
+        );
+        assert_abs_diff_eq!(result.total_energy, -1.116759307396425, epsilon = 1e-8);
+    }
+
+    #[test]
+    fn test_scf_h2o_sto3g_reference_energy() {
+        let result = test_utils::run_sto3g_scf_for_sample("samples/h2o/h2o.xyz");
+
+        assert_abs_diff_eq!(result.electronic_energy, -84.151322, epsilon = 1e-6);
+        assert_abs_diff_eq!(result.nuclear_repulsion_energy, 9.188258, epsilon = 1e-6);
+        assert_abs_diff_eq!(result.total_energy, -74.963063, epsilon = 1e-6);
+    }
+
+    fn assert_symmetric_matrix(matrix: &DMatrix<f64>, epsilon: f64, label: &str) {
+        for i in 0..matrix.nrows() {
+            for j in 0..matrix.ncols() {
+                assert!(
+                    (matrix[(i, j)] - matrix[(j, i)]).abs() <= epsilon,
+                    "{} is not symmetric at ({}, {})",
+                    label,
+                    i,
+                    j
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_scf_matrix_symmetry_invariants() {
+        for path in ["samples/h2/molecule.xyz", "samples/h2o/h2o.xyz"] {
+            let geometry = test_utils::load_sample_geometry(path);
+            let basis = test_utils::load_sto3g_basis(&geometry);
+            let molecule = Molecule::from(geometry);
+            let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
+
+            assert_symmetric_matrix(&basis.overlap_ints(), 1e-10, "S");
+            assert_symmetric_matrix(&scf.t_matrix, 1e-10, "T");
+            assert_symmetric_matrix(&scf.v_matrix, 1e-10, "V");
+            assert_symmetric_matrix(&scf.h_core, 1e-10, "Hcore");
+
+            scf.run();
+
+            assert_symmetric_matrix(&scf.fock_matrix, 1e-8, "F");
+            assert_symmetric_matrix(&scf.density_matrix, 1e-8, "density");
+        }
     }
 }
