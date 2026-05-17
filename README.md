@@ -54,7 +54,11 @@ molecule_unit = "Angstrom"
 [hf]
 max_iterations = 100
 convergence_threshold = 1e-8
+density_gess = "CoreHamiltonian"
 ```
+
+Available density guesses are `CoreHamiltonian`, `OneElectron`, `Zero`, `Random`, and
+`RandomSymmetric`. If omitted, `OneElectron` is used.
 
 The molecule file should use XYZ format:
 

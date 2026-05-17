@@ -10,7 +10,10 @@ impl DensityGuess for Random {
         _molecule: &crate::molecules::molecule::Molecule,
         basis: &crate::basis::gaussian::basis::Basis,
     ) -> nalgebra::DMatrix<f64> {
-        let r_iter = thread_rng().sample_iter(Uniform::new_inclusive(0.0, 1.0));
-        DMatrix::from_iterator(basis.nbasis(), basis.nbasis(), r_iter)
+        let nbasis = basis.nbasis();
+        let r_iter = thread_rng()
+            .sample_iter(Uniform::new_inclusive(0.0, 1.0))
+            .take(nbasis * nbasis);
+        DMatrix::from_iterator(nbasis, nbasis, r_iter)
     }
 }
