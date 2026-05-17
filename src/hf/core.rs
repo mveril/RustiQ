@@ -1,4 +1,5 @@
 use nalgebra::DMatrix;
+use rayon::prelude::*;
 use std::f64::consts::PI;
 
 use crate::{
@@ -12,9 +13,15 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
     let n = basis.nbasis();
     let mut result = DMatrix::<f64>::zeros(n, n);
 
-    for i in 0..n {
-        let shell_i = &basis.shells[basis.shell_ids[i]];
-        for j in 0..=i {
+    let values = (0..n * n)
+        .into_par_iter()
+        .filter_map(|index| {
+            let i = index / n;
+            let j = index % n;
+            (j <= i).then_some((i, j))
+        })
+        .map(|(i, j)| {
+            let shell_i = &basis.shells[basis.shell_ids[i]];
             let shell_j = &basis.shells[basis.shell_ids[j]];
             let mut integral = 0.0;
 
@@ -86,10 +93,15 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
                     }
                 }
             }
-            result[(i, j)] = integral;
-            result[(j, i)] = integral; // Symmetry
-        }
+            (i, j, integral)
+        })
+        .collect::<Vec<_>>();
+
+    for (i, j, integral) in values {
+        result[(i, j)] = integral;
+        result[(j, i)] = integral; // Symmetry
     }
+
     result
 }
 

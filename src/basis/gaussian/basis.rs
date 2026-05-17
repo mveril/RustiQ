@@ -7,6 +7,7 @@ use std::f64::consts::PI;
 use super::contraction::Contraction;
 use super::shell::Shell;
 use factorial::DoubleFactorial;
+use rayon::prelude::*;
 
 use crate::basis::basisfile::BasisFile;
 use crate::basis::function_type::FunctionType;
@@ -109,12 +110,17 @@ impl Basis {
         let n = self.angular_momenta.len();
         let mut result = DMatrix::<f64>::zeros(n, n);
 
-        for i in 0..n {
-            let shell_i = &self.shells[self.shell_ids[i]];
-            let l_i = &self.angular_momenta[i];
-            let origin_i = shell_i.origin.coords;
-
-            for j in 0..=i {
+        let values = (0..n * n)
+            .into_par_iter()
+            .filter_map(|index| {
+                let i = index / n;
+                let j = index % n;
+                (j <= i).then_some((i, j))
+            })
+            .map(|(i, j)| {
+                let shell_i = &self.shells[self.shell_ids[i]];
+                let l_i = &self.angular_momenta[i];
+                let origin_i = shell_i.origin.coords;
                 let shell_j = &self.shells[self.shell_ids[j]];
                 let l_j = &self.angular_momenta[j];
                 let origin_j = shell_j.origin.coords;
@@ -151,10 +157,14 @@ impl Basis {
                     }
                 }
 
-                result[(i, j)] = s_ij;
-                if i != j {
-                    result[(j, i)] = s_ij;
-                }
+                (i, j, s_ij)
+            })
+            .collect::<Vec<_>>();
+
+        for (i, j, s_ij) in values {
+            result[(i, j)] = s_ij;
+            if i != j {
+                result[(j, i)] = s_ij;
             }
         }
 
@@ -165,12 +175,17 @@ impl Basis {
         let n = self.angular_momenta.len();
         let mut result = DMatrix::<f64>::zeros(n, n);
 
-        for i in 0..n {
-            let shell_i = &self.shells[self.shell_ids[i]];
-            let l_i = &self.angular_momenta[i];
-            let origin_i = shell_i.origin.coords;
-
-            for j in 0..=i {
+        let values = (0..n * n)
+            .into_par_iter()
+            .filter_map(|index| {
+                let i = index / n;
+                let j = index % n;
+                (j <= i).then_some((i, j))
+            })
+            .map(|(i, j)| {
+                let shell_i = &self.shells[self.shell_ids[i]];
+                let l_i = &self.angular_momenta[i];
+                let origin_i = shell_i.origin.coords;
                 let shell_j = &self.shells[self.shell_ids[j]];
                 let l_j = &self.angular_momenta[j];
                 let origin_j = shell_j.origin.coords;
@@ -207,10 +222,14 @@ impl Basis {
                     }
                 }
 
-                result[(i, j)] = t_ij;
-                if i != j {
-                    result[(j, i)] = t_ij;
-                }
+                (i, j, t_ij)
+            })
+            .collect::<Vec<_>>();
+
+        for (i, j, t_ij) in values {
+            result[(i, j)] = t_ij;
+            if i != j {
+                result[(j, i)] = t_ij;
             }
         }
 

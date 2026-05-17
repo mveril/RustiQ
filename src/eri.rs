@@ -8,6 +8,7 @@ use crate::basis::gaussian::basis::{
 };
 use nalgebra::Point3;
 use ndarray::Array4;
+use rayon::prelude::*;
 
 /// Calcule l'intégrale de recouvrement 1D pour deux fonctions gaussiennes primitives.
 ///
@@ -115,112 +116,110 @@ pub fn compute_eri_primitive(
 /// Un tenseur 4D contenant toutes les intégrales ERI.
 pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
     let n = basis.nbasis();
-    let mut eri_tensor = Array4::<f64>::zeros((n, n, n, n));
+    let values = (0..n * n * n * n)
+        .into_par_iter()
+        .map(|index| {
+            let s = index % n;
+            let r = (index / n) % n;
+            let q = (index / (n * n)) % n;
+            let p = index / (n * n * n);
+            let shell_p = &basis.shells[basis.shell_ids[p]];
+            let origin_p = shell_p.origin;
 
-    for p in 0..n {
-        let shell_p = &basis.shells[basis.shell_ids[p]];
-        let origin_p = shell_p.origin;
-
-        for q in 0..n {
             let shell_q = &basis.shells[basis.shell_ids[q]];
             let origin_q = shell_q.origin;
 
-            for r in 0..n {
-                let shell_r = &basis.shells[basis.shell_ids[r]];
-                let origin_r = shell_r.origin;
+            let shell_r = &basis.shells[basis.shell_ids[r]];
+            let origin_r = shell_r.origin;
 
-                for s in 0..n {
-                    let shell_s = &basis.shells[basis.shell_ids[s]];
-                    let origin_s = shell_s.origin;
+            let shell_s = &basis.shells[basis.shell_ids[s]];
+            let origin_s = shell_s.origin;
 
-                    let mut eri_pqrs = 0.0;
+            let mut eri_pqrs = 0.0;
 
-                    // Boucles sur les contractions de chaque shell
-                    for contraction_p in &shell_p.contr {
-                        for contraction_q in &shell_q.contr {
-                            for contraction_r in &shell_r.contr {
-                                for contraction_s in &shell_s.contr {
-                                    // Boucles sur les primitives de chaque contraction
-                                    for (&alpha_p, &coeff_p) in
-                                        shell_p.alpha.iter().zip(contraction_p.coeff.iter())
+            // Boucles sur les contractions de chaque shell
+            for contraction_p in &shell_p.contr {
+                for contraction_q in &shell_q.contr {
+                    for contraction_r in &shell_r.contr {
+                        for contraction_s in &shell_s.contr {
+                            // Boucles sur les primitives de chaque contraction
+                            for (&alpha_p, &coeff_p) in
+                                shell_p.alpha.iter().zip(contraction_p.coeff.iter())
+                            {
+                                for (&alpha_q, &coeff_q) in
+                                    shell_q.alpha.iter().zip(contraction_q.coeff.iter())
+                                {
+                                    for (&alpha_r, &coeff_r) in
+                                        shell_r.alpha.iter().zip(contraction_r.coeff.iter())
                                     {
-                                        for (&alpha_q, &coeff_q) in
-                                            shell_q.alpha.iter().zip(contraction_q.coeff.iter())
+                                        for (&alpha_s, &coeff_s) in
+                                            shell_s.alpha.iter().zip(contraction_s.coeff.iter())
                                         {
-                                            for (&alpha_r, &coeff_r) in
-                                                shell_r.alpha.iter().zip(contraction_r.coeff.iter())
-                                            {
-                                                for (&alpha_s, &coeff_s) in shell_s
-                                                    .alpha
-                                                    .iter()
-                                                    .zip(contraction_s.coeff.iter())
-                                                {
-                                                    // Calcul des constantes de normalisation
-                                                    let l_p = basis.angular_momenta[p];
-                                                    let l_q = basis.angular_momenta[q];
-                                                    let l_r = basis.angular_momenta[r];
-                                                    let l_s = basis.angular_momenta[s];
-                                                    let norm_p = gaussian_norm_const(
-                                                        alpha_p,
-                                                        l_p.x as u32,
-                                                        l_p.y as u32,
-                                                        l_p.z as u32,
-                                                    );
-                                                    let norm_q = gaussian_norm_const(
-                                                        alpha_q,
-                                                        l_q.x as u32,
-                                                        l_q.y as u32,
-                                                        l_q.z as u32,
-                                                    );
-                                                    let norm_r = gaussian_norm_const(
-                                                        alpha_r,
-                                                        l_r.x as u32,
-                                                        l_r.y as u32,
-                                                        l_r.z as u32,
-                                                    );
-                                                    let norm_s = gaussian_norm_const(
-                                                        alpha_s,
-                                                        l_s.x as u32,
-                                                        l_s.y as u32,
-                                                        l_s.z as u32,
-                                                    );
+                                            // Calcul des constantes de normalisation
+                                            let l_p = basis.angular_momenta[p];
+                                            let l_q = basis.angular_momenta[q];
+                                            let l_r = basis.angular_momenta[r];
+                                            let l_s = basis.angular_momenta[s];
+                                            let norm_p = gaussian_norm_const(
+                                                alpha_p,
+                                                l_p.x as u32,
+                                                l_p.y as u32,
+                                                l_p.z as u32,
+                                            );
+                                            let norm_q = gaussian_norm_const(
+                                                alpha_q,
+                                                l_q.x as u32,
+                                                l_q.y as u32,
+                                                l_q.z as u32,
+                                            );
+                                            let norm_r = gaussian_norm_const(
+                                                alpha_r,
+                                                l_r.x as u32,
+                                                l_r.y as u32,
+                                                l_r.z as u32,
+                                            );
+                                            let norm_s = gaussian_norm_const(
+                                                alpha_s,
+                                                l_s.x as u32,
+                                                l_s.y as u32,
+                                                l_s.z as u32,
+                                            );
 
-                                                    // Calcul des positions intermédiaires
-                                                    let A = origin_p;
-                                                    let B = origin_q;
-                                                    let C = origin_r;
-                                                    let D = origin_s;
-                                                    let eri = compute_eri_cartesian_primitive(
-                                                        alpha_p, alpha_q, alpha_r, alpha_s, A, B,
-                                                        C, D, &l_p, &l_q, &l_r, &l_s,
-                                                    );
+                                            // Calcul des positions intermédiaires
+                                            let A = origin_p;
+                                            let B = origin_q;
+                                            let C = origin_r;
+                                            let D = origin_s;
+                                            let eri = compute_eri_cartesian_primitive(
+                                                alpha_p, alpha_q, alpha_r, alpha_s, A, B, C, D,
+                                                &l_p, &l_q, &l_r, &l_s,
+                                            );
 
-                                                    // Contribution à l'ERI total
-                                                    eri_pqrs += coeff_p
-                                                        * coeff_q
-                                                        * coeff_r
-                                                        * coeff_s
-                                                        * norm_p
-                                                        * norm_q
-                                                        * norm_r
-                                                        * norm_s
-                                                        * eri;
-                                                }
-                                            }
+                                            // Contribution à l'ERI total
+                                            eri_pqrs += coeff_p
+                                                * coeff_q
+                                                * coeff_r
+                                                * coeff_s
+                                                * norm_p
+                                                * norm_q
+                                                * norm_r
+                                                * norm_s
+                                                * eri;
                                         }
                                     }
                                 }
                             }
                         }
                     }
-
-                    eri_tensor[(p, q, r, s)] = eri_pqrs;
                 }
             }
-        }
-    }
 
-    eri_tensor
+            eri_pqrs
+        })
+        .collect::<Vec<_>>();
+
+    Array4::from_shape_vec((n, n, n, n), values)
+        .expect("ERI tensor shape should match computed value count")
 }
 
 #[allow(clippy::too_many_arguments)]

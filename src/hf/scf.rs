@@ -6,6 +6,7 @@ use crate::{
 };
 use nalgebra::{DMatrix, DVector};
 use ndarray::Array4;
+use rayon::prelude::*;
 
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
@@ -200,11 +201,12 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn build_fock_matrix(&self, density_matrix: &DMatrix<f64>) -> DMatrix<f64> {
-        let mut fock_matrix = self.h_core.clone();
         let nbasis = self.basis.nbasis();
-
-        for mu in 0..nbasis {
-            for nu in mu..nbasis {
+        let values = (0..nbasis * nbasis)
+            .into_par_iter()
+            .map(|index| {
+                let mu = index % nbasis;
+                let nu = index / nbasis;
                 let g_term: f64 = (0..nbasis)
                     .flat_map(|lambda| {
                         (0..nbasis).map(move |sigma| {
@@ -218,14 +220,11 @@ impl<'a> ScfCalculation<'a> {
                     })
                     .sum();
 
-                fock_matrix[(mu, nu)] += g_term;
-                if mu != nu {
-                    fock_matrix[(nu, mu)] = fock_matrix[(mu, nu)];
-                }
-            }
-        }
+                self.h_core[(mu, nu)] + g_term
+            })
+            .collect::<Vec<_>>();
 
-        fock_matrix
+        DMatrix::from_column_slice(nbasis, nbasis, &values)
     }
 
     fn solve_roothaan_hall(&self) -> (DMatrix<f64>, DVector<f64>) {
@@ -239,17 +238,19 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_density_matrix(&self) -> DMatrix<f64> {
         let nbasis = self.basis.nbasis();
-        let mut density_matrix = DMatrix::zeros(nbasis, nbasis);
-        for mu in 0..nbasis {
-            for nu in 0..nbasis {
+        let values = (0..nbasis * nbasis)
+            .into_par_iter()
+            .map(|index| {
+                let mu = index % nbasis;
+                let nu = index / nbasis;
                 let sum: f64 = (0..self.occupied_orbitals)
                     .map(|i| self.mo_coefficients[(mu, i)] * self.mo_coefficients[(nu, i)])
                     .sum();
-                density_matrix[(mu, nu)] = 2.0 * sum;
-            }
-        }
+                2.0 * sum
+            })
+            .collect::<Vec<_>>();
 
-        density_matrix
+        DMatrix::from_column_slice(nbasis, nbasis, &values)
     }
 
     fn calculate_total_energy(&self) -> f64 {
@@ -262,6 +263,7 @@ impl<'a> ScfCalculation<'a> {
     fn calculate_kinetic_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
         (0..nbasis)
+            .into_par_iter()
             .map(|mu| {
                 (0..nbasis)
                     .map(|nu| self.density_matrix[(mu, nu)] * self.t_matrix[(mu, nu)])
@@ -273,6 +275,7 @@ impl<'a> ScfCalculation<'a> {
     fn calculate_nuclear_attraction_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
         (0..nbasis)
+            .into_par_iter()
             .map(|mu| {
                 (0..nbasis)
                     .map(|nu| self.density_matrix[(mu, nu)] * self.v_matrix[(mu, nu)])
@@ -283,22 +286,26 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_electron_repulsion_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        let mut e_re = 0.0;
-        for mu in 0..nbasis {
-            for nu in 0..nbasis {
-                for lambda in 0..nbasis {
-                    for sigma in 0..nbasis {
-                        let eri_mu_nu_lambda_sigma =
-                            self.two_electron_integrals[(mu, nu, lambda, sigma)];
-                        let eri_mu_sigma_lambda_nu =
-                            self.two_electron_integrals[(mu, sigma, lambda, nu)];
-                        e_re += self.density_matrix[(mu, nu)]
-                            * self.density_matrix[(lambda, sigma)]
-                            * (eri_mu_nu_lambda_sigma - 0.5 * eri_mu_sigma_lambda_nu);
+        let e_re: f64 = (0..nbasis)
+            .into_par_iter()
+            .map(|mu| {
+                let mut mu_sum = 0.0;
+                for nu in 0..nbasis {
+                    for lambda in 0..nbasis {
+                        for sigma in 0..nbasis {
+                            let eri_mu_nu_lambda_sigma =
+                                self.two_electron_integrals[(mu, nu, lambda, sigma)];
+                            let eri_mu_sigma_lambda_nu =
+                                self.two_electron_integrals[(mu, sigma, lambda, nu)];
+                            mu_sum += self.density_matrix[(mu, nu)]
+                                * self.density_matrix[(lambda, sigma)]
+                                * (eri_mu_nu_lambda_sigma - 0.5 * eri_mu_sigma_lambda_nu);
+                        }
                     }
                 }
-            }
-        }
+                mu_sum
+            })
+            .sum();
         0.5 * e_re
     }
 
