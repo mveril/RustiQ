@@ -1,0 +1,4 @@
+[global]
+basis = "sto-3g"
+
+[hf]
