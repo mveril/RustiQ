@@ -1,11 +1,11 @@
 use cli::Cli;
 mod basis;
-mod runfile;
 mod cli;
 mod eri;
 mod hf;
 mod math_utils;
 mod molecules;
+mod runfile;
 use clap::Parser;
 use cli::commands::Runable;
 #[cfg(test)]

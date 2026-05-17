@@ -1,7 +1,4 @@
-use std::{
-    num::NonZeroU8,
-    path::PathBuf,
-};
+use std::{num::NonZeroU8, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 

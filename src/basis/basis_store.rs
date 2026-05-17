@@ -10,8 +10,8 @@ use std::{
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 
-use super::metadata::BasisSetDetail;
 use super::basisfile::BasisFile;
+use super::metadata::BasisSetDetail;
 const BASE_URL: &str = "https://www.basissetexchange.org/";
 
 /// Struct representing a storage for basis set files.
