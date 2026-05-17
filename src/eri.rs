@@ -1,10 +1,11 @@
 // src/eri.rs
+#![allow(non_snake_case)]
 
 use std::f64::consts::PI;
 
 use crate::basis::gaussian::basis::{gaussian_norm_const, Basis};
 use crate::math_utils::boys_function;
-use nalgebra::{DMatrix, Point3, Vector3};
+use nalgebra::Point3;
 use ndarray::Array4;
 
 /// Calcule l'intégrale de recouvrement 1D pour deux fonctions gaussiennes primitives.
@@ -22,6 +23,7 @@ use ndarray::Array4;
 /// # Retourne
 ///
 /// L'intégrale de recouvrement 1D.
+#[allow(dead_code)]
 pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
     let T = gamma * (PAx - PBx).powi(2);
     (std::f64::consts::PI / gamma).sqrt() * (-T).exp()
@@ -44,6 +46,7 @@ pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
 /// # Retourne
 ///
 /// L'intégrale cinétique 1D.
+#[allow(dead_code)]
 pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) -> f64 {
     let S = overlap_1d(PAx, PBx, gamma);
     (alpha_a * alpha_b / gamma) * 3.0 * S
@@ -64,6 +67,7 @@ pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) ->
 /// # Retourne
 ///
 /// La valeur de l'intégrale ERI primitive.
+#[allow(clippy::too_many_arguments)]
 pub fn compute_eri_primitive(
     alpha_p: f64,
     alpha_q: f64,
@@ -222,12 +226,8 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-
     use super::*;
-    use crate::basis::basisfile::BasisFile;
     use crate::basis::gaussian::contraction::Contraction;
-    use crate::basis::gaussian::shell::Shell;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
     use crate::molecules::units::Units;
@@ -236,6 +236,7 @@ mod tests {
     use nalgebra::point;
 
     /// Structure pour une contraction simple (s-orbital, STO-3G).
+    #[allow(dead_code)]
     fn create_sto3g_contraction() -> Contraction {
         let coefficients = vec![0.15432897, 0.53532814, 0.44463454];
         // Arguments : l = 0 (s-orbital), pure = false (cartésien)

@@ -1,6 +1,6 @@
 use crate::basis::{
     basisfile::BasisFile,
-    metadata::{BasisSetDetail, Version},
+    metadata::BasisSetDetail,
 };
 use periodic_table::periodic_table;
 use tabled::Tabled;
@@ -44,7 +44,7 @@ impl From<BasisSetDetail> for BasisTableItem {
         BasisTableItem {
             name: value.basename,
             friendly_names: friendly,
-            elements: elements,
+            elements,
         }
     }
 }

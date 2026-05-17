@@ -22,11 +22,13 @@ impl Contraction {
     }
 
     /// Cartesian size of the orbital
+    #[allow(dead_code)]
     pub const fn cartesian_size(&self) -> usize {
         (self.l as usize + 1) * (self.l as usize + 2) / 2
     }
 
     /// Total size of the orbital
+    #[allow(dead_code)]
     pub const fn size(&self) -> usize {
         if self.pure {
             2 * (self.l as usize) + 1

@@ -1,5 +1,5 @@
 use std::{
-    num::{NonZeroIsize, NonZeroU8},
+    num::NonZeroU8,
     path::PathBuf,
 };
 

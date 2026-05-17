@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use super::function_type::FunctionType;
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct BasisSetDetail {
     pub basename: String,
     pub description: String,
@@ -20,6 +21,7 @@ pub struct BasisSetDetail {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct Version {
     pub elements: Vec<String>, // Liste des éléments pour cette version
     pub file_relpath: String,  // Chemin du fichier associé

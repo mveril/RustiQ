@@ -1,4 +1,3 @@
-use serde;
 use serde::Deserialize;
 
 /// A list of function types in a basis set

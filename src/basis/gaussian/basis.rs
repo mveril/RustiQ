@@ -1,11 +1,11 @@
 // basis.rs
+#![allow(non_snake_case)]
 
 use nalgebra::{DMatrix, Vector3};
 use std::f64::consts::PI;
 
 use super::contraction::Contraction;
 use super::shell::Shell;
-use crate::math_utils::*;
 use factorial::DoubleFactorial;
 
 use crate::basis::basisfile::BasisFile;
@@ -241,23 +241,21 @@ pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
     let l_factor = if l == 0 {
         1.0
     } else {
-        (2 * l as u32 - 1).double_factorial() as f64
+        (2 * l - 1).double_factorial() as f64
     };
     let m_factor = if m == 0 {
         1.0
     } else {
-        (2 * m as u32 - 1).double_factorial() as f64
+        (2 * m - 1).double_factorial() as f64
     };
     let n_factor = if n == 0 {
         1.0
     } else {
-        (2 * n as u32 - 1).double_factorial() as f64
+        (2 * n - 1).double_factorial() as f64
     };
 
-    let norm = ((2.0 * alpha / PI).powf(0.75)) * (4.0 * alpha).powf((l + m + n) as f64 / 2.0)
-        / ((l_factor * m_factor * n_factor).sqrt());
-
-    norm
+    ((2.0 * alpha / PI).powf(0.75)) * (4.0 * alpha).powf((l + m + n) as f64 / 2.0)
+        / ((l_factor * m_factor * n_factor).sqrt())
 }
 
 fn compute_overlap_3d(
@@ -308,7 +306,6 @@ fn compute_kinetic_3d(
 
     let gamma = exp_i + exp_j;
     let p = gamma;
-    let mu = (exp_i * exp_j) / p;
     let P = (exp_i * origin_i + exp_j * origin_j) / p;
     let PAx = P.x - origin_i.x;
     let PAy = P.y - origin_i.y;
@@ -335,9 +332,7 @@ fn compute_kinetic_3d(
     let t_z = kinetic_1d(la_z, lb_z, PAz, PBz, gamma, exp_i, exp_j);
 
     // Combinaison pour obtenir l'intégrale cinétique 3D
-    let kinetic = t_x * s_y * s_z + s_x * t_y * s_z + s_x * s_y * t_z;
-
-    kinetic
+    t_x * s_y * s_z + s_x * t_y * s_z + s_x * s_y * t_z
 }
 
 fn overlap_1d(la: i32, lb: i32, PAx: f64, PBx: f64, gamma: f64) -> f64 {
@@ -392,8 +387,6 @@ fn binomial_coefficient(n: u32, k: u32) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use super::*;
     use crate::{
         molecules::{atom::Atom, units::Units},

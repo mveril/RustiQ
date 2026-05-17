@@ -5,6 +5,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::f64::consts::PI;
 use std::sync::LazyLock;
 
+#[allow(dead_code)]
 static SQRT_PI_CUBED: LazyLock<f64> = LazyLock::new(|| PI.powi(3).sqrt());
 
 #[derive(PartialEq, Debug, Clone)]
@@ -27,6 +28,7 @@ impl Shell {
         }
     }
 
+    #[allow(dead_code)]
     pub fn nprim(&self) -> usize {
         self.alpha.len()
     }
@@ -42,7 +44,7 @@ impl Shell {
                 c.l
             );
 
-            if alpha.len() == 0 {
+            if alpha.is_empty() {
                 panic!(
                     "Le vecteur alpha est vide pour une contraction avec l = {}",
                     c.l
@@ -115,10 +117,12 @@ impl Shell {
         ret
     }
 
+    #[allow(dead_code)]
     pub fn cartesian_size(&self) -> usize {
         self.contr.iter().map(|c| c.cartesian_size()).sum()
     }
 
+    #[allow(dead_code)]
     pub fn size(&self) -> usize {
         self.contr.iter().map(|c| c.size()).sum()
     }

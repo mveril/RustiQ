@@ -17,8 +17,9 @@ pub trait DensityGuess: Send + Sync {
     ) -> DMatrix<f64>;
 }
 
-#[derive(Hash, Debug, Serialize, Deserialize)]
+#[derive(Hash, Debug, Default, Serialize, Deserialize)]
 pub enum GuessType {
+    #[default]
     OneElectron,
     Random,
 }
@@ -29,11 +30,5 @@ impl GuessType {
             Self::OneElectron => Box::new(OneElectron),
             Self::Random => Box::new(Random),
         }
-    }
-}
-
-impl Default for GuessType {
-    fn default() -> Self {
-        Self::OneElectron
     }
 }

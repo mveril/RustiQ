@@ -1,4 +1,4 @@
-use factorial::{DoubleFactorial, Factorial};
+use factorial::DoubleFactorial;
 use special::{Gamma, Primitive};
 use std::f64::consts::PI;
 
@@ -8,15 +8,13 @@ pub fn boys_function(m: u64, x: f64) -> f64 {
         1.0 / (2 * m + 1) as f64
     } else if m == 0 {
         let sqrtx = x.sqrt();
-        (PI.sqrt() * sqrtx.erf()) / (2.0 * sqrtx)
+        (PI.sqrt() * Primitive::erf(sqrtx)) / (2.0 * sqrtx)
+    } else if x.abs() < (m as f64 + 0.5) * 1e-4 {
+        boys_small_x(m)
+    // } else if x > 20.0 {
+    //     boys_large_x(m, x)
     } else {
-        if x.abs() < (m as f64 + 0.5) * 1e-4 {
-            boys_small_x(m)
-        // } else if x > 20.0 {
-        //     boys_large_x(m, x)
-        } else {
-            boys_intermediate_x(m, x)
-        }
+        boys_intermediate_x(m, x)
     }
 }
 
@@ -26,6 +24,7 @@ fn boys_small_x(m: u64) -> f64 {
 }
 
 /// Approximation for large x based on asymptotic expansion.
+#[allow(dead_code)]
 fn boys_large_x(m: u64, x: f64) -> f64 {
     let double_factorial = (2 * m - 1).double_factorial() as f64;
     double_factorial / (2.0_f64.powi(m as i32 + 1) * x.powf(m as f64 + 0.5))
@@ -34,7 +33,7 @@ fn boys_large_x(m: u64, x: f64) -> f64 {
 /// Calculation using the incomplete gamma function from `rgsl`.
 fn boys_intermediate_x(m: u64, x: f64) -> f64 {
     let a = m as f64 + 0.5;
-    let gamma_a = a.gamma(); // Compute Γ(a)
+    let gamma_a = Gamma::gamma(a); // Compute Γ(a)
     let p_lower_gamma = x.inc_gamma(a); // Compute P(x, a) = γ(x, a) / Γ(a)
     let gamma_inc = p_lower_gamma * gamma_a; // Compute γ(x, a)
     gamma_inc / (2.0 * x.powf(a))

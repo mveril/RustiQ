@@ -322,14 +322,10 @@ impl<'a> ScfCalculation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-
     use super::*;
-    use crate::basis::basisfile::BasisFile;
     use crate::basis::gaussian;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
-    use crate::molecules::molecule;
     use crate::molecules::units::Units;
     use crate::test_utils;
     use nalgebra::point;
@@ -410,12 +406,12 @@ mod tests {
         let molecule = Molecule::from(geometry);
 
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
-        let h_core = &t_matrix + &v_matrix;
+        let _h_core = &t_matrix + &v_matrix;
 
-        let two_electron_integrals = electron_repulsion_ints(&basis);
+        let _two_electron_integrals = electron_repulsion_ints(&basis);
 
         let density_guess = Box::new(TestDensityGuess);
-        let mut scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, density_guess);
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, density_guess);
 
         let fock = scf.build_fock_matrix(&scf.density_matrix);
 

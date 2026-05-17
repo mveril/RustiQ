@@ -6,12 +6,12 @@ pub fn parse_element(e: &str) -> Result<&'static Element, ParseElementError> {
             let zel = periodic_table()
                 .get(z0 - 1)
                 .ok_or(ParseElementError::ZNotFound(z0))
-                .map(|x| *x);
+                .copied();
             zel
         }
         Err(_) => {
             let sel = periodic_table().iter().find(|x| x.symbol == e);
-            sel.map(|x| *x)
+            sel.copied()
                 .ok_or(ParseElementError::SymbolNotFound(e.to_string()))
         }
     }

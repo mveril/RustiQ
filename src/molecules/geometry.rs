@@ -3,9 +3,7 @@ use super::{
     geometry_parse_error::GeometryParseError, units::Units,
 };
 use nalgebra::{distance, Point3};
-use rayon::iter::{
-    IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator,
-};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
 #[allow(dead_code)]
 use std::{
@@ -13,7 +11,6 @@ use std::{
     fs::File,
     io::{BufRead, BufReader, Cursor, Write},
     str::FromStr,
-    usize,
 };
 
 #[derive(Debug, Clone)]
@@ -108,7 +105,7 @@ impl Geometry {
         let num = num_str
             .trim()
             .parse::<usize>()
-            .map_err(|err| GeometryParseError::ParseNumberOfAtom(err))?;
+            .map_err(GeometryParseError::ParseNumberOfAtom)?;
         let mut comm = String::new();
         reader.read_line(&mut comm)?;
         let mut atoms = Vec::<Atom>::with_capacity(num);
@@ -131,9 +128,10 @@ impl Geometry {
         unit: Option<Units>,
         display_unit: Option<Units>,
     ) -> Result<Self, GeometryParseError> {
-        return Self::from_reader(BufReader::new(file), unit, display_unit);
+        Self::from_reader(BufReader::new(file), unit, display_unit)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_writer(self, mut writer: impl Write) -> std::io::Result<()> {
         write!(writer, "{}", self)?;
         Ok(())
@@ -164,7 +162,7 @@ impl FromStr for Geometry {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let cursor = Cursor::new(s);
-        return Self::from_reader(cursor, None, None);
+        Self::from_reader(cursor, None, None)
     }
 }
 

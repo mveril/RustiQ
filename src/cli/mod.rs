@@ -1,6 +1,6 @@
 pub mod commands;
 pub mod ux;
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 use commands::Commands;
 
 #[derive(Parser, Debug)]

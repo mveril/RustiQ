@@ -1,11 +1,9 @@
-use cached::proc_macro::cached;
 use factorial::Factorial;
 use nalgebra::DMatrix;
-use std::f64::consts::PI;
 pub mod boys;
 pub use boys::boys_function;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
+#[allow(dead_code)]
 pub fn binomial(n: u64, k: u64) -> u64 {
     if k > n {
         0
@@ -14,6 +12,7 @@ pub fn binomial(n: u64, k: u64) -> u64 {
     }
 }
 
+#[allow(dead_code)]
 pub fn hermite_classic(n: u64, x: f64) -> f64 {
     let mut sum = 0.0;
 
@@ -30,6 +29,7 @@ pub fn hermite_classic(n: u64, x: f64) -> f64 {
     sum
 }
 
+#[allow(dead_code, non_snake_case)]
 pub fn hermite(n: u64, PA: u32, QA: u32, p: f64, q: f64, f0: f64) -> f64 {
     let x = (PA as f64 - QA as f64) / (p + q).sqrt();
     f0 * hermite_classic(n, x)

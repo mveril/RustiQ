@@ -1,8 +1,8 @@
 use super::DensityGuess;
 use crate::basis::gaussian::basis::Basis;
-use crate::math_utils::{assert_is_symmetric, is_positive_definite};
+use crate::math_utils::assert_is_symmetric;
 use crate::molecules::molecule::Molecule;
-use nalgebra::{Cholesky, DMatrix, DVector};
+use nalgebra::DMatrix;
 
 /// Structure représentant une estimation de densité initiale basée sur un seul électron.
 pub struct OneElectron;
@@ -15,7 +15,7 @@ impl DensityGuess for OneElectron {
         _basis: &Basis,
     ) -> DMatrix<f64> {
         // Vérifier que H_core est symétrique
-        assert_is_symmetric(&h_core, 1e-8);
+        assert_is_symmetric(h_core, 1e-8);
 
         // Diagonaliser H_core pour obtenir les coefficients MO initiaux
         let eig = h_core.clone().symmetric_eigen();
@@ -40,16 +40,13 @@ impl DensityGuess for OneElectron {
         let c_occ = mo_coefficients.select_columns(&occupied_columns);
 
         // Calculer la matrice de densité électronique D = 2 * C_occ * C_occ^T
-        let density_matrix = 2.0 * &c_occ * &c_occ.transpose();
-
-        density_matrix
+        2.0 * &c_occ * &c_occ.transpose()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::basis::basisfile::BasisFile;
     use crate::eri::electron_repulsion_ints;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::density_guess::DensityGuess;
@@ -60,9 +57,6 @@ mod tests {
     use crate::molecules::units::Units;
     use crate::test_utils;
     use nalgebra::point;
-    use periodic_table::elements;
-    use std::fs::File;
-    use std::num::NonZero;
 
     /// Implémentation simple de DensityGuess pour les tests.
     struct TestDensityGuess;
@@ -71,8 +65,8 @@ mod tests {
         fn build_density_guess(
             &self,
             h_core: &DMatrix<f64>,
-            molecule: &Molecule,
-            basis: &Basis,
+            _molecule: &Molecule,
+            _basis: &Basis,
         ) -> DMatrix<f64> {
             // Utiliser Identity pour les tests
             DMatrix::identity(h_core.nrows(), h_core.ncols())
@@ -102,9 +96,9 @@ mod tests {
 
         // Calcul de H_core (simplifié pour le test)
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
-        let h_core = &t_matrix + &v_matrix;
+        let _h_core = &t_matrix + &v_matrix;
 
-        let two_electron_integrals = electron_repulsion_ints(&basis);
+        let _two_electron_integrals = electron_repulsion_ints(&basis);
 
         let density_guess = Box::new(TestDensityGuess);
         let scf: ScfCalculation<'_> =

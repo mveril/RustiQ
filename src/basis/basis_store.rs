@@ -10,12 +10,9 @@ use std::{
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 
-use crate::cli::Cli;
-
 use super::metadata::BasisSetDetail;
-use super::{basisfile::BasisFile, gaussian::basis};
+use super::basisfile::BasisFile;
 const BASE_URL: &str = "https://www.basissetexchange.org/";
-use clap::CommandFactory;
 
 /// Struct representing a storage for basis set files.
 /// This structure provides functionalities to manage, retrieve, download, and remove basis set files.
@@ -110,6 +107,7 @@ impl BasisStore {
     /// # Errors
     /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
     /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
+    #[allow(dead_code)]
     pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let basis_sets = get(url).await?.error_for_status()?.json().await?;
@@ -160,6 +158,7 @@ impl BasisStore {
     /// # Errors
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
     /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    #[allow(dead_code)]
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file

@@ -24,13 +24,10 @@ impl Runable for ListCommand {
         if self.online {
             let list = store.list_online_sync().unwrap();
             if self.verbose {
-                let items = list
-                    .into_values()
-                    .into_iter()
-                    .map(|item| BasisTableItem::from(item));
+                let items = list.into_values().map(BasisTableItem::from);
                 print!("{}", Table::new(items));
             } else {
-                for (name) in list.keys() {
+                for name in list.keys() {
                     println!("{}", name);
                 }
             }

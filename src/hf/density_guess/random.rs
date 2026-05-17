@@ -1,9 +1,6 @@
 use super::DensityGuess;
 use nalgebra::DMatrix;
-use rand::{
-    distributions::{Standard, Uniform},
-    thread_rng, Rng,
-};
+use rand::{distributions::Uniform, thread_rng, Rng};
 pub struct Random;
 
 impl DensityGuess for Random {

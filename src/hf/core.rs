@@ -56,5 +56,5 @@ pub fn kinetic_ints(_mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
 }
 
 pub fn core_hamiltonian_ints(mol: &Geometry, basis: &Basis) -> (DMatrix<f64>, DMatrix<f64>) {
-    return (kinetic_ints(mol, basis), nucl_attraction_ints(mol, basis));
+    (kinetic_ints(mol, basis), nucl_attraction_ints(mol, basis))
 }
