@@ -11,7 +11,11 @@ use rayon::prelude::*;
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
 
-use super::{core::core_hamiltonian_ints, density_guess::DensityGuess};
+use super::{
+    core::core_hamiltonian_ints,
+    density_guess::DensityGuess,
+    diis::{DiisAccelerator, DiisError},
+};
 
 /// Structure for an SCF calculation.
 pub struct ScfCalculation<'a> {
@@ -31,6 +35,7 @@ pub struct ScfCalculation<'a> {
     pub fock_matrix: DMatrix<f64>,
     /// Current SCF residual norm from F(P) P S - S P F(P).
     pub residual_norm: f64,
+    diis: Option<DiisAccelerator>,
     /// Two-electron integrals.
     pub two_electron_integrals: Array4<f64>,
     /// One-electron integrals - Hcore (kinetic + nuclear potential integrals combined).
@@ -80,12 +85,18 @@ impl<'a> ScfCalculation<'a> {
             density_matrix,
             fock_matrix,
             residual_norm: f64::INFINITY,
+            diis: None,
             two_electron_integrals,
             h_core,
             t_matrix,
             v_matrix,
             occupied_orbitals: molecule.occupied_orbitals(),
         }
+    }
+
+    pub fn enable_diis(&mut self, diis_size: usize) -> Result<(), DiisError> {
+        self.diis = Some(DiisAccelerator::try_new(diis_size)?);
+        Ok(())
     }
 
     fn initial_mo_coefficients(
@@ -144,6 +155,7 @@ impl<'a> ScfCalculation<'a> {
         for i in 0..self.max_iterations {
             // a. Update Fock matrix
             self.update_fock_matrix();
+            self.apply_diis_if_enabled();
 
             // b. Solve Roothaan-Hall equation and update MO coefficients
             self.solve_roothaan_hall_equation();
@@ -193,6 +205,17 @@ impl<'a> ScfCalculation<'a> {
 
     fn update_fock_matrix(&mut self) {
         self.fock_matrix = self.build_fock_matrix(&self.density_matrix);
+    }
+
+    fn apply_diis_if_enabled(&mut self) {
+        if let Some(diis) = &mut self.diis {
+            let overlap_matrix = self.basis.overlap_ints();
+            if let Some(fock_matrix) =
+                diis.extrapolate(&self.fock_matrix, &self.density_matrix, &overlap_matrix)
+            {
+                self.fock_matrix = fock_matrix;
+            }
+        }
     }
 
     fn solve_roothaan_hall_equation(&mut self) {
@@ -266,9 +289,15 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn calculate_total_energy(&self) -> f64 {
-        let kinetic = self.calculate_kinetic_energy();
-        let nuclear = self.calculate_nuclear_attraction_energy();
-        let electron_repulsion = self.calculate_electron_repulsion_energy();
+        let ((kinetic, nuclear), electron_repulsion) = rayon::join(
+            || {
+                rayon::join(
+                    || self.calculate_kinetic_energy(),
+                    || self.calculate_nuclear_attraction_energy(),
+                )
+            },
+            || self.calculate_electron_repulsion_energy(),
+        );
         kinetic + nuclear + electron_repulsion
     }
 
@@ -286,55 +315,53 @@ impl<'a> ScfCalculation<'a> {
         density_matrix: &DMatrix<f64>,
         overlap_matrix: &DMatrix<f64>,
     ) -> f64 {
-        let residual = fock_matrix * density_matrix * overlap_matrix
-            - overlap_matrix * density_matrix * fock_matrix;
-        residual.norm()
+        DiisAccelerator::error_matrix(fock_matrix, density_matrix, overlap_matrix)
+            .as_slice()
+            .par_iter()
+            .map(|value| value * value)
+            .sum::<f64>()
+            .sqrt()
     }
 
     fn calculate_kinetic_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        (0..nbasis)
+        (0..nbasis * nbasis)
             .into_par_iter()
-            .map(|mu| {
-                (0..nbasis)
-                    .map(|nu| self.density_matrix[(mu, nu)] * self.t_matrix[(mu, nu)])
-                    .sum::<f64>()
+            .map(|index| {
+                let mu = index % nbasis;
+                let nu = index / nbasis;
+                self.density_matrix[(mu, nu)] * self.t_matrix[(mu, nu)]
             })
             .sum()
     }
 
     fn calculate_nuclear_attraction_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        (0..nbasis)
+        (0..nbasis * nbasis)
             .into_par_iter()
-            .map(|mu| {
-                (0..nbasis)
-                    .map(|nu| self.density_matrix[(mu, nu)] * self.v_matrix[(mu, nu)])
-                    .sum::<f64>()
+            .map(|index| {
+                let mu = index % nbasis;
+                let nu = index / nbasis;
+                self.density_matrix[(mu, nu)] * self.v_matrix[(mu, nu)]
             })
             .sum()
     }
 
     fn calculate_electron_repulsion_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        let e_re: f64 = (0..nbasis)
+        let e_re: f64 = (0..nbasis * nbasis * nbasis * nbasis)
             .into_par_iter()
-            .map(|mu| {
-                let mut mu_sum = 0.0;
-                for nu in 0..nbasis {
-                    for lambda in 0..nbasis {
-                        for sigma in 0..nbasis {
-                            let eri_mu_nu_lambda_sigma =
-                                self.two_electron_integrals[(mu, nu, lambda, sigma)];
-                            let eri_mu_sigma_lambda_nu =
-                                self.two_electron_integrals[(mu, sigma, lambda, nu)];
-                            mu_sum += self.density_matrix[(mu, nu)]
-                                * self.density_matrix[(lambda, sigma)]
-                                * (eri_mu_nu_lambda_sigma - 0.5 * eri_mu_sigma_lambda_nu);
-                        }
-                    }
-                }
-                mu_sum
+            .map(|index| {
+                let mu = index % nbasis;
+                let nu = (index / nbasis) % nbasis;
+                let lambda = (index / (nbasis * nbasis)) % nbasis;
+                let sigma = index / (nbasis * nbasis * nbasis);
+                let eri_mu_nu_lambda_sigma = self.two_electron_integrals[(mu, nu, lambda, sigma)];
+                let eri_mu_sigma_lambda_nu = self.two_electron_integrals[(mu, sigma, lambda, nu)];
+
+                self.density_matrix[(mu, nu)]
+                    * self.density_matrix[(lambda, sigma)]
+                    * (eri_mu_nu_lambda_sigma - 0.5 * eri_mu_sigma_lambda_nu)
             })
             .sum();
         0.5 * e_re
@@ -580,6 +607,26 @@ mod tests {
 
         scf.run();
 
+        assert!(
+            scf.residual_norm < 1e-8,
+            "SCF residual norm is {}, expected < 1e-8",
+            scf.residual_norm
+        );
+    }
+
+    #[test]
+    fn test_diis_scf_h2o_sto3g_matches_pyscf_reference_energy() {
+        const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151321547473785;
+
+        let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::from(geometry);
+        let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
+        scf.enable_diis(6).unwrap();
+
+        scf.run();
+
+        assert_abs_diff_eq!(scf.energy, PYSCF_ELECTRONIC_ENERGY, epsilon = 1e-8);
         assert!(
             scf.residual_norm < 1e-8,
             "SCF residual norm is {}, expected < 1e-8",
