@@ -29,6 +29,8 @@ pub struct ScfCalculation<'a> {
     pub density_matrix: DMatrix<f64>,
     /// Fock matrix.
     pub fock_matrix: DMatrix<f64>,
+    /// Current SCF residual norm from F(P) P S - S P F(P).
+    pub residual_norm: f64,
     /// Two-electron integrals.
     pub two_electron_integrals: Array4<f64>,
     /// One-electron integrals - Hcore (kinetic + nuclear potential integrals combined).
@@ -77,6 +79,7 @@ impl<'a> ScfCalculation<'a> {
             mo_coefficients,
             density_matrix,
             fock_matrix,
+            residual_norm: f64::INFINITY,
             two_electron_integrals,
             h_core,
             t_matrix,
@@ -151,8 +154,13 @@ impl<'a> ScfCalculation<'a> {
             // d. Calculate total energy
             self.update_total_energy();
 
+            self.update_residual_norm();
+
             // e. Check for convergence
-            if (self.energy - energy_last).abs() < self.convergence_threshold {
+            let delta_energy = (self.energy - energy_last).abs();
+            if delta_energy < self.convergence_threshold
+                && self.residual_norm < self.convergence_threshold
+            {
                 println!("SCF converged after {} iterations.", i + 1);
                 break;
             }
@@ -198,6 +206,10 @@ impl<'a> ScfCalculation<'a> {
 
     fn update_total_energy(&mut self) {
         self.energy = self.calculate_total_energy();
+    }
+
+    fn update_residual_norm(&mut self) {
+        self.residual_norm = self.calculate_residual_norm();
     }
 
     fn build_fock_matrix(&self, density_matrix: &DMatrix<f64>) -> DMatrix<f64> {
@@ -258,6 +270,25 @@ impl<'a> ScfCalculation<'a> {
         let nuclear = self.calculate_nuclear_attraction_energy();
         let electron_repulsion = self.calculate_electron_repulsion_energy();
         kinetic + nuclear + electron_repulsion
+    }
+
+    fn calculate_residual_norm(&self) -> f64 {
+        let next_fock_matrix = self.build_fock_matrix(&self.density_matrix);
+        Self::scf_residual_norm(
+            &next_fock_matrix,
+            &self.density_matrix,
+            &self.basis.overlap_ints(),
+        )
+    }
+
+    fn scf_residual_norm(
+        fock_matrix: &DMatrix<f64>,
+        density_matrix: &DMatrix<f64>,
+        overlap_matrix: &DMatrix<f64>,
+    ) -> f64 {
+        let residual = fock_matrix * density_matrix * overlap_matrix
+            - overlap_matrix * density_matrix * fock_matrix;
+        residual.norm()
     }
 
     fn calculate_kinetic_energy(&self) -> f64 {
@@ -538,6 +569,22 @@ mod tests {
             epsilon = 1e-8
         );
         assert_abs_diff_eq!(result.total_energy, PYSCF_TOTAL_ENERGY, epsilon = 1e-8);
+    }
+
+    #[test]
+    fn test_scf_residual_norm_is_small_after_convergence() {
+        let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::from(geometry);
+        let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
+
+        scf.run();
+
+        assert!(
+            scf.residual_norm < 1e-8,
+            "SCF residual norm is {}, expected < 1e-8",
+            scf.residual_norm
+        );
     }
 
     fn assert_symmetric_matrix(matrix: &DMatrix<f64>, epsilon: f64, label: &str) {
