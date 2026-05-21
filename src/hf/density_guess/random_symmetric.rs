@@ -16,7 +16,7 @@ impl DensityGuess for RandomSymmetric {
         let nbasis = basis.nbasis();
         let r_iter = thread_rng()
             .sample_iter(Uniform::new_inclusive(-1.0, 1.0))
-            .take(nbasis * nbasis);
+            .take(nbasis.pow(2));
         let random_matrix = DMatrix::from_iterator(nbasis, nbasis, r_iter);
         let symmetric_random_matrix = 0.5 * (&random_matrix + random_matrix.transpose());
 

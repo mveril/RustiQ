@@ -13,7 +13,7 @@ impl DensityGuess for Random {
         let nbasis = basis.nbasis();
         let r_iter = thread_rng()
             .sample_iter(Uniform::new_inclusive(0.0, 1.0))
-            .take(nbasis * nbasis);
+            .take(nbasis.pow(2));
         DMatrix::from_iterator(nbasis, nbasis, r_iter)
     }
 }

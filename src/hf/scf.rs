@@ -213,7 +213,6 @@ impl<'a> ScfCalculation<'a> {
         let nuclear_repulsion = self.molecule.geometry.nucl_repulsion();
         let total_energy = self.energy + nuclear_repulsion;
         let energy_details = self.calculate_energy_details();
-        
 
         ScfResult {
             converged,
@@ -261,7 +260,7 @@ impl<'a> ScfCalculation<'a> {
 
     fn build_fock_matrix(&self, density_matrix: &DMatrix<f64>) -> DMatrix<f64> {
         let nbasis = self.basis.nbasis();
-        let values = (0..nbasis * nbasis)
+        let values = (0..nbasis.pow(2))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;
@@ -297,7 +296,7 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_density_matrix(&self) -> DMatrix<f64> {
         let nbasis = self.basis.nbasis();
-        let values = (0..nbasis * nbasis)
+        let values = (0..nbasis.pow(2))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;
@@ -360,7 +359,7 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_kinetic_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        (0..nbasis * nbasis)
+        (0..nbasis.pow(2))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;
@@ -372,7 +371,7 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_nuclear_attraction_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        (0..nbasis * nbasis)
+        (0..nbasis.pow(2))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;
@@ -384,13 +383,13 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_electron_repulsion_energy(&self) -> f64 {
         let nbasis = self.basis.nbasis();
-        let e_re: f64 = (0..nbasis * nbasis * nbasis * nbasis)
+        let e_re: f64 = (0..nbasis.pow(4))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;
                 let nu = (index / nbasis) % nbasis;
-                let lambda = (index / (nbasis * nbasis)) % nbasis;
-                let sigma = index / (nbasis * nbasis * nbasis);
+                let lambda = (index / (nbasis.pow(2))) % nbasis;
+                let sigma = index / (nbasis.pow(3));
                 let eri_mu_nu_lambda_sigma = self.two_electron_integrals[(mu, nu, lambda, sigma)];
                 let eri_mu_sigma_lambda_nu = self.two_electron_integrals[(mu, sigma, lambda, nu)];
 

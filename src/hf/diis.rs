@@ -48,7 +48,7 @@ impl DiisAccelerator {
         let nbasis = fock_matrix.nrows();
         let density_overlap = density_matrix * overlap_matrix;
         let overlap_density = overlap_matrix * density_matrix;
-        let values = (0..nbasis * nbasis)
+        let values = (0..nbasis.pow(2))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;
@@ -79,7 +79,7 @@ impl DiisAccelerator {
         }
 
         let b_size = history_size + 1;
-        let b_values = (0..b_size * b_size)
+        let b_values = (0..b_size.pow(2))
             .into_par_iter()
             .map(|index| {
                 let i = index % b_size;
@@ -100,7 +100,7 @@ impl DiisAccelerator {
 
         let coefficients = b_matrix.lu().solve(&rhs)?;
         let nbasis = self.history[0].fock_matrix.nrows();
-        let fock_values = (0..nbasis * nbasis)
+        let fock_values = (0..nbasis.pow(2))
             .into_par_iter()
             .map(|index| {
                 let mu = index % nbasis;

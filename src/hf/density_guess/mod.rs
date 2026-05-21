@@ -136,6 +136,42 @@ mod tests {
         assert_eq!(density.ncols(), basis.nbasis());
     }
 
+    fn assert_finite(matrix: &DMatrix<f64>) {
+        for value in matrix.iter() {
+            assert!(value.is_finite(), "matrix contains a non-finite value");
+        }
+    }
+
+    fn assert_electron_count(density: &DMatrix<f64>, molecule: &Molecule, basis: &Basis) {
+        let electron_count = (density * basis.overlap_ints()).trace();
+        assert!(
+            (electron_count - molecule.total_electrons() as f64).abs() < 1e-8,
+            "density electron count is {}, expected {}",
+            electron_count,
+            molecule.total_electrons()
+        );
+    }
+
+    #[test]
+    fn test_all_density_guesses_have_expected_shape_and_finite_values() {
+        let (molecule, basis, h_core) = h2_system();
+
+        for guess_type in [
+            GuessType::CoreHamiltonian,
+            GuessType::OneElectron,
+            GuessType::Random,
+            GuessType::RandomSymmetric,
+            GuessType::Zero,
+        ] {
+            let density = guess_type
+                .get_density_guess()
+                .build_density_guess(&h_core, &molecule, &basis);
+
+            assert_density_shape(&density, &basis);
+            assert_finite(&density);
+        }
+    }
+
     #[test]
     fn test_zero_density_guess() {
         let (molecule, basis, h_core) = h2_system();
@@ -147,35 +183,35 @@ mod tests {
     }
 
     #[test]
-    fn test_core_hamiltonian_density_guess_has_electron_count() {
+    fn test_symmetric_density_guesses_are_symmetric() {
         let (molecule, basis, h_core) = h2_system();
-        let density = CoreHamiltonian.build_density_guess(&h_core, &molecule, &basis);
 
-        assert_density_shape(&density, &basis);
-        assert_symmetric(&density);
-        let electron_count = (&density * basis.overlap_ints()).trace();
-        assert!(
-            (electron_count - molecule.total_electrons() as f64).abs() < 1e-8,
-            "density electron count is {}, expected {}",
-            electron_count,
-            molecule.total_electrons()
-        );
+        for guess in [
+            GuessType::CoreHamiltonian.get_density_guess(),
+            GuessType::OneElectron.get_density_guess(),
+            GuessType::RandomSymmetric.get_density_guess(),
+            GuessType::Zero.get_density_guess(),
+        ] {
+            let density = guess.build_density_guess(&h_core, &molecule, &basis);
+
+            assert_density_shape(&density, &basis);
+            assert_symmetric(&density);
+        }
     }
 
     #[test]
-    fn test_random_symmetric_density_guess_has_electron_count() {
+    fn test_fock_like_density_guesses_have_electron_count() {
         let (molecule, basis, h_core) = h2_system();
-        let density = RandomSymmetric.build_density_guess(&h_core, &molecule, &basis);
 
-        assert_density_shape(&density, &basis);
-        assert_symmetric(&density);
-        let electron_count = (&density * basis.overlap_ints()).trace();
-        assert!(
-            (electron_count - molecule.total_electrons() as f64).abs() < 1e-8,
-            "density electron count is {}, expected {}",
-            electron_count,
-            molecule.total_electrons()
-        );
+        for guess in [
+            GuessType::CoreHamiltonian.get_density_guess(),
+            GuessType::RandomSymmetric.get_density_guess(),
+        ] {
+            let density = guess.build_density_guess(&h_core, &molecule, &basis);
+
+            assert_density_shape(&density, &basis);
+            assert_electron_count(&density, &molecule, &basis);
+        }
     }
 
     #[test]
