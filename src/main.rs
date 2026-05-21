@@ -7,7 +7,7 @@ mod math_utils;
 mod molecules;
 mod runfile;
 use clap::Parser;
-use cli::commands::Runable;
+use cli::commands::Runnable;
 #[cfg(test)]
 pub(crate) mod test_utils;
 

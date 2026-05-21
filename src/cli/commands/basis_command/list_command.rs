@@ -5,7 +5,7 @@ use tabled::Table;
 
 use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile},
-    cli::{commands::Runable, ux::BasisTableItem},
+    cli::{commands::Runnable, ux::BasisTableItem},
 };
 
 #[derive(clap::Args, Debug)]
@@ -18,7 +18,7 @@ pub struct ListCommand {
     pub verbose: bool,
 }
 
-impl Runable for ListCommand {
+impl Runnable for ListCommand {
     fn run(&self) {
         let store = BasisStore::default();
         if self.online {

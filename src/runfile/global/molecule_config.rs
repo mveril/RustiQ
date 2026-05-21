@@ -11,7 +11,7 @@ pub(crate) struct MoleculeConfig {
     #[serde(default)]
     pub(crate) charge: i8,
     #[serde(default = "default_multiplicity")]
-    pub(crate) mulitplicity: NonZeroU8,
+    pub(crate) multiplicity: NonZeroU8,
     #[serde(default = "default_molecule_unit")]
     pub(crate) molecule_unit: Units,
 }
@@ -21,7 +21,7 @@ impl Default for MoleculeConfig {
         Self {
             geometry: default_molecule_file(),
             charge: Default::default(),
-            mulitplicity: default_multiplicity(),
+            multiplicity: default_multiplicity(),
             molecule_unit: default_molecule_unit(),
         }
     }

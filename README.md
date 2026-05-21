@@ -48,13 +48,13 @@ basis = "sto-3g"
 [global.molecule]
 geometry = "./molecule.xyz"
 charge = 0
-mulitplicity = 1
+multiplicity = 1
 molecule_unit = "Angstrom"
 
 [hf]
 max_iterations = 100
 convergence_threshold = 1e-8
-density_gess = "CoreHamiltonian"
+density_guess = "CoreHamiltonian"
 ```
 
 Available density guesses are `CoreHamiltonian`, `OneElectron`, `Zero`, `Random`, and

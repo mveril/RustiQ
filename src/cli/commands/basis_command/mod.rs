@@ -6,7 +6,7 @@ use download_command::DownloadCommand;
 use list_command::ListCommand;
 use remove_command::RemoveCommand;
 
-use super::Runable;
+use super::Runnable;
 
 #[derive(Subcommand, Debug)]
 pub enum BasisCommands {
@@ -15,7 +15,7 @@ pub enum BasisCommands {
     Remove(RemoveCommand),
 }
 
-impl Runable for BasisCommands {
+impl Runnable for BasisCommands {
     fn run(&self) {
         match self {
             BasisCommands::Download(cmd) => cmd.run(),

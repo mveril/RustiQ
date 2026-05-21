@@ -1,16 +1,16 @@
 use tokio::runtime::Runtime;
 
-pub trait Runable {
+pub trait Runnable {
     fn run(&self);
 }
 
-pub trait AsyncRunable: Runable {
+pub trait AsyncRunnable: Runnable {
     async fn run_async(&self);
 }
 
-impl<T> Runable for T
+impl<T> Runnable for T
 where
-    T: AsyncRunable,
+    T: AsyncRunnable,
 {
     fn run(&self) {
         // Crée un runtime pour exécuter la tâche asynchrone

@@ -171,7 +171,7 @@ mod tests {
     fn test_density_guess_type_deserialization() {
         #[derive(Deserialize)]
         struct GuessConfig {
-            density_gess: GuessType,
+            density_guess: GuessType,
         }
 
         for name in [
@@ -182,8 +182,8 @@ mod tests {
             "RandomSymmetric",
         ] {
             let config: GuessConfig =
-                toml::from_str(&format!("density_gess = \"{}\"", name)).unwrap();
-            let _density_guess = config.density_gess.get_density_guess();
+                toml::from_str(&format!("density_guess = \"{}\"", name)).unwrap();
+            let _density_guess = config.density_guess.get_density_guess();
         }
     }
 }

@@ -12,7 +12,7 @@ use crate::{
     runfile::RunFile,
 };
 
-use super::Runable;
+use super::Runnable;
 
 #[derive(clap::Args, Debug)] // Permet d'utiliser cette structure avec Clap
 pub struct RunCommand {
@@ -21,7 +21,7 @@ pub struct RunCommand {
     pub file: Option<PathBuf>,
 }
 
-impl Runable for RunCommand {
+impl Runnable for RunCommand {
     fn run(&self) {
         let toml_content = if let Some(path_toml) = &self.file {
             let content = fs::read_to_string(path_toml).unwrap();
@@ -41,7 +41,7 @@ impl Runable for RunCommand {
         let molecule = Molecule {
             geometry: geom,
             charge: run.global.molecule.charge,
-            multiplicity: run.global.molecule.mulitplicity,
+            multiplicity: run.global.molecule.multiplicity,
         };
         println!("{}", &molecule.geometry);
         let store = BasisStore::default();
@@ -56,7 +56,7 @@ impl Runable for RunCommand {
                 &basis,
                 hf.max_iterations,
                 hf.convergence_threshold,
-                hf.density_gess.get_density_guess(),
+                hf.density_guess.get_density_guess(),
             );
             scf.run();
         }

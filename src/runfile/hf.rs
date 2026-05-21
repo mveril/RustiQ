@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::hf::density_guess::GuessType as DensityGessType;
+use crate::hf::density_guess::GuessType as DensityGuessType;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct HfConfig {
@@ -9,7 +9,7 @@ pub(crate) struct HfConfig {
     #[serde(default = "default_conv_threshold")]
     pub convergence_threshold: f64,
     #[serde(default)]
-    pub density_gess: DensityGessType,
+    pub density_guess: DensityGuessType,
 }
 
 fn default_conv_threshold() -> f64 {

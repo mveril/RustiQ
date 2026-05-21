@@ -2,7 +2,7 @@ use std::cell::OnceCell;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::{basis::basis_store::BasisStore, cli::commands::runable::AsyncRunable};
+use crate::{basis::basis_store::BasisStore, cli::commands::AsyncRunnable};
 
 #[derive(clap::Args, Debug)]
 pub struct DownloadCommand {
@@ -10,7 +10,7 @@ pub struct DownloadCommand {
     pub name: String,
 }
 
-impl AsyncRunable for DownloadCommand {
+impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) {
         let store = BasisStore::default();
         let mut pb_cell = OnceCell::new(); // ProgressBar est stockée ici, elle est initialisée une seule fois.

@@ -1,10 +1,10 @@
 mod basis_command;
 mod run_command;
 use run_command::RunCommand;
-mod runable;
+mod runnable;
 use basis_command::BasisCommands;
 use clap::Subcommand;
-pub(crate) use runable::Runable;
+pub(crate) use runnable::{AsyncRunnable, Runnable};
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
@@ -17,7 +17,7 @@ pub enum Commands {
     },
 }
 
-impl Runable for Commands {
+impl Runnable for Commands {
     fn run(&self) {
         match &self {
             Commands::Run(run_command) => run_command.run(),
