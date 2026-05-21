@@ -51,13 +51,16 @@ pub struct ScfCalculation<'a> {
 
 impl<'a> ScfCalculation<'a> {
     /// Creates a new `ScfCalculation` instance.
-    pub fn new(
+    pub fn new<G>(
         molecule: &'a Molecule,
         basis: &'a Basis,
         max_iterations: usize,
         convergence_threshold: f64,
-        density_guess_builder: Box<dyn DensityGuess>,
-    ) -> Self {
+        density_guess_builder: G,
+    ) -> Self
+    where
+        G: DensityGuess,
+    {
         // Calculate the T and V matrices
         let (t_matrix, v_matrix) = core_hamiltonian_ints(molecule, basis);
 
@@ -503,8 +506,7 @@ mod tests {
 
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
-        let density_guess = Box::new(TestDensityGuess);
-        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, density_guess);
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess);
 
         let fock = scf.build_fock_matrix(&scf.density_matrix);
 
@@ -530,8 +532,7 @@ mod tests {
         let basis = Basis::load(&basis_file, &geometry);
         let molecule = Molecule::from(geometry);
 
-        let density_guess = Box::new(TestDensityGuess);
-        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, density_guess);
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess);
 
         let density = scf.calculate_density_matrix();
 
@@ -562,13 +563,12 @@ mod tests {
         let basis = Basis::load(&basis_file, &geometry);
         let molecule = Molecule::from(geometry);
 
-        let density_guess = Box::new(TestDensityGuess);
         let mut scf = ScfCalculation::new(
             &molecule,
             &basis,
             50, // Augmenter le nombre maximum d'itérations si nécessaire
             1e-6,
-            density_guess,
+            TestDensityGuess,
         );
 
         // Exécuter SCF

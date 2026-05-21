@@ -23,6 +23,17 @@ pub trait DensityGuess: Send + Sync {
     ) -> DMatrix<f64>;
 }
 
+impl DensityGuess for Box<dyn DensityGuess> {
+    fn build_density_guess(
+        &self,
+        h_core: &DMatrix<f64>,
+        molecule: &Molecule,
+        basis: &Basis,
+    ) -> DMatrix<f64> {
+        self.as_ref().build_density_guess(h_core, molecule, basis)
+    }
+}
+
 #[derive(Hash, Debug, Default, Serialize, Deserialize)]
 pub enum GuessType {
     #[default]

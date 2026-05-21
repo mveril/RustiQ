@@ -100,9 +100,8 @@ mod tests {
 
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
-        let density_guess = Box::new(TestDensityGuess);
         let scf: ScfCalculation<'_> =
-            ScfCalculation::new(&molecule, &basis, 10, 1e-6, density_guess);
+            ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess);
 
         let density = scf.density_matrix.clone();
 
