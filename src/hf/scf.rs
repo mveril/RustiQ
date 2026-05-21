@@ -499,29 +499,45 @@ mod tests {
     }
 
     #[test]
-    fn test_scf_h2_sto3g_reference_energy() {
+    fn test_scf_h2_sto3g_matches_pyscf_reference_energy() {
+        const PYSCF_ELECTRONIC_ENERGY: f64 = -1.831863646477507;
+        const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 0.715104339081081;
+        const PYSCF_TOTAL_ENERGY: f64 = -1.116759307396425;
+
         let result = test_utils::run_sto3g_scf_for_sample("samples/h2/molecule.xyz");
 
         assert_abs_diff_eq!(
             result.electronic_energy,
-            -1.8318636464775062,
+            PYSCF_ELECTRONIC_ENERGY,
             epsilon = 1e-8
         );
         assert_abs_diff_eq!(
             result.nuclear_repulsion_energy,
-            0.7151043390810812,
+            PYSCF_NUCLEAR_REPULSION_ENERGY,
             epsilon = 1e-8
         );
-        assert_abs_diff_eq!(result.total_energy, -1.116759307396425, epsilon = 1e-8);
+        assert_abs_diff_eq!(result.total_energy, PYSCF_TOTAL_ENERGY, epsilon = 1e-8);
     }
 
     #[test]
-    fn test_scf_h2o_sto3g_reference_energy() {
+    fn test_scf_h2o_sto3g_matches_pyscf_reference_energy() {
+        const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151321547473785;
+        const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 9.188258417746113;
+        const PYSCF_TOTAL_ENERGY: f64 = -74.963063129727672;
+
         let result = test_utils::run_sto3g_scf_for_sample("samples/h2o/h2o.xyz");
 
-        assert_abs_diff_eq!(result.electronic_energy, -84.151322, epsilon = 1e-6);
-        assert_abs_diff_eq!(result.nuclear_repulsion_energy, 9.188258, epsilon = 1e-6);
-        assert_abs_diff_eq!(result.total_energy, -74.963063, epsilon = 1e-6);
+        assert_abs_diff_eq!(
+            result.electronic_energy,
+            PYSCF_ELECTRONIC_ENERGY,
+            epsilon = 1e-8
+        );
+        assert_abs_diff_eq!(
+            result.nuclear_repulsion_energy,
+            PYSCF_NUCLEAR_REPULSION_ENERGY,
+            epsilon = 1e-8
+        );
+        assert_abs_diff_eq!(result.total_energy, PYSCF_TOTAL_ENERGY, epsilon = 1e-8);
     }
 
     fn assert_symmetric_matrix(matrix: &DMatrix<f64>, epsilon: f64, label: &str) {
