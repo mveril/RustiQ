@@ -1,0 +1,15 @@
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "./ethanol.xyz"
+charge = 0
+multiplicity = 1
+molecule_unit = "Angstrom"
+
+[hf]
+max_iterations = 80
+convergence_threshold = 1e-10
+density_guess = "CoreHamiltonian"
+diis = true
+diis_size = 8

@@ -37,6 +37,15 @@ cargo run -- run --file samples/h2/calculation.toml
 
 The H2 sample TOML uses `samples/h2/molecule.xyz` by default because the CLI changes the working directory to the run file location before reading relative paths.
 
+Run a heavier SCF/performance sample:
+
+```sh
+cargo run -- run --file samples/ethanol_sto3g_stress/calculation.toml
+```
+
+That sample includes `samples/ethanol_sto3g_stress/pyscf_reference.py` for an
+optional PySCF comparison. It is not part of the Rust unit test suite.
+
 ## Input Files
 
 A minimal calculation file looks like this:
