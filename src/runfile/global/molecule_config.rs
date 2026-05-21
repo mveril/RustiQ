@@ -36,5 +36,14 @@ fn default_molecule_unit() -> Units {
 }
 
 fn default_multiplicity() -> NonZeroU8 {
-    unsafe { NonZeroU8::new_unchecked(1) }
+    NonZeroU8::MIN
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_default_multiplicity() {
+        assert_eq!(u8::from(default_multiplicity()), 1)
+    }
 }
