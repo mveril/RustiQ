@@ -14,6 +14,15 @@ pub(crate) struct HfConfig {
     pub diis: bool,
     #[serde(default = "default_diis_size")]
     pub diis_size: usize,
+    #[serde(default)]
+    pub format: HfOutputFormat,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) enum HfOutputFormat {
+    #[default]
+    Normal,
+    Nope,
 }
 
 fn default_conv_threshold() -> f64 {
@@ -38,6 +47,7 @@ mod tests {
 
         assert!(!config.diis);
         assert_eq!(config.diis_size, 6);
+        assert_eq!(config.format, HfOutputFormat::Normal);
     }
 
     #[test]
@@ -52,5 +62,14 @@ mod tests {
 
         assert!(config.diis);
         assert_eq!(config.diis_size, 8);
+    }
+
+    #[test]
+    fn test_hf_config_format_deserialization() {
+        let normal: HfConfig = toml::from_str(r#"format = "Normal""#).unwrap();
+        let nope: HfConfig = toml::from_str(r#"format = "Nope""#).unwrap();
+
+        assert_eq!(normal.format, HfOutputFormat::Normal);
+        assert_eq!(nope.format, HfOutputFormat::Nope);
     }
 }

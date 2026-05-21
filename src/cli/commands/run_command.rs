@@ -10,6 +10,7 @@ use crate::{
     cli::ux::scf_report::ScfReporter,
     hf,
     molecules::{geometry::Geometry, molecule::Molecule},
+    runfile::hf::HfOutputFormat,
     runfile::RunFile,
 };
 
@@ -62,10 +63,17 @@ impl Runnable for RunCommand {
             if hf.diis {
                 scf.enable_diis(hf.diis_size).unwrap();
             }
-            let stdout = io::stdout();
-            let mut reporter = ScfReporter::new(stdout.lock());
-            let result = scf.run_with_observer(&mut reporter);
-            reporter.write_summary(&result).unwrap();
+            match hf.format {
+                HfOutputFormat::Normal => {
+                    let stdout = io::stdout();
+                    let mut reporter = ScfReporter::new(stdout.lock());
+                    let result = scf.run_with_observer(&mut reporter);
+                    reporter.write_summary(&result).unwrap();
+                }
+                HfOutputFormat::Nope => {
+                    scf.run();
+                }
+            }
         }
     }
 }

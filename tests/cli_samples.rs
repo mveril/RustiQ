@@ -72,3 +72,47 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
 }
+
+#[test]
+fn test_cli_h2_sample_can_disable_hf_formatting() {
+    let temp_root = env::temp_dir().join(format!(
+        "rustiq-cli-sample-no-format-test-{}",
+        std::process::id()
+    ));
+    let basis_dir = temp_root.join("RustiQ").join("basis_sets");
+    let _ = fs::remove_dir_all(&temp_root);
+    fs::create_dir_all(&basis_dir).unwrap();
+    fs::copy("tests/data/sto-3g.json", basis_dir.join("sto-3g.json")).unwrap();
+
+    let toml_path = temp_root.join("calculation.toml");
+    fs::write(
+        &toml_path,
+        r#"
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "/home/nixos/git/RustiQ/samples/h2/molecule.xyz"
+
+[hf]
+format = "Nope"
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["run", "--file", toml_path.to_str().unwrap()])
+        .env("XDG_DATA_HOME", &temp_root)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "CLI failed with stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("SCF converged after"));
+    assert!(!stdout.contains("Total Energy (including nuclear repulsion):"));
+}
