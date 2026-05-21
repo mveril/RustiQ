@@ -48,6 +48,10 @@ pub struct ScfCalculation<'a> {
     pub t_matrix: DMatrix<f64>,
     /// Nuclear attraction energy matrix (V).
     pub v_matrix: DMatrix<f64>,
+    /// Overlap matrix (S).
+    overlap_matrix: DMatrix<f64>,
+    /// Symmetric orthogonalizer (S^(-1/2)).
+    s_inv_sqrt: DMatrix<f64>,
     /// Number of occupied orbitals (related to the number of electrons / 2 for closed-shell systems).
     pub occupied_orbitals: usize,
 }
@@ -70,6 +74,14 @@ impl<'a> ScfCalculation<'a> {
         // H_core = T + V
         let h_core = &t_matrix + &v_matrix;
 
+        let overlap_matrix = basis.overlap_ints();
+        assert_is_symmetric(&overlap_matrix, 1e-8);
+        assert!(
+            is_positive_definite(&overlap_matrix),
+            "Overlap matrix S is not positive definite."
+        );
+        let s_inv_sqrt = Self::symmetric_orthogonalizer(&overlap_matrix);
+
         // Calculate the two-electron integrals
         let two_electron_integrals: Array4<f64> = electron_repulsion_ints(basis);
 
@@ -77,7 +89,7 @@ impl<'a> ScfCalculation<'a> {
         let density_matrix = density_guess_builder.build_density_guess(&h_core, molecule, basis);
 
         // Initial molecular orbital coefficients from diagonalization of H_core
-        let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, basis);
+        let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, &s_inv_sqrt);
 
         // Initial Fock matrix
         let fock_matrix = h_core.clone(); // F = H_core initially
@@ -97,6 +109,8 @@ impl<'a> ScfCalculation<'a> {
             h_core,
             t_matrix,
             v_matrix,
+            overlap_matrix,
+            s_inv_sqrt,
             occupied_orbitals: molecule.occupied_orbitals(),
         }
     }
@@ -108,19 +122,12 @@ impl<'a> ScfCalculation<'a> {
 
     fn initial_mo_coefficients(
         h_core: &DMatrix<f64>,
-        basis: &Basis,
+        s_inv_sqrt: &DMatrix<f64>,
     ) -> (DMatrix<f64>, DVector<f64>) {
         // Diagonalization of H_core to obtain initial MO coefficients
-        let s = basis.overlap_ints(); // Overlap matrix S
-        assert_is_symmetric(&s, 1e-8);
-        assert!(
-            is_positive_definite(&s),
-            "Overlap matrix S is not positive definite."
-        );
-        let s_inv_sqrt = Self::symmetric_orthogonalizer(&s);
-        let fock_preconditioned = &s_inv_sqrt.transpose() * h_core * &s_inv_sqrt;
+        let fock_preconditioned = &s_inv_sqrt.transpose() * h_core * s_inv_sqrt;
         let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = &s_inv_sqrt * eig.eigenvectors;
+        let mo_coefficients = s_inv_sqrt * eig.eigenvectors;
         Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
@@ -232,10 +239,11 @@ impl<'a> ScfCalculation<'a> {
 
     fn apply_diis_if_enabled(&mut self) {
         if let Some(diis) = &mut self.diis {
-            let overlap_matrix = self.basis.overlap_ints();
-            if let Some(fock_matrix) =
-                diis.extrapolate(&self.fock_matrix, &self.density_matrix, &overlap_matrix)
-            {
+            if let Some(fock_matrix) = diis.extrapolate(
+                &self.fock_matrix,
+                &self.density_matrix,
+                &self.overlap_matrix,
+            ) {
                 self.fock_matrix = fock_matrix;
             }
         }
@@ -286,29 +294,16 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn solve_roothaan_hall(&self) -> (DMatrix<f64>, DVector<f64>) {
-        let s = self.basis.overlap_ints(); // Overlap matrix S
-        let s_inv_sqrt = Self::symmetric_orthogonalizer(&s);
-        let fock_preconditioned = &s_inv_sqrt.transpose() * &self.fock_matrix * &s_inv_sqrt;
+        let fock_preconditioned =
+            &self.s_inv_sqrt.transpose() * &self.fock_matrix * &self.s_inv_sqrt;
         let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = &s_inv_sqrt * eig.eigenvectors;
+        let mo_coefficients = &self.s_inv_sqrt * eig.eigenvectors;
         Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
     fn calculate_density_matrix(&self) -> DMatrix<f64> {
-        let nbasis = self.basis.nbasis();
-        let values = (0..nbasis.pow(2))
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nbasis;
-                let nu = index / nbasis;
-                let sum: f64 = (0..self.occupied_orbitals)
-                    .map(|i| self.mo_coefficients[(mu, i)] * self.mo_coefficients[(nu, i)])
-                    .sum();
-                2.0 * sum
-            })
-            .collect::<Vec<_>>();
-
-        DMatrix::from_column_slice(nbasis, nbasis, &values)
+        let c_occ = self.mo_coefficients.columns(0, self.occupied_orbitals);
+        2.0 * c_occ * c_occ.transpose()
     }
 
     fn calculate_total_energy(&self) -> f64 {
@@ -340,7 +335,7 @@ impl<'a> ScfCalculation<'a> {
         Self::scf_residual_norm(
             &next_fock_matrix,
             &self.density_matrix,
-            &self.basis.overlap_ints(),
+            &self.overlap_matrix,
         )
     }
 
@@ -358,27 +353,11 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn calculate_kinetic_energy(&self) -> f64 {
-        let nbasis = self.basis.nbasis();
-        (0..nbasis.pow(2))
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nbasis;
-                let nu = index / nbasis;
-                self.density_matrix[(mu, nu)] * self.t_matrix[(mu, nu)]
-            })
-            .sum()
+        self.density_matrix.dot(&self.t_matrix)
     }
 
     fn calculate_nuclear_attraction_energy(&self) -> f64 {
-        let nbasis = self.basis.nbasis();
-        (0..nbasis.pow(2))
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nbasis;
-                let nu = index / nbasis;
-                self.density_matrix[(mu, nu)] * self.v_matrix[(mu, nu)]
-            })
-            .sum()
+        self.density_matrix.dot(&self.v_matrix)
     }
 
     fn calculate_electron_repulsion_energy(&self) -> f64 {
@@ -450,7 +429,10 @@ mod tests {
 
         let h_core = &basis.kinetic_ints() + &basis.overlap_ints(); // Simplified H_core for testing
 
-        let (mo_coeff, orbital_energies) = ScfCalculation::initial_mo_coefficients(&h_core, &basis);
+        let overlap = basis.overlap_ints();
+        let s_inv_sqrt = ScfCalculation::symmetric_orthogonalizer(&overlap);
+        let (mo_coeff, orbital_energies) =
+            ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt);
 
         // Vérifier les dimensions
         assert_eq!(mo_coeff.nrows(), basis.nbasis());

@@ -45,24 +45,9 @@ impl DiisAccelerator {
         density_matrix: &DMatrix<f64>,
         overlap_matrix: &DMatrix<f64>,
     ) -> DMatrix<f64> {
-        let nbasis = fock_matrix.nrows();
         let density_overlap = density_matrix * overlap_matrix;
         let overlap_density = overlap_matrix * density_matrix;
-        let values = (0..nbasis.pow(2))
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nbasis;
-                let nu = index / nbasis;
-                (0..nbasis)
-                    .map(|lambda| {
-                        fock_matrix[(mu, lambda)] * density_overlap[(lambda, nu)]
-                            - overlap_density[(mu, lambda)] * fock_matrix[(lambda, nu)]
-                    })
-                    .sum()
-            })
-            .collect::<Vec<_>>();
-
-        DMatrix::from_column_slice(nbasis, nbasis, &values)
+        fock_matrix * density_overlap - overlap_density * fock_matrix
     }
 
     fn push_history(&mut self, fock_matrix: DMatrix<f64>, error_matrix: DMatrix<f64>) {
