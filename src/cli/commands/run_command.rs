@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile, gaussian::basis::Basis},
+    cli::ux::scf_report::ScfReporter,
     hf,
     molecules::{geometry::Geometry, molecule::Molecule},
     runfile::RunFile,
@@ -61,7 +62,10 @@ impl Runnable for RunCommand {
             if hf.diis {
                 scf.enable_diis(hf.diis_size).unwrap();
             }
-            scf.run();
+            let stdout = io::stdout();
+            let mut reporter = ScfReporter::new(stdout.lock());
+            let result = scf.run_with_observer(&mut reporter);
+            reporter.write_summary(&result).unwrap();
         }
     }
 }

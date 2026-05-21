@@ -1,3 +1,5 @@
+use super::scf_energy_details::ScfEnergyDetails;
+
 #[derive(Debug, Clone)]
 pub struct ScfResult {
     pub converged: bool,
@@ -7,4 +9,5 @@ pub struct ScfResult {
     pub total_energy: f64,
     pub delta_energy: f64,
     pub residual_norm: f64,
+    pub energy_details: ScfEnergyDetails,
 }

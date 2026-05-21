@@ -15,6 +15,9 @@ use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
     diis::{DiisAccelerator, DiisError},
+    scf_energy_details::ScfEnergyDetails,
+    scf_iteration::ScfIteration,
+    scf_observer::{NoopScfObserver, ScfObserver},
     scf_result::ScfResult,
 };
 
@@ -153,7 +156,16 @@ impl<'a> ScfCalculation<'a> {
     }
 
     /// Execute the SCF calculation loop
+    #[allow(dead_code)]
     pub fn run(&mut self) -> ScfResult {
+        let mut observer = NoopScfObserver;
+        self.run_with_observer(&mut observer)
+    }
+
+    pub fn run_with_observer<O>(&mut self, observer: &mut O) -> ScfResult
+    where
+        O: ScfObserver,
+    {
         let mut energy_last = 0.0;
         let mut converged = false;
         let mut iterations = 0;
@@ -179,6 +191,14 @@ impl<'a> ScfCalculation<'a> {
 
             // e. Check for convergence
             delta_energy = (self.energy - energy_last).abs();
+            let iteration = ScfIteration {
+                iteration: iterations,
+                electronic_energy: self.energy,
+                delta_energy,
+                residual_norm: self.residual_norm,
+            };
+            observer.on_iteration(&iteration);
+
             if delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
             {
@@ -192,6 +212,7 @@ impl<'a> ScfCalculation<'a> {
         // Calculate final energy including nuclear repulsion
         let nuclear_repulsion = self.molecule.geometry.nucl_repulsion();
         let total_energy = self.energy + nuclear_repulsion;
+        let energy_details = self.calculate_energy_details();
         let result = ScfResult {
             converged,
             iterations,
@@ -200,41 +221,14 @@ impl<'a> ScfCalculation<'a> {
             total_energy,
             delta_energy,
             residual_norm: self.residual_norm,
+            energy_details,
         };
-
-        self.print_scf_result(&result);
-        self.print_energy_details();
 
         result
     }
 
     fn update_fock_matrix(&mut self) {
         self.fock_matrix = self.build_fock_matrix(&self.density_matrix);
-    }
-
-    fn print_scf_result(&self, result: &ScfResult) {
-        if result.converged {
-            println!("SCF converged after {} iterations.", result.iterations);
-        } else {
-            println!(
-                "SCF did not converge after {} iterations.",
-                result.iterations
-            );
-        }
-        println!("SCF delta energy: {:.6e} Hartree", result.delta_energy);
-        println!("SCF residual norm: {:.6e}", result.residual_norm);
-        println!(
-            "Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
-            result.electronic_energy
-        );
-        println!(
-            "Nuclear Repulsion Energy: {:.6} Hartree",
-            result.nuclear_repulsion_energy
-        );
-        println!(
-            "Total Energy (including nuclear repulsion): {:.6} Hartree",
-            result.total_energy
-        );
     }
 
     fn apply_diis_if_enabled(&mut self) {
@@ -319,7 +313,14 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn calculate_total_energy(&self) -> f64 {
-        let ((kinetic, nuclear), electron_repulsion) = rayon::join(
+        let energy_details = self.calculate_energy_details();
+        energy_details.kinetic_energy
+            + energy_details.nuclear_attraction_energy
+            + energy_details.electron_repulsion_energy
+    }
+
+    fn calculate_energy_details(&self) -> ScfEnergyDetails {
+        let ((kinetic_energy, nuclear_attraction_energy), electron_repulsion_energy) = rayon::join(
             || {
                 rayon::join(
                     || self.calculate_kinetic_energy(),
@@ -328,7 +329,11 @@ impl<'a> ScfCalculation<'a> {
             },
             || self.calculate_electron_repulsion_energy(),
         );
-        kinetic + nuclear + electron_repulsion
+        ScfEnergyDetails {
+            kinetic_energy,
+            nuclear_attraction_energy,
+            electron_repulsion_energy,
+        }
     }
 
     fn calculate_residual_norm(&self) -> f64 {
@@ -395,23 +400,6 @@ impl<'a> ScfCalculation<'a> {
             })
             .sum();
         0.5 * e_re
-    }
-
-    fn print_energy_details(&self) {
-        let kinetic = self.calculate_kinetic_energy();
-        let nuclear = self.calculate_nuclear_attraction_energy();
-        let electron_repulsion = self.calculate_electron_repulsion_energy();
-        println!("Energy Details:");
-        println!("  Kinetic Energy: {:.6} Hartree", kinetic);
-        println!("  Nuclear Attraction Energy: {:.6} Hartree", nuclear);
-        println!(
-            "  Electron Repulsion Energy: {:.6} Hartree",
-            electron_repulsion
-        );
-        println!(
-            "  Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
-            self.energy
-        );
     }
 }
 
