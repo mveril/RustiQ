@@ -213,7 +213,9 @@ impl<'a> ScfCalculation<'a> {
         let nuclear_repulsion = self.molecule.geometry.nucl_repulsion();
         let total_energy = self.energy + nuclear_repulsion;
         let energy_details = self.calculate_energy_details();
-        let result = ScfResult {
+        
+
+        ScfResult {
             converged,
             iterations,
             electronic_energy: self.energy,
@@ -222,9 +224,7 @@ impl<'a> ScfCalculation<'a> {
             delta_energy,
             residual_norm: self.residual_norm,
             energy_details,
-        };
-
-        result
+        }
     }
 
     fn update_fock_matrix(&mut self) {
