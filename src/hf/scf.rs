@@ -15,6 +15,7 @@ use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
     diis::{DiisAccelerator, DiisError},
+    scf_result::ScfResult,
 };
 
 /// Structure for an SCF calculation.
@@ -149,10 +150,15 @@ impl<'a> ScfCalculation<'a> {
     }
 
     /// Execute the SCF calculation loop
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> ScfResult {
         let mut energy_last = 0.0;
+        let mut converged = false;
+        let mut iterations = 0;
+        let mut delta_energy = f64::INFINITY;
 
         for i in 0..self.max_iterations {
+            iterations = i + 1;
+
             // a. Update Fock matrix
             self.update_fock_matrix();
             self.apply_diis_if_enabled();
@@ -169,19 +175,12 @@ impl<'a> ScfCalculation<'a> {
             self.update_residual_norm();
 
             // e. Check for convergence
-            let delta_energy = (self.energy - energy_last).abs();
+            delta_energy = (self.energy - energy_last).abs();
             if delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
             {
-                println!("SCF converged after {} iterations.", i + 1);
+                converged = true;
                 break;
-            }
-
-            if i == self.max_iterations - 1 {
-                println!(
-                    "SCF did not converge after {} iterations.",
-                    self.max_iterations
-                );
             }
 
             energy_last = self.energy;
@@ -189,22 +188,50 @@ impl<'a> ScfCalculation<'a> {
 
         // Calculate final energy including nuclear repulsion
         let nuclear_repulsion = self.molecule.geometry.nucl_repulsion();
-        println!(
-            "Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
-            self.energy
-        );
-        println!("Nuclear Repulsion Energy: {:.6} Hartree", nuclear_repulsion);
-        println!(
-            "Total Energy (including nuclear repulsion): {:.6} Hartree",
-            self.energy + nuclear_repulsion
-        );
+        let total_energy = self.energy + nuclear_repulsion;
+        let result = ScfResult {
+            converged,
+            iterations,
+            electronic_energy: self.energy,
+            nuclear_repulsion_energy: nuclear_repulsion,
+            total_energy,
+            delta_energy,
+            residual_norm: self.residual_norm,
+        };
 
-        // Print detailed energy components
+        self.print_scf_result(&result);
         self.print_energy_details();
+
+        result
     }
 
     fn update_fock_matrix(&mut self) {
         self.fock_matrix = self.build_fock_matrix(&self.density_matrix);
+    }
+
+    fn print_scf_result(&self, result: &ScfResult) {
+        if result.converged {
+            println!("SCF converged after {} iterations.", result.iterations);
+        } else {
+            println!(
+                "SCF did not converge after {} iterations.",
+                result.iterations
+            );
+        }
+        println!("SCF delta energy: {:.6e} Hartree", result.delta_energy);
+        println!("SCF residual norm: {:.6e}", result.residual_norm);
+        println!(
+            "Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
+            result.electronic_energy
+        );
+        println!(
+            "Nuclear Repulsion Energy: {:.6} Hartree",
+            result.nuclear_repulsion_energy
+        );
+        println!(
+            "Total Energy (including nuclear repulsion): {:.6} Hartree",
+            result.total_energy
+        );
     }
 
     fn apply_diis_if_enabled(&mut self) {
@@ -545,13 +572,15 @@ mod tests {
         );
 
         // Exécuter SCF
-        scf.run();
+        let result = scf.run();
 
         // Vérifier que l'énergie a été mise à jour
         // Pour ce test minimal, nous nous attendons à ce que l'énergie soit non nulle
         // En pratique, une comparaison avec une valeur théorique ou une référence est préférable
+        assert!(result.converged);
+        assert!(result.iterations <= 50);
         assert!(
-            scf.energy.abs() > 0.0,
+            result.electronic_energy.abs() > 0.0,
             "L'énergie SCF devrait être non nulle après convergence."
         );
     }
@@ -605,13 +634,15 @@ mod tests {
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
-        scf.run();
+        let result = scf.run();
 
         assert!(
-            scf.residual_norm < 1e-8,
+            result.residual_norm < 1e-8,
             "SCF residual norm is {}, expected < 1e-8",
-            scf.residual_norm
+            result.residual_norm
         );
+        assert!(result.converged);
+        assert!(result.delta_energy < 1e-8);
     }
 
     #[test]
@@ -624,14 +655,34 @@ mod tests {
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
         scf.enable_diis(6).unwrap();
 
-        scf.run();
+        let result = scf.run();
 
-        assert_abs_diff_eq!(scf.energy, PYSCF_ELECTRONIC_ENERGY, epsilon = 1e-8);
-        assert!(
-            scf.residual_norm < 1e-8,
-            "SCF residual norm is {}, expected < 1e-8",
-            scf.residual_norm
+        assert!(result.converged);
+        assert_abs_diff_eq!(
+            result.electronic_energy,
+            PYSCF_ELECTRONIC_ENERGY,
+            epsilon = 1e-8
         );
+        assert!(
+            result.residual_norm < 1e-8,
+            "SCF residual norm is {}, expected < 1e-8",
+            result.residual_norm
+        );
+    }
+
+    #[test]
+    fn test_scf_result_reports_non_convergence() {
+        let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::from(geometry);
+        let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 1, 1e-12);
+
+        let result = scf.run();
+
+        assert!(!result.converged);
+        assert_eq!(result.iterations, 1);
+        assert!(result.delta_energy.is_finite());
+        assert!(result.residual_norm.is_finite());
     }
 
     fn assert_symmetric_matrix(matrix: &DMatrix<f64>, epsilon: f64, label: &str) {
@@ -661,8 +712,9 @@ mod tests {
             assert_symmetric_matrix(&scf.v_matrix, 1e-10, "V");
             assert_symmetric_matrix(&scf.h_core, 1e-10, "Hcore");
 
-            scf.run();
+            let result = scf.run();
 
+            assert!(result.converged);
             assert_symmetric_matrix(&scf.fock_matrix, 1e-8, "F");
             assert_symmetric_matrix(&scf.density_matrix, 1e-8, "density");
         }

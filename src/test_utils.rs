@@ -48,12 +48,11 @@ pub(crate) fn run_sto3g_scf_for_sample(path: &str) -> ScfReferenceResult {
     let molecule = Molecule::from(geometry);
     let mut scf = new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
-    scf.run();
+    let result = scf.run();
 
-    let nuclear_repulsion_energy = molecule.geometry.nucl_repulsion();
     ScfReferenceResult {
-        electronic_energy: scf.energy,
-        nuclear_repulsion_energy,
-        total_energy: scf.energy + nuclear_repulsion_energy,
+        electronic_energy: result.electronic_energy,
+        nuclear_repulsion_energy: result.nuclear_repulsion_energy,
+        total_energy: result.total_energy,
     }
 }
