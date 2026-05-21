@@ -1,23 +1,30 @@
-use reqwest::{blocking::get as blocking_get, get, Url};
 use serde_json::Error as SerdeError;
 use std::{
-    collections::HashMap,
     fs::{self, DirEntry},
     io::{self, Read},
     path::{Path, PathBuf},
-    str::FromStr,
 };
 use thiserror::Error;
+
+#[cfg(feature = "online")]
+use reqwest::{blocking::get as blocking_get, get, Url};
+#[cfg(feature = "online")]
+use std::{collections::HashMap, str::FromStr};
+#[cfg(feature = "online")]
 use tokio::io::AsyncWriteExt;
 
 use super::basisfile::BasisFile;
+#[cfg(feature = "online")]
 use super::metadata::BasisSetDetail;
+
+#[cfg(feature = "online")]
 const BASE_URL: &str = "https://www.basissetexchange.org/";
 
 /// Struct representing a storage for basis set files.
 /// This structure provides functionalities to manage, retrieve, download, and remove basis set files.
 pub struct BasisStore {
     path: Box<Path>,
+    #[cfg(feature = "online")]
     url: Url,
 }
 
@@ -29,6 +36,7 @@ impl BasisStore {
     pub fn new(path: &impl AsRef<Path>) -> BasisStore {
         BasisStore {
             path: path.as_ref().to_owned().into_boxed_path(),
+            #[cfg(feature = "online")]
             url: Url::from_str(BASE_URL).unwrap(),
         }
     }
@@ -95,6 +103,7 @@ impl BasisStore {
     /// # Errors
     /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
     /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
+    #[cfg(feature = "online")]
     pub fn list_online_sync(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let basis_sets: HashMap<String, BasisSetDetail> =
@@ -107,6 +116,7 @@ impl BasisStore {
     /// # Errors
     /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
     /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
+    #[cfg(feature = "online")]
     #[allow(dead_code)]
     pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
@@ -124,6 +134,7 @@ impl BasisStore {
     /// # Errors
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
     /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    #[cfg(feature = "online")]
     pub async fn download(
         &self,
         name: &str,
@@ -158,6 +169,7 @@ impl BasisStore {
     /// # Errors
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
     /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    #[cfg(feature = "online")]
     #[allow(dead_code)]
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
@@ -255,6 +267,7 @@ pub enum FileError {
 }
 
 /// Custom error type for errors occurring during the online listing of basis sets.
+#[cfg(feature = "online")]
 #[derive(Error, Debug)]
 pub enum DownloadParseError {
     /// HTTP error occurred during the download.
@@ -267,6 +280,7 @@ pub enum DownloadParseError {
 }
 
 /// Custom error type for downloading and saving basis set files in `BasisStore`.
+#[cfg(feature = "online")]
 #[derive(Error, Debug)]
 pub enum DownloadSaveError {
     /// I/O error occurred while writing the downloaded file.

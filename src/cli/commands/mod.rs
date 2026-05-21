@@ -4,7 +4,9 @@ use run_command::RunCommand;
 mod runnable;
 use basis_command::BasisCommands;
 use clap::Subcommand;
-pub(crate) use runnable::{AsyncRunnable, Runnable};
+#[cfg(feature = "online")]
+pub(crate) use runnable::AsyncRunnable;
+pub(crate) use runnable::Runnable;
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {

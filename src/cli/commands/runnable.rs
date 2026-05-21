@@ -1,13 +1,16 @@
+#[cfg(feature = "online")]
 use tokio::runtime::Runtime;
 
 pub trait Runnable {
     fn run(&self);
 }
 
+#[cfg(feature = "online")]
 pub trait AsyncRunnable: Runnable {
     async fn run_async(&self);
 }
 
+#[cfg(feature = "online")]
 impl<T> Runnable for T
 where
     T: AsyncRunnable,
