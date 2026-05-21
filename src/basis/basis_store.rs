@@ -3,7 +3,7 @@ use serde_json::Error as SerdeError;
 use std::{
     collections::HashMap,
     fs::{self, DirEntry},
-    io,
+    io::{self, Read},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -169,6 +169,26 @@ impl BasisStore {
         }
         let mut file = fs::File::create(self.get_path(name))?;
         response.copy_to(&mut file)?;
+        Ok(())
+    }
+
+    /// Downloads a basis set file synchronously from a remote URL and saves it locally.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the basis set to download.
+    /// * data - The content of the basis set file to save.
+    ///
+    /// # Errors
+    /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
+    /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    #[allow(dead_code)]
+    pub fn import<R: Read>(&self, name: &str, mut data: R) -> Result<(), io::Error> {
+        let path = self.get_path(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut file = fs::File::create(self.get_path(name))?;
+        io::copy(&mut data, &mut file)?;
         Ok(())
     }
 
