@@ -21,7 +21,7 @@ where
 {
     fn run(&self) -> CommandResult {
         // Create a runtime to execute the asynchronous task
-        let rt = Runtime::new().expect("Failed to create runtime");
+        let rt = Runtime::new()?;
 
         // Execute the asynchronous task
         rt.block_on(self.run_async())

@@ -5,6 +5,7 @@ use crate::hf::{scf_iteration::ScfIteration, scf_observer::ScfObserver, scf_resu
 pub(crate) struct ScfReporter<W> {
     writer: W,
     header_written: bool,
+    write_error: Option<io::Error>,
 }
 
 impl<W> ScfReporter<W>
@@ -15,7 +16,12 @@ where
         Self {
             writer,
             header_written: false,
+            write_error: None,
         }
+    }
+
+    pub(crate) fn take_error(&mut self) -> Option<io::Error> {
+        self.write_error.take()
     }
 
     pub(crate) fn write_summary(&mut self, result: &ScfResult) -> io::Result<()> {
@@ -99,17 +105,22 @@ where
     W: Write,
 {
     fn on_iteration(&mut self, iteration: &ScfIteration) {
-        self.write_header()
-            .expect("failed to write SCF iteration table header");
-        writeln!(
-            self.writer,
-            "{:>4} {:>18.10} {:>14.6e} {:>14.6e}",
-            iteration.iteration,
-            iteration.electronic_energy,
-            iteration.delta_energy,
-            iteration.residual_norm
-        )
-        .expect("failed to write SCF iteration row");
+        if self.write_error.is_some() {
+            return;
+        }
+        let result = self.write_header().and_then(|()| {
+            writeln!(
+                self.writer,
+                "{:>4} {:>18.10} {:>14.6e} {:>14.6e}",
+                iteration.iteration,
+                iteration.electronic_energy,
+                iteration.delta_energy,
+                iteration.residual_norm
+            )
+        });
+        if let Err(err) = result {
+            self.write_error = Some(err);
+        }
     }
 }
 

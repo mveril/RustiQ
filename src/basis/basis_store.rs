@@ -247,7 +247,7 @@ impl BasisStore {
 impl Default for BasisStore {
     fn default() -> Self {
         let app_local_dir = dirs::data_local_dir()
-            .expect("Could not find local data directory")
+            .unwrap_or_else(std::env::temp_dir)
             .join(env!("CARGO_PKG_NAME"));
         let basis_download_path = app_local_dir.join("basis_sets");
         Self::new(&basis_download_path)

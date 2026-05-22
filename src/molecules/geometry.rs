@@ -62,15 +62,15 @@ fn read_atom_line(
     let element = parse_element(element_str)
         .map_err(|err| GeometryParseError::AtomLineElementError(i, line.to_string(), err))?;
 
-    let xyz_strs = [x_str, y_str, z_str];
-    let mut xyz_iter = xyz_strs.iter().map(|v| {
-        v.parse::<f64>()
+    let parse_coordinate = |value: &str| {
+        value
+            .parse::<f64>()
             .map_err(|err| GeometryParseError::AtomLineCoordinateError(i, line.to_string(), err))
-    });
+    };
     let mut position = Point3::new(
-        xyz_iter.next().unwrap()?,
-        xyz_iter.next().unwrap()?,
-        xyz_iter.next().unwrap()?,
+        parse_coordinate(x_str)?,
+        parse_coordinate(y_str)?,
+        parse_coordinate(z_str)?,
     );
     if disp_unit != internal_unit {
         position = convert_length(position, disp_unit, internal_unit);
