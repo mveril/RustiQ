@@ -1,4 +1,7 @@
-use crate::{basis::basis_store::BasisStore, cli::commands::Runnable};
+use crate::{
+    basis::basis_store::BasisStore,
+    cli::commands::{CommandResult, Runnable},
+};
 
 #[derive(clap::Args)]
 pub struct DownloadCommand {
@@ -7,9 +10,10 @@ pub struct DownloadCommand {
 }
 
 impl Runnable for DownloadCommand {
-    fn run(&self) {
+    fn run(&self) -> CommandResult {
         println!("Downloading basis set: {}", self.name);
         // Logique de téléchargement ici
+        Ok(())
     }
 }
 
@@ -21,13 +25,13 @@ pub struct RemoveCommand {
 }
 
 impl Runnable for RemoveCommand {
-    fn run(&self) {
+    fn run(&self) -> CommandResult {
         let store = BasisStore::default();
         if self.names.is_empty() {
             store.remove_all()
         } else {
             store.remove(&self.names)
-        }
-        .unwrap_or_else(|err| println!("Failed to remove {}", err));
+        }?;
+        Ok(())
     }
 }

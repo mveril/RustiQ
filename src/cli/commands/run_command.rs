@@ -14,7 +14,7 @@ use crate::{
     runfile::RunFile,
 };
 
-use super::Runnable;
+use super::{CommandResult, Runnable};
 
 #[derive(clap::Args, Debug)] // Permet d'utiliser cette structure avec Clap
 pub struct RunCommand {
@@ -24,22 +24,23 @@ pub struct RunCommand {
 }
 
 impl Runnable for RunCommand {
-    fn run(&self) {
+    fn run(&self) -> CommandResult {
         let toml_content = if let Some(path_toml) = &self.file {
-            let content = fs::read_to_string(path_toml).unwrap();
-            let dir = path_toml.parent().unwrap();
-            env::set_current_dir(dir).unwrap();
+            let content = fs::read_to_string(path_toml)?;
+            if let Some(dir) = path_toml.parent() {
+                env::set_current_dir(dir)?;
+            }
             content
         } else {
             let mut content = String::new();
-            io::stdin().read_to_string(&mut content).unwrap();
+            io::stdin().read_to_string(&mut content)?;
             content
         };
-        let run = toml::from_str::<RunFile>(&toml_content).unwrap();
-        print!("{}", toml::to_string(&run).unwrap());
+        let run = toml::from_str::<RunFile>(&toml_content)?;
+        print!("{}", toml::to_string(&run)?);
         let molecule_path = &run.global.molecule.geometry;
-        let molfile = File::open(molecule_path).unwrap();
-        let geom = Geometry::from_file(molfile, None, None).unwrap();
+        let molfile = File::open(molecule_path)?;
+        let geom = Geometry::from_file(molfile, None, None)?;
         let molecule = Molecule {
             geometry: geom,
             charge: run.global.molecule.charge,
@@ -47,7 +48,7 @@ impl Runnable for RunCommand {
         };
         println!("{}", &molecule.geometry);
         let store = BasisStore::default();
-        let basis_file: BasisFile = store.get(&run.global.basis).unwrap();
+        let basis_file: BasisFile = store.get(&run.global.basis)?;
         println!("{} {:?}", basis_file.name, basis_file.function_types);
         let basis = Basis::load(&basis_file, &molecule);
         if let Some(hf) = run.hf {
@@ -61,19 +62,20 @@ impl Runnable for RunCommand {
                 hf.density_guess.get_density_guess(),
             );
             if hf.diis {
-                scf.enable_diis(hf.diis_size).unwrap();
+                scf.enable_diis(hf.diis_size)?;
             }
             match hf.format {
                 HfOutputFormat::Normal => {
                     let stdout = io::stdout();
                     let mut reporter = ScfReporter::new(stdout.lock());
                     let result = scf.run_with_observer(&mut reporter);
-                    reporter.write_summary(&result).unwrap();
+                    reporter.write_summary(&result)?;
                 }
                 HfOutputFormat::Nope => {
                     scf.run();
                 }
             }
         }
+        Ok(())
     }
 }

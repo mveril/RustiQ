@@ -10,7 +10,7 @@ use remove_command::RemoveCommand;
 mod import_command;
 use import_command::ImportCommand;
 
-use super::Runnable;
+use super::{CommandResult, Runnable};
 
 #[derive(Subcommand, Debug)]
 pub enum BasisCommands {
@@ -22,7 +22,7 @@ pub enum BasisCommands {
 }
 
 impl Runnable for BasisCommands {
-    fn run(&self) {
+    fn run(&self) -> CommandResult {
         match self {
             #[cfg(feature = "online")]
             BasisCommands::Download(cmd) => cmd.run(),

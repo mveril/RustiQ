@@ -11,7 +11,7 @@ use cli::commands::Runnable;
 #[cfg(test)]
 pub(crate) mod test_utils;
 
-fn main() {
+fn main() -> cli::commands::CommandResult {
     let app: Cli = Cli::parse();
     app.command.run()
 }

@@ -5,7 +5,10 @@ use tabled::Table;
 
 use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile},
-    cli::{commands::Runnable, ux::BasisTableItem},
+    cli::{
+        commands::{CommandResult, Runnable},
+        ux::BasisTableItem,
+    },
 };
 
 #[derive(clap::Args, Debug)]
@@ -20,11 +23,11 @@ pub struct ListCommand {
 }
 
 impl Runnable for ListCommand {
-    fn run(&self) {
+    fn run(&self) -> CommandResult {
         let store = BasisStore::default();
         #[cfg(feature = "online")]
         if self.online {
-            let list = store.list_online_sync().unwrap();
+            let list = store.list_online_sync()?;
             if self.verbose {
                 let items = list.into_values().map(BasisTableItem::from);
                 print!("{}", Table::new(items));
@@ -33,38 +36,33 @@ impl Runnable for ListCommand {
                     println!("{}", name);
                 }
             }
-            return;
+            return Ok(());
         }
 
-        match store.list() {
-            Ok(list) => {
-                if self.verbose {
-                    let v: Vec<_> = list
-                        .par_bridge()
-                        .map(|item| {
-                            let item = item.unwrap();
-                            let file_content = serde_json::from_reader::<_, BasisFile>(
-                                File::open(item.path()).unwrap(),
-                            )
-                            .unwrap();
-                            BasisTableItem::from(file_content)
-                        })
-                        .collect();
-                    print!("{}", Table::new(v))
-                } else {
-                    for item in list {
-                        match item {
-                            Ok(entry) => {
-                                if let Some(name) = entry.path().file_stem() {
-                                    println!("{}", name.to_string_lossy());
-                                }
-                            }
-                            Err(err) => eprint!("Failed to load an item: {err}."),
+        let list = store.list()?;
+        if self.verbose {
+            let v: anyhow::Result<Vec<_>> = list
+                .par_bridge()
+                .map(|item| {
+                    let item = item?;
+                    let file_content =
+                        serde_json::from_reader::<_, BasisFile>(File::open(item.path())?)?;
+                    Ok(BasisTableItem::from(file_content))
+                })
+                .collect();
+            print!("{}", Table::new(v?))
+        } else {
+            for item in list {
+                match item {
+                    Ok(entry) => {
+                        if let Some(name) = entry.path().file_stem() {
+                            println!("{}", name.to_string_lossy());
                         }
                     }
+                    Err(err) => eprint!("Failed to load an item: {err}."),
                 }
             }
-            Err(err) => eprintln!("Failed to list {}", err),
-        };
+        }
+        Ok(())
     }
 }

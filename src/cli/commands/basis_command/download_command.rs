@@ -2,7 +2,10 @@ use std::cell::OnceCell;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::{basis::basis_store::BasisStore, cli::commands::AsyncRunnable};
+use crate::{
+    basis::basis_store::BasisStore,
+    cli::commands::{AsyncRunnable, CommandResult},
+};
 
 #[derive(clap::Args, Debug)]
 pub struct DownloadCommand {
@@ -11,7 +14,7 @@ pub struct DownloadCommand {
 }
 
 impl AsyncRunnable for DownloadCommand {
-    async fn run_async(&self) {
+    async fn run_async(&self) -> CommandResult {
         let store = BasisStore::default();
         let mut pb_cell = OnceCell::new(); // ProgressBar est stockée ici, elle est initialisée une seule fois.
 
@@ -34,11 +37,12 @@ impl AsyncRunnable for DownloadCommand {
                 pb.set_position(current);
             }
         };
-        store.download(&self.name, &mut callback).await.unwrap();
+        store.download(&self.name, &mut callback).await?;
         if let Some(pb) = pb_cell.get_mut() {
             pb.finish_with_message(format!("Basis {} downloaded.", self.name));
         } else {
             print!("Basis {} downloaded.", self.name);
         }
+        Ok(())
     }
 }

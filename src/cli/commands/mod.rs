@@ -6,7 +6,7 @@ use basis_command::BasisCommands;
 use clap::Subcommand;
 #[cfg(feature = "online")]
 pub(crate) use runnable::AsyncRunnable;
-pub(crate) use runnable::Runnable;
+pub(crate) use runnable::{CommandResult, Runnable};
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
@@ -20,7 +20,7 @@ pub enum Commands {
 }
 
 impl Runnable for Commands {
-    fn run(&self) {
+    fn run(&self) -> CommandResult {
         match &self {
             Commands::Run(run_command) => run_command.run(),
             Commands::Basis { command } => command.run(),
