@@ -20,10 +20,10 @@ where
     T: AsyncRunnable,
 {
     fn run(&self) -> CommandResult {
-        // Crée un runtime pour exécuter la tâche asynchrone
+        // Create a runtime to execute the asynchronous task
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        // Exécute la tâche asynchrone
+        // Execute the asynchronous task
         rt.block_on(self.run_async())
     }
 }

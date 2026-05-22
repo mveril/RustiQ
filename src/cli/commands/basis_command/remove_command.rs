@@ -12,7 +12,7 @@ pub struct DownloadCommand {
 impl Runnable for DownloadCommand {
     fn run(&self) -> CommandResult {
         println!("Downloading basis set: {}", self.name);
-        // Logique de téléchargement ici
+        // Download logic goes here
         Ok(())
     }
 }

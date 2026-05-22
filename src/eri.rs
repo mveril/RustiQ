@@ -10,65 +10,65 @@ use nalgebra::Point3;
 use ndarray::Array4;
 use rayon::prelude::*;
 
-/// Calcule l'intégrale de recouvrement 1D pour deux fonctions gaussiennes primitives.
+/// Computes the 1D overlap integral for two primitive Gaussian functions.
 ///
 /// \[ S = \left( \frac{\pi}{p} \right)^{1/2} \exp\left( -\frac{\mu}{p} (A - B)^2 \right) \]
 ///
-/// où \( p = \alpha_a + \alpha_b \) et \( \mu = \alpha_a \alpha_b \).
+/// where \( p = \alpha_a + \alpha_b \) and \( \mu = \alpha_a \alpha_b \).
 ///
 /// # Arguments
 ///
-/// * `PAx` - Coordonnée x du vecteur PA.
-/// * `PBx` - Coordonnée x du vecteur PB.
+/// * `PAx` - x coordinate of the PA vector.
+/// * `PBx` - x coordinate of the PB vector.
 /// * `gamma` - \( p = \alpha_a + \alpha_b \).
 ///
-/// # Retourne
+/// # Returns
 ///
-/// L'intégrale de recouvrement 1D.
+/// The 1D overlap integral.
 #[allow(dead_code)]
 pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
     let T = gamma * (PAx - PBx).powi(2);
     (std::f64::consts::PI / gamma).sqrt() * (-T).exp()
 }
 
-/// Calcule l'intégrale cinétique 1D pour deux fonctions gaussiennes primitives.
+/// Computes the 1D kinetic integral for two primitive Gaussian functions.
 ///
 /// \[ T = \frac{\alpha_a \alpha_b}{\gamma} (3) S \]
 ///
-/// pour des orbitales s.
+/// for s orbitals.
 ///
 /// # Arguments
 ///
-/// * `PAx` - Coordonnée x du vecteur PA.
-/// * `PBx` - Coordonnée x du vecteur PB.
+/// * `PAx` - x coordinate of the PA vector.
+/// * `PBx` - x coordinate of the PB vector.
 /// * `gamma` - \( \gamma = \alpha_a + \alpha_b \).
-/// * `alpha_a` - Exposant gaussien de la première fonction.
-/// * `alpha_b` - Exposant gaussien de la deuxième fonction.
+/// * `alpha_a` - Gaussian exponent of the first function.
+/// * `alpha_b` - Gaussian exponent of the second function.
 ///
-/// # Retourne
+/// # Returns
 ///
-/// L'intégrale cinétique 1D.
+/// The 1D kinetic integral.
 #[allow(dead_code)]
 pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) -> f64 {
     let S = overlap_1d(PAx, PBx, gamma);
     (alpha_a * alpha_b / gamma) * 3.0 * S
 }
 
-/// Calcule l'intégrale ERI pour des primitives gaussiennes s.
+/// Computes the ERI integral for Gaussian s primitives.
 ///
 /// \[ (ss|ss) = \frac{2 \pi^{5/2}}{p q \sqrt{p + q}} K_{ab} K_{cd} F_0(T) \]
 ///
 /// # Arguments
 ///
-/// * `alpha_p`, `alpha_q`, `alpha_r`, `alpha_s` - Exposants des primitives.
-/// * `A` - Position du centre A.
-/// * `B` - Position du centre B.
-/// * `C` - Position du centre C.
-/// * `D` - Position du centre D.
+/// * `alpha_p`, `alpha_q`, `alpha_r`, `alpha_s` - Primitive exponents.
+/// * `A` - Position of center A.
+/// * `B` - Position of center B.
+/// * `C` - Position of center C.
+/// * `D` - Position of center D.
 ///
-/// # Retourne
+/// # Returns
 ///
-/// La valeur de l'intégrale ERI primitive.
+/// The value of the primitive ERI integral.
 #[allow(clippy::too_many_arguments, dead_code)]
 pub fn compute_eri_primitive(
     alpha_p: f64,
@@ -84,23 +84,23 @@ pub fn compute_eri_primitive(
     let q = alpha_r + alpha_s;
     let alpha = (p * q) / (p + q);
 
-    // Calcul des centres P et Q
+    // Calculate centers P and Q
     let P = (alpha_p * A.coords + alpha_q * B.coords) / p;
     let Q = (alpha_r * C.coords + alpha_s * D.coords) / q;
 
-    // Calcul des distances
+    // Calculate distances
     let AB_sq = (A.coords - B.coords).norm_squared();
     let CD_sq = (C.coords - D.coords).norm_squared();
     let PQ_sq = (P - Q).norm_squared();
 
-    // Calcul des facteurs exponentiels
+    // Calculate exponential factors
     let K_ab = (-alpha_p * alpha_q * AB_sq / p).exp();
     let K_cd = (-alpha_r * alpha_s * CD_sq / q).exp();
-    // Calcul de la fonction de Boys
+    // Calculate the Boys function
     let T = alpha * PQ_sq;
     let F0 = crate::math_utils::boys_function(0, T);
 
-    // Calcul du préfacteur
+    // Calculate the prefactor
     let prefactor = (2.0 * PI.powf(2.5)) / (p * q * (p + q).sqrt());
 
     prefactor * K_ab * K_cd * F0
@@ -109,11 +109,11 @@ pub fn compute_eri_primitive(
 ///
 /// # Arguments
 ///
-/// * `basis` - Référence à l'objet `Basis` contenant toutes les fonctions de base.
+/// * `basis` - Reference to the `Basis` object containing all basis functions.
 ///
-/// # Retourne
+/// # Returns
 ///
-/// Un tenseur 4D contenant toutes les intégrales ERI.
+/// A 4D tensor containing all ERI integrals.
 pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
     let n = basis.nbasis();
     let values = (0..n * n * n * n)
@@ -137,12 +137,12 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
 
             let mut eri_pqrs = 0.0;
 
-            // Boucles sur les contractions de chaque shell
+            // Loop over the contractions of each shell
             for contraction_p in &shell_p.contr {
                 for contraction_q in &shell_q.contr {
                     for contraction_r in &shell_r.contr {
                         for contraction_s in &shell_s.contr {
-                            // Boucles sur les primitives de chaque contraction
+                            // Loop over the primitives of each contraction
                             for (&alpha_p, &coeff_p) in
                                 shell_p.alpha.iter().zip(contraction_p.coeff.iter())
                             {
@@ -155,7 +155,7 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
                                         for (&alpha_s, &coeff_s) in
                                             shell_s.alpha.iter().zip(contraction_s.coeff.iter())
                                         {
-                                            // Calcul des constantes de normalisation
+                                            // Calculate normalization constants
                                             let l_p = basis.angular_momenta[p];
                                             let l_q = basis.angular_momenta[q];
                                             let l_r = basis.angular_momenta[r];
@@ -185,7 +185,7 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
                                                 l_s.z as u32,
                                             );
 
-                                            // Calcul des positions intermédiaires
+                                            // Calculate intermediate positions
                                             let A = origin_p;
                                             let B = origin_q;
                                             let C = origin_r;
@@ -195,7 +195,7 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
                                                 &l_p, &l_q, &l_r, &l_s,
                                             );
 
-                                            // Contribution à l'ERI total
+                                            // Contribution to the total ERI
                                             eri_pqrs += coeff_p
                                                 * coeff_q
                                                 * coeff_r
@@ -300,18 +300,18 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
 
-    /// Structure pour une contraction simple (s-orbital, STO-3G).
+    /// Structure for a simple contraction (s-orbital, STO-3G).
     #[allow(dead_code)]
     fn create_sto3g_contraction() -> Contraction {
         let coefficients = vec![0.15432897, 0.53532814, 0.44463454];
-        // Arguments : l = 0 (s-orbital), pure = false (cartésien)
+        // Arguments: l = 0 (s-orbital), pure = false (Cartesian)
         Contraction::new(0, false, coefficients)
     }
 
-    /// Fonction utilitaire pour créer une géométrie H2.
+    /// Helper function to create an H2 geometry.
     fn create_h2_geometry() -> Geometry {
         let elements = periodic_table::periodic_table();
-        let h = &elements[0]; // Hydrogène
+        let h = &elements[0]; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.40]);
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.40]);
         Geometry::new(
@@ -322,7 +322,7 @@ mod tests {
         )
     }
 
-    /// Test de calcul de l'ERI pour deux fonctions s au même centre.
+    /// Test ERI calculation for two s functions at the same center.
     #[test]
     fn test_compute_eri_s_same_center() {
         let alpha_p = 0.5;
@@ -337,7 +337,7 @@ mod tests {
 
         let eri = compute_eri_primitive(alpha_p, alpha_q, alpha_r, alpha_s, A, B, C, D);
 
-        // Calcul de la valeur attendue
+        // Calculate the expected value
         let expected_eri = (2.0 * PI.powf(2.5))
             / (alpha_p + alpha_q)
             / (alpha_r + alpha_s)
@@ -346,16 +346,16 @@ mod tests {
         assert_abs_diff_eq!(eri, expected_eri, epsilon = 1e-6);
     }
 
-    /// Test de calcul de l'ERI pour des fonctions s avec des centres différents.
+    /// Test ERI calculation for s functions with different centers.
     #[test]
     fn test_compute_eri_s_different_centers() {
-        // Exposants
+        // Exponents
         let alpha_p = 0.5;
         let alpha_q = 0.5;
         let alpha_r = 0.5;
         let alpha_s = 0.5;
 
-        // Positions des centres (en bohrs)
+        // Center positions (in bohrs)
         let A = Point3::new(0.0, 0.0, 0.0);
         let B = Point3::new(0.0, 0.0, 1.0);
         let C = Point3::new(0.0, 0.0, 0.0);
@@ -365,26 +365,26 @@ mod tests {
 
         let expected_eri = 12.838834347631737;
 
-        // Vérification
+        // Check
         assert_abs_diff_eq!(eri, expected_eri, epsilon = 1e-6);
     }
 
-    /// Test de calcul de l'ERI pour la molécule d'hydrogène H2.
+    /// Test ERI calculation for the H2 hydrogen molecule.
     #[test]
     fn test_eri_hydrogen_molecule() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_h2_geometry();
         let basis = Basis::load(&basis_file, &geom);
 
-        // Calcul des intégrales ERI pour toute la molécule
+        // Calculate ERI integrals for the whole molecule
         let eri_tensor = electron_repulsion_ints(&basis);
 
-        // Sélection de l'intégrale (0,1,0,1) pour H2
+        // Select the (0,1,0,1) integral for H2
         let eri = eri_tensor[(0, 1, 0, 1)];
 
         let expected_eri = 0.039595701902556416;
 
-        // Vérification
+        // Check
         assert_abs_diff_eq!(eri, expected_eri, epsilon = 1e-6);
     }
 
@@ -394,21 +394,21 @@ mod tests {
         let geom = create_h2_geometry();
         let basis = Basis::load(&basis_file, &geom);
 
-        // Calcul des intégrales ERI pour toute la molécule
+        // Calculate ERI integrals for the whole molecule
         let eri_tensor = electron_repulsion_ints(&basis);
 
-        // Sélection de l'intégrale (0,0,0,0) pour H2
+        // Select the (0,0,0,0) integral for H2
         let eri = eri_tensor[(0, 0, 0, 0)];
 
-        // Valeur attendue approximative pour l'intégrale auto-cohrente (basée sur la théorie ou d'autres logiciels)
-        // Vous devez obtenir cette valeur avec un logiciel de référence comme PySCF pour plus de précision.
+        // Approximate expected value for the self-integral (based on theory or other software)
+        // This value should be obtained with reference software such as PySCF for better precision.
         let expected_eri_self = 0.7746059439198978;
 
-        // Vérification
+        // Check
         assert_abs_diff_eq!(eri, expected_eri_self, epsilon = 1e-6);
     }
 
-    /// Test de la symétrie des matrices d'ERI.
+    /// Test the symmetry of ERI matrices.
     #[test]
     fn test_eri_symmetry() {
         let geom = create_h2_geometry();

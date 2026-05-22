@@ -80,7 +80,7 @@ mod tests {
         assert_eq!(binomial(6, 3), 20); // 6! / (3! * (6-3)!) = 20
         assert_eq!(binomial(10, 0), 1); // 10! / (0! * (10-0)!) = 1
         assert_eq!(binomial(0, 0), 1); // 0! / (0! * (0-0)!) = 1
-        assert_eq!(binomial(5, 6), 0); // k > n, donc résultat = 0
+        assert_eq!(binomial(5, 6), 0); // k > n, so result = 0
     }
 
     #[test]

@@ -16,11 +16,11 @@ pub struct DownloadCommand {
 impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) -> CommandResult {
         let store = BasisStore::default();
-        let mut pb_cell = OnceCell::new(); // ProgressBar est stockée ici, elle est initialisée une seule fois.
+        let mut pb_cell = OnceCell::new(); // The ProgressBar is stored here and initialized only once.
 
-        // Callback pour gérer la barre de progression
+        // Callback for handling the progress bar
         let mut callback = |current: u64, total: Option<u64>| {
-            // Initialisation de la barre de progression si elle n'existe pas encore
+            // Initialize the progress bar if it does not already exist
             if pb_cell.get().is_none() {
                 if let Some(total_size) = total {
                     let progress_bar = ProgressBar::new(total_size).with_style(

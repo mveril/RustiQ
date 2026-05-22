@@ -13,12 +13,12 @@ use crate::basis::basisfile::BasisFile;
 use crate::basis::function_type::FunctionType;
 use crate::molecules::geometry::Geometry;
 
-/// Structure représentant une base de fonctions gaussiennes.
+/// Structure representing a Gaussian basis set.
 #[derive(PartialEq, Debug)]
 pub struct Basis {
-    pub shells: Vec<Shell>,                // Collection de shells gaussiens
-    pub shell_ids: Vec<usize>,             // Indices des shells associés à chaque fonction de base
-    pub angular_momenta: Vec<Vector3<u8>>, // Moments angulaires des fonctions de base
+    pub shells: Vec<Shell>,                // Collection of Gaussian shells
+    pub shell_ids: Vec<usize>,             // Shell indices associated with each basis function
+    pub angular_momenta: Vec<Vector3<u8>>, // Angular momenta of the basis functions
 }
 
 impl Basis {
@@ -46,7 +46,7 @@ impl Basis {
         }
     }
 
-    /// Charge une base à partir d'un [BasisFile] et associe avec les atomes de la molécule.
+    /// Loads a basis from a [BasisFile] and associates it with the molecule atoms.
     pub fn load(basis_file: &BasisFile, mol: &Geometry) -> Self {
         let mut shells = Vec::new();
         for atom in &mol.atoms {
@@ -63,7 +63,7 @@ impl Basis {
                     let coeffs_list = &shell.coefficients;
                     let angular_momenta = &shell.angular_momentum;
 
-                    // Vérifiez que le nombre de moments angulaires correspond au nombre de groupes de coefficients
+                    // Check that the number of angular momenta matches the number of coefficient groups
                     assert_eq!(
                         angular_momenta.len(),
                         coeffs_list.len(),
@@ -73,12 +73,12 @@ impl Basis {
                         element.atomic_number
                     );
 
-                    // Pour chaque moment angulaire et son groupe de coefficients
+                    // For each angular momentum and its coefficient group
                     for (l, coeffs_group) in angular_momenta.iter().zip(coeffs_list.iter()) {
-                        // coeffs_group est un Vec<f64> (un groupe de coefficients)
+                        // coeffs_group is a Vec<f64> (a coefficient group)
                         assert_eq!(
                             alpha.len(),
-                            coeffs_group.len(),  // On compare maintenant la longueur du groupe de coefficients
+                            coeffs_group.len(),  // Compare the coefficient group length now
                             "Mismatch between exponents.len() ({}) and coeffs.len() ({}) for element {}, l = {}",
                             alpha.len(),
                             coeffs_group.len(),
@@ -89,10 +89,10 @@ impl Basis {
                         let contraction = Contraction::new(
                             *l,
                             shell.function_type == FunctionType::GtoSpherical,
-                            coeffs_group.clone(), // Utilisez le groupe de coefficients complet ici
+                            coeffs_group.clone(), // Use the full coefficient group here
                         );
 
-                        // Ajoutez la shell
+                        // Add the shell
                         shells.push(Shell::new(alpha.clone(), vec![contraction], position));
                     }
                 }
@@ -236,13 +236,13 @@ impl Basis {
         result
     }
 
-    /// Renvoie le nombre total de fonctions de base.
+    /// Returns the total number of basis functions.
     pub fn nbasis(&self) -> usize {
         self.angular_momenta.len()
     }
 }
 
-/// Génère les combinaisons de moments angulaires pour un l donné.
+/// Generates the angular momentum combinations for a given l.
 fn generate_angular_momentum_combinations_vector(l: u8) -> Vec<Vector3<u8>> {
     let mut combinations = Vec::new();
     for lx in 0..=l {
@@ -431,7 +431,7 @@ mod tests {
 
         let computed = hermite_coeff(la, lb, 0, 0.0, 0.5, 0.5) * (PI / gamma).sqrt();
 
-        // L'intégrale de recouvrement devrait être (pi / gamma)^0.5
+        // The overlap integral should be (pi / gamma)^0.5
         let expected = (PI / gamma).sqrt();
         assert!(
             (computed - expected).abs() < 1e-6,
@@ -481,7 +481,7 @@ mod tests {
 
         let basis = Basis::load(&basis_file, &geom);
 
-        // Vérifier les intégrales de recouvrement et cinétiques
+        // Check overlap and kinetic integrals
         let overlap = basis.overlap_ints();
         let kinetic = basis.kinetic_ints();
 

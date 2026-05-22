@@ -434,12 +434,12 @@ mod tests {
         let (mo_coeff, orbital_energies) =
             ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt);
 
-        // Vérifier les dimensions
+        // Check dimensions
         assert_eq!(mo_coeff.nrows(), basis.nbasis());
         assert_eq!(mo_coeff.ncols(), basis.nbasis());
         assert_eq!(orbital_energies.len(), basis.nbasis());
 
-        // Les orbitales moléculaires sont orthonormées dans la métrique AO: C^T S C = I.
+        // Molecular orbitals are orthonormal in the AO metric: C^T S C = I.
         let overlap = basis.overlap_ints();
         let identity = &mo_coeff.transpose() * overlap * &mo_coeff;
         for i in 0..basis.nbasis() {
@@ -479,9 +479,9 @@ mod tests {
 
         let fock = scf.build_fock_matrix(&scf.density_matrix);
 
-        // Avec une densité identité et des intégrales à deux électrons nulles, Fock devrait être H_core
-        // Cependant, ici nous avons des intégrales réelles, donc ce test est plus complexe
-        // Pour simplifier, nous pouvons vérifier la symétrie de la matrice de Fock
+        // With identity density and zero two-electron integrals, Fock should be H_core
+        // However, this uses real integrals, so this test is more complex
+        // To simplify, we can check the symmetry of the Fock matrix
         for mu in 0..basis.nbasis() {
             for nu in 0..basis.nbasis() {
                 assert!(
@@ -535,17 +535,17 @@ mod tests {
         let mut scf = ScfCalculation::new(
             &molecule,
             &basis,
-            50, // Augmenter le nombre maximum d'itérations si nécessaire
+            50, // Increase the maximum number of iterations if needed
             1e-6,
             TestDensityGuess,
         );
 
-        // Exécuter SCF
+        // Run SCF
         let result = scf.run();
 
-        // Vérifier que l'énergie a été mise à jour
-        // Pour ce test minimal, nous nous attendons à ce que l'énergie soit non nulle
-        // En pratique, une comparaison avec une valeur théorique ou une référence est préférable
+        // Check that the energy has been updated
+        // For this minimal test, we expect the energy to be non-zero
+        // In practice, comparison with a theoretical or reference value is preferable
         assert!(result.converged);
         assert!(result.iterations <= 50);
         assert!(

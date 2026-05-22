@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_geometry_parsing_and_conversion() {
-        // Exemple de chaîne XYZ pour H2 centrée en Angstrom
+        // Example XYZ string for H2 centered in Angstrom
         let xyz_data = "\
 2
 Hydrogen molecule (centered)
@@ -288,18 +288,18 @@ H  0.000000  0.000000  -0.370000
 H  0.000000  0.000000   0.370000
 ";
 
-        // Création d'un Cursor pour simuler un lecteur de fichier
+        // Create a Cursor to simulate a file reader
         let cursor = Cursor::new(xyz_data);
 
-        // Parsing de la géométrie avec display_unit = Angstrom et internal_unit = Bohr
+        // Parse the geometry with display_unit = Angstrom and internal_unit = Bohr
         let geometry = Geometry::from_reader(cursor, Some(Units::Bohr), Some(Units::Angstrom))
             .expect("Failed to parse Geometry");
 
-        // Vérification du nombre d'atomes
+        // Check the number of atoms
         assert_eq!(geometry.atoms.len(), 2);
 
-        // Vérification des coordonnées converties
-        // 1 Angstrom = 1 / 0.52917721092 Bohr ≈ 1.8897259886 Bohr
+        // Check the converted coordinates
+        // 1 Angstrom = 1 / 0.52917721092 Bohr, approximately 1.8897259886 Bohr
         let expected_position1 = point![0.0, 0.0, -0.370000] / 0.52917721092;
         let expected_position2 = point![0.0, 0.0, 0.370000] / 0.52917721092;
 
@@ -320,7 +320,7 @@ H  0.000000  0.000000   0.370000
 
     #[test]
     fn test_geometry_display() {
-        // Création d'une géométrie simple
+        // Create a simple geometry
         let point_angstrom = point!(0.0, 0.0, -0.370000);
         let point_bohr = point_angstrom * 1.8897259886;
         let atom1 = Atom::new(&elements::H, point_bohr);
@@ -332,7 +332,7 @@ H  0.000000  0.000000   0.370000
             Some(Units::Bohr),
         );
 
-        // Conversion des coordonnées pour l'affichage
+        // Convert coordinates for display
         let expected_output = format!(
             "2\nHydrogen molecule (centered)\n{:>12.6} {:>12.6} {:>12.6}\n{:>12.6} {:>12.6} {:>12.6}\n",
             point_angstrom.x,
@@ -343,25 +343,25 @@ H  0.000000  0.000000   0.370000
             -point_angstrom.z,
         );
 
-        // Vérification de la sortie de Display
+        // Check Display output
         let output = format!("{}", geometry);
         assert_eq!(output, expected_output);
     }
 
     #[test]
     fn test_convert_length() {
-        // Test de conversion de Bohr vers Angstrom
+        // Test conversion from Bohr to Angstrom
         let position_bohr = Point3::new(1.0, 2.0, 3.0);
         let position_angstrom = convert_length(position_bohr, Units::Bohr, Units::Angstrom);
 
-        // 1 Bohr ≈ 0.52917721092 Angstrom
+        // 1 Bohr is approximately 0.52917721092 Angstrom
         let expected_angstrom = point![1.0, 2.0, 3.0,] * 0.52917721092;
 
         assert!((position_angstrom.x - expected_angstrom.x).abs() < 1e-6);
         assert!((position_angstrom.y - expected_angstrom.y).abs() < 1e-6);
         assert!((position_angstrom.z - expected_angstrom.z).abs() < 1e-6);
 
-        // Test de conversion d'Angstrom vers Bohr
+        // Test conversion from Angstrom to Bohr
         let position_angstrom = Point3::new(0.52917721092, 1.05835442184, 1.58753163276);
         let position_bohr = convert_length(position_angstrom, Units::Angstrom, Units::Bohr);
 
@@ -374,7 +374,7 @@ H  0.000000  0.000000   0.370000
 
     #[test]
     fn test_nucl_repulsion_h2() {
-        // Création d'une géométrie simple pour la molécule H2
+        // Create a simple geometry for the H2 molecule
         let atom1 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
         let atom2 = Atom::new(&elements::H, point![0.0, 0.0, 1.40]);
 
@@ -385,14 +385,14 @@ H  0.000000  0.000000   0.370000
             Some(Units::Bohr),
         );
 
-        // Calcul de la répulsion noyau-noyau pour H2
+        // Calculate nucleus-nucleus repulsion for H2
         let e_nuc_nuc = geometry.nucl_repulsion();
 
-        // Valeur attendue pour H2 à cette distance
-        // La distance en Bohr est ~1.40 Bohr (0.74 Ångström)
+        // Expected value for H2 at this distance
+        // The distance in Bohr is ~1.40 Bohr (0.74 Angstrom)
         let expected_e_nuc_nuc = 1.0 / 1.40; // Z_H * Z_H / R_HH
 
-        // Vérification que l'énergie calculée est proche de la valeur attendue
+        // Check that the calculated energy is close to the expected value
         assert!(
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
             "Erreur dans E_nuc-nuc pour H2: expected {} found {}",
@@ -403,7 +403,7 @@ H  0.000000  0.000000   0.370000
 
     #[test]
     fn test_nucl_repulsion_h3() {
-        // Création d'une géométrie pour un système hypothétique H3 linéaire
+        // Create a geometry for a hypothetical linear H3 system
         let atom1 = Atom::new(&elements::H, point![0.0, 0.0, -1.0]);
         let atom2 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
         let atom3 = Atom::new(&elements::H, point![0.0, 0.0, 1.0]);
@@ -415,13 +415,13 @@ H  0.000000  0.000000   0.370000
             Some(Units::Bohr),
         );
 
-        // Calcul de la répulsion noyau-noyau pour H3
+        // Calculate nucleus-nucleus repulsion for H3
         let e_nuc_nuc = geometry.nucl_repulsion();
 
-        // Les distances sont toutes 1 Bohr ici
+        // The distances are all 1 Bohr here
         let expected_e_nuc_nuc = (1.0 / 1.0) + (1.0 / 2.0) + (1.0 / 1.0);
 
-        // Vérification que l'énergie calculée est proche de la valeur attendue
+        // Check that the calculated energy is close to the expected value
         assert!(
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
             "Erreur dans E_nuc-nuc pour H3: expected {} found {}",
@@ -432,7 +432,7 @@ H  0.000000  0.000000   0.370000
 
     #[test]
     fn test_nucl_repulsion_he_h2() {
-        // Création d'une géométrie pour un système avec un atome d'He et un H2
+        // Create a geometry for a system with one He atom and H2
         let atom_he = Atom::new(&elements::HE, point![0.0, 0.0, -2.0]);
         let atom_h1 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
         let atom_h2 = Atom::new(&elements::H, point![0.0, 0.0, 1.0]);
@@ -444,13 +444,13 @@ H  0.000000  0.000000   0.370000
             Some(Units::Bohr),
         );
 
-        // Calcul de la répulsion noyau-noyau
+        // Calculate nucleus-nucleus repulsion
         let e_nuc_nuc = geometry.nucl_repulsion();
 
-        // Les distances sont He-H1 = 2 Bohr, He-H2 = 3 Bohr, H1-H2 = 1 Bohr
+        // The distances are He-H1 = 2 Bohr, He-H2 = 3 Bohr, H1-H2 = 1 Bohr
         let expected_e_nuc_nuc = (2.0 * 1.0 / 2.0) + (2.0 * 1.0 / 3.0) + (1.0 * 1.0 / 1.0);
 
-        // Vérification que l'énergie calculée est proche de la valeur attendue
+        // Check that the calculated energy is close to the expected value
         assert!(
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
             "Erreur dans E_nuc-nuc pour He-H2: expected {} found {}",

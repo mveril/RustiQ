@@ -10,9 +10,9 @@ static SQRT_PI_CUBED: LazyLock<f64> = LazyLock::new(|| PI.powi(3).sqrt());
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Shell {
-    pub alpha: DVector<f64>,        // Exposants gaussiens
-    pub contr: Vec<Contraction>,    // Contractions associées
-    pub origin: Point3<f64>,        // Position de l'atome
+    pub alpha: DVector<f64>,        // Gaussian exponents
+    pub contr: Vec<Contraction>,    // Associated contractions
+    pub origin: Point3<f64>,        // Atom position
     pub max_ln_coeff: DVector<f64>, // Max ln(coeff)
 }
 
@@ -33,7 +33,7 @@ impl Shell {
         self.alpha.len()
     }
 
-    /// Normalise les coefficients de la contraction
+    /// Normalizes the contraction coefficients
     pub fn renorm(alpha: &DVector<f64>, contr: &mut [Contraction]) -> DVector<f64> {
         for c in contr.iter_mut() {
             assert!(c.l <= 15, "Le moment angulaire l doit être <= 15");
@@ -174,7 +174,7 @@ mod tests {
     #[should_panic(expected = "Mismatch between alpha.len() and c.coeff.len()")]
     fn test_contraction_with_empty_coefficients() {
         let alpha_values = vec![0.5, 1.0];
-        let coeffs = vec![]; // Coefficients vides
+        let coeffs = vec![]; // Empty coefficients
         let l = 0;
         let pure = false;
 
@@ -187,8 +187,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "Le vecteur alpha est vide")]
     fn test_contraction_with_empty_alpha() {
-        let alpha_values = vec![]; // Exponents vides
-        let coeffs = vec![]; // Correspondant
+        let alpha_values = vec![]; // Empty exponents
+        let coeffs = vec![]; // Matching
         let l = 0;
         let pure = false;
 

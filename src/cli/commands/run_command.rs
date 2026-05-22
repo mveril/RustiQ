@@ -16,7 +16,7 @@ use crate::{
 
 use super::{CommandResult, Runnable};
 
-#[derive(clap::Args, Debug)] // Permet d'utiliser cette structure avec Clap
+#[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
     /// The toml file used for the calculation. If not specified, the standard input is used.
     #[arg(short, long)]
