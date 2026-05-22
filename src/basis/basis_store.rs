@@ -1,7 +1,7 @@
 use serde_json::Error as SerdeError;
 use std::{
     fs::{self, DirEntry},
-    io::{self, Read},
+    io::{self, Read, Seek},
     path::{Path, PathBuf},
 };
 use thiserror::Error;
@@ -175,31 +175,31 @@ impl BasisStore {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
         let mut response = blocking_get(&url)?.error_for_status()?;
-        let path = self.get_path(name);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let mut file = fs::File::create(self.get_path(name))?;
-        response.copy_to(&mut file)?;
+        self.save(name, &mut response)?;
         Ok(())
     }
 
     /// Downloads a basis set file synchronously from a remote URL and saves it locally.
     ///
     /// # Arguments
-    /// * `name` - The name of the basis set to download.
     /// * data - The content of the basis set file to save.
     ///
     /// # Errors
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
     /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
-    #[allow(dead_code)]
-    pub fn import<R: Read>(&self, name: &str, mut data: R) -> Result<(), io::Error> {
+    pub fn import<R: Read + Seek>(&self, mut data: R) -> Result<String, FileError> {
+        let basis: BasisFile = serde_json::from_reader(&mut data)?;
+        data.seek(io::SeekFrom::Start(0))?;
+        self.save(&basis.name, &mut data)?;
+        Ok(basis.name)
+    }
+
+    fn save<R: Read>(&self, name: &str, mut data: &mut R) -> Result<(), io::Error> {
         let path = self.get_path(name);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let mut file = fs::File::create(self.get_path(name))?;
+        let mut file = fs::File::create(path)?;
         io::copy(&mut data, &mut file)?;
         Ok(())
     }
