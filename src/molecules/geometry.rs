@@ -2,6 +2,7 @@ use super::{
     atom::Atom, convert_length::convert_length, element_parser::parse_element,
     geometry_parse_error::GeometryParseError, units::Units,
 };
+use core::iter::Iterator;
 use nalgebra::{distance, Point3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
@@ -23,49 +24,36 @@ pub struct Geometry {
 
 fn read_atom_line(
     line: &str,
-    i: usize,
+    atom_index: usize,
     disp_unit: Units,
     internal_unit: Units,
 ) -> Result<Atom, GeometryParseError> {
     let mut parts = line.split_whitespace();
+    let mut next_part = || {
+        parts
+            .next()
+            .ok_or(GeometryParseError::AtomLineShouldHaveFourParts(
+                atom_index,
+                line.to_string(),
+            ))
+    };
+    let [element_str, x_str, y_str, z_str] =
+        [next_part()?, next_part()?, next_part()?, next_part()?];
 
-    let element_str = parts
-        .next()
-        .ok_or(GeometryParseError::AtomLineShouldHaveFourParts(
-            i,
-            line.to_string(),
-        ))?;
-    let x_str = parts
-        .next()
-        .ok_or(GeometryParseError::AtomLineShouldHaveFourParts(
-            i,
-            line.to_string(),
-        ))?;
-    let y_str = parts
-        .next()
-        .ok_or(GeometryParseError::AtomLineShouldHaveFourParts(
-            i,
-            line.to_string(),
-        ))?;
-    let z_str = parts
-        .next()
-        .ok_or(GeometryParseError::AtomLineShouldHaveFourParts(
-            i,
-            line.to_string(),
-        ))?;
     if parts.next().is_some() {
         return Err(GeometryParseError::AtomLineShouldHaveFourParts(
-            i,
+            atom_index,
             line.to_string(),
         ));
     };
-    let element = parse_element(element_str)
-        .map_err(|err| GeometryParseError::AtomLineElementError(i, line.to_string(), err))?;
+    let element = parse_element(element_str).map_err(|err| {
+        GeometryParseError::AtomLineElementError(atom_index, line.to_string(), err)
+    })?;
 
     let parse_coordinate = |value: &str| {
-        value
-            .parse::<f64>()
-            .map_err(|err| GeometryParseError::AtomLineCoordinateError(i, line.to_string(), err))
+        value.parse::<f64>().map_err(|err| {
+            GeometryParseError::AtomLineCoordinateError(atom_index, line.to_string(), err)
+        })
     };
     let mut position = Point3::new(
         parse_coordinate(x_str)?,
