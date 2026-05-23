@@ -1,9 +1,10 @@
+use super::element_ext::{AtomicMassParseError, ElementExt};
 use super::{
     atom::Atom, convert_length::convert_length, element_parser::parse_element,
     geometry_parse_error::GeometryParseError, units::Units,
 };
 use core::iter::Iterator;
-use nalgebra::{distance, Point3};
+use nalgebra::{distance, Point3, Vector3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
 #[allow(dead_code)]
@@ -142,6 +143,39 @@ impl Geometry {
                 z_i * z_j / r_ij
             })
             .sum()
+    }
+
+    pub fn center(&self) -> Point3<f64> {
+        (self
+            .atoms
+            .iter()
+            .map(|a| a.position.coords)
+            .sum::<Vector3<f64>>()
+            / self.atoms.len() as f64)
+            .into()
+    }
+
+    pub fn mass_center(&self) -> Result<Point3<f64>, AtomicMassParseError> {
+        let total_mass: f64 = self
+            .atoms
+            .iter()
+            .map(|a| a.element.atomic_mass_f64())
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .sum();
+        Ok((self
+            .atoms
+            .iter()
+            .map(|a| {
+                a.element
+                    .atomic_mass_f64()
+                    .map(|mass| a.position.coords * mass)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .sum::<Vector3<f64>>()
+            / total_mass)
+            .into())
     }
 }
 
