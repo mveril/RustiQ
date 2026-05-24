@@ -248,7 +248,7 @@ impl Default for BasisStore {
     fn default() -> Self {
         let app_local_dir = std::env::var_os("RUSTIQ_DATA_HOME")
             .map(PathBuf::from)
-            .or_else(|| dirs::data_local_dir())
+            .or_else(dirs::data_local_dir)
             .unwrap_or_else(std::env::temp_dir)
             .join(env!("CARGO_PKG_NAME"));
         let basis_download_path = app_local_dir.join("basis_sets");

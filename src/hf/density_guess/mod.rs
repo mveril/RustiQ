@@ -183,6 +183,21 @@ mod tests {
     }
 
     #[test]
+    fn test_random_density_guess_has_expected_range() {
+        let (molecule, basis, h_core) = h2_system();
+        let density = Random.build_density_guess(&h_core, &molecule, &basis);
+
+        assert_density_shape(&density, &basis);
+        assert_finite(&density);
+        for value in density.iter() {
+            assert!(
+                (0.0..=1.0).contains(value),
+                "random density value {value} is outside [0, 1]"
+            );
+        }
+    }
+
+    #[test]
     fn test_symmetric_density_guesses_are_symmetric() {
         let (molecule, basis, h_core) = h2_system();
 

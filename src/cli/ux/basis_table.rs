@@ -5,9 +5,9 @@ use tabled::Tabled;
 #[derive(Tabled)]
 pub(crate) struct BasisTableItem {
     pub name: String,
-    #[tabled(display_with = "format_slice")]
+    #[tabled(display("format_slice"))]
     pub friendly_names: Vec<String>,
-    #[tabled(display_with = "format_slice")]
+    #[tabled(display("format_slice"))]
     pub elements: Vec<String>,
 }
 

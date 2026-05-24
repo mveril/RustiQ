@@ -577,9 +577,9 @@ mod tests {
 
     #[test]
     fn test_scf_h2o_sto3g_matches_pyscf_reference_energy() {
-        const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151321547473785;
+        const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151_321_547_473_78;
         const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 9.188258417746113;
-        const PYSCF_TOTAL_ENERGY: f64 = -74.963063129727672;
+        const PYSCF_TOTAL_ENERGY: f64 = -74.963_063_129_727_67;
 
         let result = test_utils::run_sto3g_scf_for_sample("samples/h2o/h2o.xyz");
 
@@ -616,7 +616,7 @@ mod tests {
 
     #[test]
     fn test_diis_scf_h2o_sto3g_matches_pyscf_reference_energy() {
-        const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151321547473785;
+        const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151_321_547_473_78;
 
         let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
