@@ -1,5 +1,8 @@
+use crate::hf::density_guess::random;
+
 use super::DensityGuess;
 use nalgebra::DMatrix;
+use rand::RngExt;
 pub struct Random;
 
 impl DensityGuess for Random {
@@ -10,7 +13,7 @@ impl DensityGuess for Random {
         basis: &crate::basis::gaussian::basis::Basis,
     ) -> nalgebra::DMatrix<f64> {
         let nbasis = basis.nbasis();
-        let r_iter = (0..nbasis.pow(2)).map(|_| rand::random_range(0.0..=1.0));
+        let r_iter = rand::rng().random_iter();
         DMatrix::from_iterator(nbasis, nbasis, r_iter)
     }
 }
