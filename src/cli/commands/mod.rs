@@ -19,6 +19,7 @@ pub enum Commands {
         #[command(subcommand)]
         command: BasisCommands,
     },
+    /// Inspect and transform molecular geometry files
     Geometry {
         #[command(subcommand)]
         command: GeometryCommands,

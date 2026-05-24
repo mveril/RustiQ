@@ -24,6 +24,7 @@ impl Runnable for InfoCommand {
         println!("Number of atoms: {}", &geometry.atoms.len());
         println!("Nuclear repulsion energy: {}", &geometry.nucl_repulsion());
         println!("Center of mass: {}", &geometry.mass_center()?);
+        println!("Center of charge: {}", &geometry.charge_center());
         println!("Center {}", &geometry.center());
         let mut counts = BTreeMap::new();
         for atom in &geometry.atoms {

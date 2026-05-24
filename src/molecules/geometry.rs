@@ -4,7 +4,7 @@ use super::{
     geometry_parse_error::GeometryParseError, units::Units,
 };
 use core::iter::Iterator;
-use nalgebra::{distance, Point3, Vector3};
+use nalgebra::{distance, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
 #[allow(dead_code)]
@@ -177,6 +177,57 @@ impl Geometry {
             / total_mass)
             .into())
     }
+
+    pub fn charge_center(&self) -> Point3<f64> {
+        (self
+            .atoms
+            .iter()
+            .map(|a| a.position.coords * a.element.atomic_number as f64)
+            .sum::<Vector3<f64>>()
+            / self
+                .atoms
+                .iter()
+                .map(|a| a.element.atomic_number as f64)
+                .sum::<f64>())
+        .into()
+    }
+
+    pub fn translate(&mut self, translation: Translation3<f64>) {
+        for atom in &mut self.atoms {
+            atom.position = translation * atom.position;
+        }
+    }
+
+    pub fn rotate(&mut self, rotation: Rotation3<f64>) {
+        for atom in &mut self.atoms {
+            atom.position = rotation * atom.position;
+        }
+    }
+
+    pub fn transform(&mut self, transformation: &nalgebra::Isometry3<f64>) {
+        for atom in &mut self.atoms {
+            atom.position = transformation * atom.position;
+        }
+    }
+
+    pub fn centering(&mut self) {
+        let center = self.center();
+        let translation = Translation3::from(-center.coords);
+        self.translate(translation);
+    }
+
+    pub fn mass_centering(&mut self) -> Result<(), AtomicMassParseError> {
+        let mass_center = self.mass_center()?;
+        let translation = Translation3::from(-mass_center.coords);
+        self.translate(translation);
+        Ok(())
+    }
+
+    pub fn charge_centering(&mut self) {
+        let charge_center = self.charge_center();
+        let translation = Translation3::from(-charge_center.coords);
+        self.translate(translation);
+    }
 }
 
 impl FromStr for Geometry {
@@ -198,7 +249,8 @@ impl Display for Geometry {
             let position = convert_length(atom.position, self.unit, self.display_unit);
             writeln!(
                 f,
-                "{:>width$.precision$} {:>width$.precision$} {:>width$.precision$}",
+                "{:<2} {:>width$.precision$} {:>width$.precision$} {:>width$.precision$}",
+                atom.element.symbol,
                 position.x,
                 position.y,
                 position.z,
@@ -295,10 +347,17 @@ impl AsMut<[Atom]> for Geometry {
 
 #[cfg(test)]
 mod tests {
-    use nalgebra::point;
+    use nalgebra::{point, Isometry3, Rotation3, Translation3, Vector3};
     use periodic_table::elements;
 
     use super::*;
+
+    fn assert_point_close(actual: Point3<f64>, expected: Point3<f64>) {
+        assert!(
+            (actual - expected).norm() < 1e-10,
+            "expected {expected:?}, found {actual:?}"
+        );
+    }
 
     #[test]
     fn test_geometry_parsing_and_conversion() {
@@ -356,7 +415,7 @@ H  0.000000  0.000000   0.370000
 
         // Convert coordinates for display
         let expected_output = format!(
-            "2\nHydrogen molecule (centered)\n{:>12.6} {:>12.6} {:>12.6}\n{:>12.6} {:>12.6} {:>12.6}\n",
+            "2\nHydrogen molecule (centered)\nH  {:>12.6} {:>12.6} {:>12.6}\nH  {:>12.6} {:>12.6} {:>12.6}\n",
             point_angstrom.x,
             point_angstrom.y,
             point_angstrom.z,
@@ -392,6 +451,113 @@ H  0.000000  0.000000   0.370000
         assert!((position_bohr.x - expected_bohr.x).abs() < 1e-6);
         assert!((position_bohr.y - expected_bohr.y).abs() < 1e-6);
         assert!((position_bohr.z - expected_bohr.z).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_translate_geometry() {
+        let mut geometry = Geometry::new(
+            "Translate".to_string(),
+            vec![
+                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
+                Atom::new(&elements::HE, point![1.0, 2.0, 3.0]),
+            ],
+            Some(Units::Bohr),
+            Some(Units::Bohr),
+        );
+
+        geometry.translate(Translation3::new(1.0, -2.0, 0.5));
+
+        assert_point_close(geometry.atoms[0].position, point![1.0, -2.0, 0.5]);
+        assert_point_close(geometry.atoms[1].position, point![2.0, 0.0, 3.5]);
+    }
+
+    #[test]
+    fn test_rotate_geometry() {
+        let mut geometry = Geometry::new(
+            "Rotate".to_string(),
+            vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
+            Some(Units::Bohr),
+            Some(Units::Bohr),
+        );
+
+        geometry.rotate(Rotation3::from_axis_angle(
+            &Vector3::z_axis(),
+            std::f64::consts::FRAC_PI_2,
+        ));
+
+        assert_point_close(geometry.atoms[0].position, point![0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn test_transform_geometry_with_isometry() {
+        let mut geometry = Geometry::new(
+            "Transform".to_string(),
+            vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
+            Some(Units::Bohr),
+            Some(Units::Bohr),
+        );
+        let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), std::f64::consts::FRAC_PI_2);
+        let translation = Translation3::new(0.0, 1.0, 0.0);
+        let isometry = Isometry3::from_parts(translation, rotation.into());
+
+        geometry.transform(&isometry);
+
+        assert_point_close(geometry.atoms[0].position, point![0.0, 2.0, 0.0]);
+    }
+
+    #[test]
+    fn test_centering_moves_geometric_center_to_origin() {
+        let mut geometry = Geometry::new(
+            "Center".to_string(),
+            vec![
+                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
+                Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
+            ],
+            Some(Units::Bohr),
+            Some(Units::Bohr),
+        );
+
+        geometry.centering();
+
+        assert_point_close(geometry.center(), Point3::origin());
+        assert_point_close(geometry.atoms[0].position, point![-1.0, 0.0, 0.0]);
+        assert_point_close(geometry.atoms[1].position, point![1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_mass_centering_moves_mass_center_to_origin() {
+        let mut geometry = Geometry::new(
+            "Mass center".to_string(),
+            vec![
+                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
+                Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
+            ],
+            Some(Units::Bohr),
+            Some(Units::Bohr),
+        );
+
+        geometry.mass_centering().unwrap();
+
+        assert_point_close(geometry.mass_center().unwrap(), Point3::origin());
+    }
+
+    #[test]
+    fn test_charge_centering_moves_charge_center_to_origin() {
+        let mut geometry = Geometry::new(
+            "Charge center".to_string(),
+            vec![
+                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
+                Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
+            ],
+            Some(Units::Bohr),
+            Some(Units::Bohr),
+        );
+
+        geometry.charge_centering();
+
+        assert_point_close(geometry.charge_center(), Point3::origin());
+        assert_point_close(geometry.atoms[0].position, point![-4.0 / 3.0, 0.0, 0.0]);
+        assert_point_close(geometry.atoms[1].position, point![2.0 / 3.0, 0.0, 0.0]);
     }
 
     #[test]
