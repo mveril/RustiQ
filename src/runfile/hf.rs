@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-mod guess_type;
+mod density_guess_config;
 mod random_guess_config;
 
-pub(crate) use guess_type::DensityGuessType;
+pub(crate) use density_guess_config::DensityGuessConfig;
 pub(crate) use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -13,9 +13,7 @@ pub(crate) struct HfConfig {
     #[serde(default = "default_conv_threshold")]
     pub convergence_threshold: f64,
     #[serde(default)]
-    pub density_guess: DensityGuessType,
-    #[serde(default)]
-    pub(crate) random_guess: RandomGuessConfig,
+    pub guess: DensityGuessConfig,
     #[serde(default)]
     pub diis: bool,
     #[serde(default = "default_diis_size")]
@@ -46,6 +44,7 @@ fn default_diis_size() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::discriminant;
 
     #[test]
     fn test_hf_config_diis_defaults() {
@@ -83,9 +82,8 @@ mod tests {
     fn test_hf_config_random_guess_deserialization() {
         let config: HfConfig = toml::from_str(
             r#"
-            density_guess = "Random"
-
-            [random_guess]
+            [guess]
+            type = "Random"
             distribution = "Normal"
             mean = 0.0
             std_dev = 0.5
@@ -94,6 +92,47 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(config.random_guess.random.seed, Some(42));
+        assert_eq!(
+            discriminant(&config.guess),
+            discriminant(&DensityGuessConfig::Random(RandomGuessConfig::default()))
+        );
+        let DensityGuessConfig::Random(guess_config) = config.guess else {
+            panic!("expected random guess config");
+        };
+        assert_eq!(guess_config.random.seed, Some(42));
+    }
+
+    #[test]
+    fn test_hf_config_serializes_random_config_only_for_random_guess() {
+        let core_config: HfConfig = toml::from_str(
+            r#"
+            [guess]
+            type = "CoreHamiltonian"
+            "#,
+        )
+        .unwrap();
+        let core_toml = toml::to_string(&core_config).unwrap();
+
+        assert!(core_toml.contains("type = \"CoreHamiltonian\""));
+        assert!(!core_toml.contains("distribution"));
+        assert!(!core_toml.contains("min"));
+        assert!(!core_toml.contains("max ="));
+
+        let random_config: HfConfig = toml::from_str(
+            r#"
+            [guess]
+            type = "RandomSymmetric"
+            distribution = "Normal"
+            mean = 0.0
+            std_dev = 0.5
+            seed = 42
+            "#,
+        )
+        .unwrap();
+        let random_toml = toml::to_string(&random_config).unwrap();
+
+        assert!(random_toml.contains("type = \"RandomSymmetric\""));
+        assert!(random_toml.contains("distribution = \"Normal\""));
+        assert!(random_toml.contains("seed = 42"));
     }
 }

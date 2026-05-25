@@ -5,7 +5,7 @@ use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
 use crate::molecules::molecule::Molecule;
-use crate::runfile::hf::{DensityGuessType, HfConfig};
+use crate::runfile::hf::{DensityGuessConfig, HfConfig};
 use nalgebra::{DMatrix, DVector};
 
 pub(crate) mod core_hamiltonian;
@@ -35,28 +35,26 @@ impl DensityGuess for Box<dyn DensityGuess> {
 }
 
 #[cfg(test)]
-impl DensityGuessType {
+impl DensityGuessConfig {
     pub fn get_density_guess(&self) -> Box<dyn DensityGuess> {
-        match self {
+        match *self {
             Self::OneElectron => Box::new(OneElectron),
-            Self::Random => Box::new(Random::default()),
+            Self::Random(config) => Box::new(Random::new(config)),
             Self::Zero => Box::new(Zero),
             Self::CoreHamiltonian => Box::new(CoreHamiltonian),
-            Self::RandomSymmetric => Box::new(RandomSymmetric::default()),
+            Self::RandomSymmetric(config) => Box::new(RandomSymmetric::new(config)),
         }
     }
 }
 
 impl HfConfig {
     pub(crate) fn get_density_guess(&self) -> Box<dyn DensityGuess> {
-        match self.density_guess {
-            DensityGuessType::OneElectron => Box::new(OneElectron),
-            DensityGuessType::Random => Box::new(Random::new(self.random_guess.random)),
-            DensityGuessType::Zero => Box::new(Zero),
-            DensityGuessType::CoreHamiltonian => Box::new(CoreHamiltonian),
-            DensityGuessType::RandomSymmetric => {
-                Box::new(RandomSymmetric::new(self.random_guess.random))
-            }
+        match self.guess {
+            DensityGuessConfig::OneElectron => Box::new(OneElectron),
+            DensityGuessConfig::Random(config) => Box::new(Random::new(config)),
+            DensityGuessConfig::Zero => Box::new(Zero),
+            DensityGuessConfig::CoreHamiltonian => Box::new(CoreHamiltonian),
+            DensityGuessConfig::RandomSymmetric(config) => Box::new(RandomSymmetric::new(config)),
         }
     }
 }
@@ -112,8 +110,10 @@ fn symmetric_orthogonalizer(overlap: &DMatrix<f64>) -> DMatrix<f64> {
 mod tests {
     use super::*;
     use crate::hf::core::core_hamiltonian_ints;
+    use crate::runfile::hf::RandomGuessConfig;
     use crate::test_utils;
     use serde::Deserialize;
+    use std::mem::discriminant;
 
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
@@ -163,11 +163,11 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess_type in [
-            DensityGuessType::CoreHamiltonian,
-            DensityGuessType::OneElectron,
-            DensityGuessType::Random,
-            DensityGuessType::RandomSymmetric,
-            DensityGuessType::Zero,
+            DensityGuessConfig::CoreHamiltonian,
+            DensityGuessConfig::OneElectron,
+            DensityGuessConfig::Random(RandomGuessConfig::default()),
+            DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()),
+            DensityGuessConfig::Zero,
         ] {
             let density = guess_type
                 .get_density_guess()
@@ -208,10 +208,10 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess in [
-            DensityGuessType::CoreHamiltonian.get_density_guess(),
-            DensityGuessType::OneElectron.get_density_guess(),
-            DensityGuessType::RandomSymmetric.get_density_guess(),
-            DensityGuessType::Zero.get_density_guess(),
+            DensityGuessConfig::CoreHamiltonian.get_density_guess(),
+            DensityGuessConfig::OneElectron.get_density_guess(),
+            DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()).get_density_guess(),
+            DensityGuessConfig::Zero.get_density_guess(),
         ] {
             let density = guess.build_density_guess(&h_core, &molecule, &basis);
 
@@ -225,8 +225,8 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess in [
-            DensityGuessType::CoreHamiltonian.get_density_guess(),
-            DensityGuessType::RandomSymmetric.get_density_guess(),
+            DensityGuessConfig::CoreHamiltonian.get_density_guess(),
+            DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()).get_density_guess(),
         ] {
             let density = guess.build_density_guess(&h_core, &molecule, &basis);
 
@@ -239,19 +239,32 @@ mod tests {
     fn test_density_guess_type_deserialization() {
         #[derive(Deserialize)]
         struct GuessConfig {
-            density_guess: DensityGuessType,
+            guess: crate::runfile::hf::DensityGuessConfig,
         }
 
-        for name in [
-            "OneElectron",
-            "Random",
-            "Zero",
-            "CoreHamiltonian",
-            "RandomSymmetric",
+        for (name, expected) in [
+            ("OneElectron", DensityGuessConfig::OneElectron),
+            (
+                "Random",
+                DensityGuessConfig::Random(RandomGuessConfig::default()),
+            ),
+            ("Zero", DensityGuessConfig::Zero),
+            ("CoreHamiltonian", DensityGuessConfig::CoreHamiltonian),
+            (
+                "RandomSymmetric",
+                DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()),
+            ),
         ] {
-            let config: GuessConfig =
-                toml::from_str(&format!("density_guess = \"{}\"", name)).unwrap();
-            let _density_guess = config.density_guess.get_density_guess();
+            let config: GuessConfig = toml::from_str(&format!(
+                r#"
+                [guess]
+                type = "{}"
+                "#,
+                name
+            ))
+            .unwrap();
+            assert_eq!(discriminant(&config.guess), discriminant(&expected));
+            let _density_guess = config.guess.get_density_guess();
         }
     }
 }

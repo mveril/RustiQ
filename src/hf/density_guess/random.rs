@@ -1,20 +1,15 @@
 use super::DensityGuess;
-use crate::runfile::random_config::RandomConfig;
+use crate::runfile::hf::RandomGuessConfig;
 use nalgebra::DMatrix;
 
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Random {
-    config: RandomConfig,
+    config: RandomGuessConfig,
 }
 
 impl Random {
-    pub(crate) fn new(config: RandomConfig) -> Self {
+    pub(crate) fn new(config: RandomGuessConfig) -> Self {
         Self { config }
-    }
-}
-
-impl Default for Random {
-    fn default() -> Self {
-        Self::new(RandomConfig::default())
     }
 }
 
@@ -29,7 +24,7 @@ impl DensityGuess for Random {
         DMatrix::from_iterator(
             nbasis,
             nbasis,
-            self.config.sample_iter().take(nbasis.pow(2)),
+            self.config.random.sample_iter().take(nbasis.pow(2)),
         )
     }
 }

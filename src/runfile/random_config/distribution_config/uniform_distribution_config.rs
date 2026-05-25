@@ -3,17 +3,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct UniformDistributionConfig {
-    pub(crate) min: f64,
-    pub(crate) max: f64,
-}
-
-impl Default for UniformDistributionConfig {
-    fn default() -> Self {
-        Self {
-            min: -1.0,
-            max: 1.0,
-        }
-    }
+    pub min: f64,
+    pub max: f64,
 }
 
 impl TryFrom<UniformDistributionConfig> for Uniform<f64> {

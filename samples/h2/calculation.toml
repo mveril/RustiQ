@@ -1,4 +1,5 @@
 [global]
 basis = "sto-3g"
 
-[hf]
+[hf.guess]
+type = "CoreHamiltonian"
