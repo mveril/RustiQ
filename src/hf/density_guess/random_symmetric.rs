@@ -2,7 +2,7 @@ use super::{density_from_fock_like_matrix, DensityGuess};
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
 use nalgebra::DMatrix;
-use rand::RngExt;
+use rand::distr::{Distribution, Uniform};
 
 pub struct RandomSymmetric;
 
@@ -14,9 +14,19 @@ impl DensityGuess for RandomSymmetric {
         basis: &Basis,
     ) -> DMatrix<f64> {
         let nbasis = basis.nbasis();
-        let r_iter = rand::rng().random_iter();
-        let random_matrix = DMatrix::from_iterator(nbasis, nbasis, r_iter);
-        let symmetric_random_matrix = 0.5 * (&random_matrix + random_matrix.transpose());
-        density_from_fock_like_matrix(&symmetric_random_matrix, molecule, basis)
+        let mut rng = rand::rng();
+        let dist = Uniform::new(-1f64, 1f64).unwrap();
+        let mut random_matrix = DMatrix::zeros(nbasis, nbasis);
+        for i in 0..nbasis {
+            for j in i..nbasis {
+                let value = dist.sample(&mut rng);
+                random_matrix[(i, j)] = value;
+                if i != j {
+                    random_matrix[(j, i)] = value;
+                }
+            }
+        }
+
+        density_from_fock_like_matrix(&random_matrix, molecule, basis)
     }
 }
