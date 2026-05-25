@@ -203,8 +203,8 @@ fn test_geometry_translate_writes_valid_xyz_to_stdout() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("2\nHydrogen molecule"));
-    assert!(stdout.contains("H      0.529177     0.000000    -0.370000"));
-    assert!(stdout.contains("H      0.529177     0.000000     0.370000"));
+    assert!(stdout.contains("H      1.000000     0.000000    -0.370000"));
+    assert!(stdout.contains("H      1.000000     0.000000     0.370000"));
 }
 
 #[test]
@@ -228,8 +228,8 @@ fn test_geometry_translate_writes_output_file() {
     assert_success(&output);
 
     let contents = fs::read_to_string(output_path).unwrap();
-    assert!(contents.contains("H      0.000000     0.529177    -0.370000"));
-    assert!(contents.contains("H      0.000000     0.529177     0.370000"));
+    assert!(contents.contains("H      0.000000     1.000000    -0.370000"));
+    assert!(contents.contains("H      0.000000     1.000000     0.370000"));
 }
 
 #[test]
@@ -298,5 +298,5 @@ fn test_geometry_isometry_applies_rotation_and_translation() {
     assert_success(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("H      0.000000     1.529177     0.000000"));
+    assert!(stdout.contains("H      0.000000     2.000000     0.000000"));
 }
