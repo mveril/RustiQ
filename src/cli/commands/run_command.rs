@@ -61,7 +61,7 @@ impl Runnable for RunCommand {
                 &basis,
                 hf.max_iterations,
                 hf.convergence_threshold,
-                hf.density_guess.get_density_guess(),
+                hf.get_density_guess(),
             );
             if hf.diis {
                 scf.enable_diis(hf.diis_size)?;

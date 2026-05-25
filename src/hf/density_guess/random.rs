@@ -1,7 +1,22 @@
 use super::DensityGuess;
+use crate::runfile::random_config::RandomConfig;
 use nalgebra::DMatrix;
-use rand::{distr::Uniform, prelude::*, rng};
-pub struct Random;
+
+pub struct Random {
+    config: RandomConfig,
+}
+
+impl Random {
+    pub(crate) fn new(config: RandomConfig) -> Self {
+        Self { config }
+    }
+}
+
+impl Default for Random {
+    fn default() -> Self {
+        Self::new(RandomConfig::default())
+    }
+}
 
 impl DensityGuess for Random {
     fn build_density_guess(
@@ -11,10 +26,10 @@ impl DensityGuess for Random {
         basis: &crate::basis::gaussian::basis::Basis,
     ) -> nalgebra::DMatrix<f64> {
         let nbasis = basis.nbasis();
-        let r_iter = Uniform::new(-1f64, 1f64)
-            .unwrap()
-            .sample_iter(rng())
-            .take(nbasis.pow(2));
-        DMatrix::from_iterator(nbasis, nbasis, r_iter)
+        DMatrix::from_iterator(
+            nbasis,
+            nbasis,
+            self.config.sample_iter().take(nbasis.pow(2)),
+        )
     }
 }

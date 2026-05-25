@@ -5,8 +5,8 @@ use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
 use crate::molecules::molecule::Molecule;
+use crate::runfile::hf::{DensityGuessType, HfConfig};
 use nalgebra::{DMatrix, DVector};
-use serde::{Deserialize, Serialize};
 
 pub(crate) mod core_hamiltonian;
 pub(crate) mod one_electron;
@@ -34,24 +34,29 @@ impl DensityGuess for Box<dyn DensityGuess> {
     }
 }
 
-#[derive(Hash, Debug, Default, Serialize, Deserialize)]
-pub enum GuessType {
-    #[default]
-    CoreHamiltonian,
-    OneElectron,
-    Random,
-    RandomSymmetric,
-    Zero,
-}
-
-impl GuessType {
+#[cfg(test)]
+impl DensityGuessType {
     pub fn get_density_guess(&self) -> Box<dyn DensityGuess> {
         match self {
             Self::OneElectron => Box::new(OneElectron),
-            Self::Random => Box::new(Random),
+            Self::Random => Box::new(Random::default()),
             Self::Zero => Box::new(Zero),
             Self::CoreHamiltonian => Box::new(CoreHamiltonian),
-            Self::RandomSymmetric => Box::new(RandomSymmetric),
+            Self::RandomSymmetric => Box::new(RandomSymmetric::default()),
+        }
+    }
+}
+
+impl HfConfig {
+    pub(crate) fn get_density_guess(&self) -> Box<dyn DensityGuess> {
+        match self.density_guess {
+            DensityGuessType::OneElectron => Box::new(OneElectron),
+            DensityGuessType::Random => Box::new(Random::new(self.random_guess.random)),
+            DensityGuessType::Zero => Box::new(Zero),
+            DensityGuessType::CoreHamiltonian => Box::new(CoreHamiltonian),
+            DensityGuessType::RandomSymmetric => {
+                Box::new(RandomSymmetric::new(self.random_guess.random))
+            }
         }
     }
 }
@@ -108,6 +113,7 @@ mod tests {
     use super::*;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::test_utils;
+    use serde::Deserialize;
 
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
@@ -157,11 +163,11 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess_type in [
-            GuessType::CoreHamiltonian,
-            GuessType::OneElectron,
-            GuessType::Random,
-            GuessType::RandomSymmetric,
-            GuessType::Zero,
+            DensityGuessType::CoreHamiltonian,
+            DensityGuessType::OneElectron,
+            DensityGuessType::Random,
+            DensityGuessType::RandomSymmetric,
+            DensityGuessType::Zero,
         ] {
             let density = guess_type
                 .get_density_guess()
@@ -185,14 +191,14 @@ mod tests {
     #[test]
     fn test_random_density_guess_has_expected_range() {
         let (molecule, basis, h_core) = h2_system();
-        let density = Random.build_density_guess(&h_core, &molecule, &basis);
+        let density = Random::default().build_density_guess(&h_core, &molecule, &basis);
 
         assert_density_shape(&density, &basis);
         assert_finite(&density);
         for value in density.iter() {
             assert!(
-                (0.0..=1.0).contains(value),
-                "random density value {value} is outside [0, 1]"
+                (-1.0..=1.0).contains(value),
+                "random density value {value} is outside [-1, 1]"
             );
         }
     }
@@ -202,10 +208,10 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess in [
-            GuessType::CoreHamiltonian.get_density_guess(),
-            GuessType::OneElectron.get_density_guess(),
-            GuessType::RandomSymmetric.get_density_guess(),
-            GuessType::Zero.get_density_guess(),
+            DensityGuessType::CoreHamiltonian.get_density_guess(),
+            DensityGuessType::OneElectron.get_density_guess(),
+            DensityGuessType::RandomSymmetric.get_density_guess(),
+            DensityGuessType::Zero.get_density_guess(),
         ] {
             let density = guess.build_density_guess(&h_core, &molecule, &basis);
 
@@ -219,8 +225,8 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess in [
-            GuessType::CoreHamiltonian.get_density_guess(),
-            GuessType::RandomSymmetric.get_density_guess(),
+            DensityGuessType::CoreHamiltonian.get_density_guess(),
+            DensityGuessType::RandomSymmetric.get_density_guess(),
         ] {
             let density = guess.build_density_guess(&h_core, &molecule, &basis);
 
@@ -233,7 +239,7 @@ mod tests {
     fn test_density_guess_type_deserialization() {
         #[derive(Deserialize)]
         struct GuessConfig {
-            density_guess: GuessType,
+            density_guess: DensityGuessType,
         }
 
         for name in [

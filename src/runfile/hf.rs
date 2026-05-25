@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::hf::density_guess::GuessType as DensityGuessType;
+mod guess_type;
+mod random_guess_config;
+
+pub(crate) use guess_type::DensityGuessType;
+pub(crate) use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct HfConfig {
@@ -10,6 +14,8 @@ pub(crate) struct HfConfig {
     pub convergence_threshold: f64,
     #[serde(default)]
     pub density_guess: DensityGuessType,
+    #[serde(default)]
+    pub(crate) random_guess: RandomGuessConfig,
     #[serde(default)]
     pub diis: bool,
     #[serde(default = "default_diis_size")]
@@ -71,5 +77,23 @@ mod tests {
 
         assert_eq!(normal.format, HfOutputFormat::Normal);
         assert_eq!(nope.format, HfOutputFormat::Nope);
+    }
+
+    #[test]
+    fn test_hf_config_random_guess_deserialization() {
+        let config: HfConfig = toml::from_str(
+            r#"
+            density_guess = "Random"
+
+            [random_guess]
+            distribution = "Normal"
+            mean = 0.0
+            std_dev = 0.5
+            seed = 42
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(config.random_guess.random.seed, Some(42));
     }
 }
