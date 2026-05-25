@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 mod density_guess_config;
+mod guess_perturbation_config;
 mod random_guess_config;
 
 pub(crate) use density_guess_config::DensityGuessConfig;
+pub(crate) use guess_perturbation_config::GuessPerturbationConfig;
 pub(crate) use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -44,6 +46,7 @@ fn default_diis_size() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runfile::random_config::DistributionConfig;
     use std::mem::discriminant;
 
     #[test]
@@ -94,12 +97,102 @@ mod tests {
 
         assert_eq!(
             discriminant(&config.guess),
-            discriminant(&DensityGuessConfig::Random(RandomGuessConfig::default()))
+            discriminant(&DensityGuessConfig::Random {
+                config: RandomGuessConfig::default()
+            })
         );
-        let DensityGuessConfig::Random(guess_config) = config.guess else {
+        let DensityGuessConfig::Random {
+            config: guess_config,
+        } = config.guess
+        else {
             panic!("expected random guess config");
         };
         assert_eq!(guess_config.random.seed, Some(42));
+    }
+
+    #[test]
+    fn test_hf_config_core_guess_perturbation_deserialization() {
+        let config: HfConfig = toml::from_str(
+            r#"
+            [guess]
+            type = "CoreHamiltonian"
+
+            [guess.perturbation]
+            distribution = "Normal"
+            mean = 0.0
+            std_dev = 1e-4
+            seed = 42
+            "#,
+        )
+        .unwrap();
+
+        let DensityGuessConfig::CoreHamiltonian {
+            perturbation: Some(perturbation),
+        } = config.guess
+        else {
+            panic!("expected perturbed core hamiltonian guess config");
+        };
+        assert_eq!(perturbation.random.seed, Some(42));
+    }
+
+    #[test]
+    fn test_hf_config_guess_perturbation_defaults() {
+        let config: HfConfig = toml::from_str(
+            r#"
+            [guess]
+            type = "CoreHamiltonian"
+
+            [guess.perturbation]
+            "#,
+        )
+        .unwrap();
+
+        let DensityGuessConfig::CoreHamiltonian {
+            perturbation: Some(perturbation),
+        } = config.guess
+        else {
+            panic!("expected default perturbation config");
+        };
+        assert_eq!(perturbation.random.seed, None);
+        match perturbation.random.distribution {
+            DistributionConfig::Normal(config) => {
+                assert_eq!(config.mean, 0.0);
+                assert_eq!(config.std_dev, 1e-4);
+            }
+            DistributionConfig::Uniform(_) => panic!("expected normal perturbation default"),
+        }
+        match RandomGuessConfig::default().random.distribution {
+            DistributionConfig::Uniform(config) => {
+                assert_eq!(config.min, -1.0);
+                assert_eq!(config.max, 1.0);
+            }
+            DistributionConfig::Normal(_) => panic!("expected uniform random guess default"),
+        }
+    }
+
+    #[test]
+    fn test_hf_config_one_electron_guess_perturbation_deserialization() {
+        let config: HfConfig = toml::from_str(
+            r#"
+            [guess]
+            type = "OneElectron"
+
+            [guess.perturbation]
+            distribution = "Uniform"
+            min = -1e-4
+            max = 1e-4
+            seed = 43
+            "#,
+        )
+        .unwrap();
+
+        let DensityGuessConfig::OneElectron {
+            perturbation: Some(perturbation),
+        } = config.guess
+        else {
+            panic!("expected perturbed one electron guess config");
+        };
+        assert_eq!(perturbation.random.seed, Some(43));
     }
 
     #[test]
@@ -114,6 +207,7 @@ mod tests {
         let core_toml = toml::to_string(&core_config).unwrap();
 
         assert!(core_toml.contains("type = \"CoreHamiltonian\""));
+        assert!(!core_toml.contains("perturbation"));
         assert!(!core_toml.contains("distribution"));
         assert!(!core_toml.contains("min"));
         assert!(!core_toml.contains("max ="));

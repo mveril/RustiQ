@@ -5,7 +5,7 @@ use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
 use crate::molecules::molecule::Molecule;
-use crate::runfile::hf::{DensityGuessConfig, HfConfig};
+use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig, HfConfig};
 use nalgebra::{DMatrix, DVector};
 
 pub(crate) mod core_hamiltonian;
@@ -38,11 +38,11 @@ impl DensityGuess for Box<dyn DensityGuess> {
 impl DensityGuessConfig {
     pub fn get_density_guess(&self) -> Box<dyn DensityGuess> {
         match *self {
-            Self::OneElectron => Box::new(OneElectron),
-            Self::Random(config) => Box::new(Random::new(config)),
+            Self::OneElectron { perturbation } => Box::new(OneElectron::new(perturbation)),
+            Self::Random { config } => Box::new(Random::new(config)),
             Self::Zero => Box::new(Zero),
-            Self::CoreHamiltonian => Box::new(CoreHamiltonian),
-            Self::RandomSymmetric(config) => Box::new(RandomSymmetric::new(config)),
+            Self::CoreHamiltonian { perturbation } => Box::new(CoreHamiltonian::new(perturbation)),
+            Self::RandomSymmetric { config } => Box::new(RandomSymmetric::new(config)),
         }
     }
 }
@@ -50,13 +50,44 @@ impl DensityGuessConfig {
 impl HfConfig {
     pub(crate) fn get_density_guess(&self) -> Box<dyn DensityGuess> {
         match self.guess {
-            DensityGuessConfig::OneElectron => Box::new(OneElectron),
-            DensityGuessConfig::Random(config) => Box::new(Random::new(config)),
+            DensityGuessConfig::OneElectron { perturbation } => {
+                Box::new(OneElectron::new(perturbation))
+            }
+            DensityGuessConfig::Random { config } => Box::new(Random::new(config)),
             DensityGuessConfig::Zero => Box::new(Zero),
-            DensityGuessConfig::CoreHamiltonian => Box::new(CoreHamiltonian),
-            DensityGuessConfig::RandomSymmetric(config) => Box::new(RandomSymmetric::new(config)),
+            DensityGuessConfig::CoreHamiltonian { perturbation } => {
+                Box::new(CoreHamiltonian::new(perturbation))
+            }
+            DensityGuessConfig::RandomSymmetric { config } => {
+                Box::new(RandomSymmetric::new(config))
+            }
         }
     }
+}
+
+pub(crate) fn perturb_fock_like_matrix(
+    fock_like: &DMatrix<f64>,
+    perturbation: Option<GuessPerturbationConfig>,
+) -> DMatrix<f64> {
+    let Some(perturbation) = perturbation else {
+        return fock_like.clone();
+    };
+    fock_like + symmetric_random_matrix(fock_like.nrows(), perturbation)
+}
+
+fn symmetric_random_matrix(size: usize, perturbation: GuessPerturbationConfig) -> DMatrix<f64> {
+    let mut rng = perturbation.random.sample_iter();
+    let mut matrix = DMatrix::zeros(size, size);
+    for i in 0..size {
+        for j in i..size {
+            let value = rng.next().unwrap();
+            matrix[(i, j)] = value;
+            if i != j {
+                matrix[(j, i)] = value;
+            }
+        }
+    }
+    matrix
 }
 
 pub(crate) fn density_from_fock_like_matrix(
@@ -110,7 +141,9 @@ fn symmetric_orthogonalizer(overlap: &DMatrix<f64>) -> DMatrix<f64> {
 mod tests {
     use super::*;
     use crate::hf::core::core_hamiltonian_ints;
-    use crate::runfile::hf::RandomGuessConfig;
+    use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
+    use crate::runfile::random_config::distribution_config::NormalDistributionConfig;
+    use crate::runfile::random_config::{DistributionConfig, RandomConfig};
     use crate::test_utils;
     use serde::Deserialize;
     use std::mem::discriminant;
@@ -122,6 +155,18 @@ mod tests {
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
         let h_core = t_matrix + v_matrix;
         (molecule, basis, h_core)
+    }
+
+    fn perturbation(seed: u64) -> GuessPerturbationConfig {
+        GuessPerturbationConfig {
+            random: RandomConfig {
+                distribution: DistributionConfig::Normal(NormalDistributionConfig {
+                    mean: 0.0,
+                    std_dev: 1e-4,
+                }),
+                seed: Some(seed),
+            },
+        }
     }
 
     fn assert_symmetric(matrix: &DMatrix<f64>) {
@@ -163,10 +208,14 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess_type in [
-            DensityGuessConfig::CoreHamiltonian,
-            DensityGuessConfig::OneElectron,
-            DensityGuessConfig::Random(RandomGuessConfig::default()),
-            DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()),
+            DensityGuessConfig::CoreHamiltonian { perturbation: None },
+            DensityGuessConfig::OneElectron { perturbation: None },
+            DensityGuessConfig::Random {
+                config: RandomGuessConfig::default(),
+            },
+            DensityGuessConfig::RandomSymmetric {
+                config: RandomGuessConfig::default(),
+            },
             DensityGuessConfig::Zero,
         ] {
             let density = guess_type
@@ -208,9 +257,12 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess in [
-            DensityGuessConfig::CoreHamiltonian.get_density_guess(),
-            DensityGuessConfig::OneElectron.get_density_guess(),
-            DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()).get_density_guess(),
+            DensityGuessConfig::CoreHamiltonian { perturbation: None }.get_density_guess(),
+            DensityGuessConfig::OneElectron { perturbation: None }.get_density_guess(),
+            DensityGuessConfig::RandomSymmetric {
+                config: RandomGuessConfig::default(),
+            }
+            .get_density_guess(),
             DensityGuessConfig::Zero.get_density_guess(),
         ] {
             let density = guess.build_density_guess(&h_core, &molecule, &basis);
@@ -225,8 +277,11 @@ mod tests {
         let (molecule, basis, h_core) = h2_system();
 
         for guess in [
-            DensityGuessConfig::CoreHamiltonian.get_density_guess(),
-            DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()).get_density_guess(),
+            DensityGuessConfig::CoreHamiltonian { perturbation: None }.get_density_guess(),
+            DensityGuessConfig::RandomSymmetric {
+                config: RandomGuessConfig::default(),
+            }
+            .get_density_guess(),
         ] {
             let density = guess.build_density_guess(&h_core, &molecule, &basis);
 
@@ -236,33 +291,116 @@ mod tests {
     }
 
     #[test]
+    fn test_perturbed_core_hamiltonian_guess_is_reproducible_with_seed() {
+        let (molecule, basis, h_core) = h2_system();
+        let first = DensityGuessConfig::CoreHamiltonian {
+            perturbation: Some(perturbation(42)),
+        }
+        .get_density_guess()
+        .build_density_guess(&h_core, &molecule, &basis);
+        let second = DensityGuessConfig::CoreHamiltonian {
+            perturbation: Some(perturbation(42)),
+        }
+        .get_density_guess()
+        .build_density_guess(&h_core, &molecule, &basis);
+
+        assert_eq!(first, second);
+        assert_symmetric(&first);
+        assert_finite(&first);
+        assert_electron_count(&first, &molecule, &basis);
+    }
+
+    #[test]
+    fn test_perturbed_core_hamiltonian_guess_changes_with_seed() {
+        let (molecule, basis, h_core) = h2_system();
+        let first = DensityGuessConfig::CoreHamiltonian {
+            perturbation: Some(perturbation(42)),
+        }
+        .get_density_guess()
+        .build_density_guess(&h_core, &molecule, &basis);
+        let second = DensityGuessConfig::CoreHamiltonian {
+            perturbation: Some(perturbation(43)),
+        }
+        .get_density_guess()
+        .build_density_guess(&h_core, &molecule, &basis);
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_perturbed_one_electron_guess_is_symmetric_and_reproducible() {
+        let (molecule, basis, h_core) = h2_system();
+        let first = DensityGuessConfig::OneElectron {
+            perturbation: Some(perturbation(42)),
+        }
+        .get_density_guess()
+        .build_density_guess(&h_core, &molecule, &basis);
+        let second = DensityGuessConfig::OneElectron {
+            perturbation: Some(perturbation(42)),
+        }
+        .get_density_guess()
+        .build_density_guess(&h_core, &molecule, &basis);
+
+        assert_eq!(first, second);
+        assert_symmetric(&first);
+        assert_finite(&first);
+    }
+
+    #[test]
     fn test_density_guess_type_deserialization() {
         #[derive(Deserialize)]
         struct GuessConfig {
             guess: crate::runfile::hf::DensityGuessConfig,
         }
 
-        for (name, expected) in [
-            ("OneElectron", DensityGuessConfig::OneElectron),
+        for (toml, expected) in [
             (
-                "Random",
-                DensityGuessConfig::Random(RandomGuessConfig::default()),
-            ),
-            ("Zero", DensityGuessConfig::Zero),
-            ("CoreHamiltonian", DensityGuessConfig::CoreHamiltonian),
-            (
-                "RandomSymmetric",
-                DensityGuessConfig::RandomSymmetric(RandomGuessConfig::default()),
-            ),
-        ] {
-            let config: GuessConfig = toml::from_str(&format!(
                 r#"
                 [guess]
-                type = "{}"
+                type = "OneElectron"
                 "#,
-                name
-            ))
-            .unwrap();
+                DensityGuessConfig::OneElectron { perturbation: None },
+            ),
+            (
+                r#"
+                [guess]
+                type = "Random"
+                distribution = "Uniform"
+                min = -1.0
+                max = 1.0
+                "#,
+                DensityGuessConfig::Random {
+                    config: RandomGuessConfig::default(),
+                },
+            ),
+            (
+                r#"
+                [guess]
+                type = "Zero"
+                "#,
+                DensityGuessConfig::Zero,
+            ),
+            (
+                r#"
+                [guess]
+                type = "CoreHamiltonian"
+                "#,
+                DensityGuessConfig::CoreHamiltonian { perturbation: None },
+            ),
+            (
+                r#"
+                [guess]
+                type = "RandomSymmetric"
+                distribution = "Uniform"
+                min = -1.0
+                max = 1.0
+                "#,
+                DensityGuessConfig::RandomSymmetric {
+                    config: RandomGuessConfig::default(),
+                },
+            ),
+        ] {
+            let config: GuessConfig = toml::from_str(toml).unwrap();
             assert_eq!(discriminant(&config.guess), discriminant(&expected));
             let _density_guess = config.guess.get_density_guess();
         }

@@ -1,11 +1,22 @@
 use super::DensityGuess;
 use crate::basis::gaussian::basis::Basis;
+use crate::hf::density_guess::perturb_fock_like_matrix;
 use crate::math_utils::assert_is_symmetric;
 use crate::molecules::molecule::Molecule;
+use crate::runfile::hf::GuessPerturbationConfig;
 use nalgebra::DMatrix;
 
 /// Structure representing an initial density estimate based on one electron.
-pub struct OneElectron;
+#[derive(Default)]
+pub struct OneElectron {
+    perturbation: Option<GuessPerturbationConfig>,
+}
+
+impl OneElectron {
+    pub(crate) fn new(perturbation: Option<GuessPerturbationConfig>) -> Self {
+        Self { perturbation }
+    }
+}
 
 impl DensityGuess for OneElectron {
     fn build_density_guess(
@@ -16,9 +27,10 @@ impl DensityGuess for OneElectron {
     ) -> DMatrix<f64> {
         // Check that H_core is symmetric
         assert_is_symmetric(h_core, 1e-8);
+        let h_core = perturb_fock_like_matrix(h_core, self.perturbation);
 
         // Diagonalize H_core to obtain the initial MO coefficients
-        let eig = h_core.clone().symmetric_eigen();
+        let eig = h_core.symmetric_eigen();
         let mut order: Vec<usize> = (0..eig.eigenvalues.len()).collect();
         order.sort_by(|&a, &b| {
             eig.eigenvalues[a]
