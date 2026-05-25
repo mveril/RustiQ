@@ -1,9 +1,10 @@
 use std::{num::NonZero, ops::Deref};
 
-use super::geometry::Geometry;
+use super::{convert_length::convert_length, geometry::Geometry, units::Units};
 
 pub struct Molecule {
     pub geometry: Geometry,
+    pub unit: Units,
     pub charge: i8,
     pub multiplicity: NonZero<u8>,
 }
@@ -20,6 +21,7 @@ impl From<Geometry> for Molecule {
     fn from(geometry: Geometry) -> Self {
         Molecule {
             geometry,
+            unit: Units::Bohr,
             charge: 0,
             multiplicity: unsafe { NonZero::new_unchecked(1) },
         }
@@ -27,6 +29,26 @@ impl From<Geometry> for Molecule {
 }
 
 impl Molecule {
+    pub fn new(geometry: Geometry, unit: Units, charge: i8, multiplicity: NonZero<u8>) -> Self {
+        Self {
+            geometry,
+            unit,
+            charge,
+            multiplicity,
+        }
+    }
+
+    pub fn convert_to(&mut self, unit: Units) {
+        if self.unit == unit {
+            return;
+        }
+
+        for atom in &mut self.geometry.atoms {
+            atom.position = convert_length(atom.position, self.unit, unit);
+        }
+        self.unit = unit;
+    }
+
     pub fn total_electrons(&self) -> i8 {
         let n_charge = self
             .atoms

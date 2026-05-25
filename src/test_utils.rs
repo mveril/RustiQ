@@ -3,7 +3,7 @@ use std::fs::File;
 use crate::{
     basis::{basisfile::BasisFile, gaussian::basis::Basis},
     hf::{density_guess::one_electron::OneElectron, scf::ScfCalculation},
-    molecules::{geometry::Geometry, molecule::Molecule},
+    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
 };
 
 pub(crate) fn load_minimal_basis_file() -> BasisFile {
@@ -13,7 +13,18 @@ pub(crate) fn load_minimal_basis_file() -> BasisFile {
 
 pub(crate) fn load_sample_geometry(path: &str) -> Geometry {
     let file = File::open(path).unwrap();
-    Geometry::from_file(file, None, None).unwrap()
+    Geometry::from_file(file).unwrap()
+}
+
+pub(crate) fn load_sample_geometry_in_bohr(path: &str) -> Geometry {
+    let mut molecule = Molecule::new(
+        load_sample_geometry(path),
+        Units::Angstrom,
+        0,
+        std::num::NonZeroU8::MIN,
+    );
+    molecule.convert_to(Units::Bohr);
+    molecule.geometry
 }
 
 pub(crate) fn load_sto3g_basis(geometry: &Geometry) -> Basis {
@@ -43,9 +54,9 @@ pub(crate) struct ScfReferenceResult {
 }
 
 pub(crate) fn run_sto3g_scf_for_sample(path: &str) -> ScfReferenceResult {
-    let geometry = load_sample_geometry(path);
+    let molecule = Molecule::from(load_sample_geometry_in_bohr(path));
+    let geometry = molecule.geometry.clone();
     let basis = load_sto3g_basis(&geometry);
-    let molecule = Molecule::from(geometry);
     let mut scf = new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
     let result = scf.run();

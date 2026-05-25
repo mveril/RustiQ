@@ -54,7 +54,6 @@ mod tests {
     use crate::math_utils::assert_is_symmetric;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
-    use crate::molecules::units::Units;
     use crate::test_utils;
     use nalgebra::point;
 
@@ -79,12 +78,7 @@ mod tests {
         let h = &elements[0]; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.4]); // 0.74 Å ≈ 1.40 Bohr
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.4]);
-        Geometry::new(
-            "Hydrogen molecule (H2)".to_string(),
-            vec![atom1, atom2],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
-        )
+        Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])
     }
 
     #[test]

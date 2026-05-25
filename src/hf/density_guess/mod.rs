@@ -110,7 +110,7 @@ mod tests {
     use crate::test_utils;
 
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
-        let geometry = test_utils::load_sample_geometry("samples/h2/molecule.xyz");
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::from(geometry);
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);

@@ -295,7 +295,6 @@ mod tests {
     use crate::basis::gaussian::contraction::Contraction;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
-    use crate::molecules::units::Units;
     use crate::test_utils;
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
@@ -314,12 +313,7 @@ mod tests {
         let h = &elements[0]; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.40]);
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.40]);
-        Geometry::new(
-            "Hydrogen molecule (H2)".to_string(),
-            vec![atom1, atom2],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
-        )
+        Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])
     }
 
     /// Test ERI calculation for two s functions at the same center.

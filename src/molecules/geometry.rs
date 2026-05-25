@@ -1,8 +1,5 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
-use super::{
-    atom::Atom, convert_length::convert_length, element_parser::parse_element,
-    geometry_parse_error::GeometryParseError, units::Units,
-};
+use super::{atom::Atom, element_parser::parse_element, geometry_parse_error::GeometryParseError};
 use core::iter::Iterator;
 use nalgebra::{distance, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -19,16 +16,9 @@ use std::{
 pub struct Geometry {
     pub comment: String,
     pub atoms: Vec<Atom>,
-    pub display_unit: Units,
-    pub unit: Units,
 }
 
-fn read_atom_line(
-    line: &str,
-    atom_index: usize,
-    disp_unit: Units,
-    internal_unit: Units,
-) -> Result<Atom, GeometryParseError> {
+fn read_atom_line(line: &str, atom_index: usize) -> Result<Atom, GeometryParseError> {
     let mut parts = line.split_whitespace();
     let mut next_part = || {
         parts
@@ -56,40 +46,21 @@ fn read_atom_line(
             GeometryParseError::AtomLineCoordinateError(atom_index, line.to_string(), err)
         })
     };
-    let mut position = Point3::new(
+    let position = Point3::new(
         parse_coordinate(x_str)?,
         parse_coordinate(y_str)?,
         parse_coordinate(z_str)?,
     );
-    if disp_unit != internal_unit {
-        position = convert_length(position, disp_unit, internal_unit);
-    }
     Ok(Atom::new(element, position))
 }
 
 impl Geometry {
-    pub fn new(
-        comment: String,
-        atoms: Vec<Atom>,
-        display_unit: Option<Units>,
-        unit: Option<Units>,
-    ) -> Self {
-        Geometry {
-            comment,
-            atoms,
-            display_unit: display_unit.unwrap_or(Units::Angstrom),
-            unit: unit.unwrap_or(Units::Bohr),
-        }
+    pub fn new(comment: String, atoms: Vec<Atom>) -> Self {
+        Geometry { comment, atoms }
     }
 
-    pub fn from_reader(
-        mut reader: impl BufRead,
-        unit: Option<Units>,
-        display_unit: Option<Units>,
-    ) -> Result<Self, GeometryParseError> {
+    pub fn from_reader(mut reader: impl BufRead) -> Result<Self, GeometryParseError> {
         let mut num_str = String::new();
-        let internal_unit = unit.unwrap_or(Units::Bohr);
-        let disp_unit = display_unit.unwrap_or(Units::Angstrom);
         reader.read_line(&mut num_str)?;
         let num = num_str
             .trim()
@@ -101,23 +72,14 @@ impl Geometry {
         for i in 0..num {
             let mut line = String::new();
             reader.read_line(&mut line)?;
-            let atom = read_atom_line(&line, i, disp_unit, internal_unit)?;
+            let atom = read_atom_line(&line, i)?;
             atoms.push(atom);
         }
-        Ok(Geometry::new(
-            comm,
-            atoms,
-            Option::from(disp_unit),
-            Option::from(internal_unit),
-        ))
+        Ok(Geometry::new(comm, atoms))
     }
 
-    pub fn from_file(
-        file: File,
-        unit: Option<Units>,
-        display_unit: Option<Units>,
-    ) -> Result<Self, GeometryParseError> {
-        Self::from_reader(BufReader::new(file), unit, display_unit)
+    pub fn from_file(file: File) -> Result<Self, GeometryParseError> {
+        Self::from_reader(BufReader::new(file))
     }
 
     #[allow(clippy::wrong_self_convention)]
@@ -235,7 +197,7 @@ impl FromStr for Geometry {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let cursor = Cursor::new(s);
-        Self::from_reader(cursor, None, None)
+        Self::from_reader(cursor)
     }
 }
 
@@ -246,14 +208,13 @@ impl Display for Geometry {
         writeln!(f, "{}", self.atoms.len())?;
         writeln!(f, "{}", self.comment)?;
         for atom in &self.atoms {
-            let position = convert_length(atom.position, self.unit, self.display_unit);
             writeln!(
                 f,
                 "{:<2} {:>width$.precision$} {:>width$.precision$} {:>width$.precision$}",
                 atom.element.symbol,
-                position.x,
-                position.y,
-                position.z,
+                atom.position.x,
+                atom.position.y,
+                atom.position.z,
                 width = width,
                 precision = precision
             )?;
@@ -360,8 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn test_geometry_parsing_and_conversion() {
-        // Example XYZ string for H2 centered in Angstrom
+    fn test_geometry_parsing_keeps_coordinates_unchanged() {
         let xyz_data = "\
 2
 Hydrogen molecule (centered)
@@ -369,20 +329,13 @@ H  0.000000  0.000000  -0.370000
 H  0.000000  0.000000   0.370000
 ";
 
-        // Create a Cursor to simulate a file reader
         let cursor = Cursor::new(xyz_data);
+        let geometry = Geometry::from_reader(cursor).expect("Failed to parse Geometry");
 
-        // Parse the geometry with display_unit = Angstrom and internal_unit = Bohr
-        let geometry = Geometry::from_reader(cursor, Some(Units::Bohr), Some(Units::Angstrom))
-            .expect("Failed to parse Geometry");
-
-        // Check the number of atoms
         assert_eq!(geometry.atoms.len(), 2);
 
-        // Check the converted coordinates
-        // 1 Angstrom = 1 / 0.52917721092 Bohr, approximately 1.8897259886 Bohr
-        let expected_position1 = point![0.0, 0.0, -0.370000] / 0.52917721092;
-        let expected_position2 = point![0.0, 0.0, 0.370000] / 0.52917721092;
+        let expected_position1 = point![0.0, 0.0, -0.370000];
+        let expected_position2 = point![0.0, 0.0, 0.370000];
 
         let atom1 = &geometry.atoms[0];
         let atom2 = &geometry.atoms[1];
@@ -401,19 +354,14 @@ H  0.000000  0.000000   0.370000
 
     #[test]
     fn test_geometry_display() {
-        // Create a simple geometry
         let point_angstrom = point!(0.0, 0.0, -0.370000);
-        let point_bohr = point_angstrom * 1.8897259886;
-        let atom1 = Atom::new(&elements::H, point_bohr);
-        let atom2 = Atom::new(&elements::H, Point3::new(0.0, 0.0, -point_bohr.z));
+        let atom1 = Atom::new(&elements::H, point_angstrom);
+        let atom2 = Atom::new(&elements::H, Point3::new(0.0, 0.0, -point_angstrom.z));
         let geometry = Geometry::new(
             "Hydrogen molecule (centered)".to_string(),
             vec![atom1.clone(), atom2.clone()],
-            Some(Units::Angstrom),
-            Some(Units::Bohr),
         );
 
-        // Convert coordinates for display
         let expected_output = format!(
             "2\nHydrogen molecule (centered)\nH  {:>12.6} {:>12.6} {:>12.6}\nH  {:>12.6} {:>12.6} {:>12.6}\n",
             point_angstrom.x,
@@ -424,33 +372,8 @@ H  0.000000  0.000000   0.370000
             -point_angstrom.z,
         );
 
-        // Check Display output
         let output = format!("{}", geometry);
         assert_eq!(output, expected_output);
-    }
-
-    #[test]
-    fn test_convert_length() {
-        // Test conversion from Bohr to Angstrom
-        let position_bohr = Point3::new(1.0, 2.0, 3.0);
-        let position_angstrom = convert_length(position_bohr, Units::Bohr, Units::Angstrom);
-
-        // 1 Bohr is approximately 0.52917721092 Angstrom
-        let expected_angstrom = point![1.0, 2.0, 3.0,] * 0.52917721092;
-
-        assert!((position_angstrom.x - expected_angstrom.x).abs() < 1e-6);
-        assert!((position_angstrom.y - expected_angstrom.y).abs() < 1e-6);
-        assert!((position_angstrom.z - expected_angstrom.z).abs() < 1e-6);
-
-        // Test conversion from Angstrom to Bohr
-        let position_angstrom = Point3::new(0.52917721092, 1.05835442184, 1.58753163276);
-        let position_bohr = convert_length(position_angstrom, Units::Angstrom, Units::Bohr);
-
-        let expected_bohr = point![0.52917721092, 1.05835442184, 1.58753163276,] / 0.52917721092;
-
-        assert!((position_bohr.x - expected_bohr.x).abs() < 1e-6);
-        assert!((position_bohr.y - expected_bohr.y).abs() < 1e-6);
-        assert!((position_bohr.z - expected_bohr.z).abs() < 1e-6);
     }
 
     #[test]
@@ -461,8 +384,6 @@ H  0.000000  0.000000   0.370000
                 Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
                 Atom::new(&elements::HE, point![1.0, 2.0, 3.0]),
             ],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         geometry.translate(Translation3::new(1.0, -2.0, 0.5));
@@ -476,8 +397,6 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Rotate".to_string(),
             vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         geometry.rotate(Rotation3::from_axis_angle(
@@ -493,8 +412,6 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Transform".to_string(),
             vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
         let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), std::f64::consts::FRAC_PI_2);
         let translation = Translation3::new(0.0, 1.0, 0.0);
@@ -513,8 +430,6 @@ H  0.000000  0.000000   0.370000
                 Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
                 Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
             ],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         geometry.centering();
@@ -532,8 +447,6 @@ H  0.000000  0.000000   0.370000
                 Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
                 Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
             ],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         geometry.mass_centering().unwrap();
@@ -549,8 +462,6 @@ H  0.000000  0.000000   0.370000
                 Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
                 Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
             ],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         geometry.charge_centering();
@@ -566,12 +477,7 @@ H  0.000000  0.000000   0.370000
         let atom1 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
         let atom2 = Atom::new(&elements::H, point![0.0, 0.0, 1.40]);
 
-        let geometry = Geometry::new(
-            "Hydrogen molecule (H2)".to_string(),
-            vec![atom1, atom2],
-            Some(Units::Angstrom),
-            Some(Units::Bohr),
-        );
+        let geometry = Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2]);
 
         // Calculate nucleus-nucleus repulsion for H2
         let e_nuc_nuc = geometry.nucl_repulsion();
@@ -599,8 +505,6 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new(
             "Hydrogen molecule (H3)".to_string(),
             vec![atom1, atom2, atom3],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         // Calculate nucleus-nucleus repulsion for H3
@@ -628,8 +532,6 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new(
             "Helium and Hydrogen molecule".to_string(),
             vec![atom_he, atom_h1, atom_h2],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
         );
 
         // Calculate nucleus-nucleus repulsion

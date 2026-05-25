@@ -17,9 +17,9 @@ pub struct TransformArgs {
 impl TransformArgs {
     pub fn apply_transform(&self, f: impl FnOnce(&mut Geometry) -> Result<()>) -> Result<()> {
         let mut geometry = if let Some(input) = &self.input {
-            Geometry::from_file(File::open(input)?, None, None)?
+            Geometry::from_file(File::open(input)?)?
         } else {
-            Geometry::from_reader(stdin().lock(), None, None)?
+            Geometry::from_reader(stdin().lock())?
         };
         f(&mut geometry)?;
         if let Some(output) = &self.output {

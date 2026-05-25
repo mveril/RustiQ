@@ -9,7 +9,7 @@ use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile, gaussian::basis::Basis},
     cli::ux::scf_report::ScfReporter,
     hf,
-    molecules::{geometry::Geometry, molecule::Molecule},
+    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
     runfile::hf::HfOutputFormat,
     runfile::RunFile,
 };
@@ -40,13 +40,15 @@ impl Runnable for RunCommand {
         print!("{}", toml::to_string(&run)?);
         let molecule_path = &run.global.molecule.geometry;
         let molfile = File::open(molecule_path)?;
-        let geom = Geometry::from_file(molfile, None, None)?;
-        let molecule = Molecule {
-            geometry: geom,
-            charge: run.global.molecule.charge,
-            multiplicity: run.global.molecule.multiplicity,
-        };
+        let geom = Geometry::from_file(molfile)?;
+        let mut molecule = Molecule::new(
+            geom,
+            run.global.molecule.molecule_unit,
+            run.global.molecule.charge,
+            run.global.molecule.multiplicity,
+        );
         println!("{}", &molecule.geometry);
+        molecule.convert_to(Units::Bohr);
         let store = BasisStore::default();
         let basis_file: BasisFile = store.get(&run.global.basis)?;
         println!("{} {:?}", basis_file.name, basis_file.function_types);

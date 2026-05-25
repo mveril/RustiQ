@@ -402,10 +402,7 @@ pub(crate) fn coulomb_auxiliary(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        molecules::{atom::Atom, units::Units},
-        test_utils,
-    };
+    use crate::{molecules::atom::Atom, test_utils};
     use nalgebra::*;
     use periodic_table::periodic_table;
 
@@ -475,8 +472,6 @@ mod tests {
         let geom = Geometry {
             comment: "Hydrogen Atom".to_string(),
             atoms: vec![atom],
-            display_unit: Units::Bohr,
-            unit: Units::Bohr,
         };
 
         let basis = Basis::load(&basis_file, &geom);

@@ -16,10 +16,8 @@ pub struct InfoCommand {
 impl Runnable for InfoCommand {
     fn run(&self) -> CommandResult {
         let geometry = match &self.path {
-            Some(path) => {
-                Geometry::from_reader(std::io::BufReader::new(File::open(path)?), None, None)
-            }
-            None => Geometry::from_reader(std::io::BufReader::new(stdin().lock()), None, None),
+            Some(path) => Geometry::from_reader(std::io::BufReader::new(File::open(path)?)),
+            None => Geometry::from_reader(std::io::BufReader::new(stdin().lock())),
         }?;
         println!("Number of atoms: {}", &geometry.atoms.len());
         println!("Nuclear repulsion energy: {}", &geometry.nucl_repulsion());

@@ -387,7 +387,6 @@ mod tests {
     use crate::basis::gaussian;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
-    use crate::molecules::units::Units;
     use crate::test_utils;
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
@@ -413,12 +412,7 @@ mod tests {
         let h = &elements[0]; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.40]); // 0.74 Å ≈ 1.40 Bohr
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.40]);
-        Geometry::new(
-            "Hydrogen molecule (H2)".to_string(),
-            vec![atom1, atom2],
-            Some(Units::Bohr),
-            Some(Units::Bohr),
-        )
+        Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])
     }
 
     #[test]
@@ -598,7 +592,7 @@ mod tests {
 
     #[test]
     fn test_scf_residual_norm_is_small_after_convergence() {
-        let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
@@ -618,7 +612,7 @@ mod tests {
     fn test_diis_scf_h2o_sto3g_matches_pyscf_reference_energy() {
         const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151_321_547_473_78;
 
-        let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
@@ -641,7 +635,7 @@ mod tests {
 
     #[test]
     fn test_scf_result_reports_non_convergence() {
-        let geometry = test_utils::load_sample_geometry("samples/h2o/h2o.xyz");
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 1, 1e-12);
@@ -671,7 +665,7 @@ mod tests {
     #[test]
     fn test_scf_matrix_symmetry_invariants() {
         for path in ["samples/h2/molecule.xyz", "samples/h2o/h2o.xyz"] {
-            let geometry = test_utils::load_sample_geometry(path);
+            let geometry = test_utils::load_sample_geometry_in_bohr(path);
             let basis = test_utils::load_sto3g_basis(&geometry);
             let molecule = Molecule::from(geometry);
             let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
