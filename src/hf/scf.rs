@@ -68,7 +68,7 @@ impl<'a> ScfCalculation<'a> {
         max_iterations: usize,
         convergence_threshold: f64,
         density_guess_builder: G,
-    ) -> Self
+    ) -> Result<Self, G::Error>
     where
         G: DensityGuess,
     {
@@ -89,7 +89,7 @@ impl<'a> ScfCalculation<'a> {
         convergence_threshold: f64,
         density_guess_builder: G,
         mut progress: F,
-    ) -> Self
+    ) -> Result<Self, G::Error>
     where
         G: DensityGuess,
         F: FnMut(&str),
@@ -130,7 +130,7 @@ impl<'a> ScfCalculation<'a> {
         // Initialize density matrix using a density guess builder
         progress("Building initial density guess");
         let step_start = Instant::now();
-        let density_matrix = density_guess_builder.build_density_guess(&h_core, molecule, basis);
+        let density_matrix = density_guess_builder.build_density_guess(&h_core, molecule, basis)?;
         setup_timings.density_guess = step_start.elapsed();
 
         // Initial molecular orbital coefficients from diagonalization of H_core
@@ -143,7 +143,7 @@ impl<'a> ScfCalculation<'a> {
         let fock_matrix = h_core.clone(); // F = H_core initially
         setup_timings.total = setup_start.elapsed();
 
-        Self {
+        Ok(Self {
             molecule,
             basis,
             max_iterations,
@@ -165,7 +165,7 @@ impl<'a> ScfCalculation<'a> {
                 setup: setup_timings,
                 ..ScfTimings::default()
             },
-        }
+        })
     }
 
     pub fn enable_diis(&mut self, diis_size: usize) -> Result<(), DiisError> {
@@ -466,19 +466,21 @@ mod tests {
     use crate::test_utils;
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
+    use std::convert::Infallible;
 
     /// Simple implementation of DensityGuess for testing purposes.
     struct TestDensityGuess;
 
     impl DensityGuess for TestDensityGuess {
+        type Error = Infallible;
         fn build_density_guess(
             &self,
             _h_core: &DMatrix<f64>,
             _molecule: &Molecule,
             basis: &gaussian::basis::Basis,
-        ) -> DMatrix<f64> {
+        ) -> Result<DMatrix<f64>, Self::Error> {
             // Simple initial guess: identity matrix scaled by 1.0
-            DMatrix::identity(basis.nbasis(), basis.nbasis())
+            Ok(DMatrix::identity(basis.nbasis(), basis.nbasis()))
         }
     }
 
@@ -545,7 +547,7 @@ mod tests {
 
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
-        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess);
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
 
         let fock = scf.build_fock_matrix(&scf.density_matrix);
 
@@ -571,7 +573,7 @@ mod tests {
         let basis = Basis::load(&basis_file, &geometry);
         let molecule = Molecule::from(geometry);
 
-        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess);
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
 
         let density = scf.calculate_density_matrix();
 
@@ -608,7 +610,8 @@ mod tests {
             50, // Increase the maximum number of iterations if needed
             1e-6,
             TestDensityGuess,
-        );
+        )
+        .unwrap();
 
         // Run SCF
         let result = scf.run();

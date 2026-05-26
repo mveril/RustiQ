@@ -2,6 +2,9 @@ use super::{density_from_fock_like_matrix, DensityGuess};
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::RandomGuessConfig;
+use crate::runfile::random_config::distribution_config::{
+    DistributionCreationError, RandomSampler,
+};
 use nalgebra::DMatrix;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -16,18 +19,19 @@ impl RandomSymmetric {
 }
 
 impl DensityGuess for RandomSymmetric {
+    type Error = DistributionCreationError;
     fn build_density_guess(
         &self,
         _h_core: &DMatrix<f64>,
         molecule: &Molecule,
         basis: &Basis,
-    ) -> DMatrix<f64> {
+    ) -> Result<DMatrix<f64>, Self::Error> {
         let nbasis = basis.nbasis();
-        let mut rng = self.config.random.sample_iter();
+        let mut iter = self.config.random.sample_iter()?;
         let mut random_matrix = DMatrix::zeros(nbasis, nbasis);
         for i in 0..nbasis {
             for j in i..nbasis {
-                let value = rng.next().unwrap();
+                let value = iter.sample();
                 random_matrix[(i, j)] = value;
                 if i != j {
                     random_matrix[(j, i)] = value;
@@ -35,6 +39,10 @@ impl DensityGuess for RandomSymmetric {
             }
         }
 
-        density_from_fock_like_matrix(&random_matrix, molecule, basis)
+        Ok(density_from_fock_like_matrix(
+            &random_matrix,
+            molecule,
+            basis,
+        ))
     }
 }

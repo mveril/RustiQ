@@ -461,12 +461,7 @@ pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64
     }
 }
 
-pub(crate) fn coulomb_auxiliary(
-    orders: Vector3<u8>,
-    n: u8,
-    p: f64,
-    pc: &Vector3<f64>,
-) -> f64 {
+pub(crate) fn coulomb_auxiliary(orders: Vector3<u8>, n: u8, p: f64, pc: &Vector3<f64>) -> f64 {
     coulomb_auxiliary_at(orders.x, orders.y, orders.z, n, p, pc)
 }
 

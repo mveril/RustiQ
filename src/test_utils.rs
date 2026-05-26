@@ -45,6 +45,7 @@ pub(crate) fn new_one_electron_scf<'a>(
         convergence_threshold,
         OneElectron::default(),
     )
+    .unwrap()
 }
 
 pub(crate) struct ScfReferenceResult {

@@ -1,7 +1,7 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
 use super::{atom::Atom, element_parser::parse_element, geometry_parse_error::GeometryParseError};
 use core::iter::Iterator;
-use nalgebra::{Isometry3, Point3, Rotation3, Translation3, Vector3, distance};
+use nalgebra::{distance, Isometry3, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
 #[allow(dead_code)]

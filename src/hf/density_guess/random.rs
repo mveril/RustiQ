@@ -1,5 +1,7 @@
 use super::DensityGuess;
-use crate::runfile::hf::RandomGuessConfig;
+use crate::runfile::{
+    hf::RandomGuessConfig, random_config::distribution_config::DistributionCreationError,
+};
 use nalgebra::DMatrix;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -14,17 +16,18 @@ impl Random {
 }
 
 impl DensityGuess for Random {
+    type Error = DistributionCreationError;
     fn build_density_guess(
         &self,
         _h_core: &DMatrix<f64>,
         _molecule: &crate::molecules::molecule::Molecule,
         basis: &crate::basis::gaussian::basis::Basis,
-    ) -> DMatrix<f64> {
+    ) -> Result<DMatrix<f64>, Self::Error> {
         let nbasis = basis.nbasis();
-        DMatrix::from_iterator(
+        Ok(DMatrix::from_iterator(
             nbasis,
             nbasis,
-            self.config.random.sample_iter().take(nbasis.pow(2)),
-        )
+            self.config.random.sample_iter()?.take(nbasis.pow(2)),
+        ))
     }
 }

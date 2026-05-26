@@ -4,6 +4,7 @@ use crate::hf::density_guess::perturb_fock_like_matrix;
 use crate::math_utils::assert_is_symmetric;
 use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::GuessPerturbationConfig;
+use crate::runfile::random_config::distribution_config::DistributionCreationError;
 use nalgebra::DMatrix;
 
 /// Structure representing an initial density estimate based on one electron.
@@ -19,15 +20,16 @@ impl OneElectron {
 }
 
 impl DensityGuess for OneElectron {
+    type Error = DistributionCreationError;
     fn build_density_guess(
         &self,
         h_core: &DMatrix<f64>,
         molecule: &Molecule,
         _basis: &Basis,
-    ) -> DMatrix<f64> {
+    ) -> Result<DMatrix<f64>, Self::Error> {
         // Check that H_core is symmetric
         assert_is_symmetric(h_core, 1e-8);
-        let h_core = perturb_fock_like_matrix(h_core, self.perturbation);
+        let h_core = perturb_fock_like_matrix(h_core, self.perturbation)?;
 
         // Diagonalize H_core to obtain the initial MO coefficients
         let eig = h_core.symmetric_eigen();
@@ -52,7 +54,7 @@ impl DensityGuess for OneElectron {
         let c_occ = mo_coefficients.select_columns(&occupied_columns);
 
         // Calculate the electron density matrix D = 2 * C_occ * C_occ^T
-        2.0 * &c_occ * &c_occ.transpose()
+        Ok(2.0 * &c_occ * &c_occ.transpose())
     }
 }
 
@@ -68,19 +70,21 @@ mod tests {
     use crate::molecules::geometry::Geometry;
     use crate::test_utils;
     use nalgebra::point;
+    use std::convert::Infallible;
 
     /// Simple implementation of DensityGuess for tests.
     struct TestDensityGuess;
 
     impl DensityGuess for TestDensityGuess {
+        type Error = Infallible;
         fn build_density_guess(
             &self,
             h_core: &DMatrix<f64>,
             _molecule: &Molecule,
             _basis: &Basis,
-        ) -> DMatrix<f64> {
+        ) -> Result<DMatrix<f64>, Self::Error> {
             // Use Identity for tests
-            DMatrix::identity(h_core.nrows(), h_core.ncols())
+            Ok(DMatrix::identity(h_core.nrows(), h_core.ncols()))
         }
     }
 
@@ -107,7 +111,7 @@ mod tests {
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
         let scf: ScfCalculation<'_> =
-            ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess);
+            ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
 
         let density = scf.density_matrix.clone();
 

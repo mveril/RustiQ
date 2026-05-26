@@ -4,6 +4,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 
+use crate::runfile::random_config::distribution_config::SelectedSampleIter;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct RandomConfig {
     #[serde(flatten)]
@@ -13,12 +15,14 @@ pub(crate) struct RandomConfig {
 }
 
 impl RandomConfig {
-    pub(crate) fn sample_iter(&self) -> Box<dyn Iterator<Item = f64>> {
+    pub fn sample_iter(
+        &self,
+    ) -> Result<SelectedSampleIter, distribution_config::DistributionCreationError> {
         let rng = if let Some(seed) = self.seed {
             StdRng::seed_from_u64(seed)
         } else {
             StdRng::from_rng(&mut rand::rng())
         };
-        self.distribution.sample_iter(rng)
+        Ok(self.distribution.sample_iter(rng)?)
     }
 }
