@@ -3,9 +3,7 @@ use rayon::prelude::*;
 use std::f64::consts::PI;
 
 use crate::{
-    basis::gaussian::basis::{
-        coulomb_auxiliary, gaussian_norm_const, gaussian_product_center, hermite_coeff, Basis,
-    },
+    basis::gaussian::basis::{coulomb_auxiliary, gaussian_product_center, hermite_coeff, Basis},
     molecules::geometry::Geometry,
 };
 
@@ -25,35 +23,22 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
             let shell_j = &basis.shells[basis.shell_ids[j]];
             let mut integral = 0.0;
 
-            for &(l_i, component_i) in &basis.angular_components[i] {
-                for &(l_j, component_j) in &basis.angular_components[j] {
-                    for (&exp_i, &coeff_i) in
-                        shell_i.alpha.iter().zip(shell_i.contr[0].coeff.iter())
-                    {
-                        for (&exp_j, &coeff_j) in
-                            shell_j.alpha.iter().zip(shell_j.contr[0].coeff.iter())
-                        {
+            for component_i in &basis.normalized_components[i] {
+                let l_i = &component_i.angular_momentum;
+                for component_j in &basis.normalized_components[j] {
+                    let l_j = &component_j.angular_momentum;
+                    for primitive_i in &component_i.primitives {
+                        let exp_i = primitive_i.exponent;
+                        for primitive_j in &component_j.primitives {
+                            let exp_j = primitive_j.exponent;
                             let alpha = exp_i + exp_j;
-                            let norm_i = gaussian_norm_const(
-                                exp_i,
-                                l_i.x as u32,
-                                l_i.y as u32,
-                                l_i.z as u32,
-                            );
-                            let norm_j = gaussian_norm_const(
-                                exp_j,
-                                l_j.x as u32,
-                                l_j.y as u32,
-                                l_j.z as u32,
-                            );
                             let p_center = gaussian_product_center(
                                 exp_i,
                                 &shell_i.origin,
                                 exp_j,
                                 &shell_j.origin,
                             );
-                            let prefactor =
-                                component_i * component_j * coeff_i * coeff_j * norm_i * norm_j;
+                            let prefactor = primitive_i.coefficient * primitive_j.coefficient;
 
                             let e_x = (0..=l_i.x + l_j.x)
                                 .map(|t| {

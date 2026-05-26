@@ -20,6 +20,19 @@ pub struct Basis {
     pub shell_ids: Vec<usize>,             // Shell indices associated with each basis function
     pub angular_momenta: Vec<Vector3<u8>>, // Angular momenta of the basis functions
     pub angular_components: Vec<Vec<(Vector3<u8>, f64)>>,
+    pub normalized_components: Vec<Vec<NormalizedComponent>>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct NormalizedComponent {
+    pub angular_momentum: Vector3<u8>,
+    pub primitives: Vec<NormalizedPrimitive>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct NormalizedPrimitive {
+    pub exponent: f64,
+    pub coefficient: f64,
 }
 
 impl Basis {
@@ -40,11 +53,15 @@ impl Basis {
             }
         }
 
+        let normalized_components =
+            build_normalized_components(&shells, &shell_ids, &angular_components);
+
         Self {
             shells,
             shell_ids,
             angular_momenta,
             angular_components,
+            normalized_components,
         }
     }
 
@@ -133,42 +150,20 @@ impl Basis {
 
                 let mut s_ij = 0.0;
 
-                for &(l_i, component_i) in &self.angular_components[i] {
-                    for &(l_j, component_j) in &self.angular_components[j] {
-                        for contraction_i in &shell_i.contr {
-                            for contraction_j in &shell_j.contr {
-                                for (&exp_i, &coeff_i) in
-                                    shell_i.alpha.iter().zip(contraction_i.coeff.iter())
-                                {
-                                    for (&exp_j, &coeff_j) in
-                                        shell_j.alpha.iter().zip(contraction_j.coeff.iter())
-                                    {
-                                        let norm_i = gaussian_norm_const(
-                                            exp_i,
-                                            l_i.x as u32,
-                                            l_i.y as u32,
-                                            l_i.z as u32,
-                                        );
-                                        let norm_j = gaussian_norm_const(
-                                            exp_j,
-                                            l_j.x as u32,
-                                            l_j.y as u32,
-                                            l_j.z as u32,
-                                        );
+                for component_i in &self.normalized_components[i] {
+                    for component_j in &self.normalized_components[j] {
+                        for primitive_i in &component_i.primitives {
+                            for primitive_j in &component_j.primitives {
+                                let s_xyz = primitive_overlap(
+                                    &component_i.angular_momentum,
+                                    &component_j.angular_momentum,
+                                    &origin_i,
+                                    &origin_j,
+                                    primitive_i.exponent,
+                                    primitive_j.exponent,
+                                );
 
-                                        let s_xyz = primitive_overlap(
-                                            &l_i, &l_j, &origin_i, &origin_j, exp_i, exp_j,
-                                        );
-
-                                        s_ij += component_i
-                                            * component_j
-                                            * coeff_i
-                                            * coeff_j
-                                            * norm_i
-                                            * norm_j
-                                            * s_xyz;
-                                    }
-                                }
+                                s_ij += primitive_i.coefficient * primitive_j.coefficient * s_xyz;
                             }
                         }
                     }
@@ -207,42 +202,20 @@ impl Basis {
 
                 let mut t_ij = 0.0;
 
-                for &(l_i, component_i) in &self.angular_components[i] {
-                    for &(l_j, component_j) in &self.angular_components[j] {
-                        for contraction_i in &shell_i.contr {
-                            for contraction_j in &shell_j.contr {
-                                for (&exp_i, &coeff_i) in
-                                    shell_i.alpha.iter().zip(contraction_i.coeff.iter())
-                                {
-                                    for (&exp_j, &coeff_j) in
-                                        shell_j.alpha.iter().zip(contraction_j.coeff.iter())
-                                    {
-                                        let norm_i = gaussian_norm_const(
-                                            exp_i,
-                                            l_i.x as u32,
-                                            l_i.y as u32,
-                                            l_i.z as u32,
-                                        );
-                                        let norm_j = gaussian_norm_const(
-                                            exp_j,
-                                            l_j.x as u32,
-                                            l_j.y as u32,
-                                            l_j.z as u32,
-                                        );
+                for component_i in &self.normalized_components[i] {
+                    for component_j in &self.normalized_components[j] {
+                        for primitive_i in &component_i.primitives {
+                            for primitive_j in &component_j.primitives {
+                                let t_xyz = primitive_kinetic(
+                                    &component_i.angular_momentum,
+                                    &component_j.angular_momentum,
+                                    &origin_i,
+                                    &origin_j,
+                                    primitive_i.exponent,
+                                    primitive_j.exponent,
+                                );
 
-                                        let t_xyz = primitive_kinetic(
-                                            &l_i, &l_j, &origin_i, &origin_j, exp_i, exp_j,
-                                        );
-
-                                        t_ij += component_i
-                                            * component_j
-                                            * coeff_i
-                                            * coeff_j
-                                            * norm_i
-                                            * norm_j
-                                            * t_xyz;
-                                    }
-                                }
+                                t_ij += primitive_i.coefficient * primitive_j.coefficient * t_xyz;
                             }
                         }
                     }
@@ -266,6 +239,49 @@ impl Basis {
     pub fn nbasis(&self) -> usize {
         self.angular_momenta.len()
     }
+}
+
+fn build_normalized_components(
+    shells: &[Shell],
+    shell_ids: &[usize],
+    angular_components: &[Vec<(Vector3<u8>, f64)>],
+) -> Vec<Vec<NormalizedComponent>> {
+    shell_ids
+        .iter()
+        .zip(angular_components.iter())
+        .map(|(&shell_id, components)| {
+            let shell = &shells[shell_id];
+            components
+                .iter()
+                .map(|&(angular_momentum, component_factor)| {
+                    let primitives = shell
+                        .contr
+                        .iter()
+                        .flat_map(|contraction| {
+                            shell.alpha.iter().zip(contraction.coeff.iter()).map(
+                                move |(&exponent, &coefficient)| {
+                                    let norm = gaussian_norm_const(
+                                        exponent,
+                                        angular_momentum.x as u32,
+                                        angular_momentum.y as u32,
+                                        angular_momentum.z as u32,
+                                    );
+                                    NormalizedPrimitive {
+                                        exponent,
+                                        coefficient: component_factor * coefficient * norm,
+                                    }
+                                },
+                            )
+                        })
+                        .collect();
+                    NormalizedComponent {
+                        angular_momentum,
+                        primitives,
+                    }
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// Generates the angular momentum combinations for a given l.
