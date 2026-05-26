@@ -19,22 +19,23 @@ pub struct Basis {
     pub shells: Vec<Shell>,                // Collection of Gaussian shells
     pub shell_ids: Vec<usize>,             // Shell indices associated with each basis function
     pub angular_momenta: Vec<Vector3<u8>>, // Angular momenta of the basis functions
+    pub angular_components: Vec<Vec<(Vector3<u8>, f64)>>,
 }
 
 impl Basis {
     pub fn new(shells: Vec<Shell>) -> Self {
         let mut shell_ids = Vec::new();
         let mut angular_momenta = Vec::new();
+        let mut angular_components = Vec::new();
 
         for (shell_index, shell) in shells.iter().enumerate() {
             for contraction in &shell.contr {
                 let l = contraction.l;
 
-                let ang_moments = generate_angular_momentum_combinations_vector(l);
-
-                for ang_mom in ang_moments {
+                for components in generate_angular_components(l, contraction.pure) {
                     shell_ids.push(shell_index);
-                    angular_momenta.push(ang_mom);
+                    angular_momenta.push(components[0].0);
+                    angular_components.push(components);
                 }
             }
         }
@@ -43,6 +44,7 @@ impl Basis {
             shells,
             shell_ids,
             angular_momenta,
+            angular_components,
         }
     }
 
@@ -63,18 +65,24 @@ impl Basis {
                     let coeffs_list = &shell.coefficients;
                     let angular_momenta = &shell.angular_momentum;
 
-                    // Check that the number of angular momenta matches the number of coefficient groups
-                    assert_eq!(
-                        angular_momenta.len(),
-                        coeffs_list.len(),
-                        "Mismatch between angular_momentum.len() ({}) and coefficients.len() ({}) for element {}",
-                        angular_momenta.len(),
-                        coeffs_list.len(),
-                        element.atomic_number
-                    );
+                    let angular_coeff_pairs: Vec<_> = if angular_momenta.len() == coeffs_list.len()
+                    {
+                        angular_momenta.iter().zip(coeffs_list.iter()).collect()
+                    } else if angular_momenta.len() == 1 {
+                        coeffs_list
+                            .iter()
+                            .map(|coeffs_group| (&angular_momenta[0], coeffs_group))
+                            .collect()
+                    } else {
+                        panic!(
+                            "Mismatch between angular_momentum.len() ({}) and coefficients.len() ({}) for element {}",
+                            angular_momenta.len(),
+                            coeffs_list.len(),
+                            element.atomic_number
+                        );
+                    };
 
-                    // For each angular momentum and its coefficient group
-                    for (l, coeffs_group) in angular_momenta.iter().zip(coeffs_list.iter()) {
+                    for (l, coeffs_group) in angular_coeff_pairs {
                         // coeffs_group is a Vec<f64> (a coefficient group)
                         assert_eq!(
                             alpha.len(),
@@ -119,39 +127,48 @@ impl Basis {
             })
             .map(|(i, j)| {
                 let shell_i = &self.shells[self.shell_ids[i]];
-                let l_i = &self.angular_momenta[i];
                 let origin_i = shell_i.origin.coords;
                 let shell_j = &self.shells[self.shell_ids[j]];
-                let l_j = &self.angular_momenta[j];
                 let origin_j = shell_j.origin.coords;
 
                 let mut s_ij = 0.0;
 
-                for contraction_i in &shell_i.contr {
-                    for contraction_j in &shell_j.contr {
-                        for (&exp_i, &coeff_i) in
-                            shell_i.alpha.iter().zip(contraction_i.coeff.iter())
-                        {
-                            for (&exp_j, &coeff_j) in
-                                shell_j.alpha.iter().zip(contraction_j.coeff.iter())
-                            {
-                                let norm_i = gaussian_norm_const(
-                                    exp_i,
-                                    l_i.x as u32,
-                                    l_i.y as u32,
-                                    l_i.z as u32,
-                                );
-                                let norm_j = gaussian_norm_const(
-                                    exp_j,
-                                    l_j.x as u32,
-                                    l_j.y as u32,
-                                    l_j.z as u32,
-                                );
+                for &(l_i, component_i) in &self.angular_components[i] {
+                    for &(l_j, component_j) in &self.angular_components[j] {
+                        for contraction_i in &shell_i.contr {
+                            for contraction_j in &shell_j.contr {
+                                for (&exp_i, &coeff_i) in
+                                    shell_i.alpha.iter().zip(contraction_i.coeff.iter())
+                                {
+                                    for (&exp_j, &coeff_j) in
+                                        shell_j.alpha.iter().zip(contraction_j.coeff.iter())
+                                    {
+                                        let norm_i = gaussian_norm_const(
+                                            exp_i,
+                                            l_i.x as u32,
+                                            l_i.y as u32,
+                                            l_i.z as u32,
+                                        );
+                                        let norm_j = gaussian_norm_const(
+                                            exp_j,
+                                            l_j.x as u32,
+                                            l_j.y as u32,
+                                            l_j.z as u32,
+                                        );
 
-                                let s_xyz =
-                                    primitive_overlap(l_i, l_j, &origin_i, &origin_j, exp_i, exp_j);
+                                        let s_xyz = primitive_overlap(
+                                            &l_i, &l_j, &origin_i, &origin_j, exp_i, exp_j,
+                                        );
 
-                                s_ij += coeff_i * coeff_j * norm_i * norm_j * s_xyz;
+                                        s_ij += component_i
+                                            * component_j
+                                            * coeff_i
+                                            * coeff_j
+                                            * norm_i
+                                            * norm_j
+                                            * s_xyz;
+                                    }
+                                }
                             }
                         }
                     }
@@ -184,39 +201,48 @@ impl Basis {
             })
             .map(|(i, j)| {
                 let shell_i = &self.shells[self.shell_ids[i]];
-                let l_i = &self.angular_momenta[i];
                 let origin_i = shell_i.origin.coords;
                 let shell_j = &self.shells[self.shell_ids[j]];
-                let l_j = &self.angular_momenta[j];
                 let origin_j = shell_j.origin.coords;
 
                 let mut t_ij = 0.0;
 
-                for contraction_i in &shell_i.contr {
-                    for contraction_j in &shell_j.contr {
-                        for (&exp_i, &coeff_i) in
-                            shell_i.alpha.iter().zip(contraction_i.coeff.iter())
-                        {
-                            for (&exp_j, &coeff_j) in
-                                shell_j.alpha.iter().zip(contraction_j.coeff.iter())
-                            {
-                                let norm_i = gaussian_norm_const(
-                                    exp_i,
-                                    l_i.x as u32,
-                                    l_i.y as u32,
-                                    l_i.z as u32,
-                                );
-                                let norm_j = gaussian_norm_const(
-                                    exp_j,
-                                    l_j.x as u32,
-                                    l_j.y as u32,
-                                    l_j.z as u32,
-                                );
+                for &(l_i, component_i) in &self.angular_components[i] {
+                    for &(l_j, component_j) in &self.angular_components[j] {
+                        for contraction_i in &shell_i.contr {
+                            for contraction_j in &shell_j.contr {
+                                for (&exp_i, &coeff_i) in
+                                    shell_i.alpha.iter().zip(contraction_i.coeff.iter())
+                                {
+                                    for (&exp_j, &coeff_j) in
+                                        shell_j.alpha.iter().zip(contraction_j.coeff.iter())
+                                    {
+                                        let norm_i = gaussian_norm_const(
+                                            exp_i,
+                                            l_i.x as u32,
+                                            l_i.y as u32,
+                                            l_i.z as u32,
+                                        );
+                                        let norm_j = gaussian_norm_const(
+                                            exp_j,
+                                            l_j.x as u32,
+                                            l_j.y as u32,
+                                            l_j.z as u32,
+                                        );
 
-                                let t_xyz =
-                                    primitive_kinetic(l_i, l_j, &origin_i, &origin_j, exp_i, exp_j);
+                                        let t_xyz = primitive_kinetic(
+                                            &l_i, &l_j, &origin_i, &origin_j, exp_i, exp_j,
+                                        );
 
-                                t_ij += coeff_i * coeff_j * norm_i * norm_j * t_xyz;
+                                        t_ij += component_i
+                                            * component_j
+                                            * coeff_i
+                                            * coeff_j
+                                            * norm_i
+                                            * norm_j
+                                            * t_xyz;
+                                    }
+                                }
                             }
                         }
                     }
@@ -252,6 +278,33 @@ fn generate_angular_momentum_combinations_vector(l: u8) -> Vec<Vector3<u8>> {
         }
     }
     combinations
+}
+
+fn generate_angular_components(l: u8, pure: bool) -> Vec<Vec<(Vector3<u8>, f64)>> {
+    if !pure || l <= 1 {
+        return generate_angular_momentum_combinations_vector(l)
+            .into_iter()
+            .map(|angular_momentum| vec![(angular_momentum, 1.0)])
+            .collect();
+    }
+
+    match l {
+        2 => vec![
+            vec![(Vector3::new(1, 1, 0), 1.0)],
+            vec![(Vector3::new(0, 1, 1), 1.0)],
+            vec![
+                (Vector3::new(2, 0, 0), -0.5),
+                (Vector3::new(0, 2, 0), -0.5),
+                (Vector3::new(0, 0, 2), 1.0),
+            ],
+            vec![(Vector3::new(1, 0, 1), 1.0)],
+            vec![
+                (Vector3::new(2, 0, 0), 3.0_f64.sqrt() / 2.0),
+                (Vector3::new(0, 2, 0), -3.0_f64.sqrt() / 2.0),
+            ],
+        ],
+        _ => panic!("Spherical Gaussian functions with l > 2 are not supported yet"),
+    }
 }
 
 pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
@@ -402,9 +455,11 @@ pub(crate) fn coulomb_auxiliary(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::basis::basisfile::{Auxiliaries, BasisFile, MolssiBseSchema, Role, SchemaType};
     use crate::{molecules::atom::Atom, test_utils};
     use nalgebra::*;
     use periodic_table::periodic_table;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn test_basis_new() {
@@ -482,6 +537,101 @@ mod tests {
 
         assert!(overlap[(0, 0)] > 0.0, "Overlap(0,0) devrait être positif");
         assert!(kinetic[(0, 0)] > 0.0, "Kinetic(0,0) devrait être positif");
+    }
+
+    #[test]
+    fn test_load_hydrogen_shell_with_multiple_same_angular_momentum_contractions() {
+        let basis_file = BasisFile {
+            auxiliaries: Auxiliaries::default(),
+            description: "test".to_string(),
+            elements: HashMap::from([(
+                1,
+                crate::basis::basisfile::Element {
+                    references: Vec::new(),
+                    electron_shells: vec![crate::basis::basisfile::ElectronShell {
+                        function_type: FunctionType::Gto,
+                        region: None,
+                        angular_momentum: vec![0],
+                        r_exponents: Vec::new(),
+                        exponents: vec![13.01, 1.962, 0.4446, 0.122],
+                        coefficients: vec![
+                            vec![0.019685, 0.137977, 0.478148, 0.50124],
+                            vec![0.0, 0.0, 0.0, 1.0],
+                        ],
+                    }],
+                    ecp_electrons: 0,
+                    ecp_potentials: Vec::new(),
+                },
+            )]),
+            family: "test".to_string(),
+            function_types: HashSet::from([FunctionType::Gto]),
+            molssi_bse_schema: MolssiBseSchema {
+                schema_type: SchemaType::Complete,
+                schema_version: "0.1".to_string(),
+            },
+            name: "test".to_string(),
+            names: Vec::new(),
+            revision_date: "test".to_string(),
+            revision_description: "test".to_string(),
+            role: Role::Orbital,
+            tags: Vec::new(),
+            version: "test".to_string(),
+        };
+        let element = periodic_table()[0];
+        let atom = Atom {
+            element,
+            position: Point3::origin(),
+        };
+        let geom = Geometry {
+            comment: "Hydrogen Atom".to_string(),
+            atoms: vec![atom],
+        };
+
+        let basis = Basis::load(&basis_file, &geom);
+
+        assert_eq!(basis.shells.len(), 2);
+        assert_eq!(basis.nbasis(), 2);
+        assert_eq!(basis.angular_momenta, vec![Vector3::new(0, 0, 0); 2]);
+    }
+
+    #[test]
+    fn test_spherical_d_shell_uses_five_transformed_functions() {
+        let shell = Shell::new(
+            vec![0.8],
+            vec![Contraction::new(2, true, vec![1.0])],
+            Point3::origin(),
+        );
+
+        let basis = Basis::new(vec![shell]);
+
+        assert_eq!(basis.nbasis(), 5);
+        assert_eq!(
+            basis.angular_components[0],
+            vec![(Vector3::new(1, 1, 0), 1.0)]
+        );
+        assert_eq!(
+            basis.angular_components[1],
+            vec![(Vector3::new(0, 1, 1), 1.0)]
+        );
+        assert_eq!(
+            basis.angular_components[2],
+            vec![
+                (Vector3::new(2, 0, 0), -0.5),
+                (Vector3::new(0, 2, 0), -0.5),
+                (Vector3::new(0, 0, 2), 1.0)
+            ]
+        );
+        assert_eq!(
+            basis.angular_components[3],
+            vec![(Vector3::new(1, 0, 1), 1.0)]
+        );
+        assert_eq!(
+            basis.angular_components[4],
+            vec![
+                (Vector3::new(2, 0, 0), 3.0_f64.sqrt() / 2.0),
+                (Vector3::new(0, 2, 0), -3.0_f64.sqrt() / 2.0)
+            ]
+        );
     }
 
     #[test]
