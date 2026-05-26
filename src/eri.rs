@@ -4,7 +4,7 @@
 use std::f64::consts::PI;
 
 use crate::basis::gaussian::basis::{
-    coulomb_auxiliary, gaussian_norm_const, gaussian_product_center, hermite_coeff, Basis,
+    coulomb_auxiliary, gaussian_product_center, hermite_coeff, Basis,
 };
 use nalgebra::Point3;
 use ndarray::Array4;
@@ -116,126 +116,96 @@ pub fn compute_eri_primitive(
 /// A 4D tensor containing all ERI integrals.
 pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
     let n = basis.nbasis();
-    let values = (0..n * n * n * n)
+    let n_pairs = n * (n + 1) / 2;
+    let n_unique_quartets = n_pairs * (n_pairs + 1) / 2;
+    let values = (0..n_unique_quartets)
         .into_par_iter()
         .map(|index| {
-            let s = index % n;
-            let r = (index / n) % n;
-            let q = (index / (n * n)) % n;
-            let p = index / (n * n * n);
-            let shell_p = &basis.shells[basis.shell_ids[p]];
-            let origin_p = shell_p.origin;
+            let (pair_pq, pair_rs) = unique_pair_indices(index);
+            let (p, q) = basis_function_pair(pair_pq);
+            let (r, s) = basis_function_pair(pair_rs);
+            (p, q, r, s, compute_eri_ao(basis, p, q, r, s))
+        })
+        .collect::<Vec<_>>();
 
-            let shell_q = &basis.shells[basis.shell_ids[q]];
-            let origin_q = shell_q.origin;
+    let mut eri_tensor = Array4::zeros((n, n, n, n));
+    for (p, q, r, s, value) in values {
+        for (i, j, k, l) in eri_permutations(p, q, r, s) {
+            eri_tensor[(i, j, k, l)] = value;
+        }
+    }
+    eri_tensor
+}
 
-            let shell_r = &basis.shells[basis.shell_ids[r]];
-            let origin_r = shell_r.origin;
+fn unique_pair_indices(index: usize) -> (usize, usize) {
+    let pair_pq = (((8 * index + 1) as f64).sqrt() as usize - 1) / 2;
+    let pair_rs = index - pair_pq * (pair_pq + 1) / 2;
+    (pair_pq, pair_rs)
+}
 
-            let shell_s = &basis.shells[basis.shell_ids[s]];
-            let origin_s = shell_s.origin;
+fn basis_function_pair(pair_index: usize) -> (usize, usize) {
+    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
+    let second = pair_index - first * (first + 1) / 2;
+    (first, second)
+}
 
-            let mut eri_pqrs = 0.0;
+#[allow(clippy::too_many_lines)]
+fn compute_eri_ao(basis: &Basis, p: usize, q: usize, r: usize, s: usize) -> f64 {
+    let origin_p = basis.shells[basis.shell_ids[p]].origin;
+    let origin_q = basis.shells[basis.shell_ids[q]].origin;
+    let origin_r = basis.shells[basis.shell_ids[r]].origin;
+    let origin_s = basis.shells[basis.shell_ids[s]].origin;
 
-            for &(l_p, component_p) in &basis.angular_components[p] {
-                for &(l_q, component_q) in &basis.angular_components[q] {
-                    for &(l_r, component_r) in &basis.angular_components[r] {
-                        for &(l_s, component_s) in &basis.angular_components[s] {
-                            // Loop over the contractions of each shell
-                            for contraction_p in &shell_p.contr {
-                                for contraction_q in &shell_q.contr {
-                                    for contraction_r in &shell_r.contr {
-                                        for contraction_s in &shell_s.contr {
-                                            // Loop over the primitives of each contraction
-                                            for (&alpha_p, &coeff_p) in
-                                                shell_p.alpha.iter().zip(contraction_p.coeff.iter())
-                                            {
-                                                for (&alpha_q, &coeff_q) in shell_q
-                                                    .alpha
-                                                    .iter()
-                                                    .zip(contraction_q.coeff.iter())
-                                                {
-                                                    for (&alpha_r, &coeff_r) in shell_r
-                                                        .alpha
-                                                        .iter()
-                                                        .zip(contraction_r.coeff.iter())
-                                                    {
-                                                        for (&alpha_s, &coeff_s) in shell_s
-                                                            .alpha
-                                                            .iter()
-                                                            .zip(contraction_s.coeff.iter())
-                                                        {
-                                                            // Calculate normalization constants
-                                                            let norm_p = gaussian_norm_const(
-                                                                alpha_p,
-                                                                l_p.x as u32,
-                                                                l_p.y as u32,
-                                                                l_p.z as u32,
-                                                            );
-                                                            let norm_q = gaussian_norm_const(
-                                                                alpha_q,
-                                                                l_q.x as u32,
-                                                                l_q.y as u32,
-                                                                l_q.z as u32,
-                                                            );
-                                                            let norm_r = gaussian_norm_const(
-                                                                alpha_r,
-                                                                l_r.x as u32,
-                                                                l_r.y as u32,
-                                                                l_r.z as u32,
-                                                            );
-                                                            let norm_s = gaussian_norm_const(
-                                                                alpha_s,
-                                                                l_s.x as u32,
-                                                                l_s.y as u32,
-                                                                l_s.z as u32,
-                                                            );
-
-                                                            // Calculate intermediate positions
-                                                            let A = origin_p;
-                                                            let B = origin_q;
-                                                            let C = origin_r;
-                                                            let D = origin_s;
-                                                            let eri =
-                                                                compute_eri_cartesian_primitive(
-                                                                    alpha_p, alpha_q, alpha_r,
-                                                                    alpha_s, A, B, C, D, &l_p,
-                                                                    &l_q, &l_r, &l_s,
-                                                                );
-
-                                                            // Contribution to the total ERI
-                                                            eri_pqrs += component_p
-                                                                * component_q
-                                                                * component_r
-                                                                * component_s
-                                                                * coeff_p
-                                                                * coeff_q
-                                                                * coeff_r
-                                                                * coeff_s
-                                                                * norm_p
-                                                                * norm_q
-                                                                * norm_r
-                                                                * norm_s
-                                                                * eri;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+    let mut eri_pqrs = 0.0;
+    for component_p in &basis.normalized_components[p] {
+        for component_q in &basis.normalized_components[q] {
+            for component_r in &basis.normalized_components[r] {
+                for component_s in &basis.normalized_components[s] {
+                    for primitive_p in &component_p.primitives {
+                        for primitive_q in &component_q.primitives {
+                            for primitive_r in &component_r.primitives {
+                                for primitive_s in &component_s.primitives {
+                                    let eri = compute_eri_cartesian_primitive(
+                                        primitive_p.exponent,
+                                        primitive_q.exponent,
+                                        primitive_r.exponent,
+                                        primitive_s.exponent,
+                                        origin_p,
+                                        origin_q,
+                                        origin_r,
+                                        origin_s,
+                                        &component_p.angular_momentum,
+                                        &component_q.angular_momentum,
+                                        &component_r.angular_momentum,
+                                        &component_s.angular_momentum,
+                                    );
+                                    eri_pqrs += primitive_p.coefficient
+                                        * primitive_q.coefficient
+                                        * primitive_r.coefficient
+                                        * primitive_s.coefficient
+                                        * eri;
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+    eri_pqrs
+}
 
-            eri_pqrs
-        })
-        .collect::<Vec<_>>();
-
-    Array4::from_shape_vec((n, n, n, n), values)
-        .expect("ERI tensor shape should match computed value count")
+fn eri_permutations(p: usize, q: usize, r: usize, s: usize) -> [(usize, usize, usize, usize); 8] {
+    [
+        (p, q, r, s),
+        (q, p, r, s),
+        (p, q, s, r),
+        (q, p, s, r),
+        (r, s, p, q),
+        (s, r, p, q),
+        (r, s, q, p),
+        (s, r, q, p),
+    ]
 }
 
 #[allow(clippy::too_many_arguments)]
