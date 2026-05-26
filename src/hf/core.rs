@@ -3,7 +3,9 @@ use rayon::prelude::*;
 use std::f64::consts::PI;
 
 use crate::{
-    basis::gaussian::basis::{coulomb_auxiliary, gaussian_product_center, hermite_coeff, Basis},
+    basis::gaussian::basis::{
+        coulomb_auxiliary, gaussian_product_center, hermite_coeff, hermite_terms, Basis,
+    },
     molecules::geometry::Geometry,
 };
 
@@ -76,21 +78,19 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
                                     )
                                 })
                                 .collect::<Vec<_>>();
+                            let e = [e_x, e_y, e_z];
+                            let hermite_terms = hermite_terms(&e);
 
                             for atom in &mol.atoms {
                                 let z = atom.element.atomic_number as f64;
                                 let pc = p_center - atom.position;
-                                let mut primitive = 0.0;
-                                for t in 0..=l_i.x + l_j.x {
-                                    for u in 0..=l_i.y + l_j.y {
-                                        for v in 0..=l_i.z + l_j.z {
-                                            primitive += e_x[t as usize]
-                                                * e_y[u as usize]
-                                                * e_z[v as usize]
-                                                * coulomb_auxiliary(t, u, v, 0, alpha, &pc);
-                                        }
-                                    }
-                                }
+                                let primitive = hermite_terms
+                                    .iter()
+                                    .map(|term| {
+                                        term.coefficient
+                                            * coulomb_auxiliary(term.orders, 0, alpha, &pc)
+                                    })
+                                    .sum::<f64>();
                                 integral -= z * prefactor * (2.0 * PI / alpha) * primitive;
                             }
                         }

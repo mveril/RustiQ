@@ -402,6 +402,27 @@ pub(crate) fn gaussian_product_center(
     Point3::from((exp_i * origin_i.coords + exp_j * origin_j.coords) / (exp_i + exp_j))
 }
 
+pub(crate) struct HermiteTerm {
+    pub(crate) orders: Vector3<u8>,
+    pub(crate) coefficient: f64,
+}
+
+pub(crate) fn hermite_terms(e: &[Vec<f64>; 3]) -> Vec<HermiteTerm> {
+    let [e_x, e_y, e_z] = e;
+    let mut terms = Vec::with_capacity(e_x.len() * e_y.len() * e_z.len());
+    for (t, &x) in e_x.iter().enumerate() {
+        for (u, &y) in e_y.iter().enumerate() {
+            for (v, &z) in e_z.iter().enumerate() {
+                terms.push(HermiteTerm {
+                    orders: Vector3::new(t as u8, u as u8, v as u8),
+                    coefficient: x * y * z,
+                });
+            }
+        }
+    }
+    terms
+}
+
 pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64 {
     if t > i + j {
         return 0.0;
@@ -440,33 +461,42 @@ pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64
     }
 }
 
-pub(crate) fn coulomb_auxiliary(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -> f64 {
+pub(crate) fn coulomb_auxiliary(
+    orders: Vector3<u8>,
+    n: u8,
+    p: f64,
+    pc: &Vector3<f64>,
+) -> f64 {
+    coulomb_auxiliary_at(orders.x, orders.y, orders.z, n, p, pc)
+}
+
+fn coulomb_auxiliary_at(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -> f64 {
     if t == 0 && u == 0 && v == 0 {
         return (-2.0 * p).powi(n as i32)
             * crate::math_utils::boys_function(n as u64, p * pc.norm_squared());
     }
     if t > 0 {
         let lower = if t >= 2 {
-            (t as f64 - 1.0) * coulomb_auxiliary(t - 2, u, v, n + 1, p, pc)
+            (t as f64 - 1.0) * coulomb_auxiliary_at(t - 2, u, v, n + 1, p, pc)
         } else {
             0.0
         };
-        return lower + pc.x * coulomb_auxiliary(t - 1, u, v, n + 1, p, pc);
+        return lower + pc.x * coulomb_auxiliary_at(t - 1, u, v, n + 1, p, pc);
     }
     if u > 0 {
         let lower = if u >= 2 {
-            (u as f64 - 1.0) * coulomb_auxiliary(t, u - 2, v, n + 1, p, pc)
+            (u as f64 - 1.0) * coulomb_auxiliary_at(t, u - 2, v, n + 1, p, pc)
         } else {
             0.0
         };
-        return lower + pc.y * coulomb_auxiliary(t, u - 1, v, n + 1, p, pc);
+        return lower + pc.y * coulomb_auxiliary_at(t, u - 1, v, n + 1, p, pc);
     }
     let lower = if v >= 2 {
-        (v as f64 - 1.0) * coulomb_auxiliary(t, u, v - 2, n + 1, p, pc)
+        (v as f64 - 1.0) * coulomb_auxiliary_at(t, u, v - 2, n + 1, p, pc)
     } else {
         0.0
     };
-    lower + pc.z * coulomb_auxiliary(t, u, v - 1, n + 1, p, pc)
+    lower + pc.z * coulomb_auxiliary_at(t, u, v - 1, n + 1, p, pc)
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@
 
 use std::f64::consts::PI;
 
-use crate::basis::gaussian::basis::{gaussian_product_center, Basis};
+use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
 use nalgebra::{Point3, Vector3};
 use ndarray::Array4;
 use rayon::prelude::*;
@@ -175,11 +175,6 @@ struct PairPrimitive {
     max_orders: Vector3<u8>,
 }
 
-struct HermiteTerm {
-    orders: Vector3<u8>,
-    coefficient: f64,
-}
-
 type PairExpansion = Vec<PairPrimitive>;
 
 fn build_pair_expansions(basis: &Basis) -> Vec<PairExpansion> {
@@ -274,23 +269,6 @@ fn compute_eri_pair_primitive(primitive_ab: &PairPrimitive, primitive_cd: &PairP
     }
 
     2.0 * PI.powf(2.5) / (p * q * (p + q).sqrt()) * eri
-}
-
-fn hermite_terms(e: &[Vec<f64>; 3]) -> Vec<HermiteTerm> {
-    let [e_x, e_y, e_z] = e;
-    let mut terms = Vec::with_capacity(e_x.len() * e_y.len() * e_z.len());
-    for (t, &x) in e_x.iter().enumerate() {
-        for (u, &y) in e_y.iter().enumerate() {
-            for (v, &z) in e_z.iter().enumerate() {
-                let coefficients = Vector3::new(x, y, z);
-                terms.push(HermiteTerm {
-                    orders: Vector3::new(t as u8, u as u8, v as u8),
-                    coefficient: coefficients.product(),
-                });
-            }
-        }
-    }
-    terms
 }
 
 fn hermite_coefficients_3d(
