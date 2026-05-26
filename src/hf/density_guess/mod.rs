@@ -6,7 +6,9 @@ use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
 use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
-use crate::runfile::random_config::distribution_config::DistributionCreationError;
+use crate::runfile::random_config::distribution_config::{
+    DistributionCreationError, RandomSampler,
+};
 use nalgebra::{DMatrix, DVector};
 use std::error::Error;
 use thiserror::Error;
@@ -70,18 +72,17 @@ pub(crate) fn perturb_fock_like_matrix(
     let Some(perturbation) = perturbation else {
         return Ok(fock_like.clone());
     };
-    Ok(fock_like + symmetric_random_matrix(fock_like.nrows(), perturbation)?)
+    Ok(fock_like + symmetric_random_matrix(fock_like.nrows(), perturbation.random.sample_iter()?)?)
 }
 
-fn symmetric_random_matrix(
+fn symmetric_random_matrix<T: RandomSampler>(
     size: usize,
-    perturbation: GuessPerturbationConfig,
+    mut sampler: T,
 ) -> Result<DMatrix<f64>, DistributionCreationError> {
-    let mut rng = perturbation.random.sample_iter()?;
     let mut matrix = DMatrix::zeros(size, size);
     for i in 0..size {
         for j in i..size {
-            let value = rng.next().unwrap();
+            let value = sampler.sample();
             matrix[(i, j)] = value;
             if i != j {
                 matrix[(j, i)] = value;

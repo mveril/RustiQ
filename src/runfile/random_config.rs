@@ -23,6 +23,6 @@ impl RandomConfig {
         } else {
             StdRng::from_rng(&mut rand::rng())
         };
-        Ok(self.distribution.sample_iter(rng)?)
+        self.distribution.sample_iter(rng)
     }
 }
