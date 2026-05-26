@@ -26,7 +26,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
     let T = gamma * (PAx - PBx).powi(2);
-    (std::f64::consts::PI / gamma).sqrt() * (-T).exp()
+    (PI / gamma).sqrt() * (-T).exp()
 }
 
 /// Computes the 1D kinetic integral for two primitive Gaussian functions.

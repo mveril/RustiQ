@@ -417,7 +417,7 @@ impl<'a> ScfCalculation<'a> {
         DiisAccelerator::error_matrix(fock_matrix, density_matrix, overlap_matrix)
             .as_slice()
             .par_iter()
-            .map(|value| value * value)
+            .map(|value| value.powi(2))
             .sum::<f64>()
             .sqrt()
     }

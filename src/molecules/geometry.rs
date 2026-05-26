@@ -310,6 +310,7 @@ impl AsMut<[Atom]> for Geometry {
 mod tests {
     use nalgebra::{point, Isometry3, Rotation3, Translation3, Vector3};
     use periodic_table::elements;
+    use std::f64::consts::FRAC_PI_2;
 
     use super::*;
 
@@ -399,10 +400,7 @@ H  0.000000  0.000000   0.370000
             vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
         );
 
-        geometry.rotate(Rotation3::from_axis_angle(
-            &Vector3::z_axis(),
-            std::f64::consts::FRAC_PI_2,
-        ));
+        geometry.rotate(Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2));
 
         assert_point_close(geometry.atoms[0].position, point![0.0, 1.0, 0.0]);
     }
@@ -413,7 +411,7 @@ H  0.000000  0.000000   0.370000
             "Transform".to_string(),
             vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
         );
-        let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), std::f64::consts::FRAC_PI_2);
+        let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2);
         let translation = Translation3::new(0.0, 1.0, 0.0);
         let isometry = Isometry3::from_parts(translation, rotation.into());
 
