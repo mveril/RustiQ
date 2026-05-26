@@ -84,6 +84,57 @@ where
             "  Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
             result.electronic_energy
         )?;
+        writeln!(self.writer, "Timings:")?;
+        writeln!(
+            self.writer,
+            "  Setup total: {}",
+            humantime::format_duration(result.timings.setup.total)
+        )?;
+        writeln!(
+            self.writer,
+            "    Core Hamiltonian: {}",
+            humantime::format_duration(result.timings.setup.core_hamiltonian)
+        )?;
+        writeln!(
+            self.writer,
+            "    Overlap matrix: {}",
+            humantime::format_duration(result.timings.setup.overlap)
+        )?;
+        writeln!(
+            self.writer,
+            "    Orthogonalizer: {}",
+            humantime::format_duration(result.timings.setup.orthogonalizer)
+        )?;
+        writeln!(
+            self.writer,
+            "    Electron repulsion integrals: {}",
+            humantime::format_duration(result.timings.setup.electron_repulsion_integrals)
+        )?;
+        writeln!(
+            self.writer,
+            "    Density guess: {}",
+            humantime::format_duration(result.timings.setup.density_guess)
+        )?;
+        writeln!(
+            self.writer,
+            "    Initial orbitals: {}",
+            humantime::format_duration(result.timings.setup.initial_orbitals)
+        )?;
+        writeln!(
+            self.writer,
+            "  SCF iterations: {}",
+            humantime::format_duration(result.timings.iterations)
+        )?;
+        writeln!(
+            self.writer,
+            "  Final energy details: {}",
+            humantime::format_duration(result.timings.final_energy_details)
+        )?;
+        writeln!(
+            self.writer,
+            "  Total wall time: {}",
+            humantime::format_duration(result.timings.total)
+        )?;
         Ok(())
     }
 
@@ -153,6 +204,7 @@ mod tests {
                         nuclear_attraction_energy: -1.5,
                         electron_repulsion_energy: 0.2,
                     },
+                    timings: crate::hf::scf_result::ScfTimings::default(),
                 })
                 .unwrap();
         }
@@ -161,5 +213,6 @@ mod tests {
         assert!(output.contains("iter"));
         assert!(output.contains("SCF converged after 1 iterations."));
         assert!(output.contains("Energy Details:"));
+        assert!(output.contains("Timings:"));
     }
 }

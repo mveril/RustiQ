@@ -3,6 +3,7 @@ use std::{
     fs::{self, File},
     io::{self, Read},
     path::PathBuf,
+    time::Instant,
 };
 
 use crate::{
@@ -50,18 +51,33 @@ impl Runnable for RunCommand {
         println!("{}", &molecule.geometry);
         molecule.convert_to(Units::Bohr);
         let store = BasisStore::default();
+        println!("Loading basis set...");
+        let step_start = Instant::now();
         let basis_file: BasisFile = store.get(&run.global.basis)?;
         println!("{} {:?}", basis_file.name, basis_file.function_types);
+        println!(
+            "Basis file loaded in {}",
+            humantime::format_duration(step_start.elapsed())
+        );
+        println!("Constructing basis functions...");
+        let step_start = Instant::now();
         let basis = Basis::load(&basis_file, &molecule);
+        println!(
+            "Constructed {} basis functions in {}",
+            basis.nbasis(),
+            humantime::format_duration(step_start.elapsed())
+        );
         if let Some(hf) = run.hf {
             println!("Conv {}", hf.convergence_threshold);
             println!("Max iter: {}", hf.max_iterations);
-            let mut scf = hf::scf::ScfCalculation::new(
+            println!("Preparing SCF calculation...");
+            let mut scf = hf::scf::ScfCalculation::new_with_progress(
                 &molecule,
                 &basis,
                 hf.max_iterations,
                 hf.convergence_threshold,
                 hf.get_density_guess(),
+                |step| println!("  {step}..."),
             );
             if hf.diis {
                 scf.enable_diis(hf.diis_size)?;

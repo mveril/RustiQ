@@ -1,5 +1,7 @@
 // src/scf_calculation.rs
 
+use std::time::Instant;
+
 use crate::{
     eri::electron_repulsion_ints,
     math_utils::{assert_is_symmetric, is_positive_definite},
@@ -18,7 +20,7 @@ use super::{
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
     scf_observer::{NoopScfObserver, ScfObserver},
-    scf_result::ScfResult,
+    scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
 };
 
 /// Structure for an SCF calculation.
@@ -54,10 +56,12 @@ pub struct ScfCalculation<'a> {
     s_inv_sqrt: DMatrix<f64>,
     /// Number of occupied orbitals (related to the number of electrons / 2 for closed-shell systems).
     pub occupied_orbitals: usize,
+    timings: ScfTimings,
 }
 
 impl<'a> ScfCalculation<'a> {
     /// Creates a new `ScfCalculation` instance.
+    #[allow(dead_code)]
     pub fn new<G>(
         molecule: &'a Molecule,
         basis: &'a Basis,
@@ -68,31 +72,76 @@ impl<'a> ScfCalculation<'a> {
     where
         G: DensityGuess,
     {
+        Self::new_with_progress(
+            molecule,
+            basis,
+            max_iterations,
+            convergence_threshold,
+            density_guess_builder,
+            |_| {},
+        )
+    }
+
+    pub fn new_with_progress<G, F>(
+        molecule: &'a Molecule,
+        basis: &'a Basis,
+        max_iterations: usize,
+        convergence_threshold: f64,
+        density_guess_builder: G,
+        mut progress: F,
+    ) -> Self
+    where
+        G: DensityGuess,
+        F: FnMut(&str),
+    {
+        let setup_start = Instant::now();
+        let mut setup_timings = ScfSetupTimings::default();
+
         // Calculate the T and V matrices
+        progress("Building one-electron core Hamiltonian");
+        let step_start = Instant::now();
         let (t_matrix, v_matrix) = core_hamiltonian_ints(molecule, basis);
+        setup_timings.core_hamiltonian = step_start.elapsed();
 
         // H_core = T + V
         let h_core = &t_matrix + &v_matrix;
 
+        progress("Building overlap matrix");
+        let step_start = Instant::now();
         let overlap_matrix = basis.overlap_ints();
+        setup_timings.overlap = step_start.elapsed();
         assert_is_symmetric(&overlap_matrix, 1e-8);
         assert!(
             is_positive_definite(&overlap_matrix),
             "Overlap matrix S is not positive definite."
         );
+
+        progress("Building symmetric orthogonalizer");
+        let step_start = Instant::now();
         let s_inv_sqrt = Self::symmetric_orthogonalizer(&overlap_matrix);
+        setup_timings.orthogonalizer = step_start.elapsed();
 
         // Calculate the two-electron integrals
+        progress("Building electron repulsion integrals");
+        let step_start = Instant::now();
         let two_electron_integrals: Array4<f64> = electron_repulsion_ints(basis);
+        setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
         // Initialize density matrix using a density guess builder
+        progress("Building initial density guess");
+        let step_start = Instant::now();
         let density_matrix = density_guess_builder.build_density_guess(&h_core, molecule, basis);
+        setup_timings.density_guess = step_start.elapsed();
 
         // Initial molecular orbital coefficients from diagonalization of H_core
+        progress("Building initial molecular orbitals");
+        let step_start = Instant::now();
         let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, &s_inv_sqrt);
+        setup_timings.initial_orbitals = step_start.elapsed();
 
         // Initial Fock matrix
         let fock_matrix = h_core.clone(); // F = H_core initially
+        setup_timings.total = setup_start.elapsed();
 
         Self {
             molecule,
@@ -112,6 +161,10 @@ impl<'a> ScfCalculation<'a> {
             overlap_matrix,
             s_inv_sqrt,
             occupied_orbitals: molecule.occupied_orbitals(),
+            timings: ScfTimings {
+                setup: setup_timings,
+                ..ScfTimings::default()
+            },
         }
     }
 
@@ -177,6 +230,8 @@ impl<'a> ScfCalculation<'a> {
         let mut converged = false;
         let mut iterations = 0;
         let mut delta_energy = f64::INFINITY;
+        let run_start = Instant::now();
+        let iterations_start = Instant::now();
 
         for i in 0..self.max_iterations {
             iterations = i + 1;
@@ -217,11 +272,15 @@ impl<'a> ScfCalculation<'a> {
 
             energy_last = self.energy;
         }
+        self.timings.iterations = iterations_start.elapsed();
 
         // Calculate final energy including nuclear repulsion
         let nuclear_repulsion = self.molecule.geometry.nucl_repulsion();
         let total_energy = self.energy + nuclear_repulsion;
+        let final_energy_details_start = Instant::now();
         let energy_details = self.calculate_energy_details();
+        self.timings.final_energy_details = final_energy_details_start.elapsed();
+        self.timings.total = run_start.elapsed() + self.timings.setup.total;
 
         ScfResult {
             converged,
@@ -232,6 +291,7 @@ impl<'a> ScfCalculation<'a> {
             delta_energy,
             residual_norm: self.residual_norm,
             energy_details,
+            timings: self.timings.clone(),
         }
     }
 
