@@ -1,7 +1,7 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
 use super::{atom::Atom, element_parser::parse_element, geometry_parse_error::GeometryParseError};
 use core::iter::Iterator;
-use nalgebra::{distance, Point3, Rotation3, Translation3, Vector3};
+use nalgebra::{Isometry3, Point3, Rotation3, Translation3, Vector3, distance};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
 #[allow(dead_code)]
@@ -166,7 +166,7 @@ impl Geometry {
         }
     }
 
-    pub fn transform(&mut self, transformation: &nalgebra::Isometry3<f64>) {
+    pub fn transform(&mut self, transformation: &Isometry3<f64>) {
         for atom in &mut self.atoms {
             atom.position = transformation * atom.position;
         }

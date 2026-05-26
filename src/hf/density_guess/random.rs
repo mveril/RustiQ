@@ -16,10 +16,10 @@ impl Random {
 impl DensityGuess for Random {
     fn build_density_guess(
         &self,
-        _h_core: &nalgebra::DMatrix<f64>,
+        _h_core: &DMatrix<f64>,
         _molecule: &crate::molecules::molecule::Molecule,
         basis: &crate::basis::gaussian::basis::Basis,
-    ) -> nalgebra::DMatrix<f64> {
+    ) -> DMatrix<f64> {
         let nbasis = basis.nbasis();
         DMatrix::from_iterator(
             nbasis,

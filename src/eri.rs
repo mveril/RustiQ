@@ -4,7 +4,7 @@
 use std::f64::consts::PI;
 
 use crate::basis::gaussian::basis::{gaussian_product_center, Basis};
-use nalgebra::Point3;
+use nalgebra::{Point3, Vector3};
 use ndarray::Array4;
 use rayon::prelude::*;
 
@@ -169,11 +169,15 @@ fn eri_permutations(p: usize, q: usize, r: usize, s: usize) -> [(usize, usize, u
 
 struct PairPrimitive {
     exponent_sum: f64,
-    center: nalgebra::Vector3<f64>,
+    center: Vector3<f64>,
     coefficient: f64,
-    e_x: Vec<f64>,
-    e_y: Vec<f64>,
-    e_z: Vec<f64>,
+    terms: Vec<HermiteTerm>,
+    max_orders: Vector3<u8>,
+}
+
+struct HermiteTerm {
+    orders: Vector3<u8>,
+    coefficient: f64,
 }
 
 type PairExpansion = Vec<PairPrimitive>;
@@ -202,6 +206,13 @@ fn build_pair_expansion(basis: &Basis, i: usize, j: usize) -> PairExpansion {
             for primitive_i in &component_i.primitives {
                 for primitive_j in &component_j.primitives {
                     let exponent_sum = primitive_i.exponent + primitive_j.exponent;
+                    let e = hermite_coefficients_3d(
+                        component_i.angular_momentum,
+                        component_j.angular_momentum,
+                        origin_i - origin_j,
+                        primitive_i.exponent,
+                        primitive_j.exponent,
+                    );
                     expansion.push(PairPrimitive {
                         exponent_sum,
                         center: gaussian_product_center(
@@ -211,27 +222,12 @@ fn build_pair_expansion(basis: &Basis, i: usize, j: usize) -> PairExpansion {
                             &origin_j,
                         ),
                         coefficient: primitive_i.coefficient * primitive_j.coefficient,
-                        e_x: hermite_coefficients(
-                            component_i.angular_momentum.x,
-                            component_j.angular_momentum.x,
-                            origin_i.x - origin_j.x,
-                            primitive_i.exponent,
-                            primitive_j.exponent,
+                        max_orders: Vector3::new(
+                            e[0].len() as u8 - 1,
+                            e[1].len() as u8 - 1,
+                            e[2].len() as u8 - 1,
                         ),
-                        e_y: hermite_coefficients(
-                            component_i.angular_momentum.y,
-                            component_j.angular_momentum.y,
-                            origin_i.y - origin_j.y,
-                            primitive_i.exponent,
-                            primitive_j.exponent,
-                        ),
-                        e_z: hermite_coefficients(
-                            component_i.angular_momentum.z,
-                            component_j.angular_momentum.z,
-                            origin_i.z - origin_j.z,
-                            primitive_i.exponent,
-                            primitive_j.exponent,
-                        ),
+                        terms: hermite_terms(&e),
                     });
                 }
             }
@@ -259,40 +255,56 @@ fn compute_eri_pair_primitive(primitive_ab: &PairPrimitive, primitive_cd: &PairP
     let alpha = p * q / (p + q);
     let pq = primitive_ab.center - primitive_cd.center;
 
-    let max_t = (primitive_ab.e_x.len() + primitive_cd.e_x.len() - 2) as u8;
-    let max_u = (primitive_ab.e_y.len() + primitive_cd.e_y.len() - 2) as u8;
-    let max_v = (primitive_ab.e_z.len() + primitive_cd.e_z.len() - 2) as u8;
-    let mut coulomb_cache = CoulombAuxiliaryCache::new(max_t, max_u, max_v, alpha, pq);
+    let max_orders = primitive_ab.max_orders + primitive_cd.max_orders;
+    let mut coulomb_cache =
+        CoulombAuxiliaryCache::new(max_orders.x, max_orders.y, max_orders.z, alpha, pq);
 
     let mut eri = 0.0;
-    for (t, &e_ab_x) in primitive_ab.e_x.iter().enumerate() {
-        for (u, &e_ab_y) in primitive_ab.e_y.iter().enumerate() {
-            for (v, &e_ab_z) in primitive_ab.e_z.iter().enumerate() {
-                for (tau, &e_cd_x) in primitive_cd.e_x.iter().enumerate() {
-                    for (nu, &e_cd_y) in primitive_cd.e_y.iter().enumerate() {
-                        for (phi, &e_cd_z) in primitive_cd.e_z.iter().enumerate() {
-                            let sign = if (tau + nu + phi) % 2 == 0 { 1.0 } else { -1.0 };
-                            eri += e_ab_x
-                                * e_ab_y
-                                * e_ab_z
-                                * e_cd_x
-                                * e_cd_y
-                                * e_cd_z
-                                * sign
-                                * coulomb_cache.value(
-                                    (t + tau) as u8,
-                                    (u + nu) as u8,
-                                    (v + phi) as u8,
-                                    0,
-                                );
-                        }
-                    }
-                }
-            }
+    for term_ab in &primitive_ab.terms {
+        for term_cd in &primitive_cd.terms {
+            let orders = term_ab.orders + term_cd.orders;
+            let sign = if term_cd.orders.sum() % 2 == 0 {
+                1.0
+            } else {
+                -1.0
+            };
+            eri +=
+                term_ab.coefficient * term_cd.coefficient * sign * coulomb_cache.value(orders, 0);
         }
     }
 
     2.0 * PI.powf(2.5) / (p * q * (p + q).sqrt()) * eri
+}
+
+fn hermite_terms(e: &[Vec<f64>; 3]) -> Vec<HermiteTerm> {
+    let [e_x, e_y, e_z] = e;
+    let mut terms = Vec::with_capacity(e_x.len() * e_y.len() * e_z.len());
+    for (t, &x) in e_x.iter().enumerate() {
+        for (u, &y) in e_y.iter().enumerate() {
+            for (v, &z) in e_z.iter().enumerate() {
+                let coefficients = Vector3::new(x, y, z);
+                terms.push(HermiteTerm {
+                    orders: Vector3::new(t as u8, u as u8, v as u8),
+                    coefficient: coefficients.product(),
+                });
+            }
+        }
+    }
+    terms
+}
+
+fn hermite_coefficients_3d(
+    i_max: Vector3<u8>,
+    j_max: Vector3<u8>,
+    q: Vector3<f64>,
+    a: f64,
+    b: f64,
+) -> [Vec<f64>; 3] {
+    [
+        hermite_coefficients(i_max.x, j_max.x, q.x, a, b),
+        hermite_coefficients(i_max.y, j_max.y, q.y, a, b),
+        hermite_coefficients(i_max.z, j_max.z, q.z, a, b),
+    ]
 }
 
 fn hermite_coefficients(i_max: u8, j_max: u8, qx: f64, a: f64, b: f64) -> Vec<f64> {
@@ -377,12 +389,12 @@ struct CoulombAuxiliaryCache {
     v_len: usize,
     n_len: usize,
     p: f64,
-    pc: nalgebra::Vector3<f64>,
+    pc: Vector3<f64>,
     values: Vec<Option<f64>>,
 }
 
 impl CoulombAuxiliaryCache {
-    fn new(t_max: u8, u_max: u8, v_max: u8, p: f64, pc: nalgebra::Vector3<f64>) -> Self {
+    fn new(t_max: u8, u_max: u8, v_max: u8, p: f64, pc: Vector3<f64>) -> Self {
         let n_max = t_max + u_max + v_max;
         let len = (t_max as usize + 1)
             * (u_max as usize + 1)
@@ -398,7 +410,11 @@ impl CoulombAuxiliaryCache {
         }
     }
 
-    fn value(&mut self, t: u8, u: u8, v: u8, n: u8) -> f64 {
+    fn value(&mut self, orders: Vector3<u8>, n: u8) -> f64 {
+        self.value_at(orders.x, orders.y, orders.z, n)
+    }
+
+    fn value_at(&mut self, t: u8, u: u8, v: u8, n: u8) -> f64 {
         let index = self.index(t, u, v, n);
         if let Some(value) = self.values[index] {
             return value;
@@ -409,25 +425,25 @@ impl CoulombAuxiliaryCache {
                 * crate::math_utils::boys_function(n as u64, self.p * self.pc.norm_squared())
         } else if t > 0 {
             let lower = if t >= 2 {
-                (t as f64 - 1.0) * self.value(t - 2, u, v, n + 1)
+                (t as f64 - 1.0) * self.value_at(t - 2, u, v, n + 1)
             } else {
                 0.0
             };
-            lower + self.pc.x * self.value(t - 1, u, v, n + 1)
+            lower + self.pc.x * self.value_at(t - 1, u, v, n + 1)
         } else if u > 0 {
             let lower = if u >= 2 {
-                (u as f64 - 1.0) * self.value(t, u - 2, v, n + 1)
+                (u as f64 - 1.0) * self.value_at(t, u - 2, v, n + 1)
             } else {
                 0.0
             };
-            lower + self.pc.y * self.value(t, u - 1, v, n + 1)
+            lower + self.pc.y * self.value_at(t, u - 1, v, n + 1)
         } else {
             let lower = if v >= 2 {
-                (v as f64 - 1.0) * self.value(t, u, v - 2, n + 1)
+                (v as f64 - 1.0) * self.value_at(t, u, v - 2, n + 1)
             } else {
                 0.0
             };
-            lower + self.pc.z * self.value(t, u, v - 1, n + 1)
+            lower + self.pc.z * self.value_at(t, u, v - 1, n + 1)
         };
         self.values[index] = Some(value);
         value
