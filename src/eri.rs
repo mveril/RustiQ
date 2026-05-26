@@ -3,9 +3,7 @@
 
 use std::f64::consts::PI;
 
-use crate::basis::gaussian::basis::{
-    coulomb_auxiliary, gaussian_product_center, hermite_coeff, Basis,
-};
+use crate::basis::gaussian::basis::{gaussian_product_center, Basis};
 use nalgebra::Point3;
 use ndarray::Array4;
 use rayon::prelude::*;
@@ -118,13 +116,20 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
     let n = basis.nbasis();
     let n_pairs = n * (n + 1) / 2;
     let n_unique_quartets = n_pairs * (n_pairs + 1) / 2;
+    let pair_expansions = build_pair_expansions(basis);
     let values = (0..n_unique_quartets)
         .into_par_iter()
         .map(|index| {
             let (pair_pq, pair_rs) = unique_pair_indices(index);
             let (p, q) = basis_function_pair(pair_pq);
             let (r, s) = basis_function_pair(pair_rs);
-            (p, q, r, s, compute_eri_ao(basis, p, q, r, s))
+            (
+                p,
+                q,
+                r,
+                s,
+                compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs]),
+            )
         })
         .collect::<Vec<_>>();
 
@@ -149,52 +154,6 @@ fn basis_function_pair(pair_index: usize) -> (usize, usize) {
     (first, second)
 }
 
-#[allow(clippy::too_many_lines)]
-fn compute_eri_ao(basis: &Basis, p: usize, q: usize, r: usize, s: usize) -> f64 {
-    let origin_p = basis.shells[basis.shell_ids[p]].origin;
-    let origin_q = basis.shells[basis.shell_ids[q]].origin;
-    let origin_r = basis.shells[basis.shell_ids[r]].origin;
-    let origin_s = basis.shells[basis.shell_ids[s]].origin;
-
-    let mut eri_pqrs = 0.0;
-    for component_p in &basis.normalized_components[p] {
-        for component_q in &basis.normalized_components[q] {
-            for component_r in &basis.normalized_components[r] {
-                for component_s in &basis.normalized_components[s] {
-                    for primitive_p in &component_p.primitives {
-                        for primitive_q in &component_q.primitives {
-                            for primitive_r in &component_r.primitives {
-                                for primitive_s in &component_s.primitives {
-                                    let eri = compute_eri_cartesian_primitive(
-                                        primitive_p.exponent,
-                                        primitive_q.exponent,
-                                        primitive_r.exponent,
-                                        primitive_s.exponent,
-                                        origin_p,
-                                        origin_q,
-                                        origin_r,
-                                        origin_s,
-                                        &component_p.angular_momentum,
-                                        &component_q.angular_momentum,
-                                        &component_r.angular_momentum,
-                                        &component_s.angular_momentum,
-                                    );
-                                    eri_pqrs += primitive_p.coefficient
-                                        * primitive_q.coefficient
-                                        * primitive_r.coefficient
-                                        * primitive_s.coefficient
-                                        * eri;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    eri_pqrs
-}
-
 fn eri_permutations(p: usize, q: usize, r: usize, s: usize) -> [(usize, usize, usize, usize); 8] {
     [
         (p, q, r, s),
@@ -208,63 +167,124 @@ fn eri_permutations(p: usize, q: usize, r: usize, s: usize) -> [(usize, usize, u
     ]
 }
 
-#[allow(clippy::too_many_arguments)]
-fn compute_eri_cartesian_primitive(
-    alpha_p: f64,
-    alpha_q: f64,
-    alpha_r: f64,
-    alpha_s: f64,
-    a: Point3<f64>,
-    b: Point3<f64>,
-    c: Point3<f64>,
-    d: Point3<f64>,
-    l_p: &nalgebra::Vector3<u8>,
-    l_q: &nalgebra::Vector3<u8>,
-    l_r: &nalgebra::Vector3<u8>,
-    l_s: &nalgebra::Vector3<u8>,
-) -> f64 {
-    let p = alpha_p + alpha_q;
-    let q = alpha_r + alpha_s;
-    let alpha = p * q / (p + q);
-    let p_center = gaussian_product_center(alpha_p, &a, alpha_q, &b);
-    let q_center = gaussian_product_center(alpha_r, &c, alpha_s, &d);
-    let pq = p_center - q_center;
+struct PairPrimitive {
+    exponent_sum: f64,
+    center: nalgebra::Vector3<f64>,
+    coefficient: f64,
+    e_x: Vec<f64>,
+    e_y: Vec<f64>,
+    e_z: Vec<f64>,
+}
 
-    let e_ab_x = (0..=l_p.x + l_q.x)
-        .map(|t| hermite_coeff(l_p.x, l_q.x, t, a.x - b.x, alpha_p, alpha_q))
-        .collect::<Vec<_>>();
-    let e_ab_y = (0..=l_p.y + l_q.y)
-        .map(|u| hermite_coeff(l_p.y, l_q.y, u, a.y - b.y, alpha_p, alpha_q))
-        .collect::<Vec<_>>();
-    let e_ab_z = (0..=l_p.z + l_q.z)
-        .map(|v| hermite_coeff(l_p.z, l_q.z, v, a.z - b.z, alpha_p, alpha_q))
-        .collect::<Vec<_>>();
-    let e_cd_x = (0..=l_r.x + l_s.x)
-        .map(|t| hermite_coeff(l_r.x, l_s.x, t, c.x - d.x, alpha_r, alpha_s))
-        .collect::<Vec<_>>();
-    let e_cd_y = (0..=l_r.y + l_s.y)
-        .map(|u| hermite_coeff(l_r.y, l_s.y, u, c.y - d.y, alpha_r, alpha_s))
-        .collect::<Vec<_>>();
-    let e_cd_z = (0..=l_r.z + l_s.z)
-        .map(|v| hermite_coeff(l_r.z, l_s.z, v, c.z - d.z, alpha_r, alpha_s))
-        .collect::<Vec<_>>();
+type PairExpansion = Vec<PairPrimitive>;
+
+fn build_pair_expansions(basis: &Basis) -> Vec<PairExpansion> {
+    let n = basis.nbasis();
+    let n_pairs = n * (n + 1) / 2;
+    (0..n_pairs)
+        .into_par_iter()
+        .map(|pair_index| {
+            let (i, j) = basis_function_pair(pair_index);
+            build_pair_expansion(basis, i, j)
+        })
+        .collect()
+}
+
+fn build_pair_expansion(basis: &Basis, i: usize, j: usize) -> PairExpansion {
+    let shell_i = &basis.shells[basis.shell_ids[i]];
+    let shell_j = &basis.shells[basis.shell_ids[j]];
+    let origin_i = shell_i.origin;
+    let origin_j = shell_j.origin;
+    let mut expansion = Vec::new();
+
+    for component_i in &basis.normalized_components[i] {
+        for component_j in &basis.normalized_components[j] {
+            for primitive_i in &component_i.primitives {
+                for primitive_j in &component_j.primitives {
+                    let exponent_sum = primitive_i.exponent + primitive_j.exponent;
+                    expansion.push(PairPrimitive {
+                        exponent_sum,
+                        center: gaussian_product_center(
+                            primitive_i.exponent,
+                            &origin_i,
+                            primitive_j.exponent,
+                            &origin_j,
+                        ),
+                        coefficient: primitive_i.coefficient * primitive_j.coefficient,
+                        e_x: hermite_coefficients(
+                            component_i.angular_momentum.x,
+                            component_j.angular_momentum.x,
+                            origin_i.x - origin_j.x,
+                            primitive_i.exponent,
+                            primitive_j.exponent,
+                        ),
+                        e_y: hermite_coefficients(
+                            component_i.angular_momentum.y,
+                            component_j.angular_momentum.y,
+                            origin_i.y - origin_j.y,
+                            primitive_i.exponent,
+                            primitive_j.exponent,
+                        ),
+                        e_z: hermite_coefficients(
+                            component_i.angular_momentum.z,
+                            component_j.angular_momentum.z,
+                            origin_i.z - origin_j.z,
+                            primitive_i.exponent,
+                            primitive_j.exponent,
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
+    expansion
+}
+
+fn compute_eri_pair(pair_ab: &PairExpansion, pair_cd: &PairExpansion) -> f64 {
+    let mut eri = 0.0;
+    for primitive_ab in pair_ab {
+        for primitive_cd in pair_cd {
+            eri += primitive_ab.coefficient
+                * primitive_cd.coefficient
+                * compute_eri_pair_primitive(primitive_ab, primitive_cd);
+        }
+    }
+    eri
+}
+
+fn compute_eri_pair_primitive(primitive_ab: &PairPrimitive, primitive_cd: &PairPrimitive) -> f64 {
+    let p = primitive_ab.exponent_sum;
+    let q = primitive_cd.exponent_sum;
+    let alpha = p * q / (p + q);
+    let pq = primitive_ab.center - primitive_cd.center;
+
+    let max_t = (primitive_ab.e_x.len() + primitive_cd.e_x.len() - 2) as u8;
+    let max_u = (primitive_ab.e_y.len() + primitive_cd.e_y.len() - 2) as u8;
+    let max_v = (primitive_ab.e_z.len() + primitive_cd.e_z.len() - 2) as u8;
+    let mut coulomb_cache = CoulombAuxiliaryCache::new(max_t, max_u, max_v, alpha, pq);
 
     let mut eri = 0.0;
-    for t in 0..=l_p.x + l_q.x {
-        for u in 0..=l_p.y + l_q.y {
-            for v in 0..=l_p.z + l_q.z {
-                for tau in 0..=l_r.x + l_s.x {
-                    for nu in 0..=l_r.y + l_s.y {
-                        for phi in 0..=l_r.z + l_s.z {
+    for (t, &e_ab_x) in primitive_ab.e_x.iter().enumerate() {
+        for (u, &e_ab_y) in primitive_ab.e_y.iter().enumerate() {
+            for (v, &e_ab_z) in primitive_ab.e_z.iter().enumerate() {
+                for (tau, &e_cd_x) in primitive_cd.e_x.iter().enumerate() {
+                    for (nu, &e_cd_y) in primitive_cd.e_y.iter().enumerate() {
+                        for (phi, &e_cd_z) in primitive_cd.e_z.iter().enumerate() {
                             let sign = if (tau + nu + phi) % 2 == 0 { 1.0 } else { -1.0 };
-                            eri += e_ab_x[t as usize]
-                                * e_ab_y[u as usize]
-                                * e_ab_z[v as usize]
-                                * e_cd_x[tau as usize]
-                                * e_cd_y[nu as usize]
-                                * e_cd_z[phi as usize]
+                            eri += e_ab_x
+                                * e_ab_y
+                                * e_ab_z
+                                * e_cd_x
+                                * e_cd_y
+                                * e_cd_z
                                 * sign
-                                * coulomb_auxiliary(t + tau, u + nu, v + phi, 0, alpha, &pq);
+                                * coulomb_cache.value(
+                                    (t + tau) as u8,
+                                    (u + nu) as u8,
+                                    (v + phi) as u8,
+                                    0,
+                                );
                         }
                     }
                 }
@@ -273,6 +293,150 @@ fn compute_eri_cartesian_primitive(
     }
 
     2.0 * PI.powf(2.5) / (p * q * (p + q).sqrt()) * eri
+}
+
+fn hermite_coefficients(i_max: u8, j_max: u8, qx: f64, a: f64, b: f64) -> Vec<f64> {
+    let t_max = i_max + j_max;
+    let mut cache = HermiteCoefficientCache::new(i_max, j_max, t_max, qx, a, b);
+    (0..=t_max).map(|t| cache.value(i_max, j_max, t)).collect()
+}
+
+struct HermiteCoefficientCache {
+    j_len: usize,
+    t_len: usize,
+    qx: f64,
+    a: f64,
+    b: f64,
+    values: Vec<Option<f64>>,
+}
+
+impl HermiteCoefficientCache {
+    fn new(i_max: u8, j_max: u8, t_max: u8, qx: f64, a: f64, b: f64) -> Self {
+        let len = (i_max as usize + 1) * (j_max as usize + 1) * (t_max as usize + 2);
+        Self {
+            j_len: j_max as usize + 1,
+            t_len: t_max as usize + 2,
+            qx,
+            a,
+            b,
+            values: vec![None; len],
+        }
+    }
+
+    fn value(&mut self, i: u8, j: u8, t: u8) -> f64 {
+        if t > i + j {
+            return 0.0;
+        }
+        let index = self.index(i, j, t);
+        if let Some(value) = self.values[index] {
+            return value;
+        }
+
+        let value = if i == 0 && j == 0 && t == 0 {
+            let p = self.a + self.b;
+            let reduced_exp = self.a * self.b / p;
+            (-reduced_exp * self.qx.powi(2)).exp()
+        } else if i == 0 && j == 0 {
+            0.0
+        } else {
+            let p = self.a + self.b;
+            let reduced_exp = self.a * self.b / p;
+            if i > 0 {
+                let lower_i = i - 1;
+                let left = if t > 0 {
+                    self.value(lower_i, j, t - 1) / (2.0 * p)
+                } else {
+                    0.0
+                };
+                let middle = -(reduced_exp * self.qx / self.a) * self.value(lower_i, j, t);
+                let right = (t as f64 + 1.0) * self.value(lower_i, j, t + 1);
+                left + middle + right
+            } else {
+                let lower_j = j - 1;
+                let left = if t > 0 {
+                    self.value(i, lower_j, t - 1) / (2.0 * p)
+                } else {
+                    0.0
+                };
+                let middle = (reduced_exp * self.qx / self.b) * self.value(i, lower_j, t);
+                let right = (t as f64 + 1.0) * self.value(i, lower_j, t + 1);
+                left + middle + right
+            }
+        };
+        self.values[index] = Some(value);
+        value
+    }
+
+    fn index(&self, i: u8, j: u8, t: u8) -> usize {
+        ((i as usize * self.j_len) + j as usize) * self.t_len + t as usize
+    }
+}
+
+struct CoulombAuxiliaryCache {
+    u_len: usize,
+    v_len: usize,
+    n_len: usize,
+    p: f64,
+    pc: nalgebra::Vector3<f64>,
+    values: Vec<Option<f64>>,
+}
+
+impl CoulombAuxiliaryCache {
+    fn new(t_max: u8, u_max: u8, v_max: u8, p: f64, pc: nalgebra::Vector3<f64>) -> Self {
+        let n_max = t_max + u_max + v_max;
+        let len = (t_max as usize + 1)
+            * (u_max as usize + 1)
+            * (v_max as usize + 1)
+            * (n_max as usize + 1);
+        Self {
+            u_len: u_max as usize + 1,
+            v_len: v_max as usize + 1,
+            n_len: n_max as usize + 1,
+            p,
+            pc,
+            values: vec![None; len],
+        }
+    }
+
+    fn value(&mut self, t: u8, u: u8, v: u8, n: u8) -> f64 {
+        let index = self.index(t, u, v, n);
+        if let Some(value) = self.values[index] {
+            return value;
+        }
+
+        let value = if t == 0 && u == 0 && v == 0 {
+            (-2.0 * self.p).powi(n as i32)
+                * crate::math_utils::boys_function(n as u64, self.p * self.pc.norm_squared())
+        } else if t > 0 {
+            let lower = if t >= 2 {
+                (t as f64 - 1.0) * self.value(t - 2, u, v, n + 1)
+            } else {
+                0.0
+            };
+            lower + self.pc.x * self.value(t - 1, u, v, n + 1)
+        } else if u > 0 {
+            let lower = if u >= 2 {
+                (u as f64 - 1.0) * self.value(t, u - 2, v, n + 1)
+            } else {
+                0.0
+            };
+            lower + self.pc.y * self.value(t, u - 1, v, n + 1)
+        } else {
+            let lower = if v >= 2 {
+                (v as f64 - 1.0) * self.value(t, u, v - 2, n + 1)
+            } else {
+                0.0
+            };
+            lower + self.pc.z * self.value(t, u, v - 1, n + 1)
+        };
+        self.values[index] = Some(value);
+        value
+    }
+
+    fn index(&self, t: u8, u: u8, v: u8, n: u8) -> usize {
+        (((t as usize * self.u_len) + u as usize) * self.v_len + v as usize) * self.n_len
+            + n as usize
+    }
 }
 
 #[cfg(test)]
