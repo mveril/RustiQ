@@ -248,10 +248,10 @@ impl<'a> ScfCalculation<'a> {
             // c. Update density matrix
             self.update_density_matrix();
 
-            // d. Calculate total energy
-            self.update_total_energy();
-
+            // d. Build F(P) for the new density and calculate total energy
             self.update_residual_norm_and_next_fock();
+
+            self.update_total_energy_from_current_fock();
 
             // e. Check for convergence
             delta_energy = (self.energy - energy_last).abs();
@@ -320,8 +320,8 @@ impl<'a> ScfCalculation<'a> {
         self.density_matrix = self.calculate_density_matrix();
     }
 
-    fn update_total_energy(&mut self) {
-        self.energy = self.calculate_total_energy();
+    fn update_total_energy_from_current_fock(&mut self) {
+        self.energy = self.calculate_total_energy_from_current_fock();
     }
 
     fn update_residual_norm_and_next_fock(&mut self) {
@@ -336,29 +336,43 @@ impl<'a> ScfCalculation<'a> {
 
     fn build_fock_matrix(&self, density_matrix: &DMatrix<f64>) -> DMatrix<f64> {
         let nbasis = self.basis.nbasis();
-        let values = (0..nbasis.pow(2))
+        let n_pairs = nbasis * (nbasis + 1) / 2;
+        let values = (0..n_pairs)
             .into_par_iter()
             .map(|index| {
-                let mu = index % nbasis;
-                let nu = index / nbasis;
-                let g_term: f64 = (0..nbasis)
-                    .flat_map(|lambda| {
-                        (0..nbasis).map(move |sigma| {
-                            let density_element = density_matrix[(lambda, sigma)];
-                            let two_electron_term =
-                                self.two_electron_integrals[(mu, nu, lambda, sigma)];
-                            let exchange_term =
-                                self.two_electron_integrals[(mu, sigma, lambda, nu)];
-                            density_element * (two_electron_term - 0.5 * exchange_term)
-                        })
-                    })
-                    .sum();
+                let (mu, nu) = basis_function_pair(index);
+                let mut g_term = 0.0;
 
-                self.h_core[(mu, nu)] + g_term
+                for lambda in 0..nbasis {
+                    for sigma in 0..=lambda {
+                        let density_element = density_matrix[(lambda, sigma)];
+                        let coulomb_term = self.two_electron_integrals[(mu, nu, lambda, sigma)];
+                        let exchange_term = self.two_electron_integrals[(mu, sigma, lambda, nu)];
+
+                        if lambda == sigma {
+                            g_term += density_element * (coulomb_term - 0.5 * exchange_term);
+                        } else {
+                            let swapped_exchange_term =
+                                self.two_electron_integrals[(mu, lambda, sigma, nu)];
+                            g_term += density_element
+                                * (2.0 * coulomb_term
+                                    - 0.5 * (exchange_term + swapped_exchange_term));
+                        }
+                    }
+                }
+
+                (mu, nu, self.h_core[(mu, nu)] + g_term)
             })
             .collect::<Vec<_>>();
 
-        DMatrix::from_column_slice(nbasis, nbasis, &values)
+        let mut fock_matrix = DMatrix::zeros(nbasis, nbasis);
+        for (mu, nu, value) in values {
+            fock_matrix[(mu, nu)] = value;
+            if mu != nu {
+                fock_matrix[(nu, mu)] = value;
+            }
+        }
+        fock_matrix
     }
 
     fn solve_roothaan_hall(&self) -> (DMatrix<f64>, DVector<f64>) {
@@ -374,11 +388,8 @@ impl<'a> ScfCalculation<'a> {
         2.0 * c_occ * c_occ.transpose()
     }
 
-    fn calculate_total_energy(&self) -> f64 {
-        let energy_details = self.calculate_energy_details();
-        energy_details.kinetic_energy
-            + energy_details.nuclear_attraction_energy
-            + energy_details.electron_repulsion_energy
+    fn calculate_total_energy_from_current_fock(&self) -> f64 {
+        0.5 * self.density_matrix.dot(&(&self.h_core + &self.fock_matrix))
     }
 
     fn calculate_energy_details(&self) -> ScfEnergyDetails {
@@ -438,6 +449,12 @@ impl<'a> ScfCalculation<'a> {
             .sum();
         0.5 * e_re
     }
+}
+
+fn basis_function_pair(pair_index: usize) -> (usize, usize) {
+    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
+    let second = pair_index - first * (first + 1) / 2;
+    (first, second)
 }
 
 #[cfg(test)]
