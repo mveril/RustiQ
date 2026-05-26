@@ -1,0 +1,11 @@
+[global]
+basis = "6-31g"
+
+[global.molecule]
+geometry = "../molecule.xyz"
+
+[hf]
+diis = true
+
+[hf.guess]
+type = "CoreHamiltonian"

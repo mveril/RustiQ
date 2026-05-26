@@ -2,7 +2,7 @@
 basis = "sto-3g"
 
 [global.molecule]
-geometry = "./ethanol.xyz"
+geometry = "../ethanol.xyz"
 charge = 0
 multiplicity = 1
 molecule_unit = "Angstrom"

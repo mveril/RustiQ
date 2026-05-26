@@ -1,0 +1,17 @@
+[global]
+basis = "6-31g"
+
+[global.molecule]
+geometry = "../ethanol.xyz"
+charge = 0
+multiplicity = 1
+molecule_unit = "Angstrom"
+
+[hf]
+max_iterations = 100
+convergence_threshold = 1e-10
+diis = true
+diis_size = 8
+
+[hf.guess]
+type = "CoreHamiltonian"

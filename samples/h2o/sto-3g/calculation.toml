@@ -2,6 +2,6 @@
 basis = "sto-3g"
 
 [global.molecule]
-geometry = "./h2o.xyz"
+geometry = "../h2o.xyz"
 
 [hf]

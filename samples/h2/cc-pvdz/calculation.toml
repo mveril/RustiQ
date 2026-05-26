@@ -1,0 +1,12 @@
+[global]
+basis = "cc-pvdz"
+
+[global.molecule]
+geometry = "../molecule.xyz"
+
+[hf]
+diis = true
+diis_size = 8
+
+[hf.guess]
+type = "CoreHamiltonian"

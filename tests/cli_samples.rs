@@ -100,7 +100,7 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     prepare_basis_store(&temp_root);
 
     let output = run_rustiq_with_data_home(
-        &["run", "--file", "samples/h2/calculation.toml"],
+        &["run", "--file", "samples/h2/sto-3g/calculation.toml"],
         &temp_root,
     );
 
