@@ -3,6 +3,7 @@ mod download_command;
 mod list_command;
 mod remove_command;
 use clap::Subcommand;
+use delegate::delegate;
 #[cfg(feature = "online")]
 use download_command::DownloadCommand;
 use list_command::ListCommand;
@@ -22,13 +23,15 @@ pub enum BasisCommands {
 }
 
 impl Runnable for BasisCommands {
-    fn run(&self) -> CommandResult {
-        match self {
+    delegate! {
+        to match self {
             #[cfg(feature = "online")]
-            BasisCommands::Download(cmd) => cmd.run(),
-            BasisCommands::Import(cmd) => cmd.run(),
-            BasisCommands::List(cmd) => cmd.run(),
-            BasisCommands::Remove(cmd) => cmd.run(),
+            BasisCommands::Download(command) => command,
+            BasisCommands::Import(command) => command,
+            BasisCommands::List(command) => command,
+            BasisCommands::Remove(command) => command,
+        } {
+            fn run(&self) -> CommandResult;
         }
     }
 }

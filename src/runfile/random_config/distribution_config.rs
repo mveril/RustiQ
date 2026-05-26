@@ -3,6 +3,7 @@ mod uniform_distribution_config;
 pub(crate) use normal_distribution_config::NormalDistributionConfig;
 pub(crate) use uniform_distribution_config::UniformDistributionConfig;
 
+use delegate::delegate;
 use rand::distr::{
     uniform::{Error as UniformError, Uniform},
     Distribution,
@@ -58,10 +59,12 @@ pub(crate) enum SelectedSampleIter {
 }
 
 impl RandomSampler for SelectedSampleIter {
-    fn sample(&mut self) -> f64 {
-        match self {
-            SelectedSampleIter::UniformSampleIter(sampler) => sampler.sample(),
-            SelectedSampleIter::NormalSampleIter(sampler) => sampler.sample(),
+    delegate! {
+        to match self {
+            SelectedSampleIter::UniformSampleIter(sampler) => sampler,
+            SelectedSampleIter::NormalSampleIter(sampler) => sampler,
+        } {
+            fn sample(&mut self) -> f64;
         }
     }
 }
@@ -69,10 +72,12 @@ impl RandomSampler for SelectedSampleIter {
 impl Iterator for SelectedSampleIter {
     type Item = f64;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::UniformSampleIter(iter) => iter.next(),
-            Self::NormalSampleIter(iter) => iter.next(),
+    delegate! {
+        to match self {
+            Self::UniformSampleIter(iter) => iter,
+            Self::NormalSampleIter(iter) => iter,
+        } {
+            fn next(&mut self) -> Option<Self::Item>;
         }
     }
 }

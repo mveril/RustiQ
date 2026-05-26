@@ -1,6 +1,7 @@
 mod info_command;
 mod translation;
 use clap::Subcommand;
+use delegate::delegate;
 mod center;
 mod transform_args;
 use info_command::InfoCommand;
@@ -25,13 +26,15 @@ pub enum GeometryCommands {
 }
 
 impl Runnable for GeometryCommands {
-    fn run(&self) -> CommandResult {
-        match self {
-            GeometryCommands::Info(cmd) => cmd.run(),
-            GeometryCommands::Rotate(rotation_command) => rotation_command.run(),
-            GeometryCommands::Translate(translation_command) => translation_command.run(),
-            GeometryCommands::Center(center_command) => center_command.run(),
-            GeometryCommands::Isometry(isometry_command) => isometry_command.run(),
+    delegate! {
+        to match self {
+            GeometryCommands::Info(command) => command,
+            GeometryCommands::Rotate(command) => command,
+            GeometryCommands::Translate(command) => command,
+            GeometryCommands::Center(command) => command,
+            GeometryCommands::Isometry(command) => command,
+        } {
+            fn run(&self) -> CommandResult;
         }
     }
 }

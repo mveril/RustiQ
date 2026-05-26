@@ -12,6 +12,7 @@ dependencies = [
  "bounded-vec-deque",
  "cached",
  "clap",
+ "delegate",
  "dirs",
  "factorial",
  "humantime",
@@ -525,6 +526,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
 dependencies = [
  "darling_core",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "delegate"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "780eb241654bf097afb00fc5f054a09b687dad862e485fdcf8399bb056565370"
+dependencies = [
+ "proc-macro2",
  "quote",
  "syn",
 ]

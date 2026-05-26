@@ -1,6 +1,7 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
 use super::{atom::Atom, element_parser::parse_element, geometry_parse_error::GeometryParseError};
 use core::iter::Iterator;
+use delegate::delegate;
 use nalgebra::{distance, Isometry3, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
@@ -227,8 +228,10 @@ impl IntoIterator for Geometry {
     type Item = Atom;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.atoms.into_iter()
+    delegate! {
+        to self.atoms {
+            fn into_iter(self) -> Self::IntoIter;
+        }
     }
 }
 
@@ -245,64 +248,86 @@ impl IntoParallelIterator for Geometry {
     type Item = Atom;
     type Iter = rayon::vec::IntoIter<Atom>;
 
-    fn into_par_iter(self) -> Self::Iter {
-        self.atoms.into_par_iter()
+    delegate! {
+        to self.atoms {
+            fn into_par_iter(self) -> Self::Iter;
+        }
     }
 }
 
 impl Index<usize> for Geometry {
     type Output = Atom;
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.atoms[index]
+
+    delegate! {
+        to self.atoms {
+            fn index(&self, index: usize) -> &Self::Output;
+        }
     }
 }
 
 impl IndexMut<usize> for Geometry {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.atoms[index]
+    delegate! {
+        to self.atoms {
+            fn index_mut(&mut self, index: usize) -> &mut Self::Output;
+        }
     }
 }
 
 impl Index<Range<usize>> for Geometry {
     type Output = [Atom];
-    fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.atoms[index]
+
+    delegate! {
+        to self.atoms {
+            fn index(&self, index: Range<usize>) -> &Self::Output;
+        }
     }
 }
 
 impl IndexMut<Range<usize>> for Geometry {
-    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        &mut self.atoms[index]
+    delegate! {
+        to self.atoms {
+            fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output;
+        }
     }
 }
 
 impl Extend<Atom> for Geometry {
-    fn extend<T: IntoIterator<Item = Atom>>(&mut self, iter: T) {
-        self.atoms.extend(iter)
+    delegate! {
+        to self.atoms {
+            fn extend<T: IntoIterator<Item = Atom>>(&mut self, iter: T);
+        }
     }
 }
 
 impl AsRef<Vec<Atom>> for Geometry {
-    fn as_ref(&self) -> &Vec<Atom> {
-        &self.atoms
+    delegate! {
+        to self.atoms {
+            fn as_ref(&self) -> &Vec<Atom>;
+        }
     }
 }
 
 impl AsMut<Vec<Atom>> for Geometry {
-    fn as_mut(&mut self) -> &mut Vec<Atom> {
-        &mut self.atoms
+    delegate! {
+        to self.atoms {
+            fn as_mut(&mut self) -> &mut Vec<Atom>;
+        }
     }
 }
 
 impl AsRef<[Atom]> for Geometry {
-    fn as_ref(&self) -> &[Atom] {
-        &self.atoms
+    delegate! {
+        to self.atoms {
+            fn as_ref(&self) -> &[Atom];
+        }
     }
 }
 
 impl AsMut<[Atom]> for Geometry {
-    fn as_mut(&mut self) -> &mut [Atom] {
-        &mut self.atoms
+    delegate! {
+        to self.atoms {
+            fn as_mut(&mut self) -> &mut [Atom];
+        }
     }
 }
 

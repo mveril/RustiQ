@@ -5,6 +5,7 @@ mod geometry_command;
 mod runnable;
 use basis_command::BasisCommands;
 use clap::Subcommand;
+use delegate::delegate;
 use geometry_command::GeometryCommands;
 #[cfg(feature = "online")]
 pub(crate) use runnable::AsyncRunnable;
@@ -27,11 +28,13 @@ pub enum Commands {
 }
 
 impl Runnable for Commands {
-    fn run(&self) -> CommandResult {
-        match &self {
-            Commands::Run(run_command) => run_command.run(),
-            Commands::Basis { command } => command.run(),
-            Commands::Geometry { command } => command.run(),
+    delegate! {
+        to match self {
+            Commands::Run(command) => command,
+            Commands::Basis { command } => command,
+            Commands::Geometry { command } => command,
+        } {
+            fn run(&self) -> CommandResult;
         }
     }
 }
