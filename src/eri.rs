@@ -169,7 +169,7 @@ fn eri_permutations(p: usize, q: usize, r: usize, s: usize) -> [(usize, usize, u
 
 struct PairPrimitive {
     exponent_sum: f64,
-    center: Vector3<f64>,
+    center: Point3<f64>,
     coefficient: f64,
     terms: Vec<HermiteTerm>,
     max_orders: Vector3<u8>,

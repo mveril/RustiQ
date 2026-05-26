@@ -144,9 +144,9 @@ impl Basis {
             })
             .map(|(i, j)| {
                 let shell_i = &self.shells[self.shell_ids[i]];
-                let origin_i = shell_i.origin.coords;
+                let origin_i = shell_i.origin;
                 let shell_j = &self.shells[self.shell_ids[j]];
-                let origin_j = shell_j.origin.coords;
+                let origin_j = shell_j.origin;
 
                 let mut s_ij = 0.0;
 
@@ -196,9 +196,9 @@ impl Basis {
             })
             .map(|(i, j)| {
                 let shell_i = &self.shells[self.shell_ids[i]];
-                let origin_i = shell_i.origin.coords;
+                let origin_i = shell_i.origin;
                 let shell_j = &self.shells[self.shell_ids[j]];
-                let origin_j = shell_j.origin.coords;
+                let origin_j = shell_j.origin;
 
                 let mut t_ij = 0.0;
 
@@ -347,23 +347,24 @@ pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
 pub(crate) fn primitive_overlap(
     l_i: &Vector3<u8>,
     l_j: &Vector3<u8>,
-    origin_i: &Vector3<f64>,
-    origin_j: &Vector3<f64>,
+    origin_i: &Point3<f64>,
+    origin_j: &Point3<f64>,
     exp_i: f64,
     exp_j: f64,
 ) -> f64 {
     let p = exp_i + exp_j;
+    let displacement = origin_i - origin_j;
     (PI / p).powf(1.5)
-        * hermite_coeff(l_i.x, l_j.x, 0, origin_i.x - origin_j.x, exp_i, exp_j)
-        * hermite_coeff(l_i.y, l_j.y, 0, origin_i.y - origin_j.y, exp_i, exp_j)
-        * hermite_coeff(l_i.z, l_j.z, 0, origin_i.z - origin_j.z, exp_i, exp_j)
+        * hermite_coeff(l_i.x, l_j.x, 0, displacement.x, exp_i, exp_j)
+        * hermite_coeff(l_i.y, l_j.y, 0, displacement.y, exp_i, exp_j)
+        * hermite_coeff(l_i.z, l_j.z, 0, displacement.z, exp_i, exp_j)
 }
 
 pub(crate) fn primitive_kinetic(
     l_i: &Vector3<u8>,
     l_j: &Vector3<u8>,
-    origin_i: &Vector3<f64>,
-    origin_j: &Vector3<f64>,
+    origin_i: &Point3<f64>,
+    origin_j: &Point3<f64>,
     exp_i: f64,
     exp_j: f64,
 ) -> f64 {
@@ -397,8 +398,8 @@ pub(crate) fn gaussian_product_center(
     origin_i: &Point3<f64>,
     exp_j: f64,
     origin_j: &Point3<f64>,
-) -> Vector3<f64> {
-    (exp_i * origin_i.coords + exp_j * origin_j.coords) / (exp_i + exp_j)
+) -> Point3<f64> {
+    Point3::from((exp_i * origin_i.coords + exp_j * origin_j.coords) / (exp_i + exp_j))
 }
 
 pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64 {
@@ -488,7 +489,7 @@ mod tests {
         assert_eq!(basis.shells.len(), 1);
         assert_eq!(basis.shell_ids.len(), 1); // Il y a une seule fonction de base
         assert_eq!(basis.angular_momenta.len(), 1);
-        assert_eq!(basis.angular_momenta[0], Vector3::new(0, 0, 0));
+        assert_eq!(basis.angular_momenta[0], Vector3::zeros());
     }
 
     #[test]
@@ -515,10 +516,10 @@ mod tests {
         let exp_b = 0.5;
 
         let computed = primitive_kinetic(
-            &Vector3::new(0, 0, 0),
-            &Vector3::new(0, 0, 0),
             &Vector3::zeros(),
             &Vector3::zeros(),
+            &Point3::origin(),
+            &Point3::origin(),
             exp_a,
             exp_b,
         );
@@ -607,7 +608,7 @@ mod tests {
 
         assert_eq!(basis.shells.len(), 2);
         assert_eq!(basis.nbasis(), 2);
-        assert_eq!(basis.angular_momenta, vec![Vector3::new(0, 0, 0); 2]);
+        assert_eq!(basis.angular_momenta, vec![Vector3::zeros(); 2]);
     }
 
     #[test]

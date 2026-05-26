@@ -79,7 +79,7 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
 
                             for atom in &mol.atoms {
                                 let z = atom.element.atomic_number as f64;
-                                let pc = p_center - atom.position.coords;
+                                let pc = p_center - atom.position;
                                 let mut primitive = 0.0;
                                 for t in 0..=l_i.x + l_j.x {
                                     for u in 0..=l_i.y + l_j.y {
