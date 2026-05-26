@@ -182,7 +182,9 @@ impl<'a> ScfCalculation<'a> {
             iterations = i + 1;
 
             // a. Update Fock matrix
-            self.update_fock_matrix();
+            if i == 0 {
+                self.update_fock_matrix();
+            }
             self.apply_diis_if_enabled();
 
             // b. Solve Roothaan-Hall equation and update MO coefficients
@@ -194,7 +196,7 @@ impl<'a> ScfCalculation<'a> {
             // d. Calculate total energy
             self.update_total_energy();
 
-            self.update_residual_norm();
+            self.update_residual_norm_and_next_fock();
 
             // e. Check for convergence
             delta_energy = (self.energy - energy_last).abs();
@@ -262,8 +264,14 @@ impl<'a> ScfCalculation<'a> {
         self.energy = self.calculate_total_energy();
     }
 
-    fn update_residual_norm(&mut self) {
-        self.residual_norm = self.calculate_residual_norm();
+    fn update_residual_norm_and_next_fock(&mut self) {
+        let next_fock_matrix = self.build_fock_matrix(&self.density_matrix);
+        self.residual_norm = Self::scf_residual_norm(
+            &next_fock_matrix,
+            &self.density_matrix,
+            &self.overlap_matrix,
+        );
+        self.fock_matrix = next_fock_matrix;
     }
 
     fn build_fock_matrix(&self, density_matrix: &DMatrix<f64>) -> DMatrix<f64> {
@@ -328,15 +336,6 @@ impl<'a> ScfCalculation<'a> {
             nuclear_attraction_energy,
             electron_repulsion_energy,
         }
-    }
-
-    fn calculate_residual_norm(&self) -> f64 {
-        let next_fock_matrix = self.build_fock_matrix(&self.density_matrix);
-        Self::scf_residual_norm(
-            &next_fock_matrix,
-            &self.density_matrix,
-            &self.overlap_matrix,
-        )
     }
 
     fn scf_residual_norm(
