@@ -21,7 +21,7 @@ cargo run -- basis download cc-pvdz
 Then run any sample with:
 
 ```sh
-cargo run -- run --file samples/h2o/6-31g/calculation.toml
+cargo run -- run samples/h2o/6-31g/calculation.toml
 ```
 
 The `cc-pvdz` ethanol case is intentionally heavier than the STO-3G stress

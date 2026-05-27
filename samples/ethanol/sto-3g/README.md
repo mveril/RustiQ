@@ -9,7 +9,7 @@ parallel work.
 Run RustiQ:
 
 ```sh
-cargo run -- run --file samples/ethanol/sto-3g/calculation.toml
+cargo run -- run samples/ethanol/sto-3g/calculation.toml
 ```
 
 Run the optional PySCF reference outside the Rust unit tests:

@@ -99,10 +99,8 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     let temp_root = temp_root("cli-sample");
     prepare_basis_store(&temp_root);
 
-    let output = run_rustiq_with_data_home(
-        &["run", "--file", "samples/h2/sto-3g/calculation.toml"],
-        &temp_root,
-    );
+    let output =
+        run_rustiq_with_data_home(&["run", "samples/h2/sto-3g/calculation.toml"], &temp_root);
 
     assert_success(&output);
 
@@ -140,8 +138,7 @@ format = "Nope"
     )
     .unwrap();
 
-    let output =
-        run_rustiq_with_data_home(&["run", "--file", toml_path.to_str().unwrap()], &temp_root);
+    let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
     assert_success(&output);
 

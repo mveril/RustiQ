@@ -20,13 +20,12 @@ use super::{CommandResult, Runnable};
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
     /// The toml file used for the calculation. If not specified, the standard input is used.
-    #[arg(short, long)]
-    pub file: Option<PathBuf>,
+    pub input: Option<PathBuf>,
 }
 
 impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
-        let toml_content = if let Some(path_toml) = &self.file {
+        let toml_content = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml)?;
             if let Some(dir) = path_toml.parent() {
                 env::set_current_dir(dir)?;
