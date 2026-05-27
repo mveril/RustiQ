@@ -60,7 +60,7 @@ pub(crate) fn run_sto3g_scf_for_sample(path: &str) -> ScfReferenceResult {
     let basis = load_sto3g_basis(&geometry);
     let mut scf = new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
-    let result = scf.run();
+    let result = scf.run().unwrap();
 
     ScfReferenceResult {
         electronic_energy: result.electronic_energy,

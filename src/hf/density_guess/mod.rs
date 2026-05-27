@@ -4,6 +4,7 @@ use crate::basis::gaussian::basis::Basis;
 use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
+use crate::hf::numerical_error::{ensure_finite_values, ensure_positive_definite, NumericalError};
 use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
 use crate::runfile::random_config::distribution_config::{
@@ -17,6 +18,8 @@ use thiserror::Error;
 pub(crate) enum DensityGuessError {
     #[error("random distribution creation failed: {0}")]
     DistributionCreation(#[from] DistributionCreationError),
+    #[error(transparent)]
+    Numerical(#[from] NumericalError),
 }
 
 pub(crate) mod core_hamiltonian;
@@ -58,7 +61,10 @@ impl DensityGuess for DensityGuessConfig {
                 RandomSymmetric::new(*config).build_density_guess(h_core, molecule, basis)?
             }
             DensityGuessConfig::Zero => {
-                Zero::build_density_guess(&Zero, h_core, molecule, basis).unwrap()
+                match Zero::build_density_guess(&Zero, h_core, molecule, basis) {
+                    Ok(matrix) => matrix,
+                    Err(error) => match error {},
+                }
             }
         };
         Ok(matrix)
@@ -96,14 +102,17 @@ pub(crate) fn density_from_fock_like_matrix(
     fock_like: &DMatrix<f64>,
     molecule: &Molecule,
     basis: &Basis,
-) -> DMatrix<f64> {
+) -> Result<DMatrix<f64>, NumericalError> {
     let overlap = basis.overlap_ints();
-    let s_inv_sqrt = symmetric_orthogonalizer(&overlap);
+    let s_inv_sqrt = symmetric_orthogonalizer(&overlap)?;
     let orthogonal_fock = &s_inv_sqrt.transpose() * fock_like * &s_inv_sqrt;
     let eig = orthogonal_fock.symmetric_eigen();
     let mo_coefficients = &s_inv_sqrt * eig.eigenvectors;
-    let sorted_mo_coefficients = sort_orbitals(mo_coefficients, eig.eigenvalues);
-    density_from_mo_coefficients(&sorted_mo_coefficients, molecule.occupied_orbitals())
+    let sorted_mo_coefficients = sort_orbitals(mo_coefficients, eig.eigenvalues)?;
+    Ok(density_from_mo_coefficients(
+        &sorted_mo_coefficients,
+        molecule.occupied_orbitals(),
+    ))
 }
 
 pub(crate) fn density_from_mo_coefficients(
@@ -115,28 +124,26 @@ pub(crate) fn density_from_mo_coefficients(
     2.0 * &c_occ * &c_occ.transpose()
 }
 
-fn sort_orbitals(mo_coefficients: DMatrix<f64>, orbital_energies: DVector<f64>) -> DMatrix<f64> {
+fn sort_orbitals(
+    mo_coefficients: DMatrix<f64>,
+    orbital_energies: DVector<f64>,
+) -> Result<DMatrix<f64>, NumericalError> {
+    ensure_finite_values(&orbital_energies, "orbital energies")?;
     let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
-    order.sort_by(|&a, &b| {
-        orbital_energies[a]
-            .partial_cmp(&orbital_energies[b])
-            .expect("orbital energy should not be NaN")
-    });
+    order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
     let sorted_vectors = order
         .iter()
         .map(|&i| mo_coefficients.column(i).into_owned())
         .collect::<Vec<_>>();
-    DMatrix::from_columns(&sorted_vectors)
+    Ok(DMatrix::from_columns(&sorted_vectors))
 }
 
-fn symmetric_orthogonalizer(overlap: &DMatrix<f64>) -> DMatrix<f64> {
+fn symmetric_orthogonalizer(overlap: &DMatrix<f64>) -> Result<DMatrix<f64>, NumericalError> {
+    ensure_positive_definite(overlap, "overlap")?;
     let eig = overlap.clone().symmetric_eigen();
-    let inv_sqrt_values = eig.eigenvalues.map(|value| {
-        assert!(value > 0.0, "Overlap matrix S is not positive definite.");
-        1.0 / value.sqrt()
-    });
-    &eig.eigenvectors * DMatrix::from_diagonal(&inv_sqrt_values) * eig.eigenvectors.transpose()
+    let inv_sqrt_values = eig.eigenvalues.map(|value| 1.0 / value.sqrt());
+    Ok(&eig.eigenvectors * DMatrix::from_diagonal(&inv_sqrt_values) * eig.eigenvectors.transpose())
 }
 
 #[cfg(test)]

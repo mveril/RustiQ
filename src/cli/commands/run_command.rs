@@ -86,14 +86,14 @@ impl Runnable for RunCommand {
                 HfOutputFormat::Normal => {
                     let stdout = io::stdout();
                     let mut reporter = ScfReporter::new(stdout.lock());
-                    let result = scf.run_with_observer(&mut reporter);
+                    let result = scf.run_with_observer(&mut reporter)?;
                     if let Some(err) = reporter.take_error() {
                         return Err(err.into());
                     }
                     reporter.write_summary(&result)?;
                 }
                 HfOutputFormat::Nope => {
-                    scf.run();
+                    scf.run()?;
                 }
             }
         }

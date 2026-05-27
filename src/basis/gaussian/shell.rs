@@ -36,8 +36,8 @@ impl Shell {
     /// Normalizes the contraction coefficients
     pub fn renorm(alpha: &DVector<f64>, contr: &mut [Contraction]) -> DVector<f64> {
         for c in contr.iter_mut() {
-            assert!(c.l <= 15, "Le moment angulaire l doit être <= 15");
-            assert_eq!(
+            debug_assert!(c.l <= 15, "Le moment angulaire l doit être <= 15");
+            debug_assert_eq!(
                 alpha.len(),
                 c.coeff.len(),
                 "Mismatch between alpha.len() and c.coeff.len() for contraction with l = {}",
@@ -55,7 +55,7 @@ impl Shell {
             c.coeff /= norm.sqrt();
 
             let norm_after = Self::compute_contraction_norm(alpha, c);
-            assert!(
+            debug_assert!(
                 (norm_after - 1.0).abs() < 1e-6,
                 "Norme de la contraction non normalisée: {}",
                 norm_after

@@ -4,7 +4,9 @@ use std::time::Instant;
 
 use crate::{
     eri::electron_repulsion_ints,
-    math_utils::{assert_is_symmetric, is_positive_definite},
+    hf::numerical_error::{
+        ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
+    },
 };
 use nalgebra::{DMatrix, DVector};
 use ndarray::Array4;
@@ -22,6 +24,18 @@ use super::{
     scf_observer::{NoopScfObserver, ScfObserver},
     scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
 };
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub(crate) enum ScfSetupError<E>
+where
+    E: std::error::Error + 'static,
+{
+    #[error(transparent)]
+    DensityGuess(E),
+    #[error(transparent)]
+    Numerical(#[from] NumericalError),
+}
 
 /// Structure for an SCF calculation.
 pub struct ScfCalculation<'a> {
@@ -68,9 +82,10 @@ impl<'a> ScfCalculation<'a> {
         max_iterations: usize,
         convergence_threshold: f64,
         density_guess_builder: G,
-    ) -> Result<Self, G::Error>
+    ) -> Result<Self, ScfSetupError<G::Error>>
     where
         G: DensityGuess,
+        G::Error: 'static,
     {
         Self::new_with_progress(
             molecule,
@@ -89,9 +104,10 @@ impl<'a> ScfCalculation<'a> {
         convergence_threshold: f64,
         density_guess_builder: G,
         mut progress: F,
-    ) -> Result<Self, G::Error>
+    ) -> Result<Self, ScfSetupError<G::Error>>
     where
         G: DensityGuess,
+        G::Error: 'static,
         F: FnMut(&str),
     {
         let setup_start = Instant::now();
@@ -110,15 +126,12 @@ impl<'a> ScfCalculation<'a> {
         let step_start = Instant::now();
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
-        assert_is_symmetric(&overlap_matrix, 1e-8);
-        assert!(
-            is_positive_definite(&overlap_matrix),
-            "Overlap matrix S is not positive definite."
-        );
+        crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
+        ensure_positive_definite(&overlap_matrix, "overlap")?;
 
         progress("Building symmetric orthogonalizer");
         let step_start = Instant::now();
-        let s_inv_sqrt = Self::symmetric_orthogonalizer(&overlap_matrix);
+        let s_inv_sqrt = Self::symmetric_orthogonalizer(&overlap_matrix)?;
         setup_timings.orthogonalizer = step_start.elapsed();
 
         // Calculate the two-electron integrals
@@ -130,13 +143,15 @@ impl<'a> ScfCalculation<'a> {
         // Initialize density matrix using a density guess builder
         progress("Building initial density guess");
         let step_start = Instant::now();
-        let density_matrix = density_guess_builder.build_density_guess(&h_core, molecule, basis)?;
+        let density_matrix = density_guess_builder
+            .build_density_guess(&h_core, molecule, basis)
+            .map_err(ScfSetupError::DensityGuess)?;
         setup_timings.density_guess = step_start.elapsed();
 
         // Initial molecular orbital coefficients from diagonalization of H_core
         progress("Building initial molecular orbitals");
         let step_start = Instant::now();
-        let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, &s_inv_sqrt);
+        let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)?;
         setup_timings.initial_orbitals = step_start.elapsed();
 
         // Initial Fock matrix
@@ -176,7 +191,7 @@ impl<'a> ScfCalculation<'a> {
     fn initial_mo_coefficients(
         h_core: &DMatrix<f64>,
         s_inv_sqrt: &DMatrix<f64>,
-    ) -> (DMatrix<f64>, DVector<f64>) {
+    ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
         // Diagonalization of H_core to obtain initial MO coefficients
         let fock_preconditioned = &s_inv_sqrt.transpose() * h_core * s_inv_sqrt;
         let eig = fock_preconditioned.symmetric_eigen();
@@ -187,13 +202,10 @@ impl<'a> ScfCalculation<'a> {
     fn sort_orbitals(
         mo_coefficients: DMatrix<f64>,
         orbital_energies: DVector<f64>,
-    ) -> (DMatrix<f64>, DVector<f64>) {
+    ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
+        ensure_finite_values(&orbital_energies, "orbital energies")?;
         let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
-        order.sort_by(|&a, &b| {
-            orbital_energies[a]
-                .partial_cmp(&orbital_energies[b])
-                .expect("orbital energy should not be NaN")
-        });
+        order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
         let sorted_vectors = order
             .iter()
@@ -202,27 +214,25 @@ impl<'a> ScfCalculation<'a> {
         let sorted_energies =
             DVector::from_iterator(order.len(), order.iter().map(|&i| orbital_energies[i]));
 
-        (DMatrix::from_columns(&sorted_vectors), sorted_energies)
+        Ok((DMatrix::from_columns(&sorted_vectors), sorted_energies))
     }
 
-    fn symmetric_orthogonalizer(s: &DMatrix<f64>) -> DMatrix<f64> {
+    fn symmetric_orthogonalizer(s: &DMatrix<f64>) -> Result<DMatrix<f64>, NumericalError> {
+        ensure_positive_definite(s, "overlap")?;
         let eig = s.clone().symmetric_eigen();
-        let inv_sqrt_values = eig.eigenvalues.map(|value| {
-            assert!(value > 0.0, "Overlap matrix S is not positive definite.");
-            1.0 / value.sqrt()
-        });
+        let inv_sqrt_values = eig.eigenvalues.map(|value| 1.0 / value.sqrt());
         let inv_sqrt_diag = DMatrix::from_diagonal(&inv_sqrt_values);
-        &eig.eigenvectors * inv_sqrt_diag * eig.eigenvectors.transpose()
+        Ok(&eig.eigenvectors * inv_sqrt_diag * eig.eigenvectors.transpose())
     }
 
     /// Execute the SCF calculation loop
     #[allow(dead_code)]
-    pub fn run(&mut self) -> ScfResult {
+    pub fn run(&mut self) -> Result<ScfResult, NumericalError> {
         let mut observer = NoopScfObserver;
         self.run_with_observer(&mut observer)
     }
 
-    pub fn run_with_observer<O>(&mut self, observer: &mut O) -> ScfResult
+    pub fn run_with_observer<O>(&mut self, observer: &mut O) -> Result<ScfResult, NumericalError>
     where
         O: ScfObserver,
     {
@@ -243,7 +253,7 @@ impl<'a> ScfCalculation<'a> {
             self.apply_diis_if_enabled();
 
             // b. Solve Roothaan-Hall equation and update MO coefficients
-            self.solve_roothaan_hall_equation();
+            self.solve_roothaan_hall_equation()?;
 
             // c. Update density matrix
             self.update_density_matrix();
@@ -252,9 +262,12 @@ impl<'a> ScfCalculation<'a> {
             self.update_residual_norm_and_next_fock();
 
             self.update_total_energy_from_current_fock();
+            ensure_finite_value(self.energy, "SCF electronic energy")?;
+            ensure_finite_value(self.residual_norm, "SCF residual norm")?;
 
             // e. Check for convergence
             delta_energy = (self.energy - energy_last).abs();
+            ensure_finite_value(delta_energy, "SCF delta energy")?;
             let iteration = ScfIteration {
                 iteration: iterations,
                 electronic_energy: self.energy,
@@ -282,7 +295,7 @@ impl<'a> ScfCalculation<'a> {
         self.timings.final_energy_details = final_energy_details_start.elapsed();
         self.timings.total = run_start.elapsed() + self.timings.setup.total;
 
-        ScfResult {
+        Ok(ScfResult {
             converged,
             iterations,
             electronic_energy: self.energy,
@@ -292,7 +305,7 @@ impl<'a> ScfCalculation<'a> {
             residual_norm: self.residual_norm,
             energy_details,
             timings: self.timings.clone(),
-        }
+        })
     }
 
     fn update_fock_matrix(&mut self) {
@@ -311,9 +324,10 @@ impl<'a> ScfCalculation<'a> {
         }
     }
 
-    fn solve_roothaan_hall_equation(&mut self) {
-        let (mo_coefficients, _orbital_energies) = self.solve_roothaan_hall();
+    fn solve_roothaan_hall_equation(&mut self) -> Result<(), NumericalError> {
+        let (mo_coefficients, _orbital_energies) = self.solve_roothaan_hall()?;
         self.mo_coefficients = mo_coefficients;
+        Ok(())
     }
 
     fn update_density_matrix(&mut self) {
@@ -375,7 +389,7 @@ impl<'a> ScfCalculation<'a> {
         fock_matrix
     }
 
-    fn solve_roothaan_hall(&self) -> (DMatrix<f64>, DVector<f64>) {
+    fn solve_roothaan_hall(&self) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
         let fock_preconditioned =
             &self.s_inv_sqrt.transpose() * &self.fock_matrix * &self.s_inv_sqrt;
         let eig = fock_preconditioned.symmetric_eigen();
@@ -502,9 +516,9 @@ mod tests {
         let h_core = &basis.kinetic_ints() + &basis.overlap_ints(); // Simplified H_core for testing
 
         let overlap = basis.overlap_ints();
-        let s_inv_sqrt = ScfCalculation::symmetric_orthogonalizer(&overlap);
+        let s_inv_sqrt = ScfCalculation::symmetric_orthogonalizer(&overlap).unwrap();
         let (mo_coeff, orbital_energies) =
-            ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt);
+            ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt).unwrap();
 
         // Check dimensions
         assert_eq!(mo_coeff.nrows(), basis.nbasis());
@@ -614,7 +628,7 @@ mod tests {
         .unwrap();
 
         // Run SCF
-        let result = scf.run();
+        let result = scf.run().unwrap();
 
         // Check that the energy has been updated
         // For this minimal test, we expect the energy to be non-zero
@@ -676,7 +690,7 @@ mod tests {
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
-        let result = scf.run();
+        let result = scf.run().unwrap();
 
         assert!(
             result.residual_norm < 1e-8,
@@ -697,7 +711,7 @@ mod tests {
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
         scf.enable_diis(6).unwrap();
 
-        let result = scf.run();
+        let result = scf.run().unwrap();
 
         assert!(result.converged);
         assert_abs_diff_eq!(
@@ -719,7 +733,7 @@ mod tests {
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 1, 1e-12);
 
-        let result = scf.run();
+        let result = scf.run().unwrap();
 
         assert!(!result.converged);
         assert_eq!(result.iterations, 1);
@@ -754,7 +768,7 @@ mod tests {
             assert_symmetric_matrix(&scf.v_matrix, 1e-10, "V");
             assert_symmetric_matrix(&scf.h_core, 1e-10, "Hcore");
 
-            let result = scf.run();
+            let result = scf.run().unwrap();
 
             assert!(result.converged);
             assert_symmetric_matrix(&scf.fock_matrix, 1e-8, "F");

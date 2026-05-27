@@ -101,7 +101,7 @@ impl Basis {
 
                     for (l, coeffs_group) in angular_coeff_pairs {
                         // coeffs_group is a Vec<f64> (a coefficient group)
-                        assert_eq!(
+                        debug_assert_eq!(
                             alpha.len(),
                             coeffs_group.len(),  // Compare the coefficient group length now
                             "Mismatch between exponents.len() ({}) and coeffs.len() ({}) for element {}, l = {}",

@@ -1,10 +1,9 @@
-use super::DensityGuess;
+use super::{DensityGuess, DensityGuessError};
 use crate::basis::gaussian::basis::Basis;
 use crate::hf::density_guess::perturb_fock_like_matrix;
-use crate::math_utils::assert_is_symmetric;
+use crate::hf::numerical_error::ensure_finite_values;
 use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::GuessPerturbationConfig;
-use crate::runfile::random_config::distribution_config::DistributionCreationError;
 use nalgebra::DMatrix;
 
 /// Structure representing an initial density estimate based on one electron.
@@ -20,7 +19,7 @@ impl OneElectron {
 }
 
 impl DensityGuess for OneElectron {
-    type Error = DistributionCreationError;
+    type Error = DensityGuessError;
     fn build_density_guess(
         &self,
         h_core: &DMatrix<f64>,
@@ -28,17 +27,14 @@ impl DensityGuess for OneElectron {
         _basis: &Basis,
     ) -> Result<DMatrix<f64>, Self::Error> {
         // Check that H_core is symmetric
-        assert_is_symmetric(h_core, 1e-8);
+        crate::debug_assert_is_symmetric!(h_core, 1e-8);
         let h_core = perturb_fock_like_matrix(h_core, self.perturbation)?;
 
         // Diagonalize H_core to obtain the initial MO coefficients
         let eig = h_core.symmetric_eigen();
+        ensure_finite_values(&eig.eigenvalues, "orbital energies")?;
         let mut order: Vec<usize> = (0..eig.eigenvalues.len()).collect();
-        order.sort_by(|&a, &b| {
-            eig.eigenvalues[a]
-                .partial_cmp(&eig.eigenvalues[b])
-                .expect("orbital energy should not be NaN")
-        });
+        order.sort_by(|&a, &b| eig.eigenvalues[a].total_cmp(&eig.eigenvalues[b]));
         let sorted_vectors = order
             .iter()
             .map(|&i| eig.eigenvectors.column(i).into_owned())
@@ -65,7 +61,6 @@ mod tests {
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::density_guess::DensityGuess;
     use crate::hf::scf::ScfCalculation;
-    use crate::math_utils::assert_is_symmetric;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
     use crate::test_utils;
@@ -116,7 +111,7 @@ mod tests {
         let density = scf.density_matrix.clone();
 
         // Check that the density is symmetric
-        assert_is_symmetric(&density, 1e-8);
+        crate::debug_assert_is_symmetric!(&density, 1e-8);
 
         // Check that the density trace matches the number of electrons
         let trace = density.trace();
