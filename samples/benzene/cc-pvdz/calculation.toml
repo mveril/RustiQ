@@ -1,0 +1,17 @@
+[global]
+basis = "cc-pvdz"
+
+[global.molecule]
+geometry = "../benzene.xyz"
+charge = 0
+multiplicity = 1
+molecule_unit = "Angstrom"
+
+[hf]
+max_iterations = 150
+convergence_threshold = 1e-10
+diis = true
+diis_size = 10
+
+[hf.guess]
+type = "CoreHamiltonian"
