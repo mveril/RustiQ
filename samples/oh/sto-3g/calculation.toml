@@ -1,0 +1,15 @@
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "../oh.xyz"
+charge = 0
+multiplicity = 2
+
+[hf]
+method = "Auto"
+convergence_threshold = 1e-5
+diis = true
+
+[hf.guess]
+type = "CoreHamiltonian"

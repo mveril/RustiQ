@@ -1,4 +1,7 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::molecules::molecule::Molecule;
 
 mod density_guess_config;
 mod guess_perturbation_config;
@@ -10,6 +13,8 @@ pub(crate) use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct HfConfig {
+    #[serde(default)]
+    pub method: HfMethod,
     #[serde(default = "default_max_iter")]
     pub max_iterations: usize,
     #[serde(default = "default_conv_threshold")]
@@ -22,6 +27,55 @@ pub(crate) struct HfConfig {
     pub diis_size: usize,
     #[serde(default)]
     pub format: HfOutputFormat,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) enum HfMethod {
+    #[default]
+    Auto,
+    Rhf,
+    Uhf,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResolvedHfMethod {
+    Rhf,
+    Uhf,
+}
+
+impl std::fmt::Display for ResolvedHfMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rhf => write!(f, "RHF"),
+            Self::Uhf => write!(f, "UHF"),
+        }
+    }
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub(crate) enum HfMethodResolutionError {
+    #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
+    InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
+}
+
+impl HfMethod {
+    pub(crate) fn resolve(
+        &self,
+        molecule: &Molecule,
+    ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
+        validate_electron_configuration(molecule)?;
+        Ok(match self {
+            Self::Rhf => ResolvedHfMethod::Rhf,
+            Self::Uhf => ResolvedHfMethod::Uhf,
+            Self::Auto => {
+                if molecule.multiplicity.get() == 1 && molecule.total_electrons() % 2 == 0 {
+                    ResolvedHfMethod::Rhf
+                } else {
+                    ResolvedHfMethod::Uhf
+                }
+            }
+        })
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -43,11 +97,47 @@ fn default_diis_size() -> usize {
     6
 }
 
+fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodResolutionError> {
+    let electrons = molecule.total_electrons();
+    let spin = molecule.unpaired_electrons() as i8;
+    if electrons < 0 || spin > electrons || (electrons + spin) % 2 != 0 {
+        return Err(HfMethodResolutionError::InvalidElectronConfiguration {
+            electrons,
+            multiplicity: molecule.multiplicity.get(),
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units};
     use crate::runfile::random_config::DistributionConfig;
+    use nalgebra::point;
     use std::mem::discriminant;
+    use std::num::NonZeroU8;
+
+    fn molecule(atom_symbols: &[&str], charge: i8, multiplicity: u8) -> Molecule {
+        let elements = periodic_table::periodic_table();
+        let atoms = atom_symbols
+            .iter()
+            .enumerate()
+            .map(|(index, symbol)| {
+                let element = elements
+                    .iter()
+                    .find(|element| element.symbol == *symbol)
+                    .unwrap();
+                Atom::new(element, point![0.0, 0.0, index as f64])
+            })
+            .collect();
+        Molecule::new(
+            Geometry::new("test molecule".to_string(), atoms),
+            Units::Bohr,
+            charge,
+            NonZeroU8::new(multiplicity).unwrap(),
+        )
+    }
 
     #[test]
     fn test_hf_config_diis_defaults() {
@@ -56,6 +146,70 @@ mod tests {
         assert!(!config.diis);
         assert_eq!(config.diis_size, 6);
         assert_eq!(config.format, HfOutputFormat::Normal);
+        assert_eq!(config.method, HfMethod::Auto);
+    }
+
+    #[test]
+    fn test_hf_config_method_deserialization() {
+        let auto: HfConfig = toml::from_str(r#"method = "Auto""#).unwrap();
+        let rhf: HfConfig = toml::from_str(r#"method = "Rhf""#).unwrap();
+        let uhf: HfConfig = toml::from_str(r#"method = "Uhf""#).unwrap();
+
+        assert_eq!(auto.method, HfMethod::Auto);
+        assert_eq!(rhf.method, HfMethod::Rhf);
+        assert_eq!(uhf.method, HfMethod::Uhf);
+    }
+
+    #[test]
+    fn test_hf_auto_resolves_closed_shell_singlet_to_rhf() {
+        let molecule = molecule(&["H", "H"], 0, 1);
+
+        assert_eq!(
+            HfMethod::Auto.resolve(&molecule).unwrap(),
+            ResolvedHfMethod::Rhf
+        );
+    }
+
+    #[test]
+    fn test_hf_auto_resolves_open_shell_to_uhf() {
+        let hydroxyl = molecule(&["O", "H"], 0, 2);
+        let cation = molecule(&["H", "H"], 1, 2);
+
+        assert_eq!(
+            HfMethod::Auto.resolve(&hydroxyl).unwrap(),
+            ResolvedHfMethod::Uhf
+        );
+        assert_eq!(
+            HfMethod::Auto.resolve(&cation).unwrap(),
+            ResolvedHfMethod::Uhf
+        );
+    }
+
+    #[test]
+    fn test_hf_explicit_methods_resolve_without_auto_selection() {
+        let molecule = molecule(&["H", "H"], 0, 1);
+
+        assert_eq!(
+            HfMethod::Rhf.resolve(&molecule).unwrap(),
+            ResolvedHfMethod::Rhf
+        );
+        assert_eq!(
+            HfMethod::Uhf.resolve(&molecule).unwrap(),
+            ResolvedHfMethod::Uhf
+        );
+    }
+
+    #[test]
+    fn test_hf_method_resolution_rejects_incompatible_multiplicity() {
+        let molecule = molecule(&["H", "H"], 0, 2);
+
+        assert_eq!(
+            HfMethod::Auto.resolve(&molecule).unwrap_err(),
+            HfMethodResolutionError::InvalidElectronConfiguration {
+                electrons: 2,
+                multiplicity: 2
+            }
+        );
     }
 
     #[test]

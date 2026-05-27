@@ -11,7 +11,7 @@ use crate::{
     cli::ux::{bat, scf_report::ScfReporter},
     hf,
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
-    runfile::hf::HfOutputFormat,
+    runfile::hf::{HfOutputFormat, ResolvedHfMethod},
     runfile::RunFile,
 };
 
@@ -70,29 +70,62 @@ impl Runnable for RunCommand {
             println!("Conv {}", hf.convergence_threshold);
             println!("Max iter: {}", hf.max_iterations);
             println!("Preparing SCF calculation...");
-            let mut scf = hf::scf::ScfCalculation::new_with_progress(
-                &molecule,
-                &basis,
-                hf.max_iterations,
-                hf.convergence_threshold,
-                hf.guess,
-                |step| println!("  {step}..."),
-            )?;
-            if hf.diis {
-                scf.enable_diis(hf.diis_size)?;
-            }
-            match hf.format {
-                HfOutputFormat::Normal => {
-                    let stdout = io::stdout();
-                    let mut reporter = ScfReporter::new(stdout.lock());
-                    let result = scf.run_with_observer(&mut reporter)?;
-                    if let Some(err) = reporter.take_error() {
-                        return Err(err.into());
+            let resolved_method = hf.method.resolve(&molecule)?;
+            println!("Resolved HF method: {resolved_method}");
+            match resolved_method {
+                ResolvedHfMethod::Rhf => {
+                    let mut scf = hf::scf::ScfCalculation::new_with_progress(
+                        &molecule,
+                        &basis,
+                        hf.max_iterations,
+                        hf.convergence_threshold,
+                        hf.guess,
+                        |step| println!("  {step}..."),
+                    )?;
+                    if hf.diis {
+                        scf.enable_diis(hf.diis_size)?;
                     }
-                    reporter.write_summary(&result)?;
+                    match hf.format {
+                        HfOutputFormat::Normal => {
+                            let stdout = io::stdout();
+                            let mut reporter = ScfReporter::new(stdout.lock());
+                            let result = scf.run_with_observer(&mut reporter)?;
+                            if let Some(err) = reporter.take_error() {
+                                return Err(err.into());
+                            }
+                            reporter.write_summary(&result)?;
+                        }
+                        HfOutputFormat::Nope => {
+                            scf.run()?;
+                        }
+                    }
                 }
-                HfOutputFormat::Nope => {
-                    scf.run()?;
+                ResolvedHfMethod::Uhf => {
+                    let mut scf = hf::uhf::UhfCalculation::new_with_progress(
+                        &molecule,
+                        &basis,
+                        hf.max_iterations,
+                        hf.convergence_threshold,
+                        hf.guess,
+                        |step| println!("  {step}..."),
+                    )?;
+                    if hf.diis {
+                        scf.enable_diis(hf.diis_size)?;
+                    }
+                    match hf.format {
+                        HfOutputFormat::Normal => {
+                            let stdout = io::stdout();
+                            let mut reporter = ScfReporter::new(stdout.lock());
+                            let result = scf.run_with_observer(&mut reporter)?;
+                            if let Some(err) = reporter.take_error() {
+                                return Err(err.into());
+                            }
+                            reporter.write_summary(&result)?;
+                        }
+                        HfOutputFormat::Nope => {
+                            scf.run()?;
+                        }
+                    }
                 }
             }
         }
