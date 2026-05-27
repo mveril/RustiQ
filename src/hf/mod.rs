@@ -7,3 +7,4 @@ pub(crate) mod scf_energy_details;
 pub(crate) mod scf_iteration;
 pub(crate) mod scf_observer;
 pub(crate) mod scf_result;
+pub(crate) mod uhf;
