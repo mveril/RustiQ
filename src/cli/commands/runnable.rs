@@ -1,5 +1,5 @@
 #[cfg(feature = "online")]
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 pub type CommandResult = anyhow::Result<()>;
 
@@ -20,10 +20,8 @@ where
     T: AsyncRunnable,
 {
     fn run(&self) -> CommandResult {
-        // Create a runtime to execute the asynchronous task
-        let rt = Runtime::new()?;
+        let rt = Builder::new_current_thread().enable_all().build()?;
 
-        // Execute the asynchronous task
         rt.block_on(self.run_async())
     }
 }
