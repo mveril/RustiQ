@@ -1,5 +1,7 @@
 use std::fs::File;
 
+use bat::PrettyPrinter;
+use miette::IntoDiagnostic;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
@@ -7,9 +9,22 @@ use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile},
     cli::{
         commands::{CommandResult, Runnable},
-        ux::{bat, BasisTableItem},
+        ux::BasisTableItem,
     },
 };
+
+fn pagin_print(content: &str) {
+    if PrettyPrinter::new()
+        .colored_output(false)
+        .strip_ansi(bat::StripAnsiMode::Never)
+        .input_from_bytes(content.as_bytes())
+        .paging_mode(bat::PagingMode::QuitIfOneScreen)
+        .print()
+        .is_err()
+    {
+        println!("{}", content)
+    }
+}
 
 #[derive(clap::Args, Debug)]
 pub struct ListCommand {
@@ -27,33 +42,34 @@ impl Runnable for ListCommand {
         let store = BasisStore::default();
         #[cfg(feature = "online")]
         if self.online {
-            let list = store.list_online_sync()?;
+            let list = store.list_online_sync().into_diagnostic()?;
             if self.verbose {
                 let items = list.into_values().map(BasisTableItem::from);
-                bat::print_paged(&Table::new(items).to_string());
+                pagin_print(&Table::new(items).to_string());
             } else {
                 let mut str = String::new();
                 for item in list.keys() {
                     str.push_str(item);
                     str.push('\n');
                 }
-                bat::print_paged(&str);
+                pagin_print(&str);
             }
             return Ok(());
         }
 
-        let list = store.list()?;
+        let list = store.list().into_diagnostic()?;
         if self.verbose {
-            let v: anyhow::Result<Vec<_>> = list
+            let v: std::io::Result<Vec<_>> = list
                 .par_bridge()
                 .map(|item| {
                     let item = item?;
                     let file_content =
-                        serde_json::from_reader::<_, BasisFile>(File::open(item.path())?)?;
+                        serde_json::from_reader::<_, BasisFile>(File::open(item.path())?)
+                            .map_err(std::io::Error::other)?;
                     Ok(BasisTableItem::from(file_content))
                 })
                 .collect();
-            bat::print_paged(&Table::new(v?).to_string())
+            pagin_print(&Table::new(v.into_diagnostic()?).to_string())
         } else {
             let mut str = String::new();
             for item in list {
@@ -67,7 +83,7 @@ impl Runnable for ListCommand {
                     Err(err) => eprint!("Failed to load an item: {err}."),
                 }
             }
-            bat::print_paged(&str);
+            pagin_print(&str);
         }
         Ok(())
     }

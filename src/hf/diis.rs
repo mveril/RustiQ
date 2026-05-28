@@ -3,6 +3,8 @@ use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
 use thiserror::Error;
 
+use crate::runfile::validated::DiisSize;
+
 #[derive(Debug, Error)]
 pub(crate) enum DiisError {
     #[error("DIIS history size must be at least 2, got {0}")]
@@ -20,14 +22,16 @@ pub(crate) struct DiisAccelerator {
 }
 
 impl DiisAccelerator {
-    pub(crate) fn try_new(max_history: usize) -> Result<Self, DiisError> {
-        if max_history < 2 {
-            return Err(DiisError::HistoryTooSmall(max_history));
+    pub(crate) fn new(max_history: DiisSize) -> Self {
+        Self {
+            history: BoundedVecDeque::new(max_history.into_inner()),
         }
+    }
 
-        Ok(Self {
-            history: BoundedVecDeque::new(max_history),
-        })
+    pub(crate) fn try_new(max_history: usize) -> Result<Self, DiisError> {
+        let max_history =
+            DiisSize::try_new(max_history).map_err(|_| DiisError::HistoryTooSmall(max_history))?;
+        Ok(Self::new(max_history))
     }
 
     pub(crate) fn extrapolate(
@@ -118,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_extrapolate_waits_for_two_history_entries() {
-        let mut diis = DiisAccelerator::try_new(6).unwrap();
+        let mut diis = DiisAccelerator::new(DiisSize::try_new(6).unwrap());
         let fock = DMatrix::identity(2, 2);
         let density = DMatrix::identity(2, 2);
         let overlap = DMatrix::identity(2, 2);
@@ -128,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_history_discards_oldest_entry() {
-        let mut diis = DiisAccelerator::try_new(2).unwrap();
+        let mut diis = DiisAccelerator::new(DiisSize::try_new(2).unwrap());
         let error = DMatrix::zeros(1, 1);
 
         diis.push_history(DMatrix::from_element(1, 1, 1.0), error.clone());

@@ -46,6 +46,14 @@ fn assert_success(output: &Output) {
     );
 }
 
+fn assert_failure(output: &Output) {
+    assert!(
+        !output.status.success(),
+        "CLI succeeded unexpectedly with stdout:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
 #[test]
 #[cfg(feature = "online")]
 fn test_online_basis_commands_are_available_with_default_features() {
@@ -161,6 +169,90 @@ format = "Nope"
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains("SCF converged after"));
     assert!(!stdout.contains("Total Energy (including nuclear repulsion):"));
+}
+
+#[test]
+fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
+    let output = run_rustiq(&["run", "samples/invalid_diagnostics.toml"]);
+
+    assert_failure(&output);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("runfile contains 3 configuration error(s)"));
+    assert!(stderr.contains("The basis set must be written as a string."));
+    assert!(stderr.contains("The HF iteration limit must be an integer greater than zero."));
+    assert!(stderr.contains("The HF convergence threshold must be a positive finite number."));
+}
+
+#[test]
+fn test_cli_run_reports_grouped_geometry_diagnostics() {
+    let temp_root = temp_root("invalid-geometry-diagnostics");
+    fs::create_dir_all(&temp_root).unwrap();
+    let geometry_path = temp_root.join("broken.xyz");
+    fs::write(
+        &geometry_path,
+        "3\nBroken molecule\nXx 0.0 0.0 0.0\nH nope 0.0 0.0\nHe 0.0 0.0\n",
+    )
+    .unwrap();
+    let toml_path = temp_root.join("calculation.toml");
+    let geometry_path = geometry_path.to_string_lossy().replace('\\', "/");
+    fs::write(
+        &toml_path,
+        format!(
+            r#"
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "{geometry_path}"
+"#
+        ),
+    )
+    .unwrap();
+
+    let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
+
+    assert_failure(&output);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("geometry contains 3 atom line error(s)"));
+    assert!(stderr.contains("invalid element"));
+    assert!(stderr.contains("invalid x coordinate"));
+    assert!(stderr.contains("invalid element symbol"));
+    assert!(stderr.contains("invalid numeric coordinate"));
+    assert!(stderr.contains("expected exactly: Element x y z"));
+}
+
+#[test]
+fn test_cli_run_reports_geometry_atom_count_diagnostic() {
+    let temp_root = temp_root("invalid-geometry-atom-count");
+    fs::create_dir_all(&temp_root).unwrap();
+    let geometry_path = temp_root.join("broken.xyz");
+    fs::write(&geometry_path, "two\nBroken molecule\nH 0.0 0.0 0.0\n").unwrap();
+    let toml_path = temp_root.join("calculation.toml");
+    let geometry_path = geometry_path.to_string_lossy().replace('\\', "/");
+    fs::write(
+        &toml_path,
+        format!(
+            r#"
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "{geometry_path}"
+"#
+        ),
+    )
+    .unwrap();
+
+    let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
+
+    assert_failure(&output);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("rustiq::geometry::atom_count"));
+    assert!(stderr.contains("invalid XYZ atom count"));
+    assert!(stderr.contains("expected an integer atom count"));
 }
 
 #[test]

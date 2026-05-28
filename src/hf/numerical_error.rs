@@ -4,11 +4,11 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub(crate) enum NumericalError {
     #[error("{matrix} matrix is not positive definite")]
-    NonPositiveDefiniteMatrix { matrix: &'static str },
+    IndefiniteMatrix { matrix: &'static str },
     #[error("{values} contain a non-finite value")]
     NonFiniteValues { values: &'static str },
     #[error("{value} is not finite")]
-    NonFiniteValue { value: &'static str },
+    NonFiniteScalar { value: &'static str },
 }
 
 pub(crate) fn ensure_positive_definite(
@@ -24,7 +24,7 @@ pub(crate) fn ensure_positive_definite(
     {
         Ok(())
     } else {
-        Err(NumericalError::NonPositiveDefiniteMatrix { matrix: label })
+        Err(NumericalError::IndefiniteMatrix { matrix: label })
     }
 }
 
@@ -43,6 +43,6 @@ pub(crate) fn ensure_finite_value(value: f64, label: &'static str) -> Result<(),
     if value.is_finite() {
         Ok(())
     } else {
-        Err(NumericalError::NonFiniteValue { value: label })
+        Err(NumericalError::NonFiniteScalar { value: label })
     }
 }

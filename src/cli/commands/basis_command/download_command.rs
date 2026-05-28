@@ -1,6 +1,7 @@
 use std::cell::OnceCell;
 
 use indicatif::{ProgressBar, ProgressStyle};
+use miette::IntoDiagnostic;
 
 use crate::{
     basis::basis_store::BasisStore,
@@ -17,7 +18,8 @@ impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) -> CommandResult {
         let store = BasisStore::default();
         let mut pb_cell = OnceCell::new(); // The ProgressBar is stored here and initialized only once.
-        let progress_style = ProgressStyle::with_template("{wide_bar:.cyan/blue} {percent}%")?
+        let progress_style = ProgressStyle::with_template("{wide_bar:.cyan/blue} {percent}%")
+            .into_diagnostic()?
             .progress_chars("█▓▒░");
 
         // Callback for handling the progress bar
@@ -34,7 +36,10 @@ impl AsyncRunnable for DownloadCommand {
                 pb.set_position(current);
             }
         };
-        store.download(&self.name, &mut callback).await?;
+        store
+            .download(&self.name, &mut callback)
+            .await
+            .into_diagnostic()?;
         if let Some(pb) = pb_cell.get_mut() {
             pb.finish_with_message(format!("Basis {} downloaded.", self.name));
         } else {

@@ -1,13 +1,12 @@
 pub mod molecule_config;
 use molecule_config::MoleculeConfig;
 
-#[allow(dead_code)]
-use serde::Deserialize;
-use serde::Serialize;
+use toml_spanner::Toml;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Toml)]
+#[toml(Toml, recoverable)]
 pub(crate) struct Global {
     pub(crate) basis: String,
-    #[serde(default)]
+    #[toml(default)]
     pub(crate) molecule: MoleculeConfig,
 }

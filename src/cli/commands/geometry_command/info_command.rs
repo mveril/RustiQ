@@ -1,4 +1,6 @@
-use std::{collections::BTreeMap, fs::File, io::stdin};
+use std::{collections::BTreeMap, io::stdin};
+
+use miette::IntoDiagnostic;
 
 use crate::{
     cli::commands::{CommandResult, Runnable},
@@ -16,12 +18,15 @@ pub struct InfoCommand {
 impl Runnable for InfoCommand {
     fn run(&self) -> CommandResult {
         let geometry = match &self.path {
-            Some(path) => Geometry::from_reader(std::io::BufReader::new(File::open(path)?)),
+            Some(path) => Geometry::from_path(path),
             None => Geometry::from_reader(std::io::BufReader::new(stdin().lock())),
         }?;
         println!("Number of atoms: {}", &geometry.atoms.len());
         println!("Nuclear repulsion energy: {}", &geometry.nucl_repulsion());
-        println!("Center of mass: {}", &geometry.mass_center()?);
+        println!(
+            "Center of mass: {}",
+            &geometry.mass_center().into_diagnostic()?
+        );
         println!("Center of charge: {}", &geometry.charge_center());
         println!("Center {}", &geometry.center());
         let mut counts = BTreeMap::new();

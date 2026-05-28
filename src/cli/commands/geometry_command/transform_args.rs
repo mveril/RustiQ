@@ -1,5 +1,5 @@
-use anyhow::Result;
 use clap::Args;
+use miette::IntoDiagnostic;
 use std::{fs::File, io::stdin, path::PathBuf};
 
 use crate::molecules::geometry::Geometry;
@@ -15,17 +15,22 @@ pub struct TransformArgs {
 }
 
 impl TransformArgs {
-    pub fn apply_transform(&self, f: impl FnOnce(&mut Geometry) -> Result<()>) -> Result<()> {
+    pub fn apply_transform(
+        &self,
+        f: impl FnOnce(&mut Geometry) -> miette::Result<()>,
+    ) -> miette::Result<()> {
         let mut geometry = if let Some(input) = &self.input {
-            Geometry::from_file(File::open(input)?)?
+            Geometry::from_path(input)?
         } else {
             Geometry::from_reader(stdin().lock())?
         };
         f(&mut geometry)?;
         if let Some(output) = &self.output {
-            geometry.to_writer(File::create(output)?)?;
+            geometry
+                .to_writer(File::create(output).into_diagnostic()?)
+                .into_diagnostic()?;
         } else {
-            geometry.to_writer(std::io::stdout())?;
+            geometry.to_writer(std::io::stdout()).into_diagnostic()?;
         }
         Ok(())
     }
