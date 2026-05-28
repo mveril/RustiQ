@@ -1,5 +1,6 @@
 use std::fs::File;
 
+use bat::PrettyPrinter;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
@@ -10,6 +11,19 @@ use crate::{
         ux::BasisTableItem,
     },
 };
+
+fn pagin_print(content: &str) {
+    if PrettyPrinter::new()
+        .colored_output(false)
+        .strip_ansi(bat::StripAnsiMode::Never)
+        .input_from_bytes(content.as_bytes())
+        .paging_mode(bat::PagingMode::QuitIfOneScreen)
+        .print()
+        .is_err()
+    {
+        println!("{}", content)
+    }
+}
 
 #[derive(clap::Args, Debug)]
 pub struct ListCommand {
@@ -30,11 +44,14 @@ impl Runnable for ListCommand {
             let list = store.list_online_sync()?;
             if self.verbose {
                 let items = list.into_values().map(BasisTableItem::from);
-                print!("{}", Table::new(items));
+                pagin_print(&Table::new(items).to_string());
             } else {
-                for name in list.keys() {
-                    println!("{}", name);
+                let mut str = String::new();
+                for item in list.keys() {
+                    str.push_str(item);
+                    str.push('\n');
                 }
+                pagin_print(&str);
             }
             return Ok(());
         }
@@ -50,18 +67,21 @@ impl Runnable for ListCommand {
                     Ok(BasisTableItem::from(file_content))
                 })
                 .collect();
-            print!("{}", Table::new(v?))
+            pagin_print(&Table::new(v?).to_string())
         } else {
+            let mut str = String::new();
             for item in list {
                 match item {
                     Ok(entry) => {
                         if let Some(name) = entry.path().file_stem() {
-                            println!("{}", name.to_string_lossy());
+                            str.push_str(&name.to_string_lossy());
+                            str.push('\n');
                         }
                     }
                     Err(err) => eprint!("Failed to load an item: {err}."),
                 }
             }
+            pagin_print(&str);
         }
         Ok(())
     }
