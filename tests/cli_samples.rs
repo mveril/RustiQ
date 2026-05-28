@@ -151,6 +151,21 @@ format = "Nope"
 }
 
 #[test]
+fn test_basis_remove_ignores_missing_names() {
+    let temp_root = temp_root("basis-remove-missing");
+    prepare_basis_store(&temp_root);
+
+    let output = run_rustiq_with_data_home(&["basis", "remove", "sto-3g", "missing"], &temp_root);
+
+    assert_success(&output);
+    assert!(!temp_root
+        .join("RustiQ")
+        .join("basis_sets")
+        .join("sto-3g.json")
+        .exists());
+}
+
+#[test]
 fn test_geometry_help_describes_transform_commands() {
     let output = run_rustiq(&["geometry", "--help"]);
     assert_success(&output);

@@ -211,8 +211,10 @@ impl BasisStore {
     /// # Arguments
     /// * `names` - An iterator over the names of the basis files to remove (without extensions).
     ///
+    /// Missing files are ignored so repeated removals are idempotent.
+    ///
     /// # Errors
-    /// This function returns an [`io::Result<()>`]. If any file cannot be removed, the function will return an [`IO::Error`].
+    /// This function returns an [`io::Result<()>`]. If any file cannot be removed for a reason other than not existing, the function will return an [`IO::Error`].
     /// It stops at the first error encountered and doesn't attempt to remove further files.
     ///
     /// # Examples
@@ -227,7 +229,11 @@ impl BasisStore {
     {
         for name in names {
             let path = self.get_path(name.as_ref());
-            fs::remove_file(path)?;
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+            }
         }
         Ok(())
     }

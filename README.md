@@ -101,7 +101,7 @@ cargo run -- basis download sto-3g
 Remove cached basis sets:
 
 ```sh
-cargo run -- basis remove --names sto-3g
+cargo run -- basis remove sto-3g
 ```
 
 ## Development

@@ -20,7 +20,7 @@ impl Runnable for DownloadCommand {
 #[derive(clap::Args, Debug)]
 pub struct RemoveCommand {
     /// Names of the basis sets; this argument can be used multiple times
-    #[arg(short, long, value_name = "NAME")]
+    #[arg(value_name = "NAME")]
     pub names: Vec<String>,
 }
 
