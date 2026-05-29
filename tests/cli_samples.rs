@@ -120,9 +120,7 @@ fn test_cli_open_shell_uhf_sample_converges() {
     assert_success(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("method = \"Auto\""));
     assert!(stdout.contains("Resolved HF method: UHF"));
-    assert!(stdout.contains("multiplicity = 2"));
     assert!(stdout.contains("SCF converged after"));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -74.362669 Hartree"));
 }

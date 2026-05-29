@@ -56,6 +56,8 @@ impl std::fmt::Display for ResolvedHfMethod {
 pub(crate) enum HfMethodResolutionError {
     #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
     InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
+    #[error("RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}")]
+    RhfRequiresClosedShellSinglet { electrons: i8, multiplicity: u8 },
 }
 
 impl HfMethod {
@@ -65,10 +67,18 @@ impl HfMethod {
     ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
         validate_electron_configuration(molecule)?;
         Ok(match self {
-            Self::Rhf => ResolvedHfMethod::Rhf,
+            Self::Rhf => {
+                if !is_closed_shell_singlet(molecule) {
+                    return Err(HfMethodResolutionError::RhfRequiresClosedShellSinglet {
+                        electrons: molecule.total_electrons(),
+                        multiplicity: molecule.multiplicity.get(),
+                    });
+                }
+                ResolvedHfMethod::Rhf
+            }
             Self::Uhf => ResolvedHfMethod::Uhf,
             Self::Auto => {
-                if molecule.multiplicity.get() == 1 && molecule.total_electrons() % 2 == 0 {
+                if is_closed_shell_singlet(molecule) {
                     ResolvedHfMethod::Rhf
                 } else {
                     ResolvedHfMethod::Uhf
@@ -107,6 +117,10 @@ fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodRe
         });
     }
     Ok(())
+}
+
+fn is_closed_shell_singlet(molecule: &Molecule) -> bool {
+    molecule.multiplicity.get() == 1 && molecule.total_electrons() % 2 == 0
 }
 
 #[cfg(test)]
@@ -196,6 +210,19 @@ mod tests {
         assert_eq!(
             HfMethod::Uhf.resolve(&molecule).unwrap(),
             ResolvedHfMethod::Uhf
+        );
+    }
+
+    #[test]
+    fn test_hf_explicit_rhf_rejects_open_shell_molecule() {
+        let hydroxyl = molecule(&["O", "H"], 0, 2);
+
+        assert_eq!(
+            HfMethod::Rhf.resolve(&hydroxyl).unwrap_err(),
+            HfMethodResolutionError::RhfRequiresClosedShellSinglet {
+                electrons: 9,
+                multiplicity: 2
+            }
         );
     }
 
