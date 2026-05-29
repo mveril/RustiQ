@@ -6,11 +6,9 @@ use std::{
     time::Instant,
 };
 
-use bat::PrettyPrinter;
-
 use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile, gaussian::basis::Basis},
-    cli::ux::scf_report::ScfReporter,
+    cli::ux::{bat, scf_report::ScfReporter},
     hf,
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
     runfile::hf::HfOutputFormat,
@@ -18,18 +16,6 @@ use crate::{
 };
 
 use super::{CommandResult, Runnable};
-
-fn print_toml_input(toml_content: &str) {
-    if PrettyPrinter::new()
-        .input_from_bytes(toml_content.as_bytes())
-        .paging_mode(bat::PagingMode::Never)
-        .language("toml")
-        .print()
-        .is_err()
-    {
-        println!("{}", toml_content);
-    }
-}
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
@@ -51,7 +37,7 @@ impl Runnable for RunCommand {
             content
         };
         let run = toml::from_str::<RunFile>(&toml_content)?;
-        print_toml_input(&toml_content);
+        bat::print_toml(&toml_content);
         let molecule_path = &run.global.molecule.geometry;
         let molfile = File::open(molecule_path)?;
         let geom = Geometry::from_file(molfile)?;
@@ -61,7 +47,7 @@ impl Runnable for RunCommand {
             run.global.molecule.charge,
             run.global.molecule.multiplicity,
         );
-        println!("{}", &molecule.geometry);
+        bat::print_xyz(&molecule.geometry.to_string());
         molecule.convert_to(Units::Bohr);
         let store = BasisStore::default();
         println!("Loading basis set...");

@@ -1,6 +1,5 @@
 use std::fs::File;
 
-use bat::PrettyPrinter;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
@@ -8,22 +7,9 @@ use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile},
     cli::{
         commands::{CommandResult, Runnable},
-        ux::BasisTableItem,
+        ux::{bat, BasisTableItem},
     },
 };
-
-fn pagin_print(content: &str) {
-    if PrettyPrinter::new()
-        .colored_output(false)
-        .strip_ansi(bat::StripAnsiMode::Never)
-        .input_from_bytes(content.as_bytes())
-        .paging_mode(bat::PagingMode::QuitIfOneScreen)
-        .print()
-        .is_err()
-    {
-        println!("{}", content)
-    }
-}
 
 #[derive(clap::Args, Debug)]
 pub struct ListCommand {
@@ -44,14 +30,14 @@ impl Runnable for ListCommand {
             let list = store.list_online_sync()?;
             if self.verbose {
                 let items = list.into_values().map(BasisTableItem::from);
-                pagin_print(&Table::new(items).to_string());
+                bat::print_paged(&Table::new(items).to_string());
             } else {
                 let mut str = String::new();
                 for item in list.keys() {
                     str.push_str(item);
                     str.push('\n');
                 }
-                pagin_print(&str);
+                bat::print_paged(&str);
             }
             return Ok(());
         }
@@ -67,7 +53,7 @@ impl Runnable for ListCommand {
                     Ok(BasisTableItem::from(file_content))
                 })
                 .collect();
-            pagin_print(&Table::new(v?).to_string())
+            bat::print_paged(&Table::new(v?).to_string())
         } else {
             let mut str = String::new();
             for item in list {
@@ -81,7 +67,7 @@ impl Runnable for ListCommand {
                     Err(err) => eprint!("Failed to load an item: {err}."),
                 }
             }
-            pagin_print(&str);
+            bat::print_paged(&str);
         }
         Ok(())
     }
