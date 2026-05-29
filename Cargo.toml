@@ -46,12 +46,18 @@ factorial = "0.4.0"
 approx = "0.5.1"
 tabled = "0.20"
 humantime = "2"
+which = "8"
 bat = { version = "0.26", default-features = false, features = [
   "paging",
   "regex-onig",
 ] }
-syntect = "5.3"
 
 [dev-dependencies]
 rstest = "0.26"
 proptest = "1"
+
+[build-dependencies]
+bat = { version = "0.26", default-features = false, features = [
+  "build-assets",
+  "regex-onig",
+] }

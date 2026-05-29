@@ -32,11 +32,11 @@ dependencies = [
  "serde",
  "serde_json",
  "special",
- "syntect",
  "tabled",
  "thiserror",
  "tokio",
  "toml 1.1.2+spec-1.1.0",
+ "which",
 ]
 
 [[package]]
@@ -3546,6 +3546,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f31141ce3fc3e300ae89b78c0dd67f9708061d1d2eda54b8209346fd6be9a92c"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "which"
+version = "8.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81995fafaaaf6ae47a7d0cc83c67caf92aeb7e5331650ae6ff856f7c0c60c459"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
