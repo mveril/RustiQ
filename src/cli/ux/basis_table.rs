@@ -4,10 +4,11 @@ use tabled::Tabled;
 
 #[derive(Tabled)]
 pub(crate) struct BasisTableItem {
+    #[tabled(rename = "Name")]
     pub name: String,
-    #[tabled(display("format_slice"))]
+    #[tabled(rename = "Friendly names", display("format_slice"))]
     pub friendly_names: Vec<String>,
-    #[tabled(display("format_slice"))]
+    #[tabled(rename = "Elements", display("format_slice"))]
     pub elements: Vec<String>,
 }
 
