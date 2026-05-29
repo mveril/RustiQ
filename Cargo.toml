@@ -50,6 +50,7 @@ bat = { version = "0.26", default-features = false, features = [
   "paging",
   "regex-onig",
 ] }
+syntect = "5.3"
 
 [dev-dependencies]
 rstest = "0.26"
