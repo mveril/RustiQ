@@ -8,12 +8,13 @@ pub(crate) enum DiisError {
     #[error("DIIS history size must be at least 2, got {0}")]
     HistoryTooSmall(usize),
 }
-
+#[derive(Debug, Clone)]
 struct DiisEntry {
     fock_matrix: DMatrix<f64>,
     error_matrix: DMatrix<f64>,
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct DiisAccelerator {
     history: BoundedVecDeque<DiisEntry>,
 }

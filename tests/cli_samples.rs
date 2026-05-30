@@ -110,6 +110,22 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
 }
 
 #[test]
+fn test_cli_open_shell_uhf_sample_converges() {
+    let temp_root = temp_root("cli-open-shell-uhf-sample");
+    prepare_basis_store(&temp_root);
+
+    let output =
+        run_rustiq_with_data_home(&["run", "samples/oh/sto-3g/calculation.toml"], &temp_root);
+
+    assert_success(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Resolved HF method: UHF"));
+    assert!(stdout.contains("SCF converged after"));
+    assert!(stdout.contains("Total Energy (including nuclear repulsion): -74.362669 Hartree"));
+}
+
+#[test]
 fn test_cli_h2_sample_can_disable_hf_formatting() {
     let temp_root = temp_root("cli-sample-no-format");
     prepare_basis_store(&temp_root);
