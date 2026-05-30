@@ -36,33 +36,51 @@ where
     InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct SpinMatrices {
-    pub alpha: DMatrix<f64>,
-    pub beta: DMatrix<f64>,
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Spin<T> {
+    pub alpha: T,
+    pub beta: T,
 }
 
+impl<T> Spin<T> {
+    fn new(alpha: T, beta: T) -> Self {
+        Self { alpha, beta }
+    }
+
+    fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
+        Spin::new(f(self.alpha, other.alpha), f(self.beta, other.beta))
+    }
+}
+
+impl<T: Clone> Spin<T> {
+    fn duplicate(value: T) -> Self {
+        Self {
+            alpha: value.clone(),
+            beta: value,
+        }
+    }
+}
+
+pub(crate) type SpinDiisAccelerators = Spin<DiisAccelerator>;
+pub(crate) type SpinMatrices = Spin<DMatrix<f64>>;
 pub(crate) struct UhfCalculation<'a> {
     pub molecule: &'a Molecule,
     pub basis: &'a Basis,
     pub max_iterations: usize,
     pub convergence_threshold: f64,
     pub energy: f64,
-    pub alpha_mo_coefficients: DMatrix<f64>,
-    pub beta_mo_coefficients: DMatrix<f64>,
+    pub mo_coefficients: SpinMatrices,
     pub density: SpinMatrices,
     pub fock: SpinMatrices,
     pub residual_norm: f64,
-    alpha_diis: Option<DiisAccelerator>,
-    beta_diis: Option<DiisAccelerator>,
+    diis: Option<SpinDiisAccelerators>,
     pub two_electron_integrals: Array4<f64>,
     pub h_core: DMatrix<f64>,
     pub t_matrix: DMatrix<f64>,
     pub v_matrix: DMatrix<f64>,
     overlap_matrix: DMatrix<f64>,
     s_inv_sqrt: DMatrix<f64>,
-    pub alpha_occupied_orbitals: usize,
-    pub beta_occupied_orbitals: usize,
+    pub occupied_orbitals: Spin<usize>,
     timings: ScfTimings,
 }
 
@@ -102,8 +120,7 @@ impl<'a> UhfCalculation<'a> {
         G::Error: 'static,
         F: FnMut(&str),
     {
-        let (alpha_occupied_orbitals, beta_occupied_orbitals) =
-            alpha_beta_occupied_orbitals(molecule)?;
+        let occupied_orbitals = alpha_beta_occupied_orbitals(molecule)?;
         let setup_start = Instant::now();
         let mut setup_timings = ScfSetupTimings::default();
 
@@ -136,12 +153,8 @@ impl<'a> UhfCalculation<'a> {
         let total_density = density_guess_builder
             .build_density_guess(&h_core, molecule, basis)
             .map_err(ScfSetupError::DensityGuess)?;
-        let density = split_density_guess(
-            total_density,
-            molecule.total_electrons(),
-            alpha_occupied_orbitals,
-            beta_occupied_orbitals,
-        );
+        let density =
+            split_density_guess(total_density, molecule.total_electrons(), occupied_orbitals);
         setup_timings.density_guess = step_start.elapsed();
 
         progress("Building initial molecular orbitals");
@@ -162,21 +175,18 @@ impl<'a> UhfCalculation<'a> {
             max_iterations,
             convergence_threshold,
             energy: 0.0,
-            alpha_mo_coefficients: mo_coefficients.clone(),
-            beta_mo_coefficients: mo_coefficients,
+            mo_coefficients: SpinMatrices::duplicate(mo_coefficients),
             density,
             fock,
             residual_norm: f64::INFINITY,
-            alpha_diis: None,
-            beta_diis: None,
+            diis: None,
             two_electron_integrals,
             h_core,
             t_matrix,
             v_matrix,
             overlap_matrix,
             s_inv_sqrt,
-            alpha_occupied_orbitals,
-            beta_occupied_orbitals,
+            occupied_orbitals,
             timings: ScfTimings {
                 setup: setup_timings,
                 ..ScfTimings::default()
@@ -185,8 +195,9 @@ impl<'a> UhfCalculation<'a> {
     }
 
     pub fn enable_diis(&mut self, diis_size: usize) -> Result<(), DiisError> {
-        self.alpha_diis = Some(DiisAccelerator::try_new(diis_size)?);
-        self.beta_diis = Some(DiisAccelerator::try_new(diis_size)?);
+        self.diis = Some(SpinDiisAccelerators::duplicate(DiisAccelerator::try_new(
+            diis_size,
+        )?));
         Ok(())
     }
 
@@ -304,16 +315,16 @@ impl<'a> UhfCalculation<'a> {
     }
 
     fn apply_diis_if_enabled(&mut self) {
-        if let Some(diis) = &mut self.alpha_diis {
+        if let Some(diis) = &mut self.diis {
             if let Some(fock_matrix) =
-                diis.extrapolate(&self.fock.alpha, &self.density.alpha, &self.overlap_matrix)
+                diis.alpha
+                    .extrapolate(&self.fock.alpha, &self.density.alpha, &self.overlap_matrix)
             {
                 self.fock.alpha = fock_matrix;
             }
-        }
-        if let Some(diis) = &mut self.beta_diis {
             if let Some(fock_matrix) =
-                diis.extrapolate(&self.fock.beta, &self.density.beta, &self.overlap_matrix)
+                diis.beta
+                    .extrapolate(&self.fock.beta, &self.density.beta, &self.overlap_matrix)
             {
                 self.fock.beta = fock_matrix;
             }
@@ -321,10 +332,10 @@ impl<'a> UhfCalculation<'a> {
     }
 
     fn solve_roothaan_hall_equations(&mut self) -> Result<(), NumericalError> {
-        let (alpha_mo_coefficients, _) = self.solve_roothaan_hall(&self.fock.alpha)?;
-        let (beta_mo_coefficients, _) = self.solve_roothaan_hall(&self.fock.beta)?;
-        self.alpha_mo_coefficients = alpha_mo_coefficients;
-        self.beta_mo_coefficients = beta_mo_coefficients;
+        self.mo_coefficients = SpinMatrices::new(
+            self.solve_roothaan_hall(&self.fock.alpha)?.0,
+            self.solve_roothaan_hall(&self.fock.beta)?.0,
+        );
         Ok(())
     }
 
@@ -339,16 +350,12 @@ impl<'a> UhfCalculation<'a> {
     }
 
     fn update_density_matrices(&mut self) {
-        self.density = SpinMatrices {
-            alpha: density_from_mo_coefficients(
-                &self.alpha_mo_coefficients,
-                self.alpha_occupied_orbitals,
-            ),
-            beta: density_from_mo_coefficients(
-                &self.beta_mo_coefficients,
-                self.beta_occupied_orbitals,
-            ),
-        };
+        self.density = self.mo_coefficients.clone().zip_map(
+            self.occupied_orbitals,
+            |mo_coefficients, occupied_orbitals| {
+                density_from_mo_coefficients(&mo_coefficients, occupied_orbitals)
+            },
+        );
     }
 
     fn update_residual_norm_and_next_fock(&mut self) {
@@ -458,7 +465,7 @@ impl<'a> UhfCalculation<'a> {
     }
 }
 
-fn alpha_beta_occupied_orbitals<E>(molecule: &Molecule) -> Result<(usize, usize), UhfSetupError<E>>
+fn alpha_beta_occupied_orbitals<E>(molecule: &Molecule) -> Result<Spin<usize>, UhfSetupError<E>>
 where
     E: std::error::Error + 'static,
 {
@@ -472,14 +479,13 @@ where
     }
     let alpha = ((electrons + spin) / 2) as usize;
     let beta = ((electrons - spin) / 2) as usize;
-    Ok((alpha, beta))
+    Ok(Spin::new(alpha, beta))
 }
 
 fn split_density_guess(
     total_density: DMatrix<f64>,
     electrons: i8,
-    alpha_occupied_orbitals: usize,
-    beta_occupied_orbitals: usize,
+    occupied_orbitals: Spin<usize>,
 ) -> SpinMatrices {
     if electrons <= 0 {
         return SpinMatrices {
@@ -487,8 +493,8 @@ fn split_density_guess(
             beta: DMatrix::zeros(total_density.nrows(), total_density.ncols()),
         };
     }
-    let alpha_scale = alpha_occupied_orbitals as f64 / electrons as f64;
-    let beta_scale = beta_occupied_orbitals as f64 / electrons as f64;
+    let alpha_scale = occupied_orbitals.alpha as f64 / electrons as f64;
+    let beta_scale = occupied_orbitals.beta as f64 / electrons as f64;
     SpinMatrices {
         alpha: &total_density * alpha_scale,
         beta: total_density * beta_scale,
@@ -525,7 +531,10 @@ fn basis_function_pair(pair_index: usize) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{hf::density_guess::one_electron::OneElectron, test_utils};
+    use crate::{
+        hf::density_guess::{core_hamiltonian::CoreHamiltonian, one_electron::OneElectron},
+        test_utils,
+    };
     use approx::assert_abs_diff_eq;
 
     #[test]
@@ -576,6 +585,39 @@ mod tests {
             molecule.unpaired_electrons() as f64,
             epsilon = 1e-8
         );
+    }
+
+    #[test]
+    fn test_uhf_oh_doublet_matches_pyscf_reference_energy() {
+        const PYSCF_UHF_ELECTRONIC_ENERGY: f64 = -78.727017326066203;
+        const PYSCF_UHF_TOTAL_ENERGY: f64 = -74.362669194767236;
+
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::new(2).unwrap(),
+        );
+        let mut uhf =
+            UhfCalculation::new(&molecule, &basis, 100, 1e-5, CoreHamiltonian::default()).unwrap();
+        uhf.enable_diis(6).unwrap();
+
+        let result = uhf.run().unwrap();
+        let overlap = basis.overlap_ints();
+        let alpha_electrons = (&uhf.density.alpha * &overlap).trace();
+        let beta_electrons = (&uhf.density.beta * &overlap).trace();
+
+        assert!(result.converged);
+        assert_abs_diff_eq!(
+            result.electronic_energy,
+            PYSCF_UHF_ELECTRONIC_ENERGY,
+            epsilon = 5e-7
+        );
+        assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 5e-7);
+        assert_abs_diff_eq!(alpha_electrons, 5.0, epsilon = 1e-8);
+        assert_abs_diff_eq!(beta_electrons, 4.0, epsilon = 1e-8);
     }
 
     #[test]
