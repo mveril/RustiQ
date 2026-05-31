@@ -1,13 +1,12 @@
 use std::time::Instant;
 
 use nalgebra::{DMatrix, DVector};
-use ndarray::Array4;
 use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::electron_repulsion_ints,
+    eri::{electron_repulsion_ints, CompactEri},
     hf::numerical_error::{
         ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
     },
@@ -74,7 +73,7 @@ pub(crate) struct UhfCalculation<'a> {
     pub fock: SpinMatrices,
     pub residual_norm: f64,
     diis: Option<SpinDiisAccelerators>,
-    pub two_electron_integrals: Array4<f64>,
+    pub two_electron_integrals: CompactEri,
     pub h_core: DMatrix<f64>,
     pub t_matrix: DMatrix<f64>,
     pub v_matrix: DMatrix<f64>,

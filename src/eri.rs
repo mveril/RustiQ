@@ -2,10 +2,12 @@
 #![allow(non_snake_case)]
 
 use std::f64::consts::PI;
-
+mod compact;
+pub use compact::CompactEri;
+mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
+use index::EriIndex;
 use nalgebra::{Point3, Vector3};
-use ndarray::Array4;
 use rayon::prelude::*;
 
 /// Computes the 1D overlap integral for two primitive Gaussian functions.
@@ -112,7 +114,7 @@ pub fn compute_eri_primitive(
 /// # Returns
 ///
 /// A 4D tensor containing all ERI integrals.
-pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
+pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let n = basis.nbasis();
     let n_pairs = n * (n + 1) / 2;
     let n_unique_quartets = n_pairs * (n_pairs + 1) / 2;
@@ -132,12 +134,9 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Array4<f64> {
             )
         })
         .collect::<Vec<_>>();
-
-    let mut eri_tensor = Array4::zeros((n, n, n, n));
+    let mut eri_tensor = CompactEri::Zeroed(n);
     for (p, q, r, s, value) in values {
-        for (i, j, k, l) in eri_permutations(p, q, r, s) {
-            eri_tensor[(i, j, k, l)] = value;
-        }
+        eri_tensor[(p, q, r, s)] = value
     }
     eri_tensor
 }
@@ -152,19 +151,6 @@ fn basis_function_pair(pair_index: usize) -> (usize, usize) {
     let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
     let second = pair_index - first * (first + 1) / 2;
     (first, second)
-}
-
-fn eri_permutations(p: usize, q: usize, r: usize, s: usize) -> [(usize, usize, usize, usize); 8] {
-    [
-        (p, q, r, s),
-        (q, p, r, s),
-        (p, q, s, r),
-        (q, p, s, r),
-        (r, s, p, q),
-        (s, r, p, q),
-        (r, s, q, p),
-        (s, r, q, p),
-    ]
 }
 
 struct PairPrimitive {
