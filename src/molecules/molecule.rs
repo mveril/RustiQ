@@ -49,13 +49,13 @@ impl Molecule {
         self.unit = unit;
     }
 
-    pub fn total_electrons(&self) -> i8 {
+    pub fn total_electrons(&self) -> i16 {
         let n_charge = self
             .atoms
             .iter()
             .map(|a| a.element.atomic_number)
             .sum::<u32>();
-        (n_charge as i64 - self.charge as i64) as i8
+        (n_charge as i64 - self.charge as i64) as i16
     }
 
     pub fn unpaired_electrons(&self) -> u8 {

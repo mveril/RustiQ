@@ -3,13 +3,12 @@
 use std::time::Instant;
 
 use crate::{
-    eri::electron_repulsion_ints,
+    eri::{electron_repulsion_ints, CompactEri},
     hf::numerical_error::{
         ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
     },
 };
 use nalgebra::{DMatrix, DVector};
-use ndarray::Array4;
 use rayon::prelude::*;
 
 use crate::basis::gaussian::basis::Basis;
@@ -57,7 +56,7 @@ pub struct ScfCalculation<'a> {
     pub residual_norm: f64,
     diis: Option<DiisAccelerator>,
     /// Two-electron integrals.
-    pub two_electron_integrals: Array4<f64>,
+    pub two_electron_integrals: CompactEri,
     /// One-electron integrals - Hcore (kinetic + nuclear potential integrals combined).
     pub h_core: DMatrix<f64>,
     /// Kinetic energy matrix (T).
@@ -137,7 +136,7 @@ impl<'a> ScfCalculation<'a> {
         // Calculate the two-electron integrals
         progress("Building electron repulsion integrals");
         let step_start = Instant::now();
-        let two_electron_integrals: Array4<f64> = electron_repulsion_ints(basis);
+        let two_electron_integrals: CompactEri = electron_repulsion_ints(basis);
         setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
         // Initialize density matrix using a density guess builder

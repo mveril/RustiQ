@@ -1,13 +1,12 @@
 use std::time::Instant;
 
 use nalgebra::{DMatrix, DVector};
-use ndarray::Array4;
 use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::electron_repulsion_ints,
+    eri::{electron_repulsion_ints, CompactEri},
     hf::numerical_error::{
         ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
     },
@@ -33,7 +32,7 @@ where
     #[error(transparent)]
     Scf(#[from] ScfSetupError<E>),
     #[error("invalid open-shell electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
+    InvalidElectronConfiguration { electrons: i16, multiplicity: u8 },
 }
 
 #[derive(Debug, Clone)]
@@ -55,7 +54,7 @@ pub(crate) struct UhfCalculation<'a> {
     pub residual_norm: f64,
     alpha_diis: Option<DiisAccelerator>,
     beta_diis: Option<DiisAccelerator>,
-    pub two_electron_integrals: Array4<f64>,
+    pub two_electron_integrals: CompactEri,
     pub h_core: DMatrix<f64>,
     pub t_matrix: DMatrix<f64>,
     pub v_matrix: DMatrix<f64>,
@@ -463,7 +462,7 @@ where
     E: std::error::Error + 'static,
 {
     let electrons = molecule.total_electrons();
-    let spin = molecule.unpaired_electrons() as i8;
+    let spin = molecule.unpaired_electrons() as i16;
     if electrons < 0 || spin > electrons || (electrons + spin) % 2 != 0 {
         return Err(UhfSetupError::InvalidElectronConfiguration {
             electrons,
@@ -477,7 +476,7 @@ where
 
 fn split_density_guess(
     total_density: DMatrix<f64>,
-    electrons: i8,
+    electrons: i16,
     alpha_occupied_orbitals: usize,
     beta_occupied_orbitals: usize,
 ) -> SpinMatrices {

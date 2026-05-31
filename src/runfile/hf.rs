@@ -55,9 +55,9 @@ impl std::fmt::Display for ResolvedHfMethod {
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum HfMethodResolutionError {
     #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
+    InvalidElectronConfiguration { electrons: i16, multiplicity: u8 },
     #[error("RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    RhfRequiresClosedShellSinglet { electrons: i8, multiplicity: u8 },
+    RhfRequiresClosedShellSinglet { electrons: i16, multiplicity: u8 },
 }
 
 impl HfMethod {
@@ -109,7 +109,7 @@ fn default_diis_size() -> usize {
 
 fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodResolutionError> {
     let electrons = molecule.total_electrons();
-    let spin = molecule.unpaired_electrons() as i8;
+    let spin = molecule.unpaired_electrons() as i16;
     if electrons < 0 || spin > electrons || (electrons + spin) % 2 != 0 {
         return Err(HfMethodResolutionError::InvalidElectronConfiguration {
             electrons,
