@@ -9,7 +9,7 @@ pub(crate) struct MoleculeConfig {
     #[serde(default = "default_molecule_file")]
     pub(crate) geometry: PathBuf,
     #[serde(default)]
-    pub(crate) charge: i8,
+    pub(crate) charge: i32,
     #[serde(default = "default_multiplicity")]
     pub(crate) multiplicity: NonZeroU8,
     #[serde(default = "default_molecule_unit")]

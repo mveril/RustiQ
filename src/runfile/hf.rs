@@ -55,9 +55,9 @@ impl std::fmt::Display for ResolvedHfMethod {
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum HfMethodResolutionError {
     #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
+    InvalidElectronConfiguration { electrons: usize, multiplicity: u8 },
     #[error("RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    RhfRequiresClosedShellSinglet { electrons: i8, multiplicity: u8 },
+    RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
 }
 
 impl HfMethod {
@@ -109,8 +109,8 @@ fn default_diis_size() -> usize {
 
 fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodResolutionError> {
     let electrons = molecule.total_electrons();
-    let spin = molecule.unpaired_electrons() as i8;
-    if electrons < 0 || spin > electrons || (electrons + spin) % 2 != 0 {
+    let spin = molecule.unpaired_electrons() as usize;
+    if spin > electrons || (electrons + spin) % 2 != 0 {
         return Err(HfMethodResolutionError::InvalidElectronConfiguration {
             electrons,
             multiplicity: molecule.multiplicity.get(),
@@ -132,7 +132,7 @@ mod tests {
     use std::mem::discriminant;
     use std::num::NonZeroU8;
 
-    fn molecule(atom_symbols: &[&str], charge: i8, multiplicity: u8) -> Molecule {
+    fn molecule(atom_symbols: &[&str], charge: i32, multiplicity: u8) -> Molecule {
         let elements = periodic_table::periodic_table();
         let atoms = atom_symbols
             .iter()
@@ -145,12 +145,16 @@ mod tests {
                 Atom::new(element, point![0.0, 0.0, index as f64])
             })
             .collect();
-        Molecule::new(
-            Geometry::new("test molecule".to_string(), atoms),
-            Units::Bohr,
-            charge,
-            NonZeroU8::new(multiplicity).unwrap(),
-        )
+        // SAFETY: These tests only build molecules whose charge does not exceed
+        // their nuclear charge.
+        unsafe {
+            Molecule::new_unchecked(
+                Geometry::new("test molecule".to_string(), atoms),
+                Units::Bohr,
+                charge,
+                NonZeroU8::new(multiplicity).unwrap(),
+            )
+        }
     }
 
     #[test]

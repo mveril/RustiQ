@@ -33,7 +33,7 @@ where
     #[error(transparent)]
     Scf(#[from] ScfSetupError<E>),
     #[error("invalid open-shell electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    InvalidElectronConfiguration { electrons: i8, multiplicity: u8 },
+    InvalidElectronConfiguration { electrons: usize, multiplicity: u8 },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -470,8 +470,8 @@ where
     E: std::error::Error + 'static,
 {
     let electrons = molecule.total_electrons();
-    let spin = molecule.unpaired_electrons() as i8;
-    if electrons < 0 || spin > electrons || (electrons + spin) % 2 != 0 {
+    let spin = molecule.unpaired_electrons() as usize;
+    if spin > electrons || (electrons + spin) % 2 != 0 {
         return Err(UhfSetupError::InvalidElectronConfiguration {
             electrons,
             multiplicity: molecule.multiplicity.get(),
@@ -484,10 +484,10 @@ where
 
 fn split_density_guess(
     total_density: DMatrix<f64>,
-    electrons: i8,
+    electrons: usize,
     occupied_orbitals: Spin<usize>,
 ) -> SpinMatrices {
-    if electrons <= 0 {
+    if electrons == 0 {
         return SpinMatrices {
             alpha: DMatrix::zeros(total_density.nrows(), total_density.ncols()),
             beta: DMatrix::zeros(total_density.nrows(), total_density.ncols()),
@@ -563,12 +563,15 @@ mod tests {
     fn test_uhf_spin_density_electron_counts_match_multiplicity() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::new(
-            geometry,
-            crate::molecules::units::Units::Bohr,
-            1,
-            std::num::NonZeroU8::new(2).unwrap(),
-        );
+        // SAFETY: H2+ has one electron.
+        let molecule = unsafe {
+            Molecule::new_unchecked(
+                geometry,
+                crate::molecules::units::Units::Bohr,
+                1,
+                std::num::NonZeroU8::new(2).unwrap(),
+            )
+        };
         let mut uhf =
             UhfCalculation::new(&molecule, &basis, 100, 1e-8, OneElectron::default()).unwrap();
 
@@ -594,12 +597,15 @@ mod tests {
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::new(
-            geometry,
-            crate::molecules::units::Units::Bohr,
-            0,
-            std::num::NonZeroU8::new(2).unwrap(),
-        );
+        // SAFETY: Neutral OH has nine electrons.
+        let molecule = unsafe {
+            Molecule::new_unchecked(
+                geometry,
+                crate::molecules::units::Units::Bohr,
+                0,
+                std::num::NonZeroU8::new(2).unwrap(),
+            )
+        };
         let mut uhf =
             UhfCalculation::new(&molecule, &basis, 100, 1e-5, CoreHamiltonian::default()).unwrap();
         uhf.enable_diis(6).unwrap();
@@ -624,12 +630,15 @@ mod tests {
     fn test_uhf_rejects_incompatible_multiplicity() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::new(
-            geometry,
-            crate::molecules::units::Units::Bohr,
-            0,
-            std::num::NonZeroU8::new(2).unwrap(),
-        );
+        // SAFETY: Neutral H2 has two electrons.
+        let molecule = unsafe {
+            Molecule::new_unchecked(
+                geometry,
+                crate::molecules::units::Units::Bohr,
+                0,
+                std::num::NonZeroU8::new(2).unwrap(),
+            )
+        };
 
         let error = match UhfCalculation::new(&molecule, &basis, 10, 1e-8, OneElectron::default()) {
             Ok(_) => panic!("expected incompatible multiplicity to be rejected"),

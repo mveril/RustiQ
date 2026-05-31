@@ -17,12 +17,15 @@ pub(crate) fn load_sample_geometry(path: &str) -> Geometry {
 }
 
 pub(crate) fn load_sample_geometry_in_bohr(path: &str) -> Geometry {
-    let mut molecule = Molecule::new(
-        load_sample_geometry(path),
-        Units::Angstrom,
-        0,
-        std::num::NonZeroU8::MIN,
-    );
+    // SAFETY: Test fixtures are loaded as neutral molecules.
+    let mut molecule = unsafe {
+        Molecule::new_unchecked(
+            load_sample_geometry(path),
+            Units::Angstrom,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+    };
     molecule.convert_to(Units::Bohr);
     molecule.geometry
 }

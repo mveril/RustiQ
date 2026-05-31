@@ -41,12 +41,12 @@ impl Runnable for RunCommand {
         let molecule_path = &run.global.molecule.geometry;
         let molfile = File::open(molecule_path)?;
         let geom = Geometry::from_file(molfile)?;
-        let mut molecule = Molecule::new(
+        let mut molecule = Molecule::try_new(
             geom,
             run.global.molecule.molecule_unit,
             run.global.molecule.charge,
             run.global.molecule.multiplicity,
-        );
+        )?;
         bat::print_xyz(&molecule.geometry.to_string());
         molecule.convert_to(Units::Bohr);
         let store = BasisStore::default();
