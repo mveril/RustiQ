@@ -10,6 +10,8 @@ use index::EriIndex;
 use nalgebra::{Point3, Vector3};
 use rayon::prelude::*;
 
+const ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
+
 /// Computes the 1D overlap integral for two primitive Gaussian functions.
 ///
 /// \[ S = \left( \frac{\pi}{p} \right)^{1/2} \exp\left( -\frac{\mu}{p} (A - B)^2 \right) \]
@@ -119,19 +121,20 @@ pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let n_pairs = n * (n + 1) / 2;
     let n_unique_quartets = n_pairs * (n_pairs + 1) / 2;
     let pair_expansions = build_pair_expansions(basis);
+    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
     let values = (0..n_unique_quartets)
         .into_par_iter()
         .map(|index| {
             let (pair_pq, pair_rs) = unique_pair_indices(index);
             let (p, q) = basis_function_pair(pair_pq);
             let (r, s) = basis_function_pair(pair_rs);
-            (
-                p,
-                q,
-                r,
-                s,
-                compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs]),
-            )
+            let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
+            let value = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
+                0.0
+            } else {
+                compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs])
+            };
+            (p, q, r, s, value)
         })
         .collect::<Vec<_>>();
     let mut eri_tensor = CompactEri::Zeroed(n);
@@ -216,6 +219,17 @@ fn build_pair_expansion(basis: &Basis, i: usize, j: usize) -> PairExpansion {
     }
 
     expansion
+}
+
+fn build_pair_schwarz_bounds(pair_expansions: &[PairExpansion]) -> Vec<f64> {
+    pair_expansions
+        .par_iter()
+        .map(|pair_expansion| {
+            compute_eri_pair(pair_expansion, pair_expansion)
+                .abs()
+                .sqrt()
+        })
+        .collect()
 }
 
 fn compute_eri_pair(pair_ab: &PairExpansion, pair_cd: &PairExpansion) -> f64 {
@@ -446,6 +460,17 @@ mod tests {
         Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])
     }
 
+    fn create_distant_h2_geometry() -> Geometry {
+        let elements = periodic_table::periodic_table();
+        let h = &elements[0];
+        let atom1 = Atom::new(h, point![0.0, 0.0, -100.0]);
+        let atom2 = Atom::new(h, point![0.0, 0.0, 100.0]);
+        Geometry::new(
+            "Distant hydrogen molecule (H2)".to_string(),
+            vec![atom1, atom2],
+        )
+    }
+
     /// Test ERI calculation for two s functions at the same center.
     #[test]
     fn test_compute_eri_s_same_center() {
@@ -530,6 +555,17 @@ mod tests {
 
         // Check
         assert_abs_diff_eq!(eri, expected_eri_self, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_eri_schwarz_screening_skips_negligible_pair_products() {
+        let basis_file = test_utils::load_minimal_basis_file();
+        let geom = create_distant_h2_geometry();
+        let basis = Basis::load(&basis_file, &geom);
+
+        let eri_tensor = electron_repulsion_ints(&basis);
+
+        assert_eq!(eri_tensor[(0, 1, 0, 1)], 0.0);
     }
 
     /// Test the symmetry of ERI matrices.
