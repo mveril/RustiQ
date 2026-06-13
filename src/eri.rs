@@ -121,7 +121,8 @@ pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
     let storage_len = CompactEri::storage_len(n);
 
-    CompactEri::from_par_iter(
+    CompactEri::from_indexed_par_iter(
+        n,
         (0..storage_len).into_par_iter().map(|compact_index| {
             let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
             let (mu, nu) = basis_function_pair(pair_pq);
@@ -137,9 +138,7 @@ pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
 
             (mu, nu, lambda, sigma, value)
         }),
-        n,
     )
-    .expect("internal ERI iterator must yield every unique quartet exactly once")
 }
 
 fn unique_pair_indices(index: usize) -> (usize, usize) {

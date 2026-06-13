@@ -120,6 +120,31 @@ impl CompactEri {
         }
     }
 
+    /// Builds a compact ERI tensor from quartets yielded in compact storage order.
+    pub(crate) fn from_indexed_par_iter<I>(size: usize, par_iter: I) -> Self
+    where
+        I: IndexedParallelIterator<Item = (usize, usize, usize, usize, f64)>,
+    {
+        let storage_len = Self::storage_len(size);
+        let mut storage = (0..storage_len)
+            .map(|_| StorageSlot::zeroed())
+            .collect::<Box<[_]>>();
+        let compact_par_iter = par_iter
+            .map(|(mu, nu, lambda, sigma, value)| (EriIndex::new(mu, nu, lambda, sigma).0, value));
+
+        storage
+            .par_iter_mut()
+            .enumerate()
+            .zip(compact_par_iter)
+            .for_each(|((storage_index, slot), (compact_index, value))| {
+                debug_assert_eq!(storage_index, compact_index);
+                // The zipped indexed iterator gives exclusive access to each slot.
+                unsafe { *slot.get_mut() = value };
+            });
+
+        Self { storage }
+    }
+
     /// Builds a compact ERI tensor from quartets yielded in any order.
     ///
     /// The iterator must yield each unique compact quartet exactly once.
@@ -362,6 +387,27 @@ mod tests {
             eri[(4, 4, 4, 4)],
             CompactEri::storage_len(basis_functions) as f64 - 0.75
         );
+    }
+
+    #[test]
+    fn test_compact_eri_from_indexed_par_iter_uses_four_indexes() {
+        let basis_functions = 2;
+        let storage_len = CompactEri::storage_len(basis_functions);
+
+        let eri = CompactEri::from_indexed_par_iter(
+            basis_functions,
+            (0..storage_len).into_par_iter().map(|compact_index| {
+                let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
+                let (mu, nu) = basis_function_pair(pair_pq);
+                let (lambda, sigma) = basis_function_pair(pair_rs);
+                (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
+            }),
+        );
+
+        assert_eq!(eri[(0, 0, 0, 0)], 0.25);
+        assert_eq!(eri[(1, 0, 0, 0)], 1.25);
+        assert_eq!(eri[(1, 0, 1, 0)], 2.25);
+        assert_eq!(eri[(1, 1, 1, 1)], 5.25);
     }
 
     #[test]
