@@ -6,7 +6,6 @@ mod compact;
 pub use compact::CompactEri;
 mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
-use index::EriIndex;
 use nalgebra::{Point3, Vector3};
 use rayon::prelude::*;
 
@@ -118,30 +117,29 @@ pub fn compute_eri_primitive(
 /// A 4D tensor containing all ERI integrals.
 pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let n = basis.nbasis();
-    let n_pairs = n * (n + 1) / 2;
-    let n_unique_quartets = n_pairs * (n_pairs + 1) / 2;
     let pair_expansions = build_pair_expansions(basis);
     let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
-    let values = (0..n_unique_quartets)
-        .into_par_iter()
-        .map(|index| {
-            let (pair_pq, pair_rs) = unique_pair_indices(index);
-            let (p, q) = basis_function_pair(pair_pq);
-            let (r, s) = basis_function_pair(pair_rs);
+    let storage_len = CompactEri::storage_len(n);
+
+    CompactEri::from_par_iter(
+        (0..storage_len).into_par_iter().map(|compact_index| {
+            let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
+            let (mu, nu) = basis_function_pair(pair_pq);
+            let (lambda, sigma) = basis_function_pair(pair_rs);
             let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
             let value = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
                 0.0
+            } else if pair_pq == pair_rs {
+                schwarz_bound
             } else {
                 compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs])
             };
-            (p, q, r, s, value)
-        })
-        .collect::<Vec<_>>();
-    let mut eri_tensor = CompactEri::Zeroed(n);
-    for (p, q, r, s, value) in values {
-        eri_tensor[(p, q, r, s)] = value
-    }
-    eri_tensor
+
+            (mu, nu, lambda, sigma, value)
+        }),
+        n,
+    )
+    .expect("internal ERI iterator must yield every unique quartet exactly once")
 }
 
 fn unique_pair_indices(index: usize) -> (usize, usize) {
@@ -555,6 +553,41 @@ mod tests {
 
         // Check
         assert_abs_diff_eq!(eri, expected_eri_self, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_parallel_eri_tensor_matches_sequential_pair_calculation() {
+        let basis_file = test_utils::load_minimal_basis_file();
+        let geom = create_h2_geometry();
+        let basis = Basis::load(&basis_file, &geom);
+        let pair_expansions = build_pair_expansions(&basis);
+        let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
+        let eri_tensor = electron_repulsion_ints(&basis);
+
+        for mu in 0..basis.nbasis() {
+            for nu in 0..basis.nbasis() {
+                for lambda in 0..basis.nbasis() {
+                    for sigma in 0..basis.nbasis() {
+                        let pair_pq = index::PairIndex::new(mu, nu).0;
+                        let pair_rs = index::PairIndex::new(lambda, sigma).0;
+                        let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
+                        let expected = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
+                            0.0
+                        } else if pair_pq == pair_rs {
+                            schwarz_bound
+                        } else {
+                            compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs])
+                        };
+
+                        assert_abs_diff_eq!(
+                            eri_tensor[(mu, nu, lambda, sigma)],
+                            expected,
+                            epsilon = 1e-12
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
