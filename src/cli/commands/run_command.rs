@@ -8,11 +8,16 @@ use std::{
 
 use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile, gaussian::basis::Basis},
-    cli::ux::{bat, scf_report::ScfReporter},
+    cli::{
+        self,
+        ux::{bat, scf_report::ScfReporter},
+    },
     hf,
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
-    runfile::hf::{HfOutputFormat, ResolvedHfMethod},
-    runfile::RunFile,
+    runfile::{
+        hf::{HfOutputFormat, ResolvedHfMethod},
+        RunFile,
+    },
 };
 
 use super::{CommandResult, Runnable};
@@ -25,6 +30,7 @@ pub struct RunCommand {
 
 impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
+        cli::ux::print_startup_banner();
         let toml_content = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml)?;
             if let Some(dir) = path_toml.parent() {

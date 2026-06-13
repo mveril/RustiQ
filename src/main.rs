@@ -13,6 +13,5 @@ pub(crate) mod test_utils;
 
 fn main() -> cli::commands::CommandResult {
     let app: Cli = Cli::parse();
-    cli::ux::print_startup_banner();
     app.command.run()
 }
