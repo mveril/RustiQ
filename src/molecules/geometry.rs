@@ -1,10 +1,11 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
-use super::{atom::Atom, element_parser::parse_element, geometry_parse_error::GeometryParseError};
+use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::parse_xyz};
 use core::iter::Iterator;
 use delegate::delegate;
 use nalgebra::{distance, Isometry3, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
+use std::path::Path;
 #[allow(dead_code)]
 use std::{
     fmt::{self, Display},
@@ -19,68 +20,31 @@ pub struct Geometry {
     pub atoms: Vec<Atom>,
 }
 
-fn read_atom_line(line: &str, atom_index: usize) -> Result<Atom, GeometryParseError> {
-    let mut parts = line.split_whitespace();
-    let mut next_part = || {
-        parts
-            .next()
-            .ok_or(GeometryParseError::AtomLineShouldHaveFourParts(
-                atom_index,
-                line.to_string(),
-            ))
-    };
-    let [element_str, x_str, y_str, z_str] =
-        [next_part()?, next_part()?, next_part()?, next_part()?];
-
-    if parts.next().is_some() {
-        return Err(GeometryParseError::AtomLineShouldHaveFourParts(
-            atom_index,
-            line.to_string(),
-        ));
-    };
-    let element = parse_element(element_str).map_err(|err| {
-        GeometryParseError::AtomLineElementError(atom_index, line.to_string(), err)
-    })?;
-
-    let parse_coordinate = |value: &str| {
-        value.parse::<f64>().map_err(|err| {
-            GeometryParseError::AtomLineCoordinateError(atom_index, line.to_string(), err)
-        })
-    };
-    let position = Point3::new(
-        parse_coordinate(x_str)?,
-        parse_coordinate(y_str)?,
-        parse_coordinate(z_str)?,
-    );
-    Ok(Atom::new(element, position))
-}
-
 impl Geometry {
     pub fn new(comment: String, atoms: Vec<Atom>) -> Self {
         Geometry { comment, atoms }
     }
 
+    pub fn from_source(
+        source_name: impl Into<String>,
+        source: &str,
+    ) -> Result<Self, GeometryParseError> {
+        parse_xyz(source_name, source)
+    }
+
     pub fn from_reader(mut reader: impl BufRead) -> Result<Self, GeometryParseError> {
-        let mut num_str = String::new();
-        reader.read_line(&mut num_str)?;
-        let num = num_str
-            .trim()
-            .parse::<usize>()
-            .map_err(GeometryParseError::ParseNumberOfAtom)?;
-        let mut comm = String::new();
-        reader.read_line(&mut comm)?;
-        let mut atoms = Vec::<Atom>::with_capacity(num);
-        for i in 0..num {
-            let mut line = String::new();
-            reader.read_line(&mut line)?;
-            let atom = read_atom_line(&line, i)?;
-            atoms.push(atom);
-        }
-        Ok(Geometry::new(comm, atoms))
+        let mut source = String::new();
+        reader.read_to_string(&mut source)?;
+        Self::from_source("<geometry>", &source)
     }
 
     pub fn from_file(file: File) -> Result<Self, GeometryParseError> {
         Self::from_reader(BufReader::new(file))
+    }
+
+    pub fn from_path(path: &Path) -> Result<Self, GeometryParseError> {
+        let source = std::fs::read_to_string(path)?;
+        Self::from_source(path.display().to_string(), &source)
     }
 
     #[allow(clippy::wrong_self_convention)]

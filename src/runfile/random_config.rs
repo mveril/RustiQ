@@ -2,15 +2,16 @@ pub(crate) mod distribution_config;
 pub(crate) use distribution_config::DistributionConfig;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use serde::{Deserialize, Serialize};
+use toml_spanner::{helper::flatten_any, Toml};
 
 use crate::runfile::random_config::distribution_config::SelectedSampleIter;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Toml)]
+#[toml(Toml)]
 pub(crate) struct RandomConfig {
-    #[serde(flatten)]
+    #[toml(flatten, with = flatten_any)]
     pub(crate) distribution: DistributionConfig,
-    #[serde(default)]
+    #[toml(default)]
     pub(crate) seed: Option<u64>,
 }
 

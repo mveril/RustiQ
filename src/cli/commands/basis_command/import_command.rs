@@ -1,5 +1,7 @@
 use std::{fs::File, path::PathBuf};
 
+use miette::IntoDiagnostic;
+
 use crate::{
     basis::basis_store::BasisStore,
     cli::commands::{CommandResult, Runnable},
@@ -14,8 +16,8 @@ pub struct ImportCommand {
 impl Runnable for ImportCommand {
     fn run(&self) -> CommandResult {
         let store = BasisStore::default();
-        let file = File::open(&self.path)?;
-        let name = store.import(file)?;
+        let file = File::open(&self.path).into_diagnostic()?;
+        let name = store.import(file).into_diagnostic()?;
         print!("Basis {} imported.", name);
         Ok(())
     }

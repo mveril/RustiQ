@@ -1,7 +1,9 @@
 #[cfg(feature = "online")]
+use miette::IntoDiagnostic;
+#[cfg(feature = "online")]
 use tokio::runtime::Builder;
 
-pub type CommandResult = anyhow::Result<()>;
+pub type CommandResult = miette::Result<()>;
 
 pub trait Runnable {
     fn run(&self) -> CommandResult;
@@ -20,7 +22,10 @@ where
     T: AsyncRunnable,
 {
     fn run(&self) -> CommandResult {
-        let rt = Builder::new_current_thread().enable_all().build()?;
+        let rt = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .into_diagnostic()?;
 
         rt.block_on(self.run_async())
     }

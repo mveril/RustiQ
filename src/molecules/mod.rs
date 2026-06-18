@@ -6,3 +6,4 @@ pub(crate) mod geometry;
 pub(crate) mod geometry_parse_error;
 pub(crate) mod molecule;
 pub(crate) mod units;
+pub(crate) mod xyz_parser;

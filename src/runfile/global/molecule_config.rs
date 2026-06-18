@@ -1,18 +1,23 @@
 use std::{num::NonZeroU8, path::PathBuf};
 
-use serde::{Deserialize, Serialize};
+use toml_spanner::Toml;
 
 use crate::molecules::units::Units;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Toml)]
+#[toml(Toml)]
 pub(crate) struct MoleculeConfig {
-    #[serde(default = "default_molecule_file")]
+    #[toml(
+        default = default_molecule_file(),
+        with = crate::runfile::validated::non_empty_path_buf
+    )]
     pub(crate) geometry: PathBuf,
-    #[serde(default)]
+    #[toml(default)]
     pub(crate) charge: i32,
-    #[serde(default = "default_multiplicity")]
+    #[toml(default = default_multiplicity())]
+    #[toml(with = crate::runfile::validated::non_zero_u8)]
     pub(crate) multiplicity: NonZeroU8,
-    #[serde(default = "default_molecule_unit")]
+    #[toml(default = default_molecule_unit())]
     pub(crate) molecule_unit: Units,
 }
 
@@ -45,5 +50,16 @@ mod tests {
     #[test]
     fn test_default_multiplicity() {
         assert_eq!(u8::from(default_multiplicity()), 1)
+    }
+
+    #[test]
+    fn test_molecule_config_rejects_empty_geometry_path() {
+        let result = toml_spanner::from_str::<MoleculeConfig>(
+            r#"
+            geometry = ""
+            "#,
+        );
+
+        assert!(result.is_err());
     }
 }

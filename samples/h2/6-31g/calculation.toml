@@ -6,6 +6,7 @@ geometry = "../molecule.xyz"
 
 [hf]
 diis = true
+diis_size = 2
 
 [hf.guess]
 type = "CoreHamiltonian"

@@ -7,6 +7,7 @@ use crate::{
     hf::numerical_error::{
         ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
     },
+    runfile::validated::DiisSize,
 };
 use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
@@ -17,7 +18,7 @@ use crate::molecules::molecule::Molecule;
 use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
-    diis::{DiisAccelerator, DiisError},
+    diis::DiisAccelerator,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
     scf_observer::{NoopScfObserver, ScfObserver},
@@ -182,9 +183,8 @@ impl<'a> ScfCalculation<'a> {
         })
     }
 
-    pub fn enable_diis(&mut self, diis_size: usize) -> Result<(), DiisError> {
-        self.diis = Some(DiisAccelerator::try_new(diis_size)?);
-        Ok(())
+    pub fn enable_diis(&mut self, diis_size: DiisSize) {
+        self.diis = Some(DiisAccelerator::new(diis_size));
     }
 
     fn initial_mo_coefficients(
@@ -708,7 +708,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::from(geometry);
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
-        scf.enable_diis(6).unwrap();
+        scf.enable_diis(DiisSize::try_new(6).unwrap());
 
         let result = scf.run().unwrap();
 

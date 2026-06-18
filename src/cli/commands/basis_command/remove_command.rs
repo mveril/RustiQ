@@ -2,6 +2,7 @@ use crate::{
     basis::basis_store::BasisStore,
     cli::commands::{CommandResult, Runnable},
 };
+use miette::IntoDiagnostic;
 
 #[derive(clap::Args)]
 pub struct DownloadCommand {
@@ -31,7 +32,8 @@ impl Runnable for RemoveCommand {
             store.remove_all()
         } else {
             store.remove(&self.names)
-        }?;
+        }
+        .into_diagnostic()?;
         Ok(())
     }
 }

@@ -152,10 +152,11 @@ mod tests {
     use crate::hf::core::core_hamiltonian_ints;
     use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
     use crate::runfile::random_config::distribution_config::NormalDistributionConfig;
-    use crate::runfile::random_config::{DistributionConfig, RandomConfig};
+    use crate::runfile::random_config::DistributionConfig;
+    use crate::runfile::validated::PositiveFiniteF64;
     use crate::test_utils;
-    use serde::Deserialize;
     use std::mem::discriminant;
+    use toml_spanner::Toml;
 
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
@@ -168,11 +169,13 @@ mod tests {
 
     fn perturbation(seed: u64) -> GuessPerturbationConfig {
         GuessPerturbationConfig {
-            random: RandomConfig {
-                distribution: DistributionConfig::Normal(NormalDistributionConfig {
-                    mean: 0.0,
-                    std_dev: 1e-4,
-                }),
+            random: crate::runfile::random_config::RandomConfig {
+                distribution: DistributionConfig::Normal {
+                    config: NormalDistributionConfig {
+                        mean: 0.0,
+                        std_dev: PositiveFiniteF64::try_new(1e-4).unwrap(),
+                    },
+                },
                 seed: Some(seed),
             },
         }
@@ -363,7 +366,8 @@ mod tests {
 
     #[test]
     fn test_density_guess_type_deserialization() {
-        #[derive(Deserialize)]
+        #[derive(Toml)]
+        #[toml(FromToml)]
         struct GuessConfig {
             guess: crate::runfile::hf::DensityGuessConfig,
         }
@@ -415,7 +419,7 @@ mod tests {
                 },
             ),
         ] {
-            let config: GuessConfig = toml::from_str(toml).unwrap();
+            let config: GuessConfig = toml_spanner::from_str(toml).unwrap();
             assert_eq!(discriminant(&config.guess), discriminant(&expected));
             let _density_guess = config.guess;
         }
