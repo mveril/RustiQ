@@ -470,14 +470,14 @@ where
 {
     let electrons = molecule.total_electrons();
     let spin = molecule.unpaired_electrons() as usize;
-    if spin > electrons || (electrons + spin) % 2 != 0 {
+    if spin > electrons || !(electrons + spin).is_multiple_of(2) {
         return Err(UhfSetupError::InvalidElectronConfiguration {
             electrons,
             multiplicity: molecule.multiplicity.get(),
         });
     }
-    let alpha = ((electrons + spin) / 2) as usize;
-    let beta = ((electrons - spin) / 2) as usize;
+    let alpha = (electrons + spin) / 2;
+    let beta = (electrons - spin) / 2;
     Ok(Spin::new(alpha, beta))
 }
 
@@ -591,8 +591,8 @@ mod tests {
 
     #[test]
     fn test_uhf_oh_doublet_matches_pyscf_reference_energy() {
-        const PYSCF_UHF_ELECTRONIC_ENERGY: f64 = -78.727017326066203;
-        const PYSCF_UHF_TOTAL_ENERGY: f64 = -74.362669194767236;
+        const PYSCF_UHF_ELECTRONIC_ENERGY: f64 = -78.727_017_326_066_2;
+        const PYSCF_UHF_TOTAL_ENERGY: f64 = -74.362_669_194_767_24;
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);

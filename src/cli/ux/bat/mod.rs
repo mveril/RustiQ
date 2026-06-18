@@ -26,20 +26,6 @@ pub fn print_toml(content: &str) {
     }
 }
 
-pub fn print_paged(content: &str) {
-    if PrettyPrinter::new()
-        .colored_output(false)
-        .strip_ansi(::bat::StripAnsiMode::Never)
-        .input_from_bytes(content.as_bytes())
-        .paging_mode(::bat::PagingMode::QuitIfOneScreen)
-        .pager(pager())
-        .print()
-        .is_err()
-    {
-        println!("{content}");
-    }
-}
-
 pub fn print_xyz(content: &str) {
     if !io::stdout().is_terminal() {
         print!("{content}");
@@ -88,12 +74,4 @@ fn write_asset_if_needed(path: &Path, contents: &[u8]) -> io::Result<()> {
     }
 
     fs::write(path, contents)
-}
-
-fn pager() -> &'static str {
-    if which::which("less").is_ok() {
-        "less"
-    } else {
-        "builtin"
-    }
 }

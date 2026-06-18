@@ -1,6 +1,5 @@
 use std::{
-    env,
-    fs,
+    env, fs,
     io::{self, Read},
     path::PathBuf,
     time::Instant,
@@ -142,12 +141,12 @@ impl Runnable for RunCommand {
                     match hf.format {
                         HfOutputFormat::Normal => {
                             let stdout = io::stdout();
-                    let mut reporter = ScfReporter::new(stdout.lock());
-                    let result = scf.run_with_observer(&mut reporter).into_diagnostic()?;
-                    if let Some(err) = reporter.take_error() {
-                        return Err(miette::miette!("failed to write SCF report: {err}"));
-                    }
-                    reporter.write_summary(&result).into_diagnostic()?;
+                            let mut reporter = ScfReporter::new(stdout.lock());
+                            let result = scf.run_with_observer(&mut reporter).into_diagnostic()?;
+                            if let Some(err) = reporter.take_error() {
+                                return Err(miette::miette!("failed to write SCF report: {err}"));
+                            }
+                            reporter.write_summary(&result).into_diagnostic()?;
                         }
                         HfOutputFormat::Nope => {
                             scf.run().into_diagnostic()?;
@@ -165,17 +164,18 @@ impl Runnable for RunCommand {
                     )
                     .into_diagnostic()?;
                     if hf.diis {
-                        scf.enable_diis(hf.diis_size.into_inner()).into_diagnostic()?;
+                        scf.enable_diis(hf.diis_size.into_inner())
+                            .into_diagnostic()?;
                     }
                     match hf.format {
                         HfOutputFormat::Normal => {
                             let stdout = io::stdout();
-                    let mut reporter = ScfReporter::new(stdout.lock());
-                    let result = scf.run_with_observer(&mut reporter).into_diagnostic()?;
-                    if let Some(err) = reporter.take_error() {
-                        return Err(miette::miette!("failed to write SCF report: {err}"));
-                    }
-                    reporter.write_summary(&result).into_diagnostic()?;
+                            let mut reporter = ScfReporter::new(stdout.lock());
+                            let result = scf.run_with_observer(&mut reporter).into_diagnostic()?;
+                            if let Some(err) = reporter.take_error() {
+                                return Err(miette::miette!("failed to write SCF report: {err}"));
+                            }
+                            reporter.write_summary(&result).into_diagnostic()?;
                         }
                         HfOutputFormat::Nope => {
                             scf.run().into_diagnostic()?;
@@ -246,10 +246,7 @@ mod tests {
 
     #[test]
     fn test_parse_runfile_reports_toml_span() {
-        let result = parse_runfile(
-            "calculation.toml".to_string(),
-            "hf = \"not a table\"".to_string(),
-        );
+        let result = parse_runfile("calculation.toml".to_string(), "hf = \"not a table\"");
 
         let err = result.unwrap_err();
         assert!(format!("{err:?}").contains("toml_deserialize"));

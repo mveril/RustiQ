@@ -120,7 +120,7 @@ fn default_diis_size() -> DiisSize {
 fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodResolutionError> {
     let electrons = molecule.total_electrons();
     let spin = molecule.unpaired_electrons() as usize;
-    if spin > electrons || (electrons + spin) % 2 != 0 {
+    if spin > electrons || !(electrons + spin).is_multiple_of(2) {
         return Err(HfMethodResolutionError::InvalidElectronConfiguration {
             electrons,
             multiplicity: molecule.multiplicity.get(),
@@ -130,7 +130,7 @@ fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodRe
 }
 
 fn is_closed_shell_singlet(molecule: &Molecule) -> bool {
-    molecule.multiplicity.get() == 1 && molecule.total_electrons() % 2 == 0
+    molecule.multiplicity.get() == 1 && molecule.total_electrons().is_multiple_of(2)
 }
 
 #[cfg(test)]

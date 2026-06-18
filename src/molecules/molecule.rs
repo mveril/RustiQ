@@ -112,7 +112,7 @@ impl Molecule {
     }
 
     pub fn occupied_orbitals(&self) -> usize {
-        ((self.total_electrons() as usize - self.unpaired_electrons() as usize) / 2)
+        ((self.total_electrons() - self.unpaired_electrons() as usize) / 2)
             + self.unpaired_electrons() as usize
     }
 }
