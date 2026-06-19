@@ -5,6 +5,8 @@ mod eri;
 mod hf;
 mod math_utils;
 mod molecules;
+#[allow(dead_code)]
+mod mp2;
 mod runfile;
 use clap::Parser;
 use cli::commands::Runnable;

@@ -49,6 +49,8 @@ pub struct ScfCalculation<'a> {
     pub energy: f64,
     /// Molecular Orbital coefficients (matrix).
     pub mo_coefficients: DMatrix<f64>,
+    /// Canonical orbital energies corresponding to the current MO coefficients.
+    pub orbital_energies: DVector<f64>,
     /// Current electron density matrix.
     pub density_matrix: DMatrix<f64>,
     /// Fock matrix.
@@ -151,7 +153,8 @@ impl<'a> ScfCalculation<'a> {
         // Initial molecular orbital coefficients from diagonalization of H_core
         progress("Building initial molecular orbitals");
         let step_start = Instant::now();
-        let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)?;
+        let (mo_coefficients, orbital_energies) =
+            Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)?;
         setup_timings.initial_orbitals = step_start.elapsed();
 
         // Initial Fock matrix
@@ -165,6 +168,7 @@ impl<'a> ScfCalculation<'a> {
             convergence_threshold,
             energy: 0.0,
             mo_coefficients,
+            orbital_energies,
             density_matrix,
             fock_matrix,
             residual_norm: f64::INFINITY,
@@ -324,8 +328,9 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn solve_roothaan_hall_equation(&mut self) -> Result<(), NumericalError> {
-        let (mo_coefficients, _orbital_energies) = self.solve_roothaan_hall()?;
+        let (mo_coefficients, orbital_energies) = self.solve_roothaan_hall()?;
         self.mo_coefficients = mo_coefficients;
+        self.orbital_energies = orbital_energies;
         Ok(())
     }
 

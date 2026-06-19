@@ -153,6 +153,10 @@ fn humanized_runfile_error(
             "The HF output format must be one of the supported format names.".to_string(),
             "expected Normal or Nope".to_string(),
         ),
+        "mp2.frozen_orbitals" => (
+            "The MP2 frozen orbital count must be a non-negative integer.".to_string(),
+            "expected a count of frozen orbitals".to_string(),
+        ),
         "hf.guess" => (
             "The HF density guess must be configured as a table.".to_string(),
             "expected a density guess configuration".to_string(),
@@ -200,15 +204,19 @@ mod tests {
             [hf]
             max_iterations = 0
             convergence_threshold = 0.0
+
+            [mp2]
+            frozen_orbitals = "one"
             "#,
         );
 
         let err = result.unwrap_err();
         let rendered = format!("{err:?}");
-        assert!(rendered.contains("runfile contains 3 configuration error(s)"));
+        assert!(rendered.contains("runfile contains 4 configuration error(s)"));
         assert!(rendered.contains("The basis set must be written as a string."));
         assert!(rendered.contains("The HF iteration limit must be an integer greater than zero."));
         assert!(rendered.contains("The HF convergence threshold must be a positive finite number."));
+        assert!(rendered.contains("The MP2 frozen orbital count must be a non-negative integer."));
     }
 
     #[test]

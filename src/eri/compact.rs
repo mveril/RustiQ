@@ -10,11 +10,13 @@ use thiserror::Error;
 
 use super::index::EriIndex;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AtomicBitmap {
     words: Box<[AtomicUsize]>,
 }
 
+#[allow(dead_code)]
 impl AtomicBitmap {
     fn new(len: usize) -> Self {
         Self {
@@ -45,6 +47,7 @@ impl AtomicBitmap {
 struct StorageSlot(UnsafeCell<MaybeUninit<f64>>);
 
 impl StorageSlot {
+    #[allow(dead_code)]
     fn uninitialized() -> Self {
         Self(UnsafeCell::new(MaybeUninit::uninit()))
     }
@@ -57,6 +60,7 @@ impl StorageSlot {
         Self::initialized(0.0)
     }
 
+    #[allow(dead_code)]
     unsafe fn write(&self, value: f64) {
         // The bitmap guarantees that only one thread writes this slot.
         unsafe { (*self.0.get()).write(value) };
@@ -76,6 +80,7 @@ impl StorageSlot {
 // Concurrent access is limited to write-once initialization guarded by the bitmap.
 unsafe impl Sync for StorageSlot {}
 
+#[allow(dead_code)]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum CompactEriBuildError {
     #[error("quartet ({mu}, {nu}, {lambda}, {sigma}) contains an index outside size {size}")]
@@ -148,6 +153,7 @@ impl CompactEri {
     /// Builds a compact ERI tensor from quartets yielded in any order.
     ///
     /// The iterator must yield each unique compact quartet exactly once.
+    #[allow(dead_code)]
     pub(crate) fn from_par_iter<I>(par_iter: I, size: usize) -> Result<Self, CompactEriBuildError>
     where
         I: IntoParallelIterator<Item = (usize, usize, usize, usize, f64)>,

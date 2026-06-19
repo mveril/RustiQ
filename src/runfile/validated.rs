@@ -75,6 +75,22 @@ pub(crate) mod non_zero_usize {
     }
 }
 
+pub(crate) mod usize_as_integer {
+    use super::*;
+
+    pub(crate) fn from_toml<'de>(
+        ctx: &mut Context<'de>,
+        item: &Item<'de>,
+    ) -> Result<usize, Failed> {
+        usize::from_toml(ctx, item)
+    }
+
+    pub(crate) fn to_toml<'a>(value: &'a usize, arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
+        let _ = arena;
+        Ok(Item::from(*value as i128))
+    }
+}
+
 pub(crate) mod non_zero_u8 {
     use super::*;
 

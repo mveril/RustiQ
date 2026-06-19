@@ -1,0 +1,18 @@
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "../cholesterol.xyz"
+charge = 0
+multiplicity = 1
+molecule_unit = "Angstrom"
+
+[hf]
+max_iterations = 100
+convergence_threshold = 1e-8
+diis = true
+diis_size = 8
+format = "Nope"
+
+[hf.guess]
+type = "CoreHamiltonian"

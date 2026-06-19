@@ -118,6 +118,69 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
 }
 
 #[test]
+fn test_cli_h2_sample_runs_mp2_when_requested() {
+    let temp_root = temp_root("cli-sample-mp2");
+    prepare_basis_store(&temp_root);
+
+    let output = run_rustiq_with_data_home(
+        &["run", "samples/h2/sto-3g/mp2_calculation.toml"],
+        &temp_root,
+    );
+
+    assert_success(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("SCF converged after 2 iterations."));
+    assert!(stdout.contains("RHF MP2 correlation energy: -0.013138 Hartree"));
+    assert!(stdout.contains("RHF MP2 total energy (including nuclear repulsion):"));
+}
+
+#[test]
+fn test_cli_h2_mp2_fails_when_hf_does_not_converge() {
+    let temp_root = temp_root("cli-sample-mp2-unconverged");
+    prepare_basis_store(&temp_root);
+
+    let toml_path = temp_root.join("calculation.toml");
+    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join("h2")
+        .join("molecule.xyz")
+        .to_string_lossy()
+        .replace('\\', "/");
+    fs::write(
+        &toml_path,
+        format!(
+            r#"
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "{molecule_path}"
+
+[hf]
+method = "Rhf"
+max_iterations = 1
+
+[hf.guess]
+type = "CoreHamiltonian"
+
+[mp2]
+"#
+        ),
+    )
+    .unwrap();
+
+    let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
+
+    assert_failure(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stdout.contains("RHF MP2 correlation energy"));
+    assert!(stderr.contains("MP2 requires converged HF orbitals"));
+}
+
+#[test]
 fn test_cli_open_shell_uhf_sample_converges() {
     let temp_root = temp_root("cli-open-shell-uhf-sample");
     prepare_basis_store(&temp_root);
@@ -131,6 +194,72 @@ fn test_cli_open_shell_uhf_sample_converges() {
     assert!(stdout.contains("Resolved HF method: UHF"));
     assert!(stdout.contains("SCF converged after"));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -74.362669 Hartree"));
+}
+
+#[test]
+fn test_cli_oh_sample_runs_mp2_when_requested() {
+    let temp_root = temp_root("cli-open-shell-uhf-mp2-sample");
+    prepare_basis_store(&temp_root);
+
+    let output = run_rustiq_with_data_home(
+        &["run", "samples/oh/sto-3g/mp2_calculation.toml"],
+        &temp_root,
+    );
+
+    assert_success(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Resolved HF method: UHF"));
+    assert!(stdout.contains("UHF MP2 correlation energy: -0.015811 Hartree"));
+    assert!(
+        stdout.contains("UHF MP2 total energy (including nuclear repulsion): -74.378480 Hartree")
+    );
+}
+
+#[test]
+fn test_cli_uhf_mp2_fails_when_hf_does_not_converge() {
+    let temp_root = temp_root("cli-open-shell-uhf-mp2-unconverged");
+    prepare_basis_store(&temp_root);
+
+    let toml_path = temp_root.join("calculation.toml");
+    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join("oh")
+        .join("oh.xyz")
+        .to_string_lossy()
+        .replace('\\', "/");
+    fs::write(
+        &toml_path,
+        format!(
+            r#"
+[global]
+basis = "sto-3g"
+
+[global.molecule]
+geometry = "{molecule_path}"
+multiplicity = 2
+
+[hf]
+method = "Uhf"
+max_iterations = 1
+
+[hf.guess]
+type = "CoreHamiltonian"
+
+[mp2]
+"#
+        ),
+    )
+    .unwrap();
+
+    let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
+
+    assert_failure(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stdout.contains("UHF MP2 correlation energy"));
+    assert!(stderr.contains("MP2 requires converged HF orbitals"));
 }
 
 #[test]
@@ -178,10 +307,11 @@ fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
     assert_failure(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("runfile contains 3 configuration error(s)"));
+    assert!(stderr.contains("runfile contains 4 configuration error(s)"));
     assert!(stderr.contains("The basis set must be written as a string."));
     assert!(stderr.contains("The HF iteration limit must be an integer greater than zero."));
     assert!(stderr.contains("The HF convergence threshold must be a positive finite number."));
+    assert!(stderr.contains("The MP2 frozen orbital count must be a non-negative integer."));
 }
 
 #[test]

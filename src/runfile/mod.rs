@@ -1,6 +1,7 @@
 mod diagnostics;
 pub mod global;
 pub mod hf;
+pub mod mp2;
 use global::Global;
 pub(crate) mod parser;
 pub mod random_config;
@@ -12,6 +13,42 @@ use toml_spanner::Toml;
 pub(crate) struct RunFile {
     pub(crate) global: Global,
     pub(crate) hf: Option<hf::HfConfig>,
+    #[toml(default)]
+    pub(crate) mp2: Option<mp2::Mp2Config>,
+}
+
+#[cfg(test)]
+mod mp2_tests {
+    use super::*;
+
+    #[test]
+    fn test_runfile_defaults_mp2_to_none() {
+        let run: RunFile = toml_spanner::from_str(
+            r#"
+            [global]
+            basis = "sto-3g"
+            "#,
+        )
+        .unwrap();
+
+        assert!(run.mp2.is_none());
+    }
+
+    #[test]
+    fn test_runfile_deserializes_mp2_section() {
+        let run: RunFile = toml_spanner::from_str(
+            r#"
+            [global]
+            basis = "sto-3g"
+
+            [mp2]
+            frozen_orbitals = 1
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(run.mp2.unwrap().frozen_orbitals, 1);
+    }
 }
 
 #[cfg(test)]

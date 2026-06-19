@@ -69,6 +69,7 @@ pub(crate) struct UhfCalculation<'a> {
     pub convergence_threshold: f64,
     pub energy: f64,
     pub mo_coefficients: SpinMatrices,
+    pub orbital_energies: Spin<DVector<f64>>,
     pub density: SpinMatrices,
     pub fock: SpinMatrices,
     pub residual_norm: f64,
@@ -158,8 +159,9 @@ impl<'a> UhfCalculation<'a> {
 
         progress("Building initial molecular orbitals");
         let step_start = Instant::now();
-        let (mo_coefficients, _) = Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)
-            .map_err(ScfSetupError::Numerical)?;
+        let (mo_coefficients, orbital_energies) =
+            Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)
+                .map_err(ScfSetupError::Numerical)?;
         setup_timings.initial_orbitals = step_start.elapsed();
 
         let fock = SpinMatrices {
@@ -175,6 +177,7 @@ impl<'a> UhfCalculation<'a> {
             convergence_threshold,
             energy: 0.0,
             mo_coefficients: SpinMatrices::duplicate(mo_coefficients),
+            orbital_energies: Spin::duplicate(orbital_energies),
             density,
             fock,
             residual_norm: f64::INFINITY,
@@ -331,10 +334,12 @@ impl<'a> UhfCalculation<'a> {
     }
 
     fn solve_roothaan_hall_equations(&mut self) -> Result<(), NumericalError> {
-        self.mo_coefficients = SpinMatrices::new(
-            self.solve_roothaan_hall(&self.fock.alpha)?.0,
-            self.solve_roothaan_hall(&self.fock.beta)?.0,
-        );
+        let (alpha_mo_coefficients, alpha_orbital_energies) =
+            self.solve_roothaan_hall(&self.fock.alpha)?;
+        let (beta_mo_coefficients, beta_orbital_energies) =
+            self.solve_roothaan_hall(&self.fock.beta)?;
+        self.mo_coefficients = SpinMatrices::new(alpha_mo_coefficients, beta_mo_coefficients);
+        self.orbital_energies = Spin::new(alpha_orbital_energies, beta_orbital_energies);
         Ok(())
     }
 

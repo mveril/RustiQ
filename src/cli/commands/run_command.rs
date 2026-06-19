@@ -12,10 +12,11 @@ use crate::{
     basis::{basis_store::BasisStore, basisfile::BasisFile, gaussian::basis::Basis},
     cli::{
         self,
-        ux::{bat, scf_report::ScfReporter},
+        ux::{bat, mp2_report::Mp2Reporter, scf_report::ScfReporter},
     },
-    hf,
+    hf::{self, scf_result::ScfResult},
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
+    mp2 as mp2_calc,
     runfile::{
         hf::{HfOutputFormat, ResolvedHfMethod},
         parser::parse_runfile,
@@ -64,6 +65,17 @@ fn validate_molecule_config(molecule: &Molecule) -> Result<(), MoleculeConfigErr
     }
 
     Ok(())
+}
+
+fn ensure_hf_converged_for_mp2(result: &ScfResult) -> miette::Result<()> {
+    if result.converged {
+        Ok(())
+    } else {
+        Err(miette::miette!(
+            "MP2 requires converged HF orbitals, but HF did not converge after {} iterations",
+            result.iterations
+        ))
+    }
 }
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
@@ -138,7 +150,7 @@ impl Runnable for RunCommand {
                     if hf.diis {
                         scf.enable_diis(hf.diis_size);
                     }
-                    match hf.format {
+                    let result = match hf.format {
                         HfOutputFormat::Normal => {
                             let stdout = io::stdout();
                             let mut reporter = ScfReporter::new(stdout.lock());
@@ -147,10 +159,20 @@ impl Runnable for RunCommand {
                                 return Err(miette::miette!("failed to write SCF report: {err}"));
                             }
                             reporter.write_summary(&result).into_diagnostic()?;
+                            result
                         }
-                        HfOutputFormat::Nope => {
-                            scf.run().into_diagnostic()?;
-                        }
+                        HfOutputFormat::Nope => scf.run().into_diagnostic()?,
+                    };
+
+                    if let Some(mp2) = run.mp2.as_ref() {
+                        ensure_hf_converged_for_mp2(&result)?;
+                        let mp2_result = mp2_calc::rhf_closed_shell(&scf, mp2.frozen_orbitals)
+                            .into_diagnostic()?;
+                        let stdout = io::stdout();
+                        let mut reporter = Mp2Reporter::new(stdout.lock(), "RHF MP2");
+                        reporter
+                            .write_summary(&mp2_result, &result)
+                            .into_diagnostic()?;
                     }
                 }
                 ResolvedHfMethod::Uhf => {
@@ -167,7 +189,7 @@ impl Runnable for RunCommand {
                         scf.enable_diis(hf.diis_size.into_inner())
                             .into_diagnostic()?;
                     }
-                    match hf.format {
+                    let result = match hf.format {
                         HfOutputFormat::Normal => {
                             let stdout = io::stdout();
                             let mut reporter = ScfReporter::new(stdout.lock());
@@ -176,13 +198,25 @@ impl Runnable for RunCommand {
                                 return Err(miette::miette!("failed to write SCF report: {err}"));
                             }
                             reporter.write_summary(&result).into_diagnostic()?;
+                            result
                         }
-                        HfOutputFormat::Nope => {
-                            scf.run().into_diagnostic()?;
-                        }
+                        HfOutputFormat::Nope => scf.run().into_diagnostic()?,
+                    };
+
+                    if let Some(mp2) = run.mp2.as_ref() {
+                        ensure_hf_converged_for_mp2(&result)?;
+                        let mp2_result = mp2_calc::uhf_unrestricted(&scf, mp2.frozen_orbitals)
+                            .into_diagnostic()?;
+                        let stdout = io::stdout();
+                        let mut reporter = Mp2Reporter::new(stdout.lock(), "UHF MP2");
+                        reporter
+                            .write_summary(&mp2_result, &result)
+                            .into_diagnostic()?;
                     }
                 }
             }
+        } else if run.mp2.is_some() {
+            return Err(miette::miette!("MP2 requires an [hf] section"));
         }
         Ok(())
     }
