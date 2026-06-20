@@ -1,7 +1,9 @@
 use clap::Args;
-use std::{ops::Deref, str::FromStr};
+use std::{num::ParseFloatError, ops::Deref, str::FromStr};
 
 use nalgebra::{Rotation3, Unit, Vector3};
+use thiserror::Error;
+
 #[derive(Args, Debug, Clone, Copy)]
 pub struct RotationArgs {
     /// Rotation angle in degrees.
@@ -49,7 +51,7 @@ impl From<Unit<Vector3<f64>>> for RotationAxis {
 }
 
 impl FromStr for RotationAxis {
-    type Err = anyhow::Error;
+    type Err = RotationAxisParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let axis = match s.to_lowercase().as_str() {
             "x" => Vector3::x_axis(),
@@ -58,17 +60,43 @@ impl FromStr for RotationAxis {
             _ => {
                 let coords: Vec<f64> = s
                     .split(',')
-                    .map(|part| part.trim().parse())
+                    .map(|part| {
+                        part.trim().parse().map_err(|source| {
+                            RotationAxisParseError::InvalidCoordinate {
+                                input: s.to_owned(),
+                                source,
+                            }
+                        })
+                    })
                     .collect::<Result<_, _>>()?;
                 if coords.len() != 3 {
-                    anyhow::bail!("Invalid rotation axis: {}", s);
+                    return Err(RotationAxisParseError::InvalidCoordinateCount {
+                        input: s.to_owned(),
+                    });
                 }
-                Unit::try_new(Vector3::from_row_slice(&coords), f64::EPSILON)
-                    .ok_or_else(|| anyhow::anyhow!("Invalid zero rotation axis: {}", s))?
+                Unit::try_new(Vector3::from_row_slice(&coords), f64::EPSILON).ok_or_else(|| {
+                    RotationAxisParseError::ZeroVector {
+                        input: s.to_owned(),
+                    }
+                })?
             }
         };
         Ok(axis.into())
     }
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum RotationAxisParseError {
+    #[error("invalid rotation axis '{input}': expected x, y, z, or three comma-separated numbers")]
+    InvalidCoordinateCount { input: String },
+    #[error("invalid rotation axis coordinate in '{input}'")]
+    InvalidCoordinate {
+        input: String,
+        #[source]
+        source: ParseFloatError,
+    },
+    #[error("invalid zero rotation axis: {input}")]
+    ZeroVector { input: String },
 }
 
 #[cfg(test)]
@@ -95,11 +123,40 @@ mod tests {
     #[rstest]
     #[case("1,2")]
     #[case("1,2,3,4")]
+    fn test_rotation_axis_rejects_invalid_coordinate_count(#[case] input: &str) {
+        let result = RotationAxis::from_str(input);
+        assert_eq!(
+            result,
+            Err(RotationAxisParseError::InvalidCoordinateCount {
+                input: input.to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn test_rotation_axis_rejects_zero_axis() {
+        let input = "0,0,0";
+        let result = RotationAxis::from_str(input);
+        assert_eq!(
+            result,
+            Err(RotationAxisParseError::ZeroVector {
+                input: input.to_owned()
+            })
+        );
+    }
+
+    #[rstest]
     #[case("1,a,0")]
     #[case("1,a,0,0")]
-    #[case("0,0,0")]
-    fn test_rotation_axis_rejects_invalid_input(#[case] input: &str) {
-        assert!(RotationAxis::from_str(input).is_err());
+    fn test_rotation_axis_rejects_invalid_coordinates(#[case] input: &str) {
+        let result = RotationAxis::from_str(input);
+        assert_eq!(
+            result,
+            Err(RotationAxisParseError::InvalidCoordinate {
+                input: input.to_owned(),
+                source: "a".parse::<f64>().unwrap_err(),
+            })
+        );
     }
 
     proptest! {

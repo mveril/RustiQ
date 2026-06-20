@@ -97,7 +97,7 @@ The interesting argument for Rust is different:
 
 - Rust makes ownership and mutation explicit, which helps when large tensors,
   matrices, caches, and temporary workspaces start interacting.
-- Typed errors with `thiserror`, `anyhow`, and `miette` make failure modes part
+- Typed errors with `thiserror` and `miette` make failure modes part
   of the design instead of an afterthought.
 - Cargo makes dependency management, testing, feature flags, formatting, and
   reproducible builds standard rather than project-specific infrastructure.
