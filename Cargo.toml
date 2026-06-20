@@ -23,14 +23,14 @@ reqwest = { version = "0.13", default-features = false, optional = true, feature
 clap = { version = "4.6", features = ["cargo", "derive"] }
 dirs = "6"
 indicatif = { version = "0.18", optional = true }
-nalgebra = { version = "0.34", features = ["rayon"] }
+nalgebra = { version = "0.35", features = ["rayon"] }
 physical_constants = "0.5"
 periodic_table = "0.5"
 rayon = "1"
 tokio = { version = "1", features = ["fs", "io-util", "rt"], optional = true }
 serde_json = "1.0.*"
 serde = { version = "1", features = ["derive"] }
-cached = "1"
+cached = "2"
 delegate = "0.13"
 ndarray = "0.17"
 arrayvec = "0.7.*"
@@ -38,15 +38,18 @@ bounded-vec-deque = "0.1.1"
 thiserror = "2"
 rand = "0.10"
 rand_distr = "0.6"
-special = { version = "0.11.2", default-features = false, features = ["std"] }
+special = { version = "0.13", default-features = false, features = ["std"] }
 factorial = "0.4.0"
 approx = "0.5.1"
-tabled = "0.20"
+tabled = "0.21"
 humantime = "2"
 which = "8"
-figlet-rs = "0.1"
-bat = { version = "0.26", default-features = false, features = ["paging", "regex-onig"] }
-nutype = { version = "0.6", features = ["serde"] }
+figlet-rs = "1"
+bat = { version = "0.26", default-features = false, features = [
+  "paging",
+  "regex-onig",
+] }
+nutype = { version = "0.7", features = ["serde"] }
 
 [dev-dependencies]
 rstest = "0.26"

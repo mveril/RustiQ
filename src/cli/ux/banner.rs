@@ -1,4 +1,4 @@
-use figlet_rs::FIGfont;
+use figlet_rs::FIGlet;
 use rand::RngExt;
 
 const BANNER_STYLE_COUNT: u8 = 4;
@@ -20,7 +20,7 @@ pub(crate) fn print_startup_banner() {
 }
 
 fn render_package_name(package_name: &str) -> String {
-    match FIGfont::standard() {
+    match FIGlet::standard() {
         Ok(font) => font
             .convert(package_name)
             .map(|figure| figure.to_string())
