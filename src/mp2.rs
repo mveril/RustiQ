@@ -688,7 +688,7 @@ mod tests {
         assert!(result.converged);
         assert_abs_diff_eq!(
             result.electronic_energy,
-            -78.727_017_326_066_203,
+            -78.727_017_326_066_2,
             epsilon = 5e-7
         );
 

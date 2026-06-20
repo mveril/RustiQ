@@ -2,6 +2,10 @@
 
 RustiQ is a Rust prototype for quantum chemistry software.
 
+[![CI](https://github.com/mveril/RustiQ/actions/workflows/ci.yml/badge.svg)](https://github.com/mveril/RustiQ/actions/workflows/ci.yml)
+
+License: MIT OR Apache-2.0.
+
 The point of this repository is not to claim that a young Rust code can already
 replace Gaussian, Molpro, PySCF, Psi4, ORCA, or Quantum Package. The point is to
 show what a modern electronic-structure codebase can look like when it is built
@@ -54,6 +58,9 @@ Implemented today:
 This is not yet production scientific software. The numerical results must be
 treated as experimental and cross-checked against established programs before
 being used for chemical interpretation.
+
+Do not use RustiQ results for research conclusions without independent
+validation against established quantum chemistry packages.
 
 ## What Matters In The Codebase
 
@@ -316,3 +323,9 @@ cargo test
 Most unit tests are colocated with implementation modules in `src/`. Shared
 fixtures live in `tests/data/`, and sample calculation inputs live in
 `samples/`.
+
+See also:
+
+- `CONTRIBUTING.md` for contribution guidelines.
+- `ROADMAP.md` for project priorities and research-grade requirements.
+- `CITATION.cff` for citation metadata.
