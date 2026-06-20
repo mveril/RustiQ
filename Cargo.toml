@@ -10,6 +10,7 @@ edition = "2021"
 [features]
 default = ["online"]
 online = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
+bench-support = []
 
 [dependencies]
 anyhow = "1"
@@ -51,6 +52,11 @@ nutype = { version = "0.6", features = ["serde"] }
 [dev-dependencies]
 rstest = "0.26"
 proptest = "1"
+
+[[bench]]
+name = "eri_timings"
+harness = false
+required-features = ["bench-support"]
 
 [build-dependencies]
 bat = { version = "0.26", default-features = false, features = [

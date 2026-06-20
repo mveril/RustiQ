@@ -108,6 +108,16 @@ pub struct CompactEri {
 }
 
 impl CompactEri {
+    #[allow(dead_code)]
+    pub fn len(&self) -> usize {
+        self.storage.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.storage.is_empty()
+    }
+
     pub(crate) fn storage_len(size: usize) -> usize {
         if size == 0 {
             0
