@@ -207,6 +207,20 @@ architecture experiment, not as a production research code.
 
 ## Quick Start
 
+### Installation From The Repository
+
+To install RustiQ directly from the source repository with Cargo, clone the
+project and run:
+
+```sh
+git clone https://github.com/mveril/RustiQ.git
+cd RustiQ
+cargo install --path .
+```
+
+This installs the `rustiq` binary into Cargo's local binary directory. If you
+want a development build instead, use `cargo run` from the repository root.
+
 Build the project:
 
 ```sh
