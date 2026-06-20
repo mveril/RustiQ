@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: Veril
     given-names: Mickael
-version: 0.1.0
+version: 0.1.0-alpha.1
 license: MIT OR Apache-2.0
 repository-code: https://github.com/mveril/RustiQ
 abstract: A Rust prototype for modern quantum chemistry software.
