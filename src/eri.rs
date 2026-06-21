@@ -121,22 +121,18 @@ pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
     let storage_len = CompactEri::storage_len(n);
 
-    CompactEri::from_indexed_par_iter(
+    CompactEri::from_ordered_values_par_iter(
         n,
-        (0..storage_len).into_par_iter().map(|compact_index| {
-            let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-            let (mu, nu) = basis_function_pair(pair_pq);
-            let (lambda, sigma) = basis_function_pair(pair_rs);
+        (0..storage_len).into_par_iter().map(|index| {
+            let (pair_pq, pair_rs) = unique_pair_indices(index);
             let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
-            let value = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
+            if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
                 0.0
             } else if pair_pq == pair_rs {
                 schwarz_bound
             } else {
                 compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs])
-            };
-
-            (mu, nu, lambda, sigma, value)
+            }
         }),
     )
 }
