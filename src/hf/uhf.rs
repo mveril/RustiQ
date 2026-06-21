@@ -427,45 +427,17 @@ impl<'a> UhfCalculation<'a> {
 
     fn calculate_energy_details(&self) -> ScfEnergyDetails {
         let total_density = &self.density.alpha + &self.density.beta;
-        let ((kinetic_energy, nuclear_attraction_energy), electron_repulsion_energy) = rayon::join(
-            || {
-                rayon::join(
-                    || total_density.dot(&self.t_matrix),
-                    || total_density.dot(&self.v_matrix),
-                )
-            },
-            || self.calculate_electron_repulsion_energy(),
+        let (kinetic_energy, nuclear_attraction_energy) = rayon::join(
+            || total_density.dot(&self.t_matrix),
+            || total_density.dot(&self.v_matrix),
         );
+        let electron_repulsion_energy = self.energy - kinetic_energy - nuclear_attraction_energy;
+
         ScfEnergyDetails {
             kinetic_energy,
             nuclear_attraction_energy,
             electron_repulsion_energy,
         }
-    }
-
-    fn calculate_electron_repulsion_energy(&self) -> f64 {
-        let total_density = &self.density.alpha + &self.density.beta;
-        let nbasis = self.basis.nbasis();
-        let e_re: f64 = (0..nbasis.pow(4))
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nbasis;
-                let nu = (index / nbasis) % nbasis;
-                let lambda = (index / nbasis.pow(2)) % nbasis;
-                let sigma = index / nbasis.pow(3);
-                let coulomb_term = self.two_electron_integrals[(mu, nu, lambda, sigma)];
-                let exchange_term = self.two_electron_integrals[(mu, sigma, lambda, nu)];
-
-                total_density[(mu, nu)] * total_density[(lambda, sigma)] * coulomb_term
-                    - self.density.alpha[(mu, nu)]
-                        * self.density.alpha[(lambda, sigma)]
-                        * exchange_term
-                    - self.density.beta[(mu, nu)]
-                        * self.density.beta[(lambda, sigma)]
-                        * exchange_term
-            })
-            .sum();
-        0.5 * e_re
     }
 }
 
