@@ -2,6 +2,8 @@
 #![allow(non_snake_case)]
 
 use std::f64::consts::PI;
+#[cfg(feature = "bench-support")]
+use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
 mod index;
@@ -119,10 +121,73 @@ pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let n = basis.nbasis();
     let pair_expansions = build_pair_expansions(basis);
     let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
-    let storage_len = CompactEri::storage_len(n);
+    build_compact_eri(n, &pair_expansions, &pair_bounds)
+}
 
+#[cfg(feature = "bench-support")]
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct EriTimingBreakdown {
+    pub basis_functions: usize,
+    pub pair_count: usize,
+    pub compact_integrals: usize,
+    pub pair_expansions: Duration,
+    pub schwarz_bounds: Duration,
+    pub compact_fill: Duration,
+    pub total: Duration,
+}
+
+#[cfg(feature = "bench-support")]
+#[allow(dead_code)]
+pub fn electron_repulsion_ints_timed(basis: &Basis) -> (CompactEri, EriTimingBreakdown) {
+    electron_repulsion_ints_timed_with_observer(basis, |_, _| {})
+}
+
+#[cfg(feature = "bench-support")]
+pub fn electron_repulsion_ints_timed_with_observer(
+    basis: &Basis,
+    mut observer: impl FnMut(&'static str, Duration),
+) -> (CompactEri, EriTimingBreakdown) {
+    let total_start = Instant::now();
+    let n = basis.nbasis();
+
+    let pair_expansions_start = Instant::now();
+    let pair_expansions = build_pair_expansions(basis);
+    let pair_expansions_elapsed = pair_expansions_start.elapsed();
+    observer("pair expansions", pair_expansions_elapsed);
+
+    let schwarz_bounds_start = Instant::now();
+    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
+    let schwarz_bounds_elapsed = schwarz_bounds_start.elapsed();
+    observer("schwarz bounds", schwarz_bounds_elapsed);
+
+    let compact_fill_start = Instant::now();
+    let integrals = build_compact_eri(n, &pair_expansions, &pair_bounds);
+    let compact_fill_elapsed = compact_fill_start.elapsed();
+    observer("compact fill", compact_fill_elapsed);
+    let total_elapsed = total_start.elapsed();
+
+    let breakdown = EriTimingBreakdown {
+        basis_functions: n,
+        pair_count: pair_expansions.len(),
+        compact_integrals: integrals.len(),
+        pair_expansions: pair_expansions_elapsed,
+        schwarz_bounds: schwarz_bounds_elapsed,
+        compact_fill: compact_fill_elapsed,
+        total: total_elapsed,
+    };
+
+    (integrals, breakdown)
+}
+
+fn build_compact_eri(
+    basis_function_count: usize,
+    pair_expansions: &[PairExpansion],
+    pair_bounds: &[f64],
+) -> CompactEri {
+    let storage_len = CompactEri::storage_len(basis_function_count);
     CompactEri::from_ordered_values_par_iter(
-        n,
+        basis_function_count,
         (0..storage_len).into_par_iter().map(|index| {
             let (pair_pq, pair_rs) = unique_pair_indices(index);
             let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];

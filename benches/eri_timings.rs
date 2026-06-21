@@ -1,4 +1,5 @@
 use std::env;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use RustiQ::bench_support::EriBenchInput;
@@ -51,13 +52,22 @@ fn main() {
     for case in cases {
         let input =
             EriBenchInput::load_sto3g(case.name, manifest_dir.join(case.geometry), &basis_path);
-        let result = input.run_once();
-        println!("case: {}", result.name);
+        println!("case: {}", case.name);
+        flush_stdout();
+        let result = input.run_once_with_observer(|stage, elapsed| {
+            println!("  {stage}: {:.3}s", elapsed.as_secs_f64());
+            flush_stdout();
+        });
         println!("  basis functions: {}", result.basis_functions);
+        println!("  basis pairs: {}", result.pair_count);
         println!("  compact integrals: {}", result.compact_integrals);
         println!("  eri wall: {:.3}s", result.elapsed.as_secs_f64());
         println!();
     }
+}
+
+fn flush_stdout() {
+    io::stdout().flush().expect("failed to flush stdout");
 }
 
 fn selected_cases() -> Vec<&'static BenchCase> {
