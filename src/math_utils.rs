@@ -4,6 +4,21 @@ use nalgebra::DMatrix;
 pub mod boys;
 pub use boys::boys_function;
 
+pub(crate) mod F64Const {
+    pub const SQRT_PI: f64 = 1.772_453_850_905_519;
+    #[cfg(test)]
+    mod tests {
+        use approx::assert_abs_diff_eq;
+        use super::SQRT_PI;
+        use std::f64::consts::PI;
+
+        #[test]
+        fn test_sqrt_pi() {
+            assert_abs_diff_eq!(SQRT_PI, PI.sqrt(), epsilon = 1e-14);
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub fn binomial(n: u64, k: u64) -> u64 {
     if k > n {
@@ -70,7 +85,7 @@ macro_rules! debug_assert_is_symmetric {
 #[macro_export]
 #[cfg(not(debug_assertions))]
 macro_rules! debug_assert_is_symmetric {
-    ($matrix:expr, $tol:expr) => {};
+    ($matrix:expr, $tol:expr) => {{}};
 }
 
 #[cfg(test)]
@@ -124,13 +139,16 @@ mod tests {
 
     #[test]
     fn test_is_symmetric() {
-        let mat = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 2.0, 1.0]);
-        crate::debug_assert_is_symmetric!(&mat, 1e-12); // Should not fail
+        #[cfg(debug_assertions)]
+        {
+            let mat = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 2.0, 1.0]);
+            crate::debug_assert_is_symmetric!(&mat, 1e-12); // Should not fail
 
-        let mat_non_sym = DMatrix::from_row_slice(2, 2, &[1.0, 3.0, 2.0, 1.0]); // Corrected to make it non-symmetric
-        let result =
-            std::panic::catch_unwind(|| crate::debug_assert_is_symmetric!(&mat_non_sym, 1e-12));
-        assert!(result.is_err(), "The matrix should not be symmetric");
+            let mat_non_sym = DMatrix::from_row_slice(2, 2, &[1.0, 3.0, 2.0, 1.0]); // Corrected to make it non-symmetric
+            let result =
+                std::panic::catch_unwind(|| crate::debug_assert_is_symmetric!(&mat_non_sym, 1e-12));
+            assert!(result.is_err(), "The matrix should not be symmetric");
+        }
     }
 
     #[test]

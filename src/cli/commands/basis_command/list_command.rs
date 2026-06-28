@@ -1,12 +1,10 @@
-use std::fs::File;
-
 use bat::PrettyPrinter;
 use miette::IntoDiagnostic;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
 use crate::{
-    basis::{basis_store::BasisStore, basisfile::BasisFile},
+    basis::BasisStore,
     cli::{
         commands::{CommandResult, Runnable},
         ux::BasisTableItem,
@@ -63,10 +61,21 @@ impl Runnable for ListCommand {
                 .par_bridge()
                 .map(|item| {
                     let item = item?;
-                    let file_content =
-                        serde_json::from_reader::<_, BasisFile>(File::open(item.path())?)
-                            .map_err(std::io::Error::other)?;
-                    Ok(BasisTableItem::from(file_content))
+                    let path = item.path();
+                    let name = path
+                        .file_stem()
+                        .and_then(|name| name.to_str())
+                        .ok_or_else(|| std::io::Error::other("invalid basis file name"))?;
+                    let basis_file = store
+                        .get(name)
+                        .map_err(std::io::Error::other)?
+                        .ok_or_else(|| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::NotFound,
+                                format!("basis file '{name}' disappeared during listing"),
+                            )
+                        })?;
+                    Ok(BasisTableItem::from(basis_file))
                 })
                 .collect();
             pagin_print(&Table::new(v.into_diagnostic()?).to_string())

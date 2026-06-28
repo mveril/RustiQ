@@ -12,6 +12,7 @@ repository = "https://github.com/mveril/RustiQ"
 [features]
 default = ["online"]
 online = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
+bench-support = []
 
 [dependencies]
 miette = { version = "7", features = ["fancy"] }
@@ -53,14 +54,24 @@ bat = { version = "0.26", default-features = false, features = [
 nutype = { version = "0.7", features = ["serde"] }
 cfg-if = "1"
 const_format = "0.2"
+smallvec = "1"
 
 [dev-dependencies]
 rstest = "0.26"
 proptest = "1"
 temp-env = "0.3"
 
+[[bench]]
+name = "eri_timings"
+harness = false
+required-features = ["bench-support"]
+
 [build-dependencies]
 bat = { version = "0.26", default-features = false, features = [
   "build-assets",
   "regex-onig",
 ] }
+
+[profile.profiling]
+inherits = "release"
+debug = true

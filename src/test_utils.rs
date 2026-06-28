@@ -1,14 +1,16 @@
 use std::fs::File;
 
 use crate::{
-    basis::{basisfile::BasisFile, gaussian::basis::Basis},
+    basis::{gaussian::basis::Basis, BasisFile, BasisStore},
     hf::{density_guess::one_electron::OneElectron, scf::ScfCalculation},
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
 };
 
 pub(crate) fn load_minimal_basis_file() -> BasisFile {
-    let file = File::open("tests/data/sto-3g.json").unwrap();
-    serde_json::from_reader(file).unwrap()
+    BasisStore::repository_fixtures()
+        .get("sto-3g")
+        .unwrap()
+        .unwrap()
 }
 
 pub(crate) fn load_sample_geometry(path: &str) -> Geometry {

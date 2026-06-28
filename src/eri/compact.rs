@@ -108,6 +108,16 @@ pub struct CompactEri {
 }
 
 impl CompactEri {
+    #[allow(dead_code)]
+    pub fn len(&self) -> usize {
+        self.storage.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.storage.is_empty()
+    }
+
     pub(crate) fn storage_len(size: usize) -> usize {
         if size == 0 {
             0
@@ -126,6 +136,7 @@ impl CompactEri {
     }
 
     /// Builds a compact ERI tensor from quartets yielded in compact storage order.
+    #[allow(dead_code)]
     pub(crate) fn from_indexed_par_iter<I>(size: usize, par_iter: I) -> Self
     where
         I: IndexedParallelIterator<Item = (usize, usize, usize, usize, f64)>,
@@ -146,6 +157,27 @@ impl CompactEri {
                 // The zipped indexed iterator gives exclusive access to each slot.
                 unsafe { *slot.get_mut() = value };
             });
+
+        Self { storage }
+    }
+
+    /// Builds a compact ERI tensor from values yielded in compact storage order.
+    pub(crate) fn from_ordered_values_par_iter<I>(size: usize, par_iter: I) -> Self
+    where
+        I: IndexedParallelIterator<Item = f64>,
+    {
+        let storage_len = Self::storage_len(size);
+        let storage = (0..storage_len)
+            .into_par_iter()
+            .map(|_| StorageSlot::uninitialized())
+            .collect::<Box<[_]>>();
+
+        par_iter.enumerate().for_each(|(index, value)| {
+            // The indexed iterator yields each compact slot exactly once.
+            unsafe {
+                storage[index].write(value);
+            }
+        });
 
         Self { storage }
     }
@@ -414,6 +446,27 @@ mod tests {
         assert_eq!(eri[(1, 0, 0, 0)], 1.25);
         assert_eq!(eri[(1, 0, 1, 0)], 2.25);
         assert_eq!(eri[(1, 1, 1, 1)], 5.25);
+    }
+
+    #[test]
+    fn test_compact_eri_from_ordered_values_par_iter_uses_compact_order() {
+        let basis_functions = 5;
+        let storage_len = CompactEri::storage_len(basis_functions);
+
+        let eri = CompactEri::from_ordered_values_par_iter(
+            basis_functions,
+            (0..storage_len)
+                .into_par_iter()
+                .map(|compact_index| compact_index as f64 + 0.25),
+        );
+
+        assert_eq!(eri[(0, 0, 0, 0)], 0.25);
+        assert_eq!(eri[(1, 0, 0, 0)], 1.25);
+        assert_eq!(eri[(1, 0, 1, 0)], 2.25);
+        assert_eq!(
+            eri[(4, 4, 4, 4)],
+            CompactEri::storage_len(basis_functions) as f64 - 0.75
+        );
     }
 
     #[test]

@@ -2,14 +2,42 @@
 #![allow(non_snake_case)]
 
 use std::f64::consts::PI;
+#[cfg(feature = "bench-support")]
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+#[cfg(feature = "bench-support")]
+use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
 mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
+use crate::math_utils::boys::CachedBoysFunction;
 use nalgebra::{Point3, Vector3};
 use rayon::prelude::*;
+use smallvec::SmallVec;
 
 const ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
+const COULOMB_CACHE_SMALLVEC_CAPACITY: usize = 128;
+
+#[cfg(feature = "bench-support")]
+const CACHE_SIZE_BUCKET_LIMITS: [usize; 8] = [16, 32, 64, 128, 256, 512, 1024, usize::MAX];
+
+#[cfg(feature = "bench-support")]
+static COULOMB_CACHE_SIZE_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "bench-support")]
+static COULOMB_CACHE_SIZE_SUM: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "bench-support")]
+static COULOMB_CACHE_SIZE_MAX: AtomicUsize = AtomicUsize::new(0);
+#[cfg(feature = "bench-support")]
+static COULOMB_CACHE_SIZE_BUCKETS: [AtomicU64; 8] = [
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+];
 
 /// Computes the 1D overlap integral for two primitive Gaussian functions.
 ///
@@ -119,24 +147,116 @@ pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
     let n = basis.nbasis();
     let pair_expansions = build_pair_expansions(basis);
     let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
-    let storage_len = CompactEri::storage_len(n);
+    build_compact_eri(n, &pair_expansions, &pair_bounds)
+}
 
-    CompactEri::from_indexed_par_iter(
-        n,
-        (0..storage_len).into_par_iter().map(|compact_index| {
-            let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-            let (mu, nu) = basis_function_pair(pair_pq);
-            let (lambda, sigma) = basis_function_pair(pair_rs);
+#[cfg(feature = "bench-support")]
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct EriTimingBreakdown {
+    pub basis_functions: usize,
+    pub pair_count: usize,
+    pub compact_integrals: usize,
+    pub pair_expansions: Duration,
+    pub schwarz_bounds: Duration,
+    pub compact_fill: Duration,
+    pub total: Duration,
+    pub coulomb_cache_sizes: CacheSizeStats,
+}
+
+#[cfg(feature = "bench-support")]
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct CacheSizeStats {
+    pub count: u64,
+    pub total_len: u64,
+    pub max_len: usize,
+    pub buckets: [(usize, u64); 8],
+}
+
+#[cfg(feature = "bench-support")]
+#[allow(dead_code)]
+impl CacheSizeStats {
+    pub fn mean_len(&self) -> f64 {
+        if self.count == 0 {
+            0.0
+        } else {
+            self.total_len as f64 / self.count as f64
+        }
+    }
+
+    pub fn count_at_most(&self, max_len: usize) -> u64 {
+        self.buckets
+            .iter()
+            .filter(|(limit, _)| *limit <= max_len)
+            .map(|(_, count)| *count)
+            .sum()
+    }
+}
+
+#[cfg(feature = "bench-support")]
+#[allow(dead_code)]
+pub fn electron_repulsion_ints_timed(basis: &Basis) -> (CompactEri, EriTimingBreakdown) {
+    electron_repulsion_ints_timed_with_observer(basis, |_, _| {})
+}
+
+#[cfg(feature = "bench-support")]
+pub fn electron_repulsion_ints_timed_with_observer(
+    basis: &Basis,
+    mut observer: impl FnMut(&'static str, Duration),
+) -> (CompactEri, EriTimingBreakdown) {
+    reset_coulomb_cache_size_stats();
+    let total_start = Instant::now();
+    let n = basis.nbasis();
+
+    let pair_expansions_start = Instant::now();
+    let pair_expansions = build_pair_expansions(basis);
+    let pair_expansions_elapsed = pair_expansions_start.elapsed();
+    observer("pair expansions", pair_expansions_elapsed);
+
+    let schwarz_bounds_start = Instant::now();
+    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
+    let schwarz_bounds_elapsed = schwarz_bounds_start.elapsed();
+    observer("schwarz bounds", schwarz_bounds_elapsed);
+
+    let compact_fill_start = Instant::now();
+    let integrals = build_compact_eri(n, &pair_expansions, &pair_bounds);
+    let compact_fill_elapsed = compact_fill_start.elapsed();
+    observer("compact fill", compact_fill_elapsed);
+    let total_elapsed = total_start.elapsed();
+
+    let breakdown = EriTimingBreakdown {
+        basis_functions: n,
+        pair_count: pair_expansions.len(),
+        compact_integrals: integrals.len(),
+        pair_expansions: pair_expansions_elapsed,
+        schwarz_bounds: schwarz_bounds_elapsed,
+        compact_fill: compact_fill_elapsed,
+        total: total_elapsed,
+        coulomb_cache_sizes: coulomb_cache_size_stats(),
+    };
+
+    (integrals, breakdown)
+}
+
+fn build_compact_eri(
+    basis_function_count: usize,
+    pair_expansions: &[PairExpansion],
+    pair_bounds: &[f64],
+) -> CompactEri {
+    let storage_len = CompactEri::storage_len(basis_function_count);
+    CompactEri::from_ordered_values_par_iter(
+        basis_function_count,
+        (0..storage_len).into_par_iter().map(|index| {
+            let (pair_pq, pair_rs) = unique_pair_indices(index);
             let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
-            let value = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
+            if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
                 0.0
             } else if pair_pq == pair_rs {
                 schwarz_bound
             } else {
                 compute_eri_pair(&pair_expansions[pair_pq], &pair_expansions[pair_rs])
-            };
-
-            (mu, nu, lambda, sigma, value)
+            }
         }),
     )
 }
@@ -268,6 +388,47 @@ fn compute_eri_pair_primitive(primitive_ab: &PairPrimitive, primitive_cd: &PairP
     2.0 * PI.powf(2.5) / (p * q * (p + q).sqrt()) * eri
 }
 
+#[cfg(feature = "bench-support")]
+fn reset_coulomb_cache_size_stats() {
+    COULOMB_CACHE_SIZE_COUNT.store(0, Ordering::Relaxed);
+    COULOMB_CACHE_SIZE_SUM.store(0, Ordering::Relaxed);
+    COULOMB_CACHE_SIZE_MAX.store(0, Ordering::Relaxed);
+    for bucket in &COULOMB_CACHE_SIZE_BUCKETS {
+        bucket.store(0, Ordering::Relaxed);
+    }
+}
+
+#[cfg(feature = "bench-support")]
+fn record_coulomb_cache_size(len: usize) {
+    COULOMB_CACHE_SIZE_COUNT.fetch_add(1, Ordering::Relaxed);
+    COULOMB_CACHE_SIZE_SUM.fetch_add(len as u64, Ordering::Relaxed);
+    COULOMB_CACHE_SIZE_MAX.fetch_max(len, Ordering::Relaxed);
+
+    let bucket_index = CACHE_SIZE_BUCKET_LIMITS
+        .iter()
+        .position(|limit| len <= *limit)
+        .expect("last cache size bucket must be unbounded");
+    COULOMB_CACHE_SIZE_BUCKETS[bucket_index].fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(feature = "bench-support")]
+fn coulomb_cache_size_stats() -> CacheSizeStats {
+    let mut buckets = [(0, 0); 8];
+    for (index, limit) in CACHE_SIZE_BUCKET_LIMITS.iter().copied().enumerate() {
+        buckets[index] = (
+            limit,
+            COULOMB_CACHE_SIZE_BUCKETS[index].load(Ordering::Relaxed),
+        );
+    }
+
+    CacheSizeStats {
+        count: COULOMB_CACHE_SIZE_COUNT.load(Ordering::Relaxed),
+        total_len: COULOMB_CACHE_SIZE_SUM.load(Ordering::Relaxed),
+        max_len: COULOMB_CACHE_SIZE_MAX.load(Ordering::Relaxed),
+        buckets,
+    }
+}
+
 fn hermite_coefficients_3d(
     i_max: Vector3<u8>,
     j_max: Vector3<u8>,
@@ -294,7 +455,7 @@ struct HermiteCoefficientCache {
     qx: f64,
     a: f64,
     b: f64,
-    values: Vec<Option<f64>>,
+    values: Vec<f64>,
 }
 
 impl HermiteCoefficientCache {
@@ -306,7 +467,7 @@ impl HermiteCoefficientCache {
             qx,
             a,
             b,
-            values: vec![None; len],
+            values: vec![f64::NAN; len],
         }
     }
 
@@ -315,8 +476,9 @@ impl HermiteCoefficientCache {
             return 0.0;
         }
         let index = self.index(i, j, t);
-        if let Some(value) = self.values[index] {
-            return value;
+        let cached = self.values[index];
+        if !cached.is_nan() {
+            return cached;
         }
 
         let value = if i == 0 && j == 0 && t == 0 {
@@ -350,7 +512,7 @@ impl HermiteCoefficientCache {
                 left + middle + right
             }
         };
-        self.values[index] = Some(value);
+        self.values[index] = value;
         value
     }
 
@@ -360,12 +522,14 @@ impl HermiteCoefficientCache {
 }
 
 struct CoulombAuxiliaryCache {
+    t_max: usize,
     u_len: usize,
     v_len: usize,
     n_len: usize,
     p: f64,
     pc: Vector3<f64>,
-    values: Vec<Option<f64>>,
+    boys: CachedBoysFunction,
+    values: SmallVec<[f64; COULOMB_CACHE_SMALLVEC_CAPACITY]>,
 }
 
 impl CoulombAuxiliaryCache {
@@ -375,13 +539,20 @@ impl CoulombAuxiliaryCache {
             * (u_max as usize + 1)
             * (v_max as usize + 1)
             * (n_max as usize + 1);
+        #[cfg(feature = "bench-support")]
+        record_coulomb_cache_size(len);
+        let mut values = SmallVec::new();
+        values.resize(len, f64::NAN);
+
         Self {
+            t_max: t_max as usize,
             u_len: u_max as usize + 1,
             v_len: v_max as usize + 1,
             n_len: n_max as usize + 1,
             p,
+            boys: CachedBoysFunction::new(n_max, p * pc.norm_squared()),
             pc,
-            values: vec![None; len],
+            values,
         }
     }
 
@@ -391,36 +562,41 @@ impl CoulombAuxiliaryCache {
 
     fn value_at(&mut self, t: u8, u: u8, v: u8, n: u8) -> f64 {
         let index = self.index(t, u, v, n);
-        if let Some(value) = self.values[index] {
-            return value;
+        let cached = self.values[index];
+        if !cached.is_nan() {
+            return cached;
         }
 
         let value = if t == 0 && u == 0 && v == 0 {
-            (-2.0 * self.p).powi(n as i32)
-                * crate::math_utils::boys_function(n as u64, self.p * self.pc.norm_squared())
+            let p = self.p;
+            let boys = self.boys[n];
+            (-2.0 * p).powi(n as i32) * boys
         } else if t > 0 {
+            let pc_x = self.pc.x;
             let lower = if t >= 2 {
                 (t as f64 - 1.0) * self.value_at(t - 2, u, v, n + 1)
             } else {
                 0.0
             };
-            lower + self.pc.x * self.value_at(t - 1, u, v, n + 1)
+            lower + pc_x * self.value_at(t - 1, u, v, n + 1)
         } else if u > 0 {
+            let pc_y = self.pc.y;
             let lower = if u >= 2 {
                 (u as f64 - 1.0) * self.value_at(t, u - 2, v, n + 1)
             } else {
                 0.0
             };
-            lower + self.pc.y * self.value_at(t, u - 1, v, n + 1)
+            lower + pc_y * self.value_at(t, u - 1, v, n + 1)
         } else {
+            let pc_z = self.pc.z;
             let lower = if v >= 2 {
                 (v as f64 - 1.0) * self.value_at(t, u, v - 2, n + 1)
             } else {
                 0.0
             };
-            lower + self.pc.z * self.value_at(t, u, v - 1, n + 1)
+            lower + pc_z * self.value_at(t, u, v - 1, n + 1)
         };
-        self.values[index] = Some(value);
+        self.values[index] = value;
         value
     }
 

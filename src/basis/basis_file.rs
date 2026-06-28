@@ -7,10 +7,11 @@ use super::utils::{
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
+use std::io::Read;
 
 /// JSON for describing metadata for a single basis set
 #[derive(Debug, Deserialize)]
-pub(crate) struct BasisFile {
+pub struct BasisFile {
     #[serde(default)]
     pub(crate) auxiliaries: Auxiliaries,
 
@@ -44,6 +45,13 @@ pub(crate) struct BasisFile {
 
     /// Version of the basis set
     pub(crate) version: String,
+}
+
+impl BasisFile {
+    /// Loads a basis file from its JSON representation.
+    pub fn from_reader(reader: impl Read) -> Result<Self, serde_json::Error> {
+        serde_json::from_reader(reader)
+    }
 }
 
 /// Auxiliary basis sets (fitting, etc) and how their role with this basis

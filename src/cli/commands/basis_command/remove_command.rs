@@ -1,5 +1,5 @@
 use crate::{
-    basis::basis_store::BasisStore,
+    basis::BasisStore,
     cli::commands::{CommandResult, Runnable},
 };
 use clap::{ArgAction, ArgGroup};

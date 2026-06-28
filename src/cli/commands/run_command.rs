@@ -9,12 +9,8 @@ use clap::ArgAction;
 use miette::{miette, Diagnostic, IntoDiagnostic};
 use thiserror::Error;
 
-#[cfg(not(feature = "online"))]
-use crate::basis::basisfile::BasisFile;
-#[cfg(feature = "online")]
-use crate::basis::basisfile::BasisFile;
 use crate::{
-    basis::{basis_store::BasisStore, gaussian::basis::Basis},
+    basis::{gaussian::basis::Basis, BasisFile, BasisStore},
     cli::{
         self,
         ux::{bat, mp2_report::Mp2Reporter, scf_report::ScfReporter},

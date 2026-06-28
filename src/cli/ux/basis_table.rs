@@ -1,4 +1,4 @@
-use crate::basis::{basisfile::BasisFile, metadata::BasisSetDetail};
+use crate::basis::{metadata::BasisSetDetail, BasisFile};
 use periodic_table::periodic_table;
 use tabled::Tabled;
 

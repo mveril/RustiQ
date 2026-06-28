@@ -9,7 +9,7 @@ use super::shell::Shell;
 use factorial::DoubleFactorial;
 use rayon::prelude::*;
 
-use crate::basis::basisfile::BasisFile;
+use crate::basis::basis_file::BasisFile;
 use crate::basis::function_type::FunctionType;
 use crate::molecules::geometry::Geometry;
 
@@ -497,7 +497,7 @@ fn coulomb_auxiliary_at(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::basis::basisfile::{Auxiliaries, BasisFile, MolssiBseSchema, Role, SchemaType};
+    use crate::basis::basis_file::{Auxiliaries, BasisFile, MolssiBseSchema, Role, SchemaType};
     use crate::{molecules::atom::Atom, test_utils};
     use nalgebra::*;
     use periodic_table::periodic_table;
@@ -588,9 +588,9 @@ mod tests {
             description: "test".to_string(),
             elements: HashMap::from([(
                 1,
-                crate::basis::basisfile::Element {
+                crate::basis::basis_file::Element {
                     references: Vec::new(),
-                    electron_shells: vec![crate::basis::basisfile::ElectronShell {
+                    electron_shells: vec![crate::basis::basis_file::ElectronShell {
                         function_type: FunctionType::Gto,
                         region: None,
                         angular_momentum: vec![0],

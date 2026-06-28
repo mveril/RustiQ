@@ -1,6 +1,10 @@
-pub(crate) mod basis_store;
-pub(crate) mod basisfile;
-pub(crate) mod function_type;
-pub(crate) mod gaussian;
-pub(crate) mod metadata;
+mod basis_file;
+mod basis_store;
+mod function_type;
+pub use basis_file::BasisFile;
+pub use basis_store::BasisStore;
+#[allow(unused_imports)]
+pub use function_type::FunctionType;
+pub mod gaussian;
+pub mod metadata;
 mod utils;

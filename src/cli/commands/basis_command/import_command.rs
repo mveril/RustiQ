@@ -7,7 +7,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use thiserror::Error;
 
 use crate::{
-    basis::basis_store::BasisStore,
+    basis::BasisStore,
     cli::commands::{CommandResult, Runnable},
 };
 

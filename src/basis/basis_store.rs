@@ -1,5 +1,6 @@
 use serde_json::Error as SerdeError;
 use std::{
+    env,
     fs::{self, DirEntry, File},
     io::{self, Read, Seek},
     path::{Path, PathBuf},
@@ -16,12 +17,7 @@ use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "online")]
 use tokio::io::AsyncWriteExt;
 
-use crate::cli::env::DATA_BASIS_PATH;
-
-#[cfg(feature = "online")]
-use crate::cli::env::USER_AGENT;
-
-use super::basisfile::BasisFile;
+use super::basis_file::BasisFile;
 #[cfg(feature = "online")]
 use super::metadata::BasisSetDetail;
 
@@ -34,6 +30,18 @@ pub struct BasisStore {
     path: Box<Path>,
     #[cfg(feature = "online")]
     url: Url,
+}
+
+#[cfg(feature = "online")]
+fn user_agent() -> String {
+    format!(
+        "{}/{} ({}; {}; +{})",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        env!("CARGO_PKG_REPOSITORY"),
+    )
 }
 
 impl BasisStore {
@@ -93,8 +101,33 @@ impl BasisStore {
             return Ok(data);
         }
         self.download_sync(name)?;
-        let basis = self.get(name).map(|op| op.unwrap())?;
-        Ok(basis)
+        self.get(name)?
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("basis file '{name}' was not created after download"),
+                )
+            })
+            .map_err(Into::into)
+    }
+
+    /// Copies a basis file from another store into this store.
+    #[cfg(any(test, feature = "bench-support"))]
+    #[allow(dead_code)]
+    pub fn copy_from(&self, source: &BasisStore, name: &str) -> io::Result<()> {
+        let destination = self.get_path(name);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(source.get_path(name), destination)?;
+        Ok(())
+    }
+
+    /// Returns the repository fixture basis store used by tests and benches.
+    #[cfg(any(test, feature = "bench-support"))]
+    #[allow(dead_code)]
+    pub fn repository_fixtures() -> BasisStore {
+        BasisStore::new(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data"))
     }
 
     /// Lists all JSON files in the basis store directory.
@@ -139,7 +172,7 @@ impl BasisStore {
     pub fn list_online_sync(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let client = BlockingClientBuilder::new()
-            .user_agent(USER_AGENT)
+            .user_agent(user_agent())
             .build()?;
         let basis_sets: HashMap<String, BasisSetDetail> =
             client.get(url).send()?.error_for_status()?.json()?;
@@ -155,7 +188,7 @@ impl BasisStore {
     #[allow(dead_code)]
     pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
-        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
+        let client = ClientBuilder::new().user_agent(user_agent()).build()?;
         let basis_sets = client.get(url).send().await?.error_for_status()?.json().await?;
         Ok(basis_sets)
     }
@@ -178,7 +211,7 @@ impl BasisStore {
     ) -> Result<(), DownloadSaveError> {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
-        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
+        let client = ClientBuilder::new().user_agent(user_agent()).build()?;
         let mut response = client.get(url).send().await?.error_for_status()?;
         let total_size = response.content_length();
         let path = self.get_path(name);
@@ -213,26 +246,39 @@ impl BasisStore {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
         let client = BlockingClientBuilder::new()
-            .user_agent(USER_AGENT)
+            .user_agent(user_agent())
             .build()?;
         let mut response = client.get(url).send()?.error_for_status()?;
         self.save(name, &mut response)?;
         Ok(())
     }
 
-    /// Downloads a basis set file synchronously from a remote URL and saves it locally.
+    /// Import a basis set file synchronously from a reader and saves it locally.
     ///
     /// # Arguments
     /// * data - The content of the basis set file to save.
     ///
     /// # Errors
-    /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
-    /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    /// This function returns a [`FileError::Serde`] If the file cannot be parsed as a [`BasisFile`]
+    /// or a [`FileError::Io`] if there is an issue with file I/O.
     pub fn import<R: Read + Seek>(&self, mut data: R) -> Result<String, FileError> {
-        let basis: BasisFile = serde_json::from_reader(&mut data)?;
-        data.seek(io::SeekFrom::Start(0))?;
-        self.save(&basis.name, &mut data)?;
+        let basis = BasisFile::from_reader(&mut data)?;
+        self.import_as_raw(&basis.name, data)?;
         Ok(basis.name)
+    }
+
+    /// Imports a basis set file under the given store name after validating its content.
+    #[allow(dead_code)]
+    pub fn import_as<R: Read + Seek>(&self, name: &str, mut data: R) -> Result<(), FileError> {
+        BasisFile::from_reader(&mut data)?;
+        self.import_as_raw(name, data)?;
+        Ok(())
+    }
+
+    fn import_as_raw<R: Read + Seek>(&self, name: &str, mut data: R) -> io::Result<()> {
+        data.seek(io::SeekFrom::Start(0))?;
+        self.save(name, &mut data)?;
+        Ok(())
     }
 
     fn save<R: Read>(&self, name: &str, mut data: &mut R) -> Result<(), io::Error> {
@@ -260,6 +306,8 @@ impl BasisStore {
     ///
     /// # Examples
     /// ```rust
+    /// # use RustiQ::basis::BasisStore;
+    /// # let store = BasisStore::new(&std::env::temp_dir().join("rustiq-doc-basis-store-remove"));
     /// let names = vec!["basis1", "basis2", "basis3"];
     /// store.remove(names).expect("Failed to remove files");
     /// ```
@@ -293,7 +341,13 @@ impl BasisStore {
 
 impl Default for BasisStore {
     fn default() -> Self {
-        Self::new(&*DATA_BASIS_PATH)
+        let app_local_dir = env::var_os("RUSTIQ_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(dirs::data_local_dir)
+            .unwrap_or_else(env::temp_dir)
+            .join(env!("CARGO_PKG_NAME"));
+        let basis_download_path = app_local_dir.join("basis_sets");
+        Self::new(&basis_download_path)
     }
 }
 
@@ -383,14 +437,12 @@ impl From<DownloadSaveError> for DownloadParseSaveError {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::env::DATA_HOME;
-
     use super::*;
     use std::{env, path::PathBuf};
 
     #[test]
     fn test_default_uses_rustiq_data_home() {
-        temp_env::with_var(DATA_HOME, Some("/tmp/rustiq-data-home"), || {
+        temp_env::with_var("RUSTIQ_DATA_HOME", Some("/tmp/rustiq-data-home"), || {
             let store = BasisStore::default();
             let expected = PathBuf::from("/tmp/rustiq-data-home")
                 .join(env!("CARGO_PKG_NAME"))

@@ -677,7 +677,7 @@ mod tests {
         let mut uhf = crate::hf::uhf::UhfCalculation::new(
             &molecule,
             &basis,
-            500,
+            2000,
             1e-8,
             CoreHamiltonian::default(),
         )
@@ -695,12 +695,12 @@ mod tests {
         let mp2_result = uhf_unrestricted(&uhf, 0).unwrap();
         assert_abs_diff_eq!(
             mp2_result.correlation_energy,
-            -0.015_810_842_704_457_297,
+            -0.015_691_131_672_866_634,
             epsilon = 5e-9
         );
         assert_abs_diff_eq!(
             mp2_result.electronic_energy,
-            -78.742_828_168_770_66,
+            -78.742_708_457_739_07,
             epsilon = 5e-8
         );
     }

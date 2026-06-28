@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use miette::IntoDiagnostic;
 
 use crate::{
-    basis::basis_store::BasisStore,
+    basis::BasisStore,
     cli::commands::{AsyncRunnable, CommandResult},
 };
 

@@ -411,15 +411,12 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn calculate_energy_details(&self) -> ScfEnergyDetails {
-        let ((kinetic_energy, nuclear_attraction_energy), electron_repulsion_energy) = rayon::join(
-            || {
-                rayon::join(
-                    || self.calculate_kinetic_energy(),
-                    || self.calculate_nuclear_attraction_energy(),
-                )
-            },
-            || self.calculate_electron_repulsion_energy(),
+        let (kinetic_energy, nuclear_attraction_energy) = rayon::join(
+            || self.calculate_kinetic_energy(),
+            || self.calculate_nuclear_attraction_energy(),
         );
+        let electron_repulsion_energy = self.energy - kinetic_energy - nuclear_attraction_energy;
+
         ScfEnergyDetails {
             kinetic_energy,
             nuclear_attraction_energy,
@@ -446,26 +443,6 @@ impl<'a> ScfCalculation<'a> {
 
     fn calculate_nuclear_attraction_energy(&self) -> f64 {
         self.density_matrix.dot(&self.v_matrix)
-    }
-
-    fn calculate_electron_repulsion_energy(&self) -> f64 {
-        let nbasis = self.basis.nbasis();
-        let e_re: f64 = (0..nbasis.pow(4))
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nbasis;
-                let nu = (index / nbasis) % nbasis;
-                let lambda = (index / (nbasis.pow(2))) % nbasis;
-                let sigma = index / (nbasis.pow(3));
-                let eri_mu_nu_lambda_sigma = self.two_electron_integrals[(mu, nu, lambda, sigma)];
-                let eri_mu_sigma_lambda_nu = self.two_electron_integrals[(mu, sigma, lambda, nu)];
-
-                self.density_matrix[(mu, nu)]
-                    * self.density_matrix[(lambda, sigma)]
-                    * (eri_mu_nu_lambda_sigma - 0.5 * eri_mu_sigma_lambda_nu)
-            })
-            .sum();
-        0.5 * e_re
     }
 }
 

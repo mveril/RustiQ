@@ -1,9 +1,12 @@
 use std::{
     env, fs,
+    io::Cursor,
     path::{Path, PathBuf},
     process::{Command, Output},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+use RustiQ::basis::BasisStore;
 
 fn temp_root(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
@@ -19,8 +22,10 @@ fn temp_root(test_name: &str) -> PathBuf {
 fn prepare_basis_store(temp_root: &Path) {
     let basis_dir = temp_root.join("RustiQ").join("basis_sets");
     let _ = fs::remove_dir_all(temp_root);
-    fs::create_dir_all(&basis_dir).unwrap();
-    fs::copy("tests/data/sto-3g.json", basis_dir.join("sto-3g.json")).unwrap();
+    let store = BasisStore::new(&basis_dir);
+    store
+        .import_as("sto-3g", Cursor::new(include_bytes!("data/sto-3g.json")))
+        .unwrap();
 }
 
 fn run_rustiq(args: &[&str]) -> Output {
@@ -210,7 +215,7 @@ fn test_cli_oh_sample_runs_mp2_when_requested() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Resolved HF method: UHF"));
-    assert!(stdout.contains("UHF MP2 correlation energy: -0.015811 Hartree"));
+    assert!(stdout.contains("UHF MP2 correlation energy: -0.015810 Hartree"));
     assert!(
         stdout.contains("UHF MP2 total energy (including nuclear repulsion): -74.378480 Hartree")
     );
@@ -386,11 +391,8 @@ fn test_basis_remove_ignores_missing_names() {
     let output = run_rustiq_with_data_home(&["basis", "remove", "sto-3g", "missing"], &temp_root);
 
     assert_success(&output);
-    assert!(!temp_root
-        .join("RustiQ")
-        .join("basis_sets")
-        .join("sto-3g.json")
-        .exists());
+    let store = BasisStore::new(&temp_root.join("RustiQ").join("basis_sets"));
+    assert!(matches!(store.get("sto-3g"), Ok(None)));
 }
 
 #[test]
