@@ -2,38 +2,36 @@ use crate::{
     basis::basis_store::BasisStore,
     cli::commands::{CommandResult, Runnable},
 };
+use clap::{ArgAction, ArgGroup};
 use miette::IntoDiagnostic;
-
-#[derive(clap::Args)]
-pub struct DownloadCommand {
-    /// Name of the basis set
-    pub name: String,
-}
-
-impl Runnable for DownloadCommand {
-    fn run(&self) -> CommandResult {
-        println!("Downloading basis set: {}", self.name);
-        // Download logic goes here
-        Ok(())
-    }
-}
-
 #[derive(clap::Args, Debug)]
+#[command(group(
+    ArgGroup::new("target")
+        .required(true)
+        .multiple(false)
+        .args(["names", "all"])
+))]
 pub struct RemoveCommand {
     /// Names of the basis sets; this argument can be used multiple times
     #[arg(value_name = "NAME")]
     pub names: Vec<String>,
+    #[arg(
+        long,
+        short,
+        action = ArgAction::SetTrue
+    )]
+    /// Remove all basis set installed
+    pub all: bool,
 }
 
 impl Runnable for RemoveCommand {
     fn run(&self) -> CommandResult {
         let store = BasisStore::default();
-        if self.names.is_empty() {
+        if self.all {
             store.remove_all()
         } else {
             store.remove(&self.names)
         }
-        .into_diagnostic()?;
-        Ok(())
+        .into_diagnostic()
     }
 }

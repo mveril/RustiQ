@@ -5,6 +5,7 @@ authors = ["Mickaël Véril"]
 version = "0.1.0-alpha.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/mveril/RustiQ"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -50,10 +51,13 @@ bat = { version = "0.26", default-features = false, features = [
   "regex-onig",
 ] }
 nutype = { version = "0.7", features = ["serde"] }
+cfg-if = "1"
+const_format = "0.2"
 
 [dev-dependencies]
 rstest = "0.26"
 proptest = "1"
+temp-env = "0.3"
 
 [build-dependencies]
 bat = { version = "0.26", default-features = false, features = [

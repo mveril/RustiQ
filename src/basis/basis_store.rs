@@ -1,17 +1,25 @@
 use serde_json::Error as SerdeError;
 use std::{
-    fs::{self, DirEntry},
+    fs::{self, DirEntry, File},
     io::{self, Read, Seek},
     path::{Path, PathBuf},
 };
 use thiserror::Error;
 
 #[cfg(feature = "online")]
-use reqwest::{blocking::get as blocking_get, get, Url};
+use reqwest::{
+    blocking::ClientBuilder as BlockingClientBuilder,
+    ClientBuilder, Url,
+};
 #[cfg(feature = "online")]
 use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "online")]
 use tokio::io::AsyncWriteExt;
+
+use crate::cli::env::DATA_BASIS_PATH;
+
+#[cfg(feature = "online")]
+use crate::cli::env::USER_AGENT;
 
 use super::basisfile::BasisFile;
 #[cfg(feature = "online")]
@@ -41,6 +49,10 @@ impl BasisStore {
         }
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     /// Constructs the full path for a given basis file name.
     ///
     /// # Arguments
@@ -57,12 +69,32 @@ impl BasisStore {
     /// # Errors
     /// Returns a [`FileError::Io`] if the file cannot be opened, or
     /// [`FileError::Serde`] if it cannot be deserialized from JSON.
-    pub fn get(&self, name: &str) -> Result<BasisFile, FileError> {
+    pub fn get(&self, name: &str) -> Result<Option<BasisFile>, FileError> {
         let basis_path = self.get_path(name);
+        if !basis_path.exists() {
+            return Ok(None);
+        }
         let file = fs::File::open(&basis_path)?;
         let basis_file = serde_json::from_reader(file)?;
+        Ok(Some(basis_file))
+    }
 
-        Ok(basis_file)
+    /// Retrieves a `BasisFile` by its name from the store.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the basis file (without extension).
+    ///
+    /// # Errors
+    /// Returns a [`FileError::Io`] if the file cannot be opened, or
+    /// [`FileError::Serde`] if it cannot be deserialized from JSON.
+    #[cfg(feature = "online")]
+    pub fn get_or_download(&self, name: &str) -> Result<BasisFile, DownloadParseSaveError> {
+        if let Some(data) = self.get(name)? {
+            return Ok(data);
+        }
+        self.download_sync(name)?;
+        let basis = self.get(name).map(|op| op.unwrap())?;
+        Ok(basis)
     }
 
     /// Lists all JSON files in the basis store directory.
@@ -106,8 +138,11 @@ impl BasisStore {
     #[cfg(feature = "online")]
     pub fn list_online_sync(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
+        let client = BlockingClientBuilder::new()
+            .user_agent(USER_AGENT)
+            .build()?;
         let basis_sets: HashMap<String, BasisSetDetail> =
-            blocking_get(url)?.error_for_status()?.json()?;
+            client.get(url).send()?.error_for_status()?.json()?;
         Ok(basis_sets)
     }
 
@@ -120,7 +155,8 @@ impl BasisStore {
     #[allow(dead_code)]
     pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
-        let basis_sets = get(url).await?.error_for_status()?.json().await?;
+        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
+        let basis_sets = client.get(url).send().await?.error_for_status()?.json().await?;
         Ok(basis_sets)
     }
 
@@ -142,7 +178,8 @@ impl BasisStore {
     ) -> Result<(), DownloadSaveError> {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
-        let mut response = get(&url).await?.error_for_status()?;
+        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
+        let mut response = client.get(url).send().await?.error_for_status()?;
         let total_size = response.content_length();
         let path = self.get_path(name);
         if let Some(parent) = path.parent() {
@@ -157,6 +194,7 @@ impl BasisStore {
             // Update the progress
             progress_callback(downloaded, total_size);
         }
+        file.flush().await?;
         Ok(())
     }
 
@@ -174,7 +212,10 @@ impl BasisStore {
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
-        let mut response = blocking_get(&url)?.error_for_status()?;
+        let client = BlockingClientBuilder::new()
+            .user_agent(USER_AGENT)
+            .build()?;
+        let mut response = client.get(url).send()?.error_for_status()?;
         self.save(name, &mut response)?;
         Ok(())
     }
@@ -199,7 +240,7 @@ impl BasisStore {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let mut file = fs::File::create(path)?;
+        let mut file = File::create(path)?;
         io::copy(&mut data, &mut file)?;
         Ok(())
     }
@@ -241,7 +282,7 @@ impl BasisStore {
     /// Removes all files and directories within the basis store.
     ///
     /// # Errors
-    /// Returns a [`io::Result`] if the directory cannot be removed.
+    /// Returns a [`io::Error`] if the directory cannot be removed.
     pub fn remove_all(&self) -> io::Result<()> {
         if self.path.exists() {
             fs::remove_dir_all(&self.path)?;
@@ -252,13 +293,7 @@ impl BasisStore {
 
 impl Default for BasisStore {
     fn default() -> Self {
-        let app_local_dir = std::env::var_os("RUSTIQ_DATA_HOME")
-            .map(PathBuf::from)
-            .or_else(dirs::data_local_dir)
-            .unwrap_or_else(std::env::temp_dir)
-            .join(env!("CARGO_PKG_NAME"));
-        let basis_download_path = app_local_dir.join("basis_sets");
-        Self::new(&basis_download_path)
+        Self::new(&*DATA_BASIS_PATH)
     }
 }
 
@@ -272,6 +307,16 @@ pub enum FileError {
     /// Serde JSON deserialization error.
     #[error("Serialization error: {0}")]
     Serde(#[from] SerdeError),
+}
+
+#[cfg(feature = "online")]
+impl From<FileError> for DownloadParseSaveError {
+    fn from(value: FileError) -> Self {
+        match value {
+            FileError::Io(error) => Self::Io(error),
+            FileError::Serde(error) => Self::Serde(error),
+        }
+    }
 }
 
 /// Custom error type for errors occurring during the online listing of basis sets.
@@ -298,4 +343,69 @@ pub enum DownloadSaveError {
     /// HTTP error occurred during the download.
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
+}
+
+/// Custom error type for downloading and saving basis set files in `BasisStore`.
+#[cfg(feature = "online")]
+#[derive(Error, Debug)]
+pub enum DownloadParseSaveError {
+    /// I/O error occurred while writing the downloaded file.
+    #[error("I/O error: {0}")]
+    Io(#[from] io::Error),
+
+    /// Serde JSON deserialization error.
+    #[error("Serialization error: {0}")]
+    Serde(#[from] SerdeError),
+
+    /// HTTP error occurred during the download.
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+}
+#[cfg(feature = "online")]
+impl From<DownloadParseError> for DownloadParseSaveError {
+    fn from(err: DownloadParseError) -> Self {
+        match err {
+            DownloadParseError::Http(e) => DownloadParseSaveError::Http(e),
+            DownloadParseError::Serde(e) => DownloadParseSaveError::Serde(e),
+        }
+    }
+}
+
+#[cfg(feature = "online")]
+impl From<DownloadSaveError> for DownloadParseSaveError {
+    fn from(value: DownloadSaveError) -> Self {
+        match value {
+            DownloadSaveError::Http(e) => DownloadParseSaveError::Http(e),
+            DownloadSaveError::Io(e) => DownloadParseSaveError::Io(e),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::env::DATA_HOME;
+
+    use super::*;
+    use std::{env, path::PathBuf};
+
+    #[test]
+    fn test_default_uses_rustiq_data_home() {
+        temp_env::with_var(DATA_HOME, Some("/tmp/rustiq-data-home"), || {
+            let store = BasisStore::default();
+            let expected = PathBuf::from("/tmp/rustiq-data-home")
+                .join(env!("CARGO_PKG_NAME"))
+                .join("basis_sets");
+            assert_eq!(store.path(), expected);
+        });
+    }
+
+    #[test]
+    fn test_get_returns_none_for_missing_basis_file() {
+        let temp_dir = env::temp_dir().join("rustiq-basis-store-missing");
+        let store = BasisStore::new(&temp_dir);
+
+        let basis = store.get("missing").unwrap();
+
+        assert!(basis.is_none());
+    }
 }

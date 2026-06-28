@@ -184,7 +184,7 @@ impl Basis {
     }
 
     pub fn kinetic_ints(&self) -> DMatrix<f64> {
-        let n = self.angular_momenta.len();
+        let n: usize = self.angular_momenta.len();
         let mut result = DMatrix::<f64>::zeros(n, n);
 
         let values = (0..n * n)
