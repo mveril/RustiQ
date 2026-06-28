@@ -405,6 +405,7 @@ fn test_geometry_help_describes_transform_commands() {
     assert!(stdout.contains("rotate"));
     assert!(stdout.contains("translate"));
     assert!(stdout.contains("center"));
+    assert!(stdout.contains("oriente"));
     assert!(stdout.contains("isometry"));
 }
 
@@ -520,6 +521,33 @@ fn test_geometry_center_supports_geometric_centering() {
 }
 
 #[test]
+fn test_geometry_oriente_centers_mass_and_diagonalizes_inertia() {
+    let temp_root = temp_root("geometry-oriente");
+    let input_path = temp_root.join("bent.xyz");
+    fs::create_dir_all(&temp_root).unwrap();
+    fs::write(
+        &input_path,
+        "3\nBent\nO 1.0 2.0 0.5\nH 2.2 2.4 1.7\nH 0.4 3.1 1.2\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["geometry", "oriente", input_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_success(&output);
+
+    let atoms = parse_xyz_atoms(&String::from_utf8(output.stdout).unwrap());
+    let center = mass_center(&atoms);
+    assert!(center.iter().all(|coord| coord.abs() < 1e-5));
+
+    let inertia = inertia_tensor(&atoms);
+    assert!(inertia[0][1].abs() < 1e-5);
+    assert!(inertia[0][2].abs() < 1e-5);
+    assert!(inertia[1][2].abs() < 1e-5);
+}
+
+#[test]
 fn test_geometry_isometry_applies_rotation_and_translation() {
     let temp_root = temp_root("geometry-isometry");
     let input_path = temp_root.join("point.xyz");
@@ -544,4 +572,57 @@ fn test_geometry_isometry_applies_rotation_and_translation() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("H      0.000000     2.000000     0.000000"));
+}
+
+fn parse_xyz_atoms(xyz: &str) -> Vec<(String, [f64; 3])> {
+    xyz.lines()
+        .skip(2)
+        .map(|line| {
+            let mut fields = line.split_whitespace();
+            let symbol = fields.next().unwrap().to_string();
+            let x = fields.next().unwrap().parse().unwrap();
+            let y = fields.next().unwrap().parse().unwrap();
+            let z = fields.next().unwrap().parse().unwrap();
+            (symbol, [x, y, z])
+        })
+        .collect()
+}
+
+fn mass_center(atoms: &[(String, [f64; 3])]) -> [f64; 3] {
+    let total_mass: f64 = atoms.iter().map(|(symbol, _)| atomic_mass(symbol)).sum();
+    let weighted_sum = atoms.iter().fold([0.0; 3], |mut sum, (symbol, position)| {
+        let mass = atomic_mass(symbol);
+        for axis in 0..3 {
+            sum[axis] += mass * position[axis];
+        }
+        sum
+    });
+
+    [
+        weighted_sum[0] / total_mass,
+        weighted_sum[1] / total_mass,
+        weighted_sum[2] / total_mass,
+    ]
+}
+
+fn inertia_tensor(atoms: &[(String, [f64; 3])]) -> [[f64; 3]; 3] {
+    atoms.iter().fold([[0.0; 3]; 3], |mut tensor, (symbol, r)| {
+        let mass = atomic_mass(symbol);
+        let radius_squared = r.iter().map(|coord| coord * coord).sum::<f64>();
+        for row in 0..3 {
+            for col in 0..3 {
+                let kronecker_delta = if row == col { 1.0 } else { 0.0 };
+                tensor[row][col] += mass * (radius_squared * kronecker_delta - r[row] * r[col]);
+            }
+        }
+        tensor
+    })
+}
+
+fn atomic_mass(symbol: &str) -> f64 {
+    match symbol {
+        "H" => 1.00794,
+        "O" => 15.999,
+        _ => panic!("unexpected test atom symbol: {symbol}"),
+    }
 }

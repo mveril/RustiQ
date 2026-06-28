@@ -7,6 +7,7 @@ mod transform_args;
 use info_command::InfoCommand;
 pub(super) use transform_args::TransformArgs;
 mod isometry_command;
+mod oriente;
 mod rotation;
 
 use super::{CommandResult, Runnable};
@@ -21,6 +22,8 @@ pub enum GeometryCommands {
     Translate(translation::TranslationCommand),
     /// Move a selected center of the geometry to the origin
     Center(center::CenterCommand),
+    /// Center on mass and align the geometry with its principal inertia axes
+    Oriente(oriente::OrienteCommand),
     /// Apply a rotation and translation in one pass
     Isometry(isometry_command::IsometryCommand),
 }
@@ -32,6 +35,7 @@ impl Runnable for GeometryCommands {
             GeometryCommands::Rotate(command) => command,
             GeometryCommands::Translate(command) => command,
             GeometryCommands::Center(command) => command,
+            GeometryCommands::Oriente(command) => command,
             GeometryCommands::Isometry(command) => command,
         } {
             fn run(&self) -> CommandResult;
