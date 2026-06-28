@@ -1,4 +1,4 @@
-use crate::math_utils::F64Const::SQRT_PI;
+use crate::math_utils::f64_const::SQRT_PI;
 use special::{Gamma, Primitive};
 use std::ops::Index;
 
@@ -28,9 +28,7 @@ impl CachedBoysFunction {
                 values.push(boys_function_compatible(m as u64, x));
             }
         } else {
-            for _ in 0..=max_order {
-                values.push(0.0);
-            }
+            values.resize(count, 0.0);
             let exp_neg_x = (-x).exp();
             values[max_order as usize] = boys_gamma_reference(max_order as u64, x);
             for m in (0..max_order).rev() {

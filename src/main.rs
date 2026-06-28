@@ -1,6 +1,7 @@
 use cli::Cli;
 mod basis;
 mod cli;
+mod env;
 mod eri;
 mod hf;
 mod math_utils;

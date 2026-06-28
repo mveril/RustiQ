@@ -1,6 +1,5 @@
 use serde_json::Error as SerdeError;
 use std::{
-    env,
     fs::{self, DirEntry, File},
     io::{self, Read, Seek},
     path::{Path, PathBuf},
@@ -17,6 +16,9 @@ use tokio::io::AsyncWriteExt;
 use super::basis_file::BasisFile;
 #[cfg(feature = "online")]
 use super::metadata::BasisSetDetail;
+use crate::env::DATA_BASIS_PATH;
+#[cfg(feature = "online")]
+use crate::env::USER_AGENT;
 
 #[cfg(feature = "online")]
 const BASE_URL: &str = "https://www.basissetexchange.org/";
@@ -27,18 +29,6 @@ pub struct BasisStore {
     path: Box<Path>,
     #[cfg(feature = "online")]
     url: Url,
-}
-
-#[cfg(feature = "online")]
-fn user_agent() -> String {
-    format!(
-        "{}/{} ({}; {}; +{})",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        std::env::consts::OS,
-        std::env::consts::ARCH,
-        env!("CARGO_PKG_REPOSITORY"),
-    )
 }
 
 impl BasisStore {
@@ -169,7 +159,7 @@ impl BasisStore {
     pub fn list_online_sync(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let client = BlockingClientBuilder::new()
-            .user_agent(user_agent())
+            .user_agent(USER_AGENT)
             .build()?;
         let basis_sets: HashMap<String, BasisSetDetail> =
             client.get(url).send()?.error_for_status()?.json()?;
@@ -185,7 +175,7 @@ impl BasisStore {
     #[allow(dead_code)]
     pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
-        let client = ClientBuilder::new().user_agent(user_agent()).build()?;
+        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
         let basis_sets = client
             .get(url)
             .send()
@@ -214,7 +204,7 @@ impl BasisStore {
     ) -> Result<(), DownloadSaveError> {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
-        let client = ClientBuilder::new().user_agent(user_agent()).build()?;
+        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
         let mut response = client.get(url).send().await?.error_for_status()?;
         let total_size = response.content_length();
         let path = self.get_path(name);
@@ -249,7 +239,7 @@ impl BasisStore {
         let url = format!("{}api/basis/{}/format/json", self.url, name);
         // Start downloading the file
         let client = BlockingClientBuilder::new()
-            .user_agent(user_agent())
+            .user_agent(USER_AGENT)
             .build()?;
         let mut response = client.get(url).send()?.error_for_status()?;
         self.save(name, &mut response)?;
@@ -344,13 +334,7 @@ impl BasisStore {
 
 impl Default for BasisStore {
     fn default() -> Self {
-        let app_local_dir = env::var_os("RUSTIQ_DATA_HOME")
-            .map(PathBuf::from)
-            .or_else(dirs::data_local_dir)
-            .unwrap_or_else(env::temp_dir)
-            .join(env!("CARGO_PKG_NAME"));
-        let basis_download_path = app_local_dir.join("basis_sets");
-        Self::new(&basis_download_path)
+        Self::new(&*DATA_BASIS_PATH)
     }
 }
 

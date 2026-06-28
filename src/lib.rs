@@ -1,6 +1,7 @@
 #![allow(dead_code, non_snake_case)]
 
 pub mod basis;
+pub mod env;
 
 #[cfg(any(feature = "bench-support", test))]
 mod eri;

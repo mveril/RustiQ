@@ -522,7 +522,6 @@ impl HermiteCoefficientCache {
 }
 
 struct CoulombAuxiliaryCache {
-    t_max: usize,
     u_len: usize,
     v_len: usize,
     n_len: usize,
@@ -545,7 +544,6 @@ impl CoulombAuxiliaryCache {
         values.resize(len, f64::NAN);
 
         Self {
-            t_max: t_max as usize,
             u_len: u_max as usize + 1,
             v_len: v_max as usize + 1,
             n_len: n_max as usize + 1,

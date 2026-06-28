@@ -4,7 +4,7 @@ use nalgebra::DMatrix;
 pub mod boys;
 pub use boys::boys_function;
 
-pub(crate) mod F64Const {
+pub(crate) mod f64_const {
     pub const SQRT_PI: f64 = 1.772_453_850_905_519;
     #[cfg(test)]
     mod tests {
