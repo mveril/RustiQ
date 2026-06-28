@@ -8,8 +8,8 @@ pub(crate) mod F64Const {
     pub const SQRT_PI: f64 = 1.772_453_850_905_519;
     #[cfg(test)]
     mod tests {
-        use approx::assert_abs_diff_eq;
         use super::SQRT_PI;
+        use approx::assert_abs_diff_eq;
         use std::f64::consts::PI;
 
         #[test]

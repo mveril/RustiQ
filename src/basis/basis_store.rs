@@ -8,10 +8,7 @@ use std::{
 use thiserror::Error;
 
 #[cfg(feature = "online")]
-use reqwest::{
-    blocking::ClientBuilder as BlockingClientBuilder,
-    ClientBuilder, Url,
-};
+use reqwest::{blocking::ClientBuilder as BlockingClientBuilder, ClientBuilder, Url};
 #[cfg(feature = "online")]
 use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "online")]
@@ -189,7 +186,13 @@ impl BasisStore {
     pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let client = ClientBuilder::new().user_agent(user_agent()).build()?;
-        let basis_sets = client.get(url).send().await?.error_for_status()?.json().await?;
+        let basis_sets = client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
         Ok(basis_sets)
     }
 

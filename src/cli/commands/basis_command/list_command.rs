@@ -57,27 +57,27 @@ impl Runnable for ListCommand {
 
         let list = store.list().into_diagnostic()?;
         if self.verbose {
-            let v: std::io::Result<Vec<_>> = list
-                .par_bridge()
-                .map(|item| {
-                    let item = item?;
-                    let path = item.path();
-                    let name = path
-                        .file_stem()
-                        .and_then(|name| name.to_str())
-                        .ok_or_else(|| std::io::Error::other("invalid basis file name"))?;
-                    let basis_file = store
-                        .get(name)
-                        .map_err(std::io::Error::other)?
-                        .ok_or_else(|| {
-                            std::io::Error::new(
-                                std::io::ErrorKind::NotFound,
-                                format!("basis file '{name}' disappeared during listing"),
-                            )
-                        })?;
-                    Ok(BasisTableItem::from(basis_file))
-                })
-                .collect();
+            let v: std::io::Result<Vec<_>> =
+                list.par_bridge()
+                    .map(|item| {
+                        let item = item?;
+                        let path = item.path();
+                        let name = path
+                            .file_stem()
+                            .and_then(|name| name.to_str())
+                            .ok_or_else(|| std::io::Error::other("invalid basis file name"))?;
+                        let basis_file = store
+                            .get(name)
+                            .map_err(std::io::Error::other)?
+                            .ok_or_else(|| {
+                                std::io::Error::new(
+                                    std::io::ErrorKind::NotFound,
+                                    format!("basis file '{name}' disappeared during listing"),
+                                )
+                            })?;
+                        Ok(BasisTableItem::from(basis_file))
+                    })
+                    .collect();
             pagin_print(&Table::new(v.into_diagnostic()?).to_string())
         } else {
             let mut str = String::new();
