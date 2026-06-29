@@ -123,7 +123,7 @@ fn basis_store() -> BasisStore {
     }
 
     let default_store = BasisStore::default();
-    if default_store.get("sto-3g").is_ok() {
+    if matches!(default_store.get("sto-3g"), Ok(Some(_))) {
         return default_store;
     }
 
