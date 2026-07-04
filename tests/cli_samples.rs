@@ -548,6 +548,24 @@ fn test_geometry_oriente_centers_mass_and_diagonalizes_inertia() {
 }
 
 #[test]
+fn test_geometry_oriente_matches_cached_reference_output() {
+    const CACHED_H2O_ORIENTED_OUTPUT: &str = "\
+3 
+ 
+O       0.00000000       0.00000000      -0.06568579 
+H       0.00000000      -0.75700000       0.52131421 
+H       0.00000000       0.75700000       0.52131421 
+";
+
+    let output = run_rustiq(&["geometry", "oriente", "samples/h2o/h2o.xyz"]);
+    assert_success(&output);
+
+    let actual = parse_xyz_atoms(&String::from_utf8(output.stdout).unwrap());
+    let expected = parse_xyz_atoms(CACHED_H2O_ORIENTED_OUTPUT);
+    assert_xyz_atoms_close(&actual, &expected, 3e-6);
+}
+
+#[test]
 fn test_geometry_isometry_applies_rotation_and_translation() {
     let temp_root = temp_root("geometry-isometry");
     let input_path = temp_root.join("point.xyz");
@@ -586,6 +604,25 @@ fn parse_xyz_atoms(xyz: &str) -> Vec<(String, [f64; 3])> {
             (symbol, [x, y, z])
         })
         .collect()
+}
+
+fn assert_xyz_atoms_close(
+    actual: &[(String, [f64; 3])],
+    expected: &[(String, [f64; 3])],
+    tolerance: f64,
+) {
+    assert_eq!(actual.len(), expected.len());
+    for ((actual_symbol, actual_coords), (expected_symbol, expected_coords)) in
+        actual.iter().zip(expected.iter())
+    {
+        assert_eq!(actual_symbol, expected_symbol);
+        for (actual_coord, expected_coord) in actual_coords.iter().zip(expected_coords.iter()) {
+            assert!(
+                (actual_coord - expected_coord).abs() <= tolerance,
+                "expected {expected_symbol} coordinate {expected_coord}, found {actual_coord}"
+            );
+        }
+    }
 }
 
 fn mass_center(atoms: &[(String, [f64; 3])]) -> [f64; 3] {
