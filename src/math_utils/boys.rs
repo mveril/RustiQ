@@ -4,7 +4,7 @@ use std::ops::Index;
 
 /// Calculate the Boys function F_m(x) for a given order m and parameter x.
 pub fn boys_function(m: u64, x: f64) -> f64 {
-    boys_function_compatible(m, x)
+    boys_function_value(m, x)
 }
 
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ impl CachedBoysFunction {
             values.push(boys_zero(x));
         } else if x < 0.5 {
             for m in 0..=max_order {
-                values.push(boys_function_compatible(m as u64, x));
+                values.push(boys_function_value(m as u64, x));
             }
         } else {
             values.resize(count, 0.0);
@@ -34,11 +34,6 @@ impl CachedBoysFunction {
             for m in (0..max_order).rev() {
                 values[m as usize] =
                     (2.0 * x * values[m as usize + 1] + exp_neg_x) / (2 * m as u64 + 1) as f64;
-            }
-            for m in 1..=max_order {
-                if x.abs() < (m as f64 + 0.5) * 1e-4 {
-                    values[m as usize] = 1.0 / (2.0 * m as f64 + 1.0);
-                }
             }
         }
 
@@ -59,24 +54,32 @@ fn boys_zero(x: f64) -> f64 {
     (SQRT_PI * Primitive::erf(sqrtx)) / (2.0 * sqrtx)
 }
 
-fn boys_function_compatible(m: u64, x: f64) -> f64 {
+fn boys_function_value(m: u64, x: f64) -> f64 {
     if x == 0.0 {
         1.0 / (2 * m + 1) as f64
     } else if m == 0 {
         boys_zero(x)
     } else if x.abs() < (m as f64 + 0.5) * 1e-4 {
-        1.0 / (2.0 * m as f64 + 1.0)
+        boys_series(m, x)
     } else {
         boys_gamma_reference(m, x)
     }
 }
 
-#[cfg(test)]
-fn boys_exact_reference(m: u64, x: f64) -> f64 {
-    if x == 0.0 {
-        return 1.0 / (2 * m + 1) as f64;
+fn boys_series(m: u64, x: f64) -> f64 {
+    let mut term = 1.0 / (2 * m + 1) as f64;
+    let mut sum = term;
+
+    for k in 1..=100 {
+        let k = k as f64;
+        term *= -x / k * (2.0 * m as f64 + 2.0 * k - 1.0) / (2.0 * m as f64 + 2.0 * k + 1.0);
+        sum += term;
+        if term.abs() <= f64::EPSILON * sum.abs() {
+            break;
+        }
     }
-    boys_gamma_reference(m, x)
+
+    sum
 }
 
 fn boys_gamma_reference(m: u64, x: f64) -> f64 {
@@ -93,6 +96,19 @@ mod tests {
 
     use super::*;
     use approx::assert_abs_diff_eq;
+
+    fn boys_integral_reference(m: u64, x: f64) -> f64 {
+        const INTERVALS: usize = 16_384;
+        let h = 1.0 / INTERVALS as f64;
+        let integrand = |t: f64| t.powi((2 * m) as i32) * (-x * t * t).exp();
+        let interior = (1..INTERVALS)
+            .map(|index| {
+                let weight = if index % 2 == 0 { 2.0 } else { 4.0 };
+                weight * integrand(index as f64 * h)
+            })
+            .sum::<f64>();
+        h / 3.0 * (integrand(0.0) + interior + integrand(1.0))
+    }
 
     #[test]
     fn test_sqrt_i() {
@@ -131,10 +147,10 @@ mod tests {
         for m in 0..=12 {
             for x in x_values {
                 let result = boys_function(m, x);
-                let expected = if m > 0 && x.abs() < (m as f64 + 0.5) * 1e-4 {
-                    boys_function_compatible(m, x)
+                let expected = if x == 0.0 || (m > 0 && x.abs() < (m as f64 + 0.5) * 1e-4) {
+                    boys_integral_reference(m, x)
                 } else {
-                    boys_exact_reference(m, x)
+                    boys_gamma_reference(m, x)
                 };
                 let error = (result - expected).abs();
                 assert!(
@@ -146,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    fn cached_boys_function_matches_compatible_values() {
+    fn cached_boys_function_matches_independent_reference() {
         let x_values = [
             0.0, 1e-12, 1e-9, 1e-6, 1e-4, 1e-3, 0.01, 0.1, 0.2, 0.5, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0,
             10.0, 25.0, 50.0, 100.0,
@@ -157,7 +173,11 @@ mod tests {
                 let cache = CachedBoysFunction::new(max_order, x);
                 for m in 0..=max_order {
                     let result = cache[m];
-                    let expected = boys_function_compatible(m as u64, x);
+                    let expected = if x == 0.0 || (m > 0 && x.abs() < (m as f64 + 0.5) * 1e-4) {
+                        boys_integral_reference(m as u64, x)
+                    } else {
+                        boys_gamma_reference(m as u64, x)
+                    };
                     let error = (result - expected).abs();
                     assert!(
                     error <= 1e-9,
@@ -166,5 +186,19 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn small_x_regressions_match_high_precision_values() {
+        assert_abs_diff_eq!(
+            boys_function(1, 1e-4),
+            0.333_313_334_047_600,
+            epsilon = 1e-15
+        );
+        assert_abs_diff_eq!(
+            boys_function(12, 1e-3),
+            0.039_962_980_198_967_2,
+            epsilon = 1e-15
+        );
     }
 }
