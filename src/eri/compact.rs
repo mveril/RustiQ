@@ -83,6 +83,13 @@ unsafe impl Sync for StorageSlot {}
 #[allow(dead_code)]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum CompactEriBuildError {
+    #[error("compact ERI iterator has length {actual}, expected {expected}")]
+    WrongLength { expected: usize, actual: usize },
+    #[error("compact ERI value for storage index {storage_index} maps to index {compact_index}")]
+    UnexpectedCompactIndex {
+        storage_index: usize,
+        compact_index: usize,
+    },
     #[error("quartet ({mu}, {nu}, {lambda}, {sigma}) contains an index outside size {size}")]
     IndexOutOfBounds {
         mu: usize,
@@ -137,49 +144,62 @@ impl CompactEri {
 
     /// Builds a compact ERI tensor from quartets yielded in compact storage order.
     #[allow(dead_code)]
-    pub(crate) fn from_indexed_par_iter<I>(size: usize, par_iter: I) -> Self
+    pub(crate) fn from_indexed_par_iter<I>(
+        size: usize,
+        par_iter: I,
+    ) -> Result<Self, CompactEriBuildError>
     where
         I: IndexedParallelIterator<Item = (usize, usize, usize, usize, f64)>,
     {
         let storage_len = Self::storage_len(size);
-        let mut storage = (0..storage_len)
-            .map(|_| StorageSlot::zeroed())
-            .collect::<Box<[_]>>();
-        let compact_par_iter = par_iter
-            .map(|(mu, nu, lambda, sigma, value)| (EriIndex::new(mu, nu, lambda, sigma).0, value));
-
-        storage
-            .par_iter_mut()
-            .enumerate()
-            .zip(compact_par_iter)
-            .for_each(|((storage_index, slot), (compact_index, value))| {
-                debug_assert_eq!(storage_index, compact_index);
-                // The zipped indexed iterator gives exclusive access to each slot.
-                unsafe { *slot.get_mut() = value };
+        let actual = par_iter.len();
+        if actual != storage_len {
+            return Err(CompactEriBuildError::WrongLength {
+                expected: storage_len,
+                actual,
             });
+        }
 
-        Self { storage }
+        let storage = par_iter
+            .map(|(mu, nu, lambda, sigma, value)| (EriIndex::new(mu, nu, lambda, sigma).0, value))
+            .enumerate()
+            .map(|(storage_index, (compact_index, value))| {
+                if storage_index != compact_index {
+                    return Err(CompactEriBuildError::UnexpectedCompactIndex {
+                        storage_index,
+                        compact_index,
+                    });
+                }
+                Ok(StorageSlot::initialized(value))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_boxed_slice();
+
+        Ok(Self { storage })
     }
 
     /// Builds a compact ERI tensor from values yielded in compact storage order.
-    pub(crate) fn from_ordered_values_par_iter<I>(size: usize, par_iter: I) -> Self
+    pub(crate) fn from_ordered_values_par_iter<I>(
+        size: usize,
+        par_iter: I,
+    ) -> Result<Self, CompactEriBuildError>
     where
         I: IndexedParallelIterator<Item = f64>,
     {
         let storage_len = Self::storage_len(size);
-        let storage = (0..storage_len)
-            .into_par_iter()
-            .map(|_| StorageSlot::uninitialized())
-            .collect::<Box<[_]>>();
+        let actual = par_iter.len();
+        if actual != storage_len {
+            return Err(CompactEriBuildError::WrongLength {
+                expected: storage_len,
+                actual,
+            });
+        }
+        let storage = par_iter
+            .map(StorageSlot::initialized)
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
-        par_iter.enumerate().for_each(|(index, value)| {
-            // The indexed iterator yields each compact slot exactly once.
-            unsafe {
-                storage[index].write(value);
-            }
-        });
-
-        Self { storage }
+        Ok(Self { storage })
     }
 
     /// Builds a compact ERI tensor from quartets yielded in any order.
@@ -440,7 +460,8 @@ mod tests {
                 let (lambda, sigma) = basis_function_pair(pair_rs);
                 (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
             }),
-        );
+        )
+        .unwrap();
 
         assert_eq!(eri[(0, 0, 0, 0)], 0.25);
         assert_eq!(eri[(1, 0, 0, 0)], 1.25);
@@ -458,7 +479,8 @@ mod tests {
             (0..storage_len)
                 .into_par_iter()
                 .map(|compact_index| compact_index as f64 + 0.25),
-        );
+        )
+        .unwrap();
 
         assert_eq!(eri[(0, 0, 0, 0)], 0.25);
         assert_eq!(eri[(1, 0, 0, 0)], 1.25);
@@ -466,6 +488,50 @@ mod tests {
         assert_eq!(
             eri[(4, 4, 4, 4)],
             CompactEri::storage_len(basis_functions) as f64 - 0.75
+        );
+    }
+
+    #[test]
+    fn test_compact_eri_from_ordered_values_rejects_wrong_lengths() {
+        let basis_functions = 2;
+        let expected = CompactEri::storage_len(basis_functions);
+
+        for actual in [expected - 1, expected + 1] {
+            let error = CompactEri::from_ordered_values_par_iter(
+                basis_functions,
+                (0..actual).into_par_iter().map(|value| value as f64),
+            )
+            .unwrap_err();
+
+            assert_eq!(
+                error,
+                CompactEriBuildError::WrongLength { expected, actual }
+            );
+        }
+    }
+
+    #[test]
+    fn test_compact_eri_from_indexed_par_iter_rejects_unexpected_compact_index() {
+        let basis_functions = 2;
+        let storage_len = CompactEri::storage_len(basis_functions);
+        let error = CompactEri::from_indexed_par_iter(
+            basis_functions,
+            (0..storage_len).into_par_iter().map(|compact_index| {
+                let mapped_index = if compact_index == 1 { 0 } else { compact_index };
+                let (pair_pq, pair_rs) = unique_pair_indices(mapped_index);
+                let (mu, nu) = basis_function_pair(pair_pq);
+                let (lambda, sigma) = basis_function_pair(pair_rs);
+                (mu, nu, lambda, sigma, compact_index as f64)
+            }),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            CompactEriBuildError::UnexpectedCompactIndex {
+                storage_index: 1,
+                compact_index: 0,
+            }
         );
     }
 

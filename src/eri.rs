@@ -259,6 +259,7 @@ fn build_compact_eri(
             }
         }),
     )
+    .expect("compact ERI range length matches compact storage length")
 }
 
 fn unique_pair_indices(index: usize) -> (usize, usize) {
