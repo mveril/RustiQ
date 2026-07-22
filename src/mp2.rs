@@ -693,14 +693,15 @@ mod tests {
         );
 
         let mp2_result = uhf_unrestricted(&uhf, 0).unwrap();
+        // PySCF 2.11 UMP2/STO-3G reference for the same OH geometry and spin.
         assert_abs_diff_eq!(
             mp2_result.correlation_energy,
-            -0.015_691_131_672_866_634,
+            -0.015_810_842_704_457_904,
             epsilon = 5e-9
         );
         assert_abs_diff_eq!(
             mp2_result.electronic_energy,
-            -78.742_708_457_739_07,
+            -78.742_828_168_770_67,
             epsilon = 5e-8
         );
     }
