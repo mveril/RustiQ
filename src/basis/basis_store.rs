@@ -2,7 +2,7 @@ use serde_json::Error as SerdeError;
 use std::{
     fs::{self, DirEntry, File},
     io::{self, Read, Seek},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 use thiserror::Error;
 
@@ -52,8 +52,18 @@ impl BasisStore {
     ///
     /// # Arguments
     /// * `name` - The name of the basis file (without extension).
-    fn get_path(&self, name: &str) -> PathBuf {
-        self.path.join(format!("{name}.json"))
+    fn get_path(&self, name: &str) -> io::Result<PathBuf> {
+        let mut components = Path::new(name).components();
+        let is_single_normal_component =
+            matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
+        if name.is_empty() || name.contains(['/', '\\']) || !is_single_normal_component {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid basis set name '{name}'"),
+            ));
+        }
+
+        Ok(self.path.join(format!("{name}.json")))
     }
 
     /// Retrieves a `BasisFile` by its name from the store.
@@ -65,7 +75,7 @@ impl BasisStore {
     /// Returns a [`FileError::Io`] if the file cannot be opened, or
     /// [`FileError::Serde`] if it cannot be deserialized from JSON.
     pub fn get(&self, name: &str) -> Result<Option<BasisFile>, FileError> {
-        let basis_path = self.get_path(name);
+        let basis_path = self.get_path(name)?;
         if !basis_path.exists() {
             return Ok(None);
         }
@@ -102,11 +112,11 @@ impl BasisStore {
     #[cfg(any(test, feature = "bench-support"))]
     #[allow(dead_code)]
     pub fn copy_from(&self, source: &BasisStore, name: &str) -> io::Result<()> {
-        let destination = self.get_path(name);
+        let destination = self.get_path(name)?;
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::copy(source.get_path(name), destination)?;
+        fs::copy(source.get_path(name)?, destination)?;
         Ok(())
     }
 
@@ -197,21 +207,31 @@ impl BasisStore {
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
     /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
     #[cfg(feature = "online")]
+    fn basis_url(&self, name: &str) -> io::Result<Url> {
+        self.get_path(name)?;
+        let mut url = self.url.clone();
+        url.path_segments_mut()
+            .map_err(|()| io::Error::new(io::ErrorKind::InvalidInput, "invalid BSE base URL"))?
+            .extend(["api", "basis", name, "format", "json"]);
+        Ok(url)
+    }
+
+    #[cfg(feature = "online")]
     pub async fn download(
         &self,
         name: &str,
         progress_callback: &mut impl FnMut(u64, Option<u64>),
     ) -> Result<(), DownloadSaveError> {
-        let url = format!("{}api/basis/{}/format/json", self.url, name);
+        let url = self.basis_url(name)?;
         // Start downloading the file
         let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
         let mut response = client.get(url).send().await?.error_for_status()?;
         let total_size = response.content_length();
-        let path = self.get_path(name);
+        let path = self.get_path(name)?;
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        let mut file = tokio::fs::File::create(self.get_path(name)).await?;
+        let mut file = tokio::fs::File::create(path).await?;
         let mut downloaded: u64 = 0;
         while let Some(chunk) = response.chunk().await? {
             file.write_all(&chunk).await?;
@@ -236,7 +256,7 @@ impl BasisStore {
     #[cfg(feature = "online")]
     #[allow(dead_code)]
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
-        let url = format!("{}api/basis/{}/format/json", self.url, name);
+        let url = self.basis_url(name)?;
         // Start downloading the file
         let client = BlockingClientBuilder::new()
             .user_agent(USER_AGENT)
@@ -275,7 +295,7 @@ impl BasisStore {
     }
 
     fn save<R: Read>(&self, name: &str, mut data: &mut R) -> Result<(), io::Error> {
-        let path = self.get_path(name);
+        let path = self.get_path(name)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -310,7 +330,7 @@ impl BasisStore {
         I::Item: AsRef<str>,
     {
         for name in names {
-            let path = self.get_path(name.as_ref());
+            let path = self.get_path(name.as_ref())?;
             match fs::remove_file(path) {
                 Ok(()) => {}
                 Err(err) if err.kind() == io::ErrorKind::NotFound => {}
@@ -446,5 +466,22 @@ mod tests {
         let basis = store.get("missing").unwrap();
 
         assert!(basis.is_none());
+    }
+
+    #[test]
+    fn test_rejects_path_like_basis_names() {
+        let store = BasisStore::new(&env::temp_dir().join("rustiq-basis-store-validation"));
+
+        for name in ["", ".", "..", "../escape", "..\\escape", "C:\\escape"] {
+            let error = store.get(name).unwrap_err();
+            assert!(matches!(
+                error,
+                FileError::Io(ref error) if error.kind() == io::ErrorKind::InvalidInput
+            ));
+            assert_eq!(
+                store.remove([name]).unwrap_err().kind(),
+                io::ErrorKind::InvalidInput
+            );
+        }
     }
 }
