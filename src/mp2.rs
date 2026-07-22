@@ -701,7 +701,7 @@ mod tests {
         );
         assert_abs_diff_eq!(
             mp2_result.electronic_energy,
-            -78.742_708_457_739_07,
+            -78.742_828_168_770_67,
             epsilon = 5e-8
         );
     }
