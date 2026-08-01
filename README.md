@@ -207,6 +207,133 @@ architecture experiment, not as a production research code.
 
 ## Quick Start
 
+### Choosing A Development Environment
+
+RustiQ can be developed either with the repository's Nix flake or with a
+regular Rust installation. `direnv` is optional: it only automates entering and
+leaving the Nix development shell.
+
+If Nix is new to you, start with the official [introduction to
+Nix](https://nixos.org/why-nix/) and [learning resources](https://nixos.org/learn/).
+Nix is a package manager and development-environment tool; NixOS is a complete
+Linux distribution built around it. You do not need to replace your operating
+system with NixOS to use this repository's flake.
+
+The flake supports the following platforms:
+
+- Linux on x86_64 and AArch64;
+- macOS on Apple Silicon.
+
+The pinned nixpkgs revision no longer supports Intel macOS (`x86_64-darwin`).
+Use the native Cargo workflow on that platform.
+
+On Windows, use the native Cargo workflow below or run the Linux flake through
+WSL2. WSL2 can run either [NixOS-WSL](https://nix-community.github.io/NixOS-WSL/)
+or another Linux distribution with the Nix package manager installed. Native
+Windows itself is not one of the systems currently declared by `flake.nix`.
+
+#### Getting Nix
+
+Choose the case that matches your machine:
+
+- **On NixOS, including NixOS-WSL:** Nix is already installed as part of the
+  operating system. [NixOS-WSL installation
+  instructions](https://nix-community.github.io/NixOS-WSL/install.html) are
+  available for users who want to run NixOS directly under WSL2. Make sure the
+  modern Nix command and flakes are enabled in your NixOS configuration:
+
+  ```nix
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  ```
+
+  Apply the configuration with `sudo nixos-rebuild switch`, then continue with
+  `nix develop` or the direnv workflow below.
+
+- **On another Linux distribution, macOS, or a non-NixOS WSL2 distribution:**
+  install Nix separately as an additional package manager. It works alongside
+  tools such as `apt`, `dnf`, `pacman`, or Homebrew and does not replace them.
+  Follow the official [Nix download and installation
+  instructions](https://nixos.org/download/) for your platform, restart the
+  shell if requested, and verify the installation with `nix --version`. The
+  official page recommends a multi-user installation when the platform supports
+  it.
+
+In either case, Nix reads `flake.nix` and `flake.lock` from this repository to
+create the same project-specific toolchain without installing those development
+tools globally. The first invocation may take some time because Nix must
+download the pinned dependencies; later invocations reuse its local store.
+
+#### Nix Without direnv
+
+Install Nix with flakes enabled, clone the repository, and enter the development
+shell manually:
+
+```sh
+git clone https://github.com/mveril/RustiQ.git
+cd RustiQ
+nix develop
+```
+
+This provides the Rust toolchain selected by `rust-toolchain.toml` and the
+development utilities. On `x86_64-linux` and `aarch64-darwin`, where nixpkgs
+currently supports its PySCF package, it also provides a Python environment
+containing PySCF and its scientific Python dependencies. The shell remains
+usable without PySCF on the other declared platforms and reports its absence
+when it starts. Platform-specific profiling and debugging tools are included
+where available. Run the usual Cargo commands inside it:
+
+```sh
+cargo build
+cargo test
+cargo run -- run samples/h2/sto-3g/calculation.toml
+```
+
+Leave the environment with `exit` or Ctrl-D. You can also build the default Nix
+package without entering the development shell:
+
+```sh
+nix build
+```
+
+#### Nix With direnv
+
+Install both Nix and `direnv`, enable the direnv hook for your shell, then run:
+
+```sh
+git clone https://github.com/mveril/RustiQ.git
+cd RustiQ
+direnv allow
+```
+
+The tracked `.envrc` contains `use flake`, so direnv loads the same Nix
+development environment automatically whenever you enter the repository and
+unloads it when you leave. `direnv allow` is deliberately required the first
+time, and again after `.envrc` changes, so that repository-provided shell code
+is not executed without review. Use `direnv deny` to revoke permission.
+
+If `use flake` is unknown, install or configure
+[`nix-direnv`](https://github.com/nix-community/nix-direnv), or use `nix develop`
+directly. Some direnv/Nix installations already provide this integration.
+
+#### Without Nix Or direnv
+
+Install Git and Rust through [`rustup`](https://rustup.rs/), then use Cargo
+directly on Linux, macOS, or Windows:
+
+```sh
+git clone https://github.com/mveril/RustiQ.git
+cd RustiQ
+rustup show
+cargo build
+cargo test
+cargo run -- run samples/h2/sto-3g/calculation.toml
+```
+
+`rustup show` causes rustup to notice `rust-toolchain.toml` and install the
+requested stable toolchain and components if necessary. This route is enough to
+build and run RustiQ, but the extra tools and the PySCF reference environment
+from the Nix development shell must be installed separately if you need them.
+
 ### Installation From The Repository
 
 To install RustiQ directly from the source repository with Cargo, clone the
