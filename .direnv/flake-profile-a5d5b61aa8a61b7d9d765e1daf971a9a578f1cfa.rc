@@ -58,7 +58,7 @@ NIX_CC_WRAPPER_TARGET_BUILD_x86_64_unknown_linux_gnu='1'
 export NIX_CC_WRAPPER_TARGET_BUILD_x86_64_unknown_linux_gnu
 NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu='1'
 export NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu
-NIX_CFLAGS_COMPILE=' -frandom-seed=330lbs848j -isystem /nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev/include -fmacro-prefix-map=/nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-compiler-rt-libc-21.1.8-dev -isystem /nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev/include -fmacro-prefix-map=/nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-compiler-rt-libc-21.1.8-dev'
+NIX_CFLAGS_COMPILE=' -frandom-seed=in6z41gwyr -isystem /nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev/include -fmacro-prefix-map=/nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-compiler-rt-libc-21.1.8-dev -isystem /nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev/include -fmacro-prefix-map=/nix/store/fqhj6xzwcqvz69c6qbvn8hgshm74pc48-compiler-rt-libc-21.1.8-dev=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-compiler-rt-libc-21.1.8-dev'
 export NIX_CFLAGS_COMPILE
 NIX_CFLAGS_COMPILE_FOR_BUILD=' -isystem /nix/store/k39ljkrhbwjb1mahd45zk2w4x34d1345-jq-1.8.2-dev/include -fmacro-prefix-map=/nix/store/k39ljkrhbwjb1mahd45zk2w4x34d1345-jq-1.8.2-dev=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-jq-1.8.2-dev -isystem /nix/store/1ld9637nrzsasyymz9l2yha2gvqawbmr-python3-3.14.6-env/include -fmacro-prefix-map=/nix/store/1ld9637nrzsasyymz9l2yha2gvqawbmr-python3-3.14.6-env=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-python3-3.14.6-env -isystem /nix/store/n9h9wnfmjqncf29xldxdg9b21wcpmmg8-gdb-17.2/include -fmacro-prefix-map=/nix/store/n9h9wnfmjqncf29xldxdg9b21wcpmmg8-gdb-17.2=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-gdb-17.2 -isystem /nix/store/ffj2ywbsjb0f36ig34qs2c1knmmlpmia-perf-linux-7.1.5/include -fmacro-prefix-map=/nix/store/ffj2ywbsjb0f36ig34qs2c1knmmlpmia-perf-linux-7.1.5=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-perf-linux-7.1.5'
 export NIX_CFLAGS_COMPILE_FOR_BUILD
@@ -243,7 +243,6 @@ echo "System: x86_64-linux"
 echo "Rust: $(rustc --version)"
 echo "Cargo: $(cargo --version)"
 echo "PySCF: $(python -c '\''import pyscf; print(pyscf.__version__)'\'')"
-
 '
 export shellHook
 stdenv='/nix/store/sxx9r2badzg82107kiwwm9jmzlf52mdb-stdenv-linux'

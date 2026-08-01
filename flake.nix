@@ -55,9 +55,6 @@
             doCheck = true;
           };
 
-          # PySCF currently has the best fit with the x86_64 Linux system used
-          # by this project. Keep the shell portable for the other systems
-          # advertised above, while making the native environment reproducible.
           pythonPyscf = pkgs.python314.withPackages (pythonPackages: with pythonPackages; [
             pyscf
             numpy
@@ -97,9 +94,9 @@
                 cmake
                 pkg-config
               ]
-              ++ pkgs.lib.optionals (system == "x86_64-linux") [
+              ++ [
                 # This provides the regular `python` command with PySCF
-                # available, matching the system environment.
+                # available on every supported system.
                 pythonPyscf
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
@@ -112,6 +109,7 @@
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
                 libiconv
+                samply
               ];
 
             env = {
@@ -126,9 +124,7 @@
               echo "System: ${system}"
               echo "Rust: $(rustc --version)"
               echo "Cargo: $(cargo --version)"
-              ${pkgs.lib.optionalString (system == "x86_64-linux") ''
-                echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
-              ''}
+              echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
             '';
           };
 
@@ -138,11 +134,7 @@
             nativeBuildInputs = [ rustToolchain ];
             src = ./.;
           } ''
-            cp -r "$src" source
-            chmod -R u+w source
-            cd source
-
-            cargo fmt --all --check
+            cargo fmt --manifest-path "$src/Cargo.toml" --all --check
 
             touch "$out"
           '';
