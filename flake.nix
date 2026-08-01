@@ -23,7 +23,6 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
         "aarch64-darwin"
       ];
 
@@ -38,9 +37,7 @@
             ];
           };
 
-          rustToolchain =
-            pkgs.rust-bin.fromRustupToolchainFile
-              ./rust-toolchain.toml;
+          rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
           rustPlatform = pkgs.makeRustPlatform {
             cargo = rustToolchain;
@@ -55,14 +52,18 @@
             doCheck = true;
           };
 
-          pythonPyscf = pkgs.python314.withPackages (pythonPackages: with pythonPackages; [
-            pyscf
-            numpy
-            scipy
-            matplotlib
-            jupyterlab
-            ipykernel
-          ]);
+          pythonPyscf = pkgs.python314.withPackages (
+            pythonPackages: with pythonPackages; [
+              pyscf
+              numpy
+              scipy
+              matplotlib
+              jupyterlab
+              ipykernel
+            ]
+          );
+
+          pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
         in
         {
           packages.default = rustiq;
@@ -94,9 +95,9 @@
                 cmake
                 pkg-config
               ]
-              ++ [
-                # This provides the regular `python` command with PySCF
-                # available on every supported system.
+              ++ pkgs.lib.optionals pyscfSupported [
+                # PySCF is currently available from nixpkgs on x86_64-linux
+                # and aarch64-darwin.
                 pythonPyscf
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
@@ -124,20 +125,28 @@
               echo "System: ${system}"
               echo "Rust: $(rustc --version)"
               echo "Cargo: $(cargo --version)"
-              echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
+              ${pkgs.lib.optionalString pyscfSupported ''
+                echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
+              ''}
+              ${pkgs.lib.optionalString (!pyscfSupported) ''
+                echo "PySCF: unavailable from nixpkgs on ${system}"
+              ''}
             '';
           };
 
-          formatter = pkgs.nixfmt-rfc-style;
+          formatter = pkgs.nixfmt;
 
-          checks.formatting = pkgs.runCommand "rustiq-formatting" {
-            nativeBuildInputs = [ rustToolchain ];
-            src = ./.;
-          } ''
-            cargo fmt --manifest-path "$src/Cargo.toml" --all --check
+          checks.formatting =
+            pkgs.runCommand "rustiq-formatting"
+              {
+                nativeBuildInputs = [ rustToolchain ];
+                src = ./.;
+              }
+              ''
+                cargo fmt --manifest-path "$src/Cargo.toml" --all --check
 
-            touch "$out"
-          '';
+                touch "$out"
+              '';
 
           checks.tests = rustiq;
         };
