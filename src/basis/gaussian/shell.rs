@@ -37,7 +37,7 @@ impl Shell {
     pub fn renorm(alpha: &DVector<f64>, contr: &mut [Contraction]) -> DVector<f64> {
         for c in contr.iter_mut() {
             debug_assert!(c.l <= 15, "Le moment angulaire l doit être <= 15");
-            debug_assert_eq!(
+            assert_eq!(
                 alpha.len(),
                 c.coeff.len(),
                 "Mismatch between alpha.len() and c.coeff.len() for contraction with l = {}",
