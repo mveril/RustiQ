@@ -95,3 +95,29 @@ jobs:
         run: nix build .#cargo-artifacts --out-link result-cargo-artifacts
       - name: Check H2 energy against PySCF
         run: nix run .#pyscf-check -- h2-sto-3g-rhf
+
+  devcontainer:
+    name: Dev Container
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Build and verify Dev Container
+        uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: |
+            set -eux
+            command -v cargo
+            command -v rustc
+            command -v rust-analyzer
+            command -v python
+            cargo --version
+            rustc --version
+            rust-analyzer --version
+            python -c 'import pyscf; print("PySCF", pyscf.__version__)'
+            cargo metadata --no-deps --format-version 1 > /dev/null
+            cargo build --all-targets --all-features
+            cargo test --all-targets --all-features
