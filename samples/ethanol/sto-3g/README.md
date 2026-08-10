@@ -15,7 +15,7 @@ cargo run -- run samples/ethanol/sto-3g/calculation.toml
 Run the optional PySCF reference outside the Rust unit tests:
 
 ```sh
-pyscf-python samples/ethanol/sto-3g/pyscf_reference.py
+python samples/ethanol/sto-3g/pyscf_reference.py
 ```
 
 RustiQ expects `sto-3g` to be present in the local basis store. If needed:
