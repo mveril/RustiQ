@@ -207,11 +207,80 @@ architecture experiment, not as a production research code.
 
 ## Quick Start
 
+### Recommended: VS Code Dev Container
+
+The repository includes a ready-to-use development container. This is the
+recommended setup when using VS Code because it provides the same Linux-based
+Rust, Nix, direnv, debugging, and scientific Python tools without requiring
+them to be installed individually on the host.
+
+Prerequisites:
+
+- Docker Desktop with the Linux engine running;
+- Visual Studio Code;
+- the VS Code **Dev Containers** extension.
+
+Clone the repository and open it in VS Code:
+
+```sh
+git clone https://github.com/mveril/RustiQ.git
+cd RustiQ
+code .
+```
+
+Then run **Dev Containers: Reopen in Container** from the command palette. The
+first creation can take several minutes while Docker builds the image and Nix
+downloads the toolchain pinned by `flake.lock`. Subsequent starts reuse the
+Docker image and Nix store.
+
+The container is based on Debian Bookworm and automatically installs Nix,
+direnv, GitHub CLI, rust-analyzer, LLDB, TOML and Nix language support, and the
+Python extension. Its post-create step:
+
+1. marks `/workspaces/RustiQ` as a trusted Git working tree;
+2. authorizes the tracked `.envrc`;
+3. builds `.#dev-environment` at `/home/vscode/.rustiq-dev-profile`;
+4. exposes that profile on the VS Code remote process `PATH`.
+
+The explicit profile is important because direnv updates interactive shells,
+but VS Code extension processes such as rust-analyzer do not necessarily start
+from an interactive terminal. Both the editor and terminals therefore see the
+same pinned `cargo`, `rustc`, and `rust-analyzer` binaries.
+
+Verify the environment from a terminal inside the container:
+
+```sh
+cargo --version
+rustc --version
+rust-analyzer --version
+cargo test
+```
+
+After changing `flake.nix`, `flake.lock`, or `.devcontainer/devcontainer.json`,
+run **Dev Containers: Rebuild Container** so the editor profile is regenerated.
+
+#### Dev Container Troubleshooting On Windows
+
+- If Docker reports that `dockerDesktopLinuxEngine` cannot be found, start
+  Docker Desktop and wait until `docker info` succeeds before reopening the
+  repository.
+- If container creation fails while mounting a path such as
+  `\\wsl.localhost\<distribution>\mnt\wslg\runtime-dir\wayland-0`, disable
+  **Dev Containers: Mount Wayland Socket** in the VS Code user settings. The
+  equivalent JSON setting is `"dev.containers.mountWaylandSocket": false`.
+  This only disables Linux GUI forwarding; it does not affect Docker, Rust,
+  Nix, or terminal access.
+- Nix inside the container is installed by the Dev Container feature. It is
+  independent of any Nix or NixOS installation in WSL.
+- If the toolchain changes are not visible in the editor, rebuild the container
+  instead of relying only on `direnv reload`; direnv primarily updates shells.
+
 ### Choosing A Development Environment
 
-RustiQ can be developed either with the repository's Nix flake or with a
-regular Rust installation. `direnv` is optional: it only automates entering and
-leaving the Nix development shell.
+RustiQ can be developed with the VS Code Dev Container, directly with the
+repository's Nix flake, or with a regular Rust installation. `direnv` is
+optional outside the container: it automates entering and leaving the Nix
+development shell.
 
 If Nix is new to you, start with the official [introduction to
 Nix](https://nixos.org/why-nix/) and [learning resources](https://nixos.org/learn/).
@@ -227,10 +296,12 @@ The flake supports the following platforms:
 The pinned nixpkgs revision no longer supports Intel macOS (`x86_64-darwin`).
 Use the native Cargo workflow on that platform.
 
-On Windows, use the native Cargo workflow below or run the Linux flake through
-WSL2. WSL2 can run either [NixOS-WSL](https://nix-community.github.io/NixOS-WSL/)
-or another Linux distribution with the Nix package manager installed. Native
-Windows itself is not one of the systems currently declared by `flake.nix`.
+On Windows, the Dev Container is the simplest way to use the complete pinned
+environment. The alternatives are the native Cargo workflow below or the Linux
+flake through WSL2. WSL2 can run either
+[NixOS-WSL](https://nix-community.github.io/NixOS-WSL/) or another Linux
+distribution with the Nix package manager installed. Native Windows itself is
+not one of the systems currently declared by `flake.nix`.
 
 #### Getting Nix
 
@@ -315,6 +386,12 @@ development environment automatically whenever you enter the repository and
 unloads it when you leave. `direnv allow` is deliberately required the first
 time, and again after `.envrc` changes, so that repository-provided shell code
 is not executed without review. Use `direnv deny` to revoke permission.
+
+The VS Code direnv extension can propagate this environment to terminals and
+tasks, but it is not a reliable way to configure every remote extension
+process. The Dev Container therefore also exposes the Nix-built
+`dev-environment` profile through `remoteEnv` for rust-analyzer and other editor
+services.
 
 If `use flake` is unknown, install or configure
 [`nix-direnv`](https://github.com/nix-community/nix-direnv), or use `nix develop`
@@ -473,6 +550,11 @@ cargo fmt
 cargo clippy --all-targets --all-features
 cargo test
 ```
+
+These commands are identical in the Dev Container, a `nix develop` shell, and a
+native Rust installation. The Dev Container additionally provides tools such
+as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`, `bacon`, and
+`hyperfine` from the pinned Nix environment.
 
 Most unit tests are colocated with implementation modules in `src/`. Shared
 fixtures live in `tests/data/`, and sample calculation inputs live in
