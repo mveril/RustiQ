@@ -52,7 +52,7 @@
             doCheck = true;
           };
 
-          pythonPyscf = pkgs.python314.withPackages (
+          pythonScientific = pkgs.python314.withPackages (
             pythonPackages: with pythonPackages; [
               pyscf
               numpy
@@ -98,7 +98,7 @@
               ++ pkgs.lib.optionals pyscfSupported [
                 # PySCF is currently available from nixpkgs on x86_64-linux
                 # and aarch64-darwin.
-                pythonPyscf
+                pythonScientific
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 clang
