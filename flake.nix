@@ -64,54 +64,69 @@
           );
 
           pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
+
+          devPackages =
+            with pkgs;
+            [
+              rustToolchain
+
+              cargo-nextest
+              cargo-deny
+              cargo-llvm-cov
+              cargo-criterion
+              cargo-expand
+              cargo-edit
+
+              bacon
+              cargo-watch
+              git
+              hyperfine
+              just
+              jq
+              ripgrep
+              rust-analyzer
+              time
+              cmake
+              pkg-config
+            ]
+            ++ pkgs.lib.optionals pyscfSupported [
+              # PySCF is currently available from nixpkgs on x86_64-linux
+              # and aarch64-darwin.
+              pythonScientific
+            ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+              clang
+              cargo-flamegraph
+              gdb
+              inferno
+              llvmPackages.bintools
+              perf
+            ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              libiconv
+              samply
+            ];
         in
         {
-          packages.default = rustiq;
+          packages = {
+            default = rustiq;
+
+            # Stable executable environment for editors and other processes
+            # that are not launched from an interactive Nix shell.
+            dev-environment = pkgs.buildEnv {
+              name = "rustiq-dev-environment";
+              paths = devPackages;
+              pathsToLink = [
+                "/bin"
+                "/share"
+              ];
+              ignoreCollisions = true;
+            };
+          };
 
           devShells.default = pkgs.mkShell {
             strictDeps = true;
-
-            packages =
-              with pkgs;
-              [
-                rustToolchain
-
-                cargo-nextest
-                cargo-deny
-                cargo-llvm-cov
-                cargo-criterion
-                cargo-expand
-                cargo-edit
-
-                bacon
-                cargo-watch
-                git
-                hyperfine
-                just
-                jq
-                ripgrep
-                rust-analyzer
-                time
-                cmake
-                pkg-config
-              ]
-              ++ pkgs.lib.optionals pyscfSupported [
-                # PySCF is currently available from nixpkgs on x86_64-linux
-                # and aarch64-darwin.
-                pythonScientific
-              ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-                clang
-                cargo-flamegraph
-                gdb
-                inferno
-                llvmPackages.bintools
-                perf
-              ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-                libiconv
-                samply
-              ];
+            packages = devPackages;
 
             env = {
               RUST_BACKTRACE = "1";
