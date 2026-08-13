@@ -97,7 +97,6 @@
           );
 
           pythonPyscf = pkgs.python314.withPackages (pythonPackages: [ pythonPackages.pyscf ]);
-
           devPackages =
             with pkgs;
             [
