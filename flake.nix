@@ -25,6 +25,7 @@
         "aarch64-linux"
         "aarch64-darwin"
       ];
+      # nixpkgs unstable 26.11 no longer supports x86_64-darwin.
 
       perSystem =
         { system, ... }:
@@ -54,18 +55,20 @@
             doCheck = true;
           };
 
+          pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
+
           pythonScientific = pkgs.python314.withPackages (
-            pythonPackages: with pythonPackages; [
-              pyscf
+            pythonPackages:
+            with pythonPackages;
+            [
               numpy
               scipy
               matplotlib
               jupyterlab
               ipykernel
             ]
+            ++ pkgs.lib.optional pyscfSupported pyscf
           );
-
-          pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
 
           devPackages =
             with pkgs;
@@ -90,10 +93,6 @@
               time
               cmake
               pkg-config
-            ]
-            ++ pkgs.lib.optionals pyscfSupported [
-              # PySCF is currently available from nixpkgs on x86_64-linux
-              # and aarch64-darwin.
               pythonScientific
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
