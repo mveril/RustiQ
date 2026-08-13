@@ -15,13 +15,14 @@
   "customizations": {
     "vscode": {
       "extensions": [
+        "pinage404.nix-extension-pack",
         "rust-lang.rust-analyzer",
         "vadimcn.vscode-lldb",
         "tamasfe.even-better-toml",
+        "fill-labs.dependi",
         "github.vscode-github-actions",
-        "jnoortheen.nix-ide",
-        "mkhl.direnv",
-        "ms-python.python"
+        "ms-python.python",
+        "ms-toolsai.jupyter"
       ],
       "settings": {
         "rust-analyzer.linkedProjects": [
