@@ -44,9 +44,11 @@
             rustc = rustToolchain;
           };
 
+          cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
           rustiq = rustPlatform.buildRustPackage {
             pname = "RustiQ";
-            version = "0.1.0-alpha.1";
+            version = cargoToml.package.version;
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
             doCheck = true;
@@ -99,7 +101,6 @@
               cargo-flamegraph
               gdb
               inferno
-              llvmPackages.bintools
               perf
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
@@ -120,7 +121,6 @@
                 "/bin"
                 "/share"
               ];
-              ignoreCollisions = true;
             };
           };
 
@@ -149,7 +149,7 @@
             '';
           };
 
-          formatter = pkgs.nixfmt;
+          formatter = pkgs.nixfmt-tree;
 
           checks.formatting =
             pkgs.runCommand "rustiq-formatting"
@@ -163,7 +163,28 @@
                 touch "$out"
               '';
 
-          checks.tests = rustiq;
+          checks.clippy = rustPlatform.buildRustPackage {
+            pname = "rustiq-clippy";
+            version = cargoToml.package.version;
+            src = ./.;
+            cargoLock.lockFile = ./Cargo.lock;
+
+            buildPhase = ''
+              runHook preBuild
+              cargo clippy --all-targets --all-features -- -D warnings
+              runHook postBuild
+            '';
+
+            installPhase = ''
+              runHook preInstall
+              touch "$out"
+              runHook postInstall
+            '';
+
+            doCheck = false;
+          };
+
+          checks.build = rustiq;
         };
     };
 }
