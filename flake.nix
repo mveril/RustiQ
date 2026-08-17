@@ -183,7 +183,7 @@
             doCheck = false;
           };
 
-          checks.build = rustiq;
+          checks.unit-tests = rustiq;
         };
     };
 }
