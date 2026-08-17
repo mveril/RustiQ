@@ -47,12 +47,14 @@
 
           cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
+          sourceRoot = ./.;
+
           cargoSource = pkgs.lib.cleanSourceWith {
-            src = craneLib.path ./.;
+            src = sourceRoot;
             filter =
               path: type:
               let
-                relativePath = pkgs.lib.removePrefix "${toString ./.}/" (toString path);
+                relativePath = pkgs.lib.removePrefix "${toString sourceRoot}/" (toString path);
                 inProjectTree =
                   directory: relativePath == directory || pkgs.lib.hasPrefix "${directory}/" relativePath;
               in
