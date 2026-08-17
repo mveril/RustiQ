@@ -20,9 +20,9 @@ From another Nix-capable environment, run:
 nix develop --command python tools/reference/compare_pyscf.py
 ```
 
-The flake also exposes a manual app that supplies the Rust toolchain, Python,
-and PySCF without entering the development shell. Run it from the repository
-root:
+The flake also exposes a manual app that supplies the Nix-built RustiQ binary,
+Python, and PySCF without entering the development shell. Run it from the
+repository root:
 
 ```sh
 nix run .#pyscf-check

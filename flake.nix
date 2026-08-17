@@ -4,6 +4,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    crane.url = "github:ipetkov/crane";
+
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -14,6 +16,7 @@
 
   outputs =
     inputs@{
+      crane,
       flake-parts,
       nixpkgs,
       rust-overlay,
@@ -40,20 +43,41 @@
 
           rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
-          rustPlatform = pkgs.makeRustPlatform {
-            cargo = rustToolchain;
-            rustc = rustToolchain;
-          };
+          craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
           cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
-          rustiq = rustPlatform.buildRustPackage {
+          cargoSource = pkgs.lib.cleanSourceWith {
+            src = craneLib.path ./.;
+            filter =
+              path: type:
+              let
+                relativePath = pkgs.lib.removePrefix "${toString ./.}/" (toString path);
+                inProjectTree =
+                  directory: relativePath == directory || pkgs.lib.hasPrefix "${directory}/" relativePath;
+              in
+              craneLib.filterCargoSources path type
+              || inProjectTree "assets"
+              || inProjectTree "samples"
+              || inProjectTree "tests/data";
+          };
+
+          commonCargoArgs = {
             pname = "RustiQ";
             version = cargoToml.package.version;
-            src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
-            doCheck = true;
+            src = cargoSource;
+            strictDeps = true;
+            cargoExtraArgs = "--locked --all-features";
           };
+
+          cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
+
+          rustiq = craneLib.buildPackage (
+            commonCargoArgs
+            // {
+              inherit cargoArtifacts;
+            }
+          );
 
           pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
 
@@ -69,6 +93,8 @@
             ]
             ++ pkgs.lib.optional pyscfSupported pyscf
           );
+
+          pythonPyscf = pkgs.python314.withPackages (pythonPackages: [ pythonPackages.pyscf ]);
 
           devPackages =
             with pkgs;
@@ -110,8 +136,8 @@
           pyscfCheck = pkgs.writeShellApplication {
             name = "pyscf-check";
             runtimeInputs = [
-              rustToolchain
-              pythonScientific
+              rustiq
+              pythonPyscf
             ];
             text = ''
               reference_tool="$PWD/tools/reference/compare_pyscf.py"
@@ -120,13 +146,14 @@
                 exit 2
               fi
 
-              exec python "$reference_tool" "$@"
+              RUSTIQ_BIN="${rustiq}/bin/RustiQ" exec python "$reference_tool" "$@"
             '';
           };
         in
         {
           packages = {
             default = rustiq;
+            cargo-artifacts = cargoArtifacts;
 
             # Stable executable environment for editors and other processes
             # that are not launched from an interactive Nix shell.
@@ -175,38 +202,15 @@
 
           formatter = pkgs.nixfmt-tree;
 
-          checks.formatting =
-            pkgs.runCommand "rustiq-formatting"
-              {
-                nativeBuildInputs = [ rustToolchain ];
-                src = ./.;
-              }
-              ''
-                cargo fmt --manifest-path "$src/Cargo.toml" --all --check
+          checks.formatting = craneLib.cargoFmt { src = cargoSource; };
 
-                touch "$out"
-              '';
-
-          checks.clippy = rustPlatform.buildRustPackage {
-            pname = "rustiq-clippy";
-            version = cargoToml.package.version;
-            src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
-
-            buildPhase = ''
-              runHook preBuild
-              cargo clippy --all-targets --all-features -- -D warnings
-              runHook postBuild
-            '';
-
-            installPhase = ''
-              runHook preInstall
-              touch "$out"
-              runHook postInstall
-            '';
-
-            doCheck = false;
-          };
+          checks.clippy = craneLib.cargoClippy (
+            commonCargoArgs
+            // {
+              inherit cargoArtifacts;
+              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+            }
+          );
 
           checks.unit-tests = rustiq;
         };
