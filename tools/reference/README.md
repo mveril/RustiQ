@@ -20,10 +20,44 @@ From another Nix-capable environment, run:
 nix develop --command python tools/reference/compare_pyscf.py
 ```
 
+The flake also exposes a manual app that supplies the Rust toolchain, Python,
+and PySCF without entering the development shell. Run it from the repository
+root:
+
+```sh
+nix run .#pyscf-check
+```
+
+This app is deliberately not part of the flake's `checks`, so `nix flake check`
+does not run the PySCF comparisons automatically. It is exposed only on systems
+where the pinned nixpkgs revision provides PySCF.
+
+Without Nix, install the Rust toolchain described in the root `README.md` and
+provide PySCF with your preferred Python environment. For example:
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install pyscf
+python tools/reference/compare_pyscf.py
+```
+
+On Windows PowerShell, activate the environment with
+`.venv\Scripts\Activate.ps1` instead. PySCF may require platform-specific system
+packages; consult its installation documentation if no compatible wheel is
+available. The comparison script also invokes `cargo`, so Cargo must remain on
+`PATH` while the Python environment is active.
+
 Run a single case by name:
 
 ```sh
 python tools/reference/compare_pyscf.py h2-sto-3g-rhf
+```
+
+The equivalent flake app invocation is:
+
+```sh
+nix run .#pyscf-check -- h2-sto-3g-rhf
 ```
 
 Prefix the single-case command with `nix develop --command` when running it

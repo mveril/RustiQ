@@ -106,6 +106,23 @@
               libiconv
               samply
             ];
+
+          pyscfCheck = pkgs.writeShellApplication {
+            name = "pyscf-check";
+            runtimeInputs = [
+              rustToolchain
+              pythonScientific
+            ];
+            text = ''
+              reference_tool="$PWD/tools/reference/compare_pyscf.py"
+              if [[ ! -f "$reference_tool" ]]; then
+                echo "pyscf-check must be run from the root of a RustiQ checkout." >&2
+                exit 2
+              fi
+
+              exec python "$reference_tool" "$@"
+            '';
+          };
         in
         {
           packages = {
@@ -120,6 +137,14 @@
                 "/bin"
                 "/share"
               ];
+            };
+          };
+
+          apps = pkgs.lib.optionalAttrs pyscfSupported {
+            pyscf-check = {
+              type = "app";
+              program = "${pyscfCheck}/bin/pyscf-check";
+              meta.description = "Compare RustiQ sample energies against PySCF";
             };
           };
 
