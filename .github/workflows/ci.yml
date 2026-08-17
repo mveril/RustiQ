@@ -9,9 +9,16 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Test (${{ matrix.os }})
+  cargo:
+    name: Cargo without Nix (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -43,12 +50,12 @@ jobs:
         run: cargo test --all-targets --no-default-features
 
   nix:
-    name: Nix flake
+    name: Nix flake (x86_64-linux)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
@@ -58,3 +65,6 @@ jobs:
 
       - name: Check flake
         run: nix flake check
+
+      - name: Run PySCF reference app
+        run: nix run .#pyscf-check -- h2-sto-3g-rhf
