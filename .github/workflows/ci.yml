@@ -78,6 +78,5 @@ jobs:
 
       - name: Keep Crane artifacts for the cache
         run: nix build .#cargo-artifacts --out-link result-cargo-artifacts
-
       - name: Check H2 energy against PySCF
         run: nix run .#pyscf-check -- h2-sto-3g-rhf
