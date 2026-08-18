@@ -110,7 +110,7 @@
           );
 
           pythonBase = pkgs.callPackage pyproject-nix.build.packages {
-            python = pkgs.python312;
+            python = pkgs.python314;
           };
 
           pythonSet = pythonBase.overrideScope (

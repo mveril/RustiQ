@@ -2,7 +2,7 @@
 name = "rustiq-reference-tools"
 version = "0.0.0"
 description = "Python tooling used to validate RustiQ against reference implementations"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "pyscf==2.14.0",
 ]
