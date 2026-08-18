@@ -18,8 +18,7 @@ concurrency:
 
 jobs:
   cargo:
-    # Keep this name stable: it is a required status check in branch protection.
-    name: Test (${{ matrix.os }})
+    name: Cargo without Nix (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -51,9 +50,7 @@ jobs:
         run: cargo test --all-targets --no-default-features
 
   nix:
-    # Preserve the legacy required check on the primary platform. The remaining
-    # matrix entries retain a platform suffix so their result stays identifiable.
-    name: ${{ matrix.system == 'x86_64-linux' && 'Nix flake' || format('Nix flake ({0})', matrix.system) }}
+    name: Nix flake (${{ matrix.system }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
