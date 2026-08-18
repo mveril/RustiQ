@@ -51,9 +51,18 @@ jobs:
         run: cargo test --all-targets --no-default-features
 
   nix:
-    # Keep this name stable: it is a required status check in branch protection.
-    name: Nix flake
-    runs-on: ubuntu-latest
+    name: Nix flake (${{ matrix.system }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            os: ubuntu-latest
+          - system: aarch64-linux
+            os: ubuntu-24.04-arm
+          - system: aarch64-darwin
+            os: macos-latest
 
     steps:
       - name: Checkout
@@ -65,13 +74,17 @@ jobs:
       - name: Restore bounded Nix cache
         uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'Cargo.lock', 'rust-toolchain.toml') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          primary-key: nix-${{ matrix.system }}-${{ hashFiles('flake.lock', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock') }}
+          restore-prefixes-first-match: nix-${{ matrix.system }}-
           save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           gc-max-store-size-linux: 1G
 
       - name: Evaluate flake outputs
+        if: matrix.system == 'x86_64-linux'
         run: nix flake check --all-systems --no-build
+
+      - name: Check the Python lock
+        run: nix develop --command uv lock --check
 
       - name: Build RustiQ with Nix
         run: nix build .#default

@@ -12,6 +12,24 @@
     };
 
     flake-parts.url = "github:hercules-ci/flake-parts";
+
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    uv2nix = {
+      url = "github:pyproject-nix/uv2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+    };
+
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.uv2nix.follows = "uv2nix";
+    };
   };
 
   outputs =
@@ -19,9 +37,19 @@
       crane,
       flake-parts,
       nixpkgs,
+      pyproject-build-systems,
+      pyproject-nix,
       rust-overlay,
+      uv2nix,
       ...
     }:
+    let
+      pythonWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+
+      pythonOverlay = pythonWorkspace.mkPyprojectOverlay {
+        sourcePreference = "wheel";
+      };
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
@@ -81,22 +109,20 @@
             }
           );
 
-          pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
+          pythonBase = pkgs.callPackage pyproject-nix.build.packages {
+            python = pkgs.python312;
+          };
 
-          pythonScientific = pkgs.python314.withPackages (
-            pythonPackages:
-            with pythonPackages;
-            [
-              numpy
-              scipy
-              matplotlib
-              jupyterlab
-              ipykernel
+          pythonSet = pythonBase.overrideScope (
+            pkgs.lib.composeManyExtensions [
+              pyproject-build-systems.overlays.wheel
+              pythonOverlay
             ]
-            ++ pkgs.lib.optional pyscfSupported pyscf
           );
 
-          pythonPyscf = pkgs.python314.withPackages (pythonPackages: [ pythonPackages.pyscf ]);
+          pythonPyscf = pythonSet.mkVirtualEnv "rustiq-pyscf-environment" pythonWorkspace.deps.default;
+
+          pythonScientific = pythonSet.mkVirtualEnv "rustiq-scientific-environment" pythonWorkspace.deps.all;
           devPackages =
             with pkgs;
             [
@@ -121,6 +147,7 @@
               cmake
               pkg-config
               pythonScientific
+              uv
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
               clang
@@ -155,6 +182,7 @@
           packages = {
             default = rustiq;
             cargo-artifacts = cargoArtifacts;
+            pyscf-environment = pythonPyscf;
 
             # Stable executable environment for editors and other processes
             # that are not launched from an interactive Nix shell.
@@ -168,7 +196,7 @@
             };
           };
 
-          apps = pkgs.lib.optionalAttrs pyscfSupported {
+          apps = {
             pyscf-check = {
               type = "app";
               program = "${pyscfCheck}/bin/pyscf-check";
@@ -182,6 +210,9 @@
 
             env = {
               RUST_BACKTRACE = "1";
+              UV_NO_SYNC = "1";
+              UV_PYTHON = pythonSet.python.interpreter;
+              UV_PYTHON_DOWNLOADS = "never";
               # Keep symbols in release-like profiling builds. This matches
               # the [profile.profiling] section in Cargo.toml.
               CARGO_PROFILE_PROFILING_DEBUG = "true";
@@ -192,12 +223,7 @@
               echo "System: ${system}"
               echo "Rust: $(rustc --version)"
               echo "Cargo: $(cargo --version)"
-              ${pkgs.lib.optionalString pyscfSupported ''
-                echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
-              ''}
-              ${pkgs.lib.optionalString (!pyscfSupported) ''
-                echo "PySCF: unavailable from nixpkgs on ${system}"
-              ''}
+              echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
             '';
           };
 
