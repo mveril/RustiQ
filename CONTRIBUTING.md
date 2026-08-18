@@ -21,6 +21,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets --all-features
 cargo test --all-targets --no-default-features
+uv lock --check
 ```
 
 The pull-request workflow also evaluates every system declared by the Nix flake,
@@ -33,6 +34,12 @@ with:
 nix flake check --all-systems --no-build
 nix flake check
 nix run .#pyscf-check
+```
+
+Outside Nix, run the same reference tooling with the locked Python environment:
+
+```sh
+uv run --locked python tools/reference/compare_pyscf.py
 ```
 
 If a change affects numerical behavior, include the affected input files,

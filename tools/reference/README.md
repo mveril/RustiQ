@@ -4,9 +4,10 @@ This directory contains optional development tooling for comparing RustiQ sample
 energies against PySCF. These checks are intentionally separate from `cargo test`
 so the Rust test suite does not depend on Python or PySCF.
 
-The Nix development shell provides PySCF on supported platforms. Inside the
-Dev Container, the same tools are prepared automatically from `flake.lock` and
-are available directly on `PATH`.
+The Nix development shell provides the PySCF version locked in `uv.lock` on all
+platforms declared by the flake. Inside the Dev Container, the same tools are
+prepared automatically and are available directly on `PATH`. No `.venv` or
+activation step is required.
 
 From the Dev Container, run all reference comparisons with:
 
@@ -29,29 +30,26 @@ nix run .#pyscf-check
 ```
 
 This app is deliberately not part of the flake's `checks`, so `nix flake check`
-does not run the PySCF comparisons automatically. It is exposed only on systems
-where the pinned nixpkgs revision provides PySCF.
+does not run the PySCF comparisons automatically. PySCF is built from its
+binary wheel through `uv2nix`, independently of whether nixpkgs packages it for
+the current platform.
 
 Without Nix, install the Rust toolchain described in the root `README.md` and
-provide PySCF with your preferred Python environment. For example:
+[`uv`](https://docs.astral.sh/uv/). Then run:
 
 ```sh
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install pyscf
-python tools/reference/compare_pyscf.py
+uv run --locked python tools/reference/compare_pyscf.py
 ```
 
-On Windows PowerShell, activate the environment with
-`.venv\Scripts\Activate.ps1` instead. PySCF may require platform-specific system
-packages; consult its installation documentation if no compatible wheel is
-available. The comparison script also invokes `cargo`, so Cargo must remain on
-`PATH` while the Python environment is active.
+This uses the cross-platform lock and requires compatible binary wheels; it
+does not build Python packages from source. PySCF supports Linux, macOS, and
+WSL2, but not native Windows. The comparison script also invokes `cargo`, so
+Cargo must remain on `PATH`.
 
 Run a single case by name:
 
 ```sh
-python tools/reference/compare_pyscf.py h2-sto-3g-rhf
+uv run --locked python tools/reference/compare_pyscf.py h2-sto-3g-rhf
 ```
 
 The equivalent flake app invocation is:
@@ -64,8 +62,6 @@ Prefix the single-case command with `nix develop --command` when running it
 outside the Dev Container or an active Nix development shell.
 
 The script prepares a temporary RustiQ basis store from `tests/data/sto-3g.json`
-and does not download basis data for RustiQ. In the nixpkgs revision pinned by
-`flake.lock`, `python314Packages.pyscf` supports exactly `x86_64-linux` and
-`aarch64-darwin`; it is unavailable on the flake's third platform,
-`aarch64-linux`. The Dev Container uses `x86_64-linux`, so the reference
-environment is available there.
+and does not download basis data for RustiQ. `uv.lock` records the wheels and
+hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
+the Python dependency declarations change.

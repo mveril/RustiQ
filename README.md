@@ -274,13 +274,18 @@ cd RustiQ
 nix develop
 ```
 
-This provides the Rust toolchain selected by `rust-toolchain.toml` and the
-development utilities. On `x86_64-linux` and `aarch64-darwin`, where nixpkgs
-currently supports its PySCF package, it also provides a Python environment
-containing PySCF and its scientific Python dependencies. The shell remains
-usable without PySCF on the other declared platforms and reports its absence
-when it starts. Platform-specific profiling and debugging tools are included
-where available. Run the usual Cargo commands inside it:
+This provides the Rust toolchain selected by `rust-toolchain.toml`, the
+development utilities, and a Python 3.12 environment built from the checked-in
+`uv.lock`. PySCF and the scientific Python dependencies are available on every
+platform declared by the flake. Nix places that environment directly on
+`PATH`, so no virtual environment needs to be created or activated:
+
+```sh
+python -c "import pyscf; print(pyscf.__version__)"
+```
+
+Platform-specific profiling and debugging tools are included where available.
+Run the usual Cargo commands inside the shell:
 
 ```sh
 cargo build
@@ -333,6 +338,14 @@ cargo run -- run samples/h2/sto-3g/calculation.toml
 requested stable toolchain and components if necessary. This route is enough to
 build and run RustiQ, but the extra tools and the PySCF reference environment
 from the Nix development shell must be installed separately if you need them.
+The repository uses [`uv`](https://docs.astral.sh/uv/) for that environment on
+Linux, macOS, and WSL2:
+
+```sh
+uv run --locked python tools/reference/compare_pyscf.py
+```
+
+PySCF does not support native Windows; use WSL2 for this optional comparison.
 
 ### Installation From The Repository
 
