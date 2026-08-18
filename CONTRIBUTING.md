@@ -23,6 +23,18 @@ cargo test --all-targets --all-features
 cargo test --all-targets --no-default-features
 ```
 
+The pull-request workflow also evaluates every system declared by the Nix flake,
+builds the native Nix package, and runs a PySCF smoke comparison. A scheduled
+and manually dispatchable `Full Nix checks` workflow builds every native flake
+check and runs the complete PySCF reference set. Run the same checks locally
+with:
+
+```sh
+nix flake check --all-systems --no-build
+nix flake check
+nix run .#pyscf-check
+```
+
 If a change affects numerical behavior, include the affected input files,
 reference values, and tolerance rationale.
 

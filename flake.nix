@@ -4,6 +4,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    crane.url = "github:ipetkov/crane";
+
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -14,6 +16,7 @@
 
   outputs =
     inputs@{
+      crane,
       flake-parts,
       nixpkgs,
       rust-overlay,
@@ -25,6 +28,7 @@
         "aarch64-linux"
         "aarch64-darwin"
       ];
+      # nixpkgs unstable 26.11 no longer supports x86_64-darwin.
 
       perSystem =
         { system, ... }:
@@ -39,31 +43,60 @@
 
           rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
-          rustPlatform = pkgs.makeRustPlatform {
-            cargo = rustToolchain;
-            rustc = rustToolchain;
+          craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+
+          cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+          sourceRoot = ./.;
+
+          cargoSource = pkgs.lib.cleanSourceWith {
+            src = sourceRoot;
+            filter =
+              path: type:
+              let
+                relativePath = pkgs.lib.removePrefix "${toString sourceRoot}/" (toString path);
+                inProjectTree =
+                  directory: relativePath == directory || pkgs.lib.hasPrefix "${directory}/" relativePath;
+              in
+              craneLib.filterCargoSources path type
+              || inProjectTree "assets"
+              || inProjectTree "samples"
+              || inProjectTree "tests/data";
           };
 
-          rustiq = rustPlatform.buildRustPackage {
+          commonCargoArgs = {
             pname = "RustiQ";
-            version = "0.1.0-alpha.1";
-            src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
-            doCheck = true;
+            version = cargoToml.package.version;
+            src = cargoSource;
+            strictDeps = true;
+            cargoExtraArgs = "--locked --all-features";
           };
+
+          cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
+
+          rustiq = craneLib.buildPackage (
+            commonCargoArgs
+            // {
+              inherit cargoArtifacts;
+            }
+          );
+
+          pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
 
           pythonScientific = pkgs.python314.withPackages (
-            pythonPackages: with pythonPackages; [
-              pyscf
+            pythonPackages:
+            with pythonPackages;
+            [
               numpy
               scipy
               matplotlib
               jupyterlab
               ipykernel
             ]
+            ++ pkgs.lib.optional pyscfSupported pyscf
           );
 
-          pyscfSupported = builtins.elem system pkgs.python314Packages.pyscf.meta.platforms;
+          pythonPyscf = pkgs.python314.withPackages (pythonPackages: [ pythonPackages.pyscf ]);
 
           devPackages =
             with pkgs;
@@ -88,10 +121,6 @@
               time
               cmake
               pkg-config
-            ]
-            ++ pkgs.lib.optionals pyscfSupported [
-              # PySCF is currently available from nixpkgs on x86_64-linux
-              # and aarch64-darwin.
               pythonScientific
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
@@ -99,17 +128,34 @@
               cargo-flamegraph
               gdb
               inferno
-              llvmPackages.bintools
               perf
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
               libiconv
               samply
             ];
+
+          pyscfCheck = pkgs.writeShellApplication {
+            name = "pyscf-check";
+            runtimeInputs = [
+              rustiq
+              pythonPyscf
+            ];
+            text = ''
+              reference_tool="$PWD/tools/reference/compare_pyscf.py"
+              if [[ ! -f "$reference_tool" ]]; then
+                echo "pyscf-check must be run from the root of a RustiQ checkout." >&2
+                exit 2
+              fi
+
+              RUSTIQ_BIN="${rustiq}/bin/RustiQ" exec python "$reference_tool" "$@"
+            '';
+          };
         in
         {
           packages = {
             default = rustiq;
+            cargo-artifacts = cargoArtifacts;
 
             # Stable executable environment for editors and other processes
             # that are not launched from an interactive Nix shell.
@@ -120,7 +166,14 @@
                 "/bin"
                 "/share"
               ];
-              ignoreCollisions = true;
+            };
+          };
+
+          apps = pkgs.lib.optionalAttrs pyscfSupported {
+            pyscf-check = {
+              type = "app";
+              program = "${pyscfCheck}/bin/pyscf-check";
+              meta.description = "Compare RustiQ sample energies against PySCF";
             };
           };
 
@@ -149,21 +202,19 @@
             '';
           };
 
-          formatter = pkgs.nixfmt;
+          formatter = pkgs.nixfmt-tree;
 
-          checks.formatting =
-            pkgs.runCommand "rustiq-formatting"
-              {
-                nativeBuildInputs = [ rustToolchain ];
-                src = ./.;
-              }
-              ''
-                cargo fmt --manifest-path "$src/Cargo.toml" --all --check
+          checks.formatting = craneLib.cargoFmt { src = cargoSource; };
 
-                touch "$out"
-              '';
+          checks.clippy = craneLib.cargoClippy (
+            commonCargoArgs
+            // {
+              inherit cargoArtifacts;
+              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+            }
+          );
 
-          checks.tests = rustiq;
+          checks.unit-tests = rustiq;
         };
     };
 }

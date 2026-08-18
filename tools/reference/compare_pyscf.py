@@ -109,8 +109,14 @@ def prepare_rustiq_env() -> dict[str, str]:
 
 
 def rustiq_total_energy(case: ReferenceCase, env: dict[str, str]) -> float:
+    rustiq_bin = os.environ.get("RUSTIQ_BIN")
+    command = (
+        [rustiq_bin, "run", str(case.runfile)]
+        if rustiq_bin
+        else ["cargo", "run", "--quiet", "--", "run", str(case.runfile)]
+    )
     stdout = run_command(
-        ["cargo", "run", "--quiet", "--", "run", str(case.runfile)],
+        command,
         env=env,
     )
     match = TOTAL_ENERGY_RE.search(stdout)
