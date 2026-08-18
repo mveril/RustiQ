@@ -51,7 +51,9 @@ jobs:
         run: cargo test --all-targets --no-default-features
 
   nix:
-    name: Nix flake (${{ matrix.system }})
+    # Preserve the legacy required check on the primary platform. The remaining
+    # matrix entries retain a platform suffix so their result stays identifiable.
+    name: ${{ matrix.system == 'x86_64-linux' && 'Nix flake' || format('Nix flake ({0})', matrix.system) }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
