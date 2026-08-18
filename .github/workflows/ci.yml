@@ -18,7 +18,8 @@ concurrency:
 
 jobs:
   cargo:
-    name: Cargo without Nix (${{ matrix.os }})
+    # Keep this name stable: it is a required status check in branch protection.
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -50,7 +51,8 @@ jobs:
         run: cargo test --all-targets --no-default-features
 
   nix:
-    name: Nix flake (x86_64-linux)
+    # Keep this name stable: it is a required status check in branch protection.
+    name: Nix flake
     runs-on: ubuntu-latest
 
     steps:
