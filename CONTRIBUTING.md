@@ -7,8 +7,8 @@ keep the codebase scientifically honest, testable, and easy to inspect.
 
 The recommended VS Code setup is the repository Dev Container. Install Docker
 Desktop, VS Code, and the Dev Containers extension, open the repository, then
-run **Dev Containers: Reopen in Container**. The container prepares the pinned
-Rust and Nix tools automatically.
+run **Dev Containers: Reopen in Container**. FlakeEnv loads the pinned Nix
+development shell for terminals, tasks, debuggers, and language servers.
 
 Alternatively, enter `nix develop` or install stable Rust and Cargo locally.
 Then run:
@@ -39,6 +39,7 @@ with:
 ```sh
 nix flake check --all-systems --no-build
 nix flake check
+nix fmt -- --fail-on-change
 nix run .#pyscf-check
 ```
 

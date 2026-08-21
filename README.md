@@ -211,8 +211,8 @@ architecture experiment, not as a production research code.
 
 The repository includes a ready-to-use development container. This is the
 recommended setup when using VS Code because it provides the same Linux-based
-Rust, Nix, direnv, debugging, and scientific Python tools without requiring
-them to be installed individually on the host.
+Rust, Nix, debugging, and scientific Python tools without requiring them to be
+installed individually on the host.
 
 Prerequisites:
 
@@ -233,19 +233,19 @@ first creation can take several minutes while Docker builds the image and Nix
 downloads the toolchain pinned by `flake.lock`. Subsequent starts reuse the
 Docker image and Nix store.
 
-The container is based on Debian Bookworm and automatically installs Nix,
-direnv, GitHub CLI, rust-analyzer, LLDB, TOML and Nix language support, and the
-Python extension. Its post-create step:
+The container is based on Debian Bookworm and installs only Nix and direnv at
+the system level. The FlakeEnv extension loads `devShells.default` directly and
+propagates its environment to terminals, tasks, debuggers, and language
+servers. Rust, Nix, TOML, dependency, Python, Jupyter, and LLDB support is
+installed as a small explicit extension list rather than through extension
+packs with overlapping behavior.
 
-1. marks `/workspaces/RustiQ` as a trusted Git working tree;
-2. authorizes the tracked `.envrc`;
-3. builds `.#dev-environment` at `/home/vscode/.rustiq-dev-profile`;
-4. exposes that profile on the VS Code remote process `PATH`.
-
-The explicit profile is important because direnv updates interactive shells,
-but VS Code extension processes such as rust-analyzer do not necessarily start
-from an interactive terminal. Both the editor and terminals therefore see the
-same pinned `cargo`, `rustc`, and `rust-analyzer` binaries.
+The Rust toolchain, rust-analyzer, nixd, nixfmt, Ruff, scientific Python stack,
+and development utilities remain pinned by `flake.lock`. The first activation
+can take several minutes; later starts reuse the persistent Nix store.
+Because `.envrc` execution requires explicit trust, run `direnv allow` once in
+the container if FlakeEnv reports that it is blocked, then run **FlakeEnv:
+Reload Environment**.
 
 Verify the environment from a terminal inside the container:
 
@@ -256,8 +256,9 @@ rust-analyzer --version
 cargo test
 ```
 
-After changing `flake.nix`, `flake.lock`, or `.devcontainer/devcontainer.json`,
-run **Dev Containers: Rebuild Container** so the editor profile is regenerated.
+After changing `.devcontainer/devcontainer.json`, rebuild the container. After
+changing `flake.nix` or `flake.lock`, run **FlakeEnv: Reload Environment**; a
+container rebuild is only needed when the Dev Container configuration changes.
 
 #### Dev Container Troubleshooting On Windows
 
@@ -272,8 +273,8 @@ run **Dev Containers: Rebuild Container** so the editor profile is regenerated.
   Nix, or terminal access.
 - Nix inside the container is installed by the Dev Container feature. It is
   independent of any Nix or NixOS installation in WSL.
-- If the toolchain changes are not visible in the editor, rebuild the container
-  instead of relying only on `direnv reload`; direnv primarily updates shells.
+- If a flake change is not visible in the editor, run **FlakeEnv: Reload
+  Environment** and restart the affected language server if necessary.
 
 ### Choosing A Development Environment
 
@@ -387,11 +388,9 @@ unloads it when you leave. `direnv allow` is deliberately required the first
 time, and again after `.envrc` changes, so that repository-provided shell code
 is not executed without review. Use `direnv deny` to revoke permission.
 
-The VS Code direnv extension can propagate this environment to terminals and
-tasks, but it is not a reliable way to configure every remote extension
-process. The Dev Container therefore also exposes the Nix-built
-`dev-environment` profile through `remoteEnv` for rust-analyzer and other editor
-services.
+Inside the Dev Container, FlakeEnv performs this integration for VS Code. The
+tracked `.envrc` remains useful for developers who use direnv in another editor
+or terminal.
 
 If `use flake` is unknown, install or configure
 [`nix-direnv`](https://github.com/nix-community/nix-direnv), or use `nix develop`
@@ -552,9 +551,9 @@ cargo test
 ```
 
 These commands are identical in the Dev Container, a `nix develop` shell, and a
-native Rust installation. The Dev Container additionally provides tools such
-as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`, `bacon`, and
-`hyperfine` from the pinned Nix environment.
+native Rust installation. The pinned Nix environment additionally provides
+tools such as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`,
+`bacon`, `hyperfine`, `nixd`, `nixfmt`, and Ruff.
 
 Most unit tests are colocated with implementation modules in `src/`. Shared
 fixtures live in `tests/data/`, and sample calculation inputs live in

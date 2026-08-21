@@ -110,14 +110,22 @@ jobs:
           push: never
           runCmd: |
             set -eux
-            command -v cargo
-            command -v rustc
-            command -v rust-analyzer
-            command -v python
-            cargo --version
-            rustc --version
-            rust-analyzer --version
-            python -c 'import pyscf; print("PySCF", pyscf.__version__)'
-            cargo metadata --no-deps --format-version 1 > /dev/null
-            cargo build --all-targets --all-features
-            cargo test --all-targets --all-features
+            nix print-dev-env . --json > /dev/null
+            nix develop --command bash -c '
+              set -eux
+              command -v cargo
+              command -v rustc
+              command -v rust-analyzer
+              command -v nixd
+              command -v nixfmt
+              command -v ruff
+              command -v uv
+              command -v python
+              cargo --version
+              rustc --version
+              rust-analyzer --version
+              python -c '\''import pyscf; print("PySCF", pyscf.__version__)'\''
+              cargo metadata --no-deps --format-version 1 > /dev/null
+              cargo build --all-targets --all-features
+              cargo test --all-targets --all-features
+            '

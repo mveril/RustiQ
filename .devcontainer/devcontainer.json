@@ -1,33 +1,48 @@
 {
   "name": "RustiQ",
-  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "image": "mcr.microsoft.com/devcontainers/base:1-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/nix:1": {},
+    "ghcr.io/devcontainers/features/nix:1": {
+      "extraNixConfig": "experimental-features = nix-command flakes\nsandbox = true"
+    },
     "ghcr.io/devcontainers-extra/features/direnv:1": {}
   },
-  "postCreateCommand": "git config --global --add safe.directory /workspaces/RustiQ && direnv allow . && nix --extra-experimental-features 'nix-command flakes' build .#dev-environment --out-link /home/vscode/.rustiq-dev-profile",
-  "remoteEnv": {
-    "PATH": "/home/vscode/.rustiq-dev-profile/bin:${containerEnv:PATH}",
-    "RUST_BACKTRACE": "1",
-    "CARGO_PROFILE_PROFILING_DEBUG": "true"
-  },
+  "postCreateCommand": "direnv allow",
   "customizations": {
     "vscode": {
       "extensions": [
-        "pinage404.nix-extension-pack",
+        "auricvex.flake-env",
         "rust-lang.rust-analyzer",
         "vadimcn.vscode-lldb",
         "tamasfe.even-better-toml",
         "fill-labs.dependi",
-        "github.vscode-github-actions",
+        "jnoortheen.nix-ide",
         "ms-python.python",
-        "ms-toolsai.jupyter"
+        "ms-toolsai.jupyter",
+        "charliermarsh.ruff"
       ],
       "settings": {
         "rust-analyzer.linkedProjects": [
           "./Cargo.toml"
-        ]
+        ],
+        "rust-analyzer.check.command": "clippy",
+        "nix.enableLanguageServer": true,
+        "nix.serverPath": "nixd",
+        "nix.serverSettings": {
+          "nixd": {
+            "formatting": {
+              "command": [
+                "nixfmt"
+              ]
+            }
+          }
+        },
+        "[nix]": {
+          "editor.defaultFormatter": "jnoortheen.nix-ide"
+        },
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
       }
     }
   },
