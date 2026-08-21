@@ -213,9 +213,14 @@
               UV_NO_SYNC = "1";
               UV_PYTHON = pythonSet.python.interpreter;
               UV_PYTHON_DOWNLOADS = "never";
+              # aws-lc-sys compiles feature probes with -O0 -Werror in debug
+              # builds, which conflicts with the Nix clang wrapper's fortify define.
+              AWS_LC_SYS_CFLAGS = "-U_FORTIFY_SOURCE";
               # Keep symbols in release-like profiling builds. This matches
               # the [profile.profiling] section in Cargo.toml.
               CARGO_PROFILE_PROFILING_DEBUG = "true";
+              # Allow local Cargo builds to link artifacts from target/ outside the Nix store.
+              NIX_ENFORCE_PURITY = 0;
             };
 
             shellHook = ''

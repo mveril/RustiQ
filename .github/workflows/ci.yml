@@ -85,6 +85,9 @@ jobs:
       - name: Check the Python lock
         run: nix develop --command uv lock --check
 
+      - name: Build with the Nix development shell
+        run: nix develop --command cargo build --all-targets --all-features
+
       - name: Build RustiQ with Nix
         run: nix build .#default
 
