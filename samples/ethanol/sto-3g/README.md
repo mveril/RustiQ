@@ -12,11 +12,18 @@ Run RustiQ:
 cargo run -- run samples/ethanol/sto-3g/calculation.toml
 ```
 
+The command is the same inside the Dev Container; no host Rust installation is
+required there.
+
 Run the optional PySCF reference outside the Rust unit tests:
 
 ```sh
 python samples/ethanol/sto-3g/pyscf_reference.py
 ```
+
+Python with PySCF is provided automatically by the pinned Nix environment on
+the Dev Container's `x86_64-linux` platform. Outside that environment, install
+PySCF separately or enter the repository with `nix develop` first.
 
 RustiQ expects `sto-3g` to be present in the local basis store. If needed:
 

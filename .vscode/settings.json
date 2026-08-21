@@ -2,7 +2,22 @@
   "rust-analyzer.linkedProjects": [
     "./Cargo.toml"
   ],
-  "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
-  "nixEnvSelector.useFlakes": true,
-  "nixEnvSelector.flakeShell": "default"
+  "rust-analyzer.check.command": "clippy",
+  "nix.enableLanguageServer": true,
+  "nix.serverPath": "nixd",
+  "nix.serverSettings": {
+    "nixd": {
+      "formatting": {
+        "command": [
+          "nixfmt"
+        ]
+      }
+    }
+  },
+  "[nix]": {
+    "editor.defaultFormatter": "jnoortheen.nix-ide"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  }
 }

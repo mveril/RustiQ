@@ -18,6 +18,10 @@ cargo run -- basis download 6-31g
 cargo run -- basis download cc-pvdz
 ```
 
+These commands work unchanged in the Dev Container. Open the repository with
+**Dev Containers: Reopen in Container** first if you do not have the pinned Rust
+and Nix toolchain installed locally.
+
 Then run any sample with:
 
 ```sh

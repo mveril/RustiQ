@@ -123,43 +123,56 @@
           pythonPyscf = pythonSet.mkVirtualEnv "rustiq-pyscf-environment" pythonWorkspace.deps.default;
 
           pythonScientific = pythonSet.mkVirtualEnv "rustiq-scientific-environment" pythonWorkspace.deps.all;
-          devPackages =
-            with pkgs;
-            [
-              rustToolchain
 
-              cargo-nextest
-              cargo-deny
-              cargo-llvm-cov
-              cargo-criterion
-              cargo-expand
-              cargo-edit
+          rustPackages = [
+            rustToolchain
+            pkgs.rust-analyzer
+          ];
 
-              bacon
-              cargo-watch
-              git
-              hyperfine
-              just
-              jq
-              ripgrep
-              rust-analyzer
-              time
-              cmake
-              pkg-config
-              pythonScientific
-              uv
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-              clang
-              cargo-flamegraph
-              gdb
-              inferno
-              perf
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-              libiconv
-              samply
-            ];
+          developmentPackages = with pkgs; [
+            cargo-nextest
+            cargo-deny
+            cargo-llvm-cov
+            cargo-criterion
+            cargo-expand
+            cargo-edit
+
+            bacon
+            cargo-watch
+            git
+            hyperfine
+            just
+            jq
+            nixd
+            nixfmt
+            ripgrep
+            ruff
+            time
+            cmake
+            pkg-config
+            uv
+          ];
+
+          platformPackages =
+            pkgs.lib.optionals pkgs.stdenv.isLinux (
+              with pkgs;
+              [
+                clang
+                cargo-flamegraph
+                gdb
+                inferno
+                perf
+              ]
+            )
+            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (
+              with pkgs;
+              [
+                libiconv
+                samply
+              ]
+            );
+
+          devPackages = rustPackages ++ developmentPackages ++ [ pythonScientific ] ++ platformPackages;
 
           pyscfCheck = pkgs.writeShellApplication {
             name = "pyscf-check";
@@ -183,17 +196,6 @@
             default = rustiq;
             cargo-artifacts = cargoArtifacts;
             pyscf-environment = pythonPyscf;
-
-            # Stable executable environment for editors and other processes
-            # that are not launched from an interactive Nix shell.
-            dev-environment = pkgs.buildEnv {
-              name = "rustiq-dev-environment";
-              paths = devPackages;
-              pathsToLink = [
-                "/bin"
-                "/share"
-              ];
-            };
           };
 
           apps = {
@@ -222,19 +224,16 @@
               # Allow local Cargo builds to link artifacts from target/ outside the Nix store.
               NIX_ENFORCE_PURITY = 0;
             };
-
-            shellHook = ''
-              echo "RustiQ development environment"
-              echo "System: ${system}"
-              echo "Rust: $(rustc --version)"
-              echo "Cargo: $(cargo --version)"
-              echo "PySCF: $(python -c 'import pyscf; print(pyscf.__version__)')"
-            '';
           };
 
           formatter = pkgs.nixfmt-tree;
 
           checks.formatting = craneLib.cargoFmt { src = cargoSource; };
+
+          checks.nix-formatting = pkgs.runCommand "rustiq-nix-formatting" { } ''
+            ${pkgs.nixfmt}/bin/nixfmt --check ${./flake.nix}
+            touch "$out"
+          '';
 
           checks.clippy = craneLib.cargoClippy (
             commonCargoArgs

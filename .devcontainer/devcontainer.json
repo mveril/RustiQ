@@ -1,0 +1,50 @@
+{
+  "name": "RustiQ",
+  "image": "mcr.microsoft.com/devcontainers/base:1-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/nix:1": {
+      "extraNixConfig": "experimental-features = nix-command flakes\nsandbox = true"
+    },
+    "ghcr.io/devcontainers-extra/features/direnv:1": {}
+  },
+  "postCreateCommand": "direnv allow",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "auricvex.flake-env",
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "tamasfe.even-better-toml",
+        "fill-labs.dependi",
+        "jnoortheen.nix-ide",
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "rust-analyzer.linkedProjects": [
+          "./Cargo.toml"
+        ],
+        "rust-analyzer.check.command": "clippy",
+        "nix.enableLanguageServer": true,
+        "nix.serverPath": "nixd",
+        "nix.serverSettings": {
+          "nixd": {
+            "formatting": {
+              "command": [
+                "nixfmt"
+              ]
+            }
+          }
+        },
+        "[nix]": {
+          "editor.defaultFormatter": "jnoortheen.nix-ide"
+        },
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
+      }
+    }
+  },
+  "remoteUser": "vscode"
+}
