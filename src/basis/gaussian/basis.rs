@@ -198,7 +198,7 @@ impl Basis {
             )
         }) {
             return Err(BasisError::UnsupportedDeclaredFunctionType {
-                function_type: function_type.clone(),
+                function_type: *function_type,
             });
         }
         for (&atomic_number, element) in &basis_file.elements {
@@ -217,7 +217,7 @@ impl Basis {
                     return Err(BasisError::UnsupportedFunctionType {
                         atomic_number,
                         shell_index,
-                        function_type: shell.function_type.clone(),
+                        function_type: shell.function_type,
                     });
                 }
                 if shell.angular_momentum.is_empty() {
@@ -292,7 +292,7 @@ impl Basis {
                             atomic_number,
                             shell_index,
                             angular_momentum,
-                            function_type: shell.function_type.clone(),
+                            function_type: shell.function_type,
                         });
                     }
                 }
