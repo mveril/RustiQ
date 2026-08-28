@@ -47,7 +47,7 @@ jobs:
         run: nix flake check --all-systems --no-build
 
       - name: Check the Python lock
-        run: nix develop --command uv lock --check
+        run: nix develop .#full --command uv lock --check
 
       - name: Build all native Nix checks
         run: nix flake check

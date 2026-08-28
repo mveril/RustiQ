@@ -346,11 +346,12 @@ cd RustiQ
 nix develop
 ```
 
-This provides the Rust toolchain selected by `rust-toolchain.toml`, the
-development utilities, and a Python 3.12 environment built from the checked-in
-`uv.lock`. PySCF and the scientific Python dependencies are available on every
-platform declared by the flake. Nix places that environment directly on
-`PATH`, so no virtual environment needs to be created or activated:
+The default `full` shell provides the Rust toolchain selected by
+`rust-toolchain.toml`, the development utilities, and a Python environment
+built from the checked-in `uv.lock`. PySCF and the scientific Python
+dependencies are available on every platform declared by the flake. Nix places
+that environment directly on `PATH`, so no virtual environment needs to be
+created or activated:
 
 ```sh
 python -c "import pyscf; print(pyscf.__version__)"
@@ -364,6 +365,18 @@ cargo build
 cargo test
 cargo run -- run samples/h2/sto-3g/calculation.toml
 ```
+
+Four shells are available so that contributors only load the tools needed for
+their current task:
+
+| Shell | Contents | Command |
+| --- | --- | --- |
+| `mini-rust` | Rust toolchain and native build dependencies | `nix develop .#mini-rust` |
+| `rust` | Complete Rust development, debugging, and profiling tools without Python | `nix develop .#rust` |
+| `mini-pyscf` | Minimal Rust build environment plus Python and PySCF | `nix develop .#mini-pyscf` |
+| `full` | Complete Rust and scientific Python environment | `nix develop .#full` |
+
+Running `nix develop` without a shell name selects `full`.
 
 Leave the environment with `exit` or Ctrl-D. You can also build the default Nix
 package without entering the development shell:
@@ -382,11 +395,20 @@ cd RustiQ
 direnv allow
 ```
 
-The tracked `.envrc` contains `use flake`, so direnv loads the same Nix
-development environment automatically whenever you enter the repository and
-unloads it when you leave. `direnv allow` is deliberately required the first
-time, and again after `.envrc` changes, so that repository-provided shell code
-is not executed without review. Use `direnv deny` to revoke permission.
+The tracked `.envrc` loads the `full` shell automatically whenever you enter
+the repository and unloads it when you leave. To select a lighter shell for one
+checkout, create an ignored `.envrc.local`, then allow the updated environment:
+
+```sh
+printf '%s\n' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
+direnv allow
+```
+
+Valid values are `mini-rust`, `rust`, `mini-pyscf`, and `full`. The tracked
+`.envrc` rejects other values before passing the selection to Nix. `direnv
+allow` is deliberately required the first time, and again after either envrc
+file changes, so that shell code is not executed without review. Use `direnv
+deny` to revoke permission.
 
 Inside the Dev Container, FlakeEnv performs this integration for VS Code. The
 tracked `.envrc` remains useful for developers who use direnv in another editor

@@ -124,12 +124,14 @@
 
           pythonScientific = pythonSet.mkVirtualEnv "rustiq-scientific-environment" pythonWorkspace.deps.all;
 
-          rustPackages = [
+          rustBuildPackages = with pkgs; [
             rustToolchain
-            pkgs.rust-analyzer
+            cmake
+            pkg-config
           ];
 
-          developmentPackages = with pkgs; [
+          rustDevelopmentPackages = with pkgs; [
+            rust-analyzer
             cargo-nextest
             cargo-deny
             cargo-llvm-cov
@@ -146,14 +148,12 @@
             nixd
             nixfmt
             ripgrep
-            ruff
             time
-            cmake
-            pkg-config
-            uv
           ];
 
-          platformPackages =
+          rustBuildPlatformPackages = pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.libiconv ];
+
+          rustDevelopmentPlatformPackages =
             pkgs.lib.optionals pkgs.stdenv.isLinux (
               with pkgs;
               [
@@ -167,12 +167,48 @@
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (
               with pkgs;
               [
-                libiconv
                 samply
               ]
             );
 
-          devPackages = rustPackages ++ developmentPackages ++ [ pythonScientific ] ++ platformPackages;
+          minimalRustPackages = rustBuildPackages ++ rustBuildPlatformPackages;
+
+          completeRustPackages =
+            minimalRustPackages ++ rustDevelopmentPackages ++ rustDevelopmentPlatformPackages;
+
+          pythonDevelopmentPackages = with pkgs; [
+            ruff
+            uv
+          ];
+
+          commonRustEnv = {
+            RUST_BACKTRACE = "1";
+            # aws-lc-sys compiles feature probes with -O0 -Werror in debug
+            # builds, which conflicts with the Nix clang wrapper's fortify define.
+            AWS_LC_SYS_CFLAGS = "-U_FORTIFY_SOURCE";
+            # Keep symbols in release-like profiling builds. This matches
+            # the [profile.profiling] section in Cargo.toml.
+            CARGO_PROFILE_PROFILING_DEBUG = "true";
+            # Allow local Cargo builds to link artifacts from target/ outside the Nix store.
+            NIX_ENFORCE_PURITY = 0;
+          };
+
+          pythonDevelopmentEnv = {
+            UV_NO_SYNC = "1";
+            UV_PYTHON = pythonSet.python.interpreter;
+            UV_PYTHON_DOWNLOADS = "never";
+          };
+
+          mkDevShell =
+            {
+              packages,
+              extraEnv ? { },
+            }:
+            pkgs.mkShell {
+              strictDeps = true;
+              inherit packages;
+              env = commonRustEnv // extraEnv;
+            };
 
           pyscfCheck = pkgs.writeShellApplication {
             name = "pyscf-check";
@@ -206,24 +242,21 @@
             };
           };
 
-          devShells.default = pkgs.mkShell {
-            strictDeps = true;
-            packages = devPackages;
+          devShells = rec {
+            "mini-rust" = mkDevShell { packages = minimalRustPackages; };
 
-            env = {
-              RUST_BACKTRACE = "1";
-              UV_NO_SYNC = "1";
-              UV_PYTHON = pythonSet.python.interpreter;
-              UV_PYTHON_DOWNLOADS = "never";
-              # aws-lc-sys compiles feature probes with -O0 -Werror in debug
-              # builds, which conflicts with the Nix clang wrapper's fortify define.
-              AWS_LC_SYS_CFLAGS = "-U_FORTIFY_SOURCE";
-              # Keep symbols in release-like profiling builds. This matches
-              # the [profile.profiling] section in Cargo.toml.
-              CARGO_PROFILE_PROFILING_DEBUG = "true";
-              # Allow local Cargo builds to link artifacts from target/ outside the Nix store.
-              NIX_ENFORCE_PURITY = 0;
+            rust = mkDevShell { packages = completeRustPackages; };
+
+            "mini-pyscf" = mkDevShell {
+              packages = minimalRustPackages ++ [ pythonPyscf ];
             };
+
+            full = mkDevShell {
+              packages = completeRustPackages ++ pythonDevelopmentPackages ++ [ pythonScientific ];
+              extraEnv = pythonDevelopmentEnv;
+            };
+
+            default = full;
           };
 
           formatter = pkgs.nixfmt-tree;
