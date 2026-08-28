@@ -5,20 +5,22 @@ use thiserror::Error;
 use super::{convert_length::convert_length, geometry::Geometry, units::Units};
 
 pub struct Molecule {
-    pub geometry: Geometry,
-    pub unit: Units,
-    pub charge: i32,
-    pub multiplicity: NonZero<u8>,
+    geometry: Geometry,
+    unit: Units,
+    charge: i32,
+    multiplicity: NonZero<u8>,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MoleculeError {
-    #[error("invalid molecular charge: nuclear charge = {nuclear_charge}, molecular charge = {charge}, total electrons = {electrons}")]
-    InvalidCharge {
+    #[error("invalid molecular electron count: nuclear charge = {nuclear_charge}, molecular charge = {charge}, total electrons = {electrons}")]
+    InvalidElectronCount {
         nuclear_charge: i32,
         charge: i32,
         electrons: i32,
     },
+    #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
+    IncompatibleMultiplicity { electrons: usize, multiplicity: u8 },
 }
 
 impl Deref for Molecule {
@@ -31,8 +33,8 @@ impl Deref for Molecule {
 
 impl From<Geometry> for Molecule {
     fn from(geometry: Geometry) -> Self {
-        // SAFETY: A neutral molecule cannot have a negative electron count.
-        unsafe { Molecule::new_unchecked(geometry, Units::Bohr, 0, NonZero::new_unchecked(1)) }
+        Self::try_new(geometry, Units::Bohr, 0, std::num::NonZeroU8::MIN)
+            .expect("a neutral geometry must have a closed-shell singlet electron configuration")
     }
 }
 
@@ -49,16 +51,15 @@ impl Molecule {
             charge,
             multiplicity,
         };
-        molecule.validate_charge()?;
+        molecule.validate_electron_configuration()?;
         Ok(molecule)
     }
 
-    /// Builds a molecule without validating the charge-derived electron count.
+    /// Builds a molecule without validating its electron configuration.
     ///
-    /// # Safety
-    ///
-    /// The caller must ensure that `nuclear_charge - charge >= 0`.
-    pub unsafe fn new_unchecked(
+    /// This is restricted to the crate for tests and transitional internal code.
+    #[allow(dead_code)]
+    pub(crate) fn new_unchecked(
         geometry: Geometry,
         unit: Units,
         charge: i32,
@@ -72,17 +73,42 @@ impl Molecule {
         }
     }
 
-    fn validate_charge(&self) -> Result<(), MoleculeError> {
+    fn validate_electron_configuration(&self) -> Result<(), MoleculeError> {
         let nuclear_charge = self.nuclear_charge();
         let electrons = nuclear_charge - self.charge;
-        if electrons < 0 {
-            return Err(MoleculeError::InvalidCharge {
+        if electrons <= 0 {
+            return Err(MoleculeError::InvalidElectronCount {
                 nuclear_charge,
                 charge: self.charge,
                 electrons,
             });
         }
+        let unpaired_electrons = self.unpaired_electrons() as i32;
+        if unpaired_electrons > electrons || (electrons - unpaired_electrons) % 2 != 0 {
+            return Err(MoleculeError::IncompatibleMultiplicity {
+                electrons: electrons as usize,
+                multiplicity: self.multiplicity.get(),
+            });
+        }
         Ok(())
+    }
+
+    pub fn geometry(&self) -> &Geometry {
+        &self.geometry
+    }
+
+    #[allow(dead_code)]
+    pub fn unit(&self) -> Units {
+        self.unit
+    }
+
+    #[allow(dead_code)]
+    pub fn charge(&self) -> i32 {
+        self.charge
+    }
+
+    pub fn multiplicity(&self) -> NonZero<u8> {
+        self.multiplicity
     }
 
     pub fn convert_to(&mut self, unit: Units) {
@@ -158,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn try_new_rejects_charge_larger_than_nuclear_charge() {
+    fn try_new_rejects_non_positive_electron_count() {
         let error = match Molecule::try_new(
             Geometry::new("overcharged hydrogen".to_string(), atoms(&["H"])),
             Units::Bohr,
@@ -171,11 +197,47 @@ mod tests {
 
         assert_eq!(
             error,
-            MoleculeError::InvalidCharge {
+            MoleculeError::InvalidElectronCount {
                 nuclear_charge: 1,
                 charge: 2,
                 electrons: -1
             }
         );
+    }
+
+    #[test]
+    fn try_new_rejects_incompatible_multiplicity() {
+        let result = Molecule::try_new(
+            Geometry::new("triplet hydrogen".to_string(), atoms(&["H"])),
+            Units::Bohr,
+            0,
+            NonZeroU8::new(3).unwrap(),
+        );
+
+        assert!(matches!(
+            result,
+            Err(MoleculeError::IncompatibleMultiplicity {
+                electrons: 1,
+                multiplicity: 3,
+            })
+        ));
+    }
+
+    #[test]
+    fn try_new_rejects_multiplicity_with_wrong_parity() {
+        let result = Molecule::try_new(
+            Geometry::new("doublet H2".to_string(), atoms(&["H", "H"])),
+            Units::Bohr,
+            0,
+            NonZeroU8::new(2).unwrap(),
+        );
+
+        assert!(matches!(
+            result,
+            Err(MoleculeError::IncompatibleMultiplicity {
+                electrons: 2,
+                multiplicity: 2,
+            })
+        ));
     }
 }

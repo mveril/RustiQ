@@ -39,39 +39,39 @@ where
 
 /// Structure for an SCF calculation.
 pub struct ScfCalculation<'a> {
-    pub molecule: &'a Molecule,
-    pub basis: &'a Basis,
+    pub(crate) molecule: &'a Molecule,
+    pub(crate) basis: &'a Basis,
     /// Maximum number of iterations for SCF convergence.
-    pub max_iterations: usize,
+    pub(crate) max_iterations: usize,
     /// Convergence threshold for the energy difference between two successive iterations.
-    pub convergence_threshold: f64,
+    pub(crate) convergence_threshold: f64,
     /// Current SCF energy.
-    pub energy: f64,
+    pub(crate) energy: f64,
     /// Molecular Orbital coefficients (matrix).
-    pub mo_coefficients: DMatrix<f64>,
+    pub(crate) mo_coefficients: DMatrix<f64>,
     /// Canonical orbital energies corresponding to the current MO coefficients.
-    pub orbital_energies: DVector<f64>,
+    pub(crate) orbital_energies: DVector<f64>,
     /// Current electron density matrix.
-    pub density_matrix: DMatrix<f64>,
+    pub(crate) density_matrix: DMatrix<f64>,
     /// Fock matrix.
-    pub fock_matrix: DMatrix<f64>,
+    pub(crate) fock_matrix: DMatrix<f64>,
     /// Current SCF residual norm from F(P) P S - S P F(P).
-    pub residual_norm: f64,
+    pub(crate) residual_norm: f64,
     diis: Option<DiisAccelerator>,
     /// Two-electron integrals.
-    pub two_electron_integrals: CompactEri,
+    pub(crate) two_electron_integrals: CompactEri,
     /// One-electron integrals - Hcore (kinetic + nuclear potential integrals combined).
-    pub h_core: DMatrix<f64>,
+    pub(crate) h_core: DMatrix<f64>,
     /// Kinetic energy matrix (T).
-    pub t_matrix: DMatrix<f64>,
+    pub(crate) t_matrix: DMatrix<f64>,
     /// Nuclear attraction energy matrix (V).
-    pub v_matrix: DMatrix<f64>,
+    pub(crate) v_matrix: DMatrix<f64>,
     /// Overlap matrix (S).
     overlap_matrix: DMatrix<f64>,
     /// Symmetric orthogonalizer (S^(-1/2)).
     s_inv_sqrt: DMatrix<f64>,
     /// Number of occupied orbitals (related to the number of electrons / 2 for closed-shell systems).
-    pub occupied_orbitals: usize,
+    pub(crate) occupied_orbitals: usize,
     timings: ScfTimings,
 }
 
@@ -291,7 +291,7 @@ impl<'a> ScfCalculation<'a> {
         self.timings.iterations = iterations_start.elapsed();
 
         // Calculate final energy including nuclear repulsion
-        let nuclear_repulsion = self.molecule.geometry.nucl_repulsion();
+        let nuclear_repulsion = self.molecule.geometry().nucl_repulsion();
         let total_energy = self.energy + nuclear_repulsion;
         let final_energy_details_start = Instant::now();
         let energy_details = self.calculate_energy_details();

@@ -63,8 +63,6 @@ impl std::fmt::Display for ResolvedHfMethod {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum HfMethodResolutionError {
-    #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
-    InvalidElectronConfiguration { electrons: usize, multiplicity: u8 },
     #[error("RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}")]
     RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
 }
@@ -74,13 +72,12 @@ impl HfMethod {
         &self,
         molecule: &Molecule,
     ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
-        validate_electron_configuration(molecule)?;
         Ok(match self {
             Self::Rhf => {
                 if !is_closed_shell_singlet(molecule) {
                     return Err(HfMethodResolutionError::RhfRequiresClosedShellSinglet {
                         electrons: molecule.total_electrons(),
-                        multiplicity: molecule.multiplicity.get(),
+                        multiplicity: molecule.multiplicity().get(),
                     });
                 }
                 ResolvedHfMethod::Rhf
@@ -117,20 +114,8 @@ fn default_diis_size() -> DiisSize {
     DiisSize::try_new(6).expect("default DIIS history size is at least 2")
 }
 
-fn validate_electron_configuration(molecule: &Molecule) -> Result<(), HfMethodResolutionError> {
-    let electrons = molecule.total_electrons();
-    let spin = molecule.unpaired_electrons() as usize;
-    if spin > electrons || !(electrons + spin).is_multiple_of(2) {
-        return Err(HfMethodResolutionError::InvalidElectronConfiguration {
-            electrons,
-            multiplicity: molecule.multiplicity.get(),
-        });
-    }
-    Ok(())
-}
-
 fn is_closed_shell_singlet(molecule: &Molecule) -> bool {
-    molecule.multiplicity.get() == 1 && molecule.total_electrons().is_multiple_of(2)
+    molecule.multiplicity().get() == 1 && molecule.total_electrons().is_multiple_of(2)
 }
 
 #[cfg(test)]
@@ -155,16 +140,12 @@ mod tests {
                 Atom::new(element, point![0.0, 0.0, index as f64])
             })
             .collect();
-        // SAFETY: These tests only build molecules whose charge does not exceed
-        // their nuclear charge.
-        unsafe {
-            Molecule::new_unchecked(
-                Geometry::new("test molecule".to_string(), atoms),
-                Units::Bohr,
-                charge,
-                NonZeroU8::new(multiplicity).unwrap(),
-            )
-        }
+        Molecule::new_unchecked(
+            Geometry::new("test molecule".to_string(), atoms),
+            Units::Bohr,
+            charge,
+            NonZeroU8::new(multiplicity).unwrap(),
+        )
     }
 
     #[test]
@@ -237,19 +218,6 @@ mod tests {
             HfMethod::Rhf.resolve(&hydroxyl).unwrap_err(),
             HfMethodResolutionError::RhfRequiresClosedShellSinglet {
                 electrons: 9,
-                multiplicity: 2
-            }
-        );
-    }
-
-    #[test]
-    fn test_hf_method_resolution_rejects_incompatible_multiplicity() {
-        let molecule = molecule(&["H", "H"], 0, 2);
-
-        assert_eq!(
-            HfMethod::Auto.resolve(&molecule).unwrap_err(),
-            HfMethodResolutionError::InvalidElectronConfiguration {
-                electrons: 2,
                 multiplicity: 2
             }
         );

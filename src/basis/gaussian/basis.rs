@@ -17,11 +17,11 @@ use crate::molecules::geometry::Geometry;
 /// Structure representing a Gaussian basis set.
 #[derive(PartialEq, Debug)]
 pub struct Basis {
-    pub shells: Vec<Shell>,                // Collection of Gaussian shells
-    pub shell_ids: Vec<usize>,             // Shell indices associated with each basis function
-    pub angular_momenta: Vec<Vector3<u8>>, // Angular momenta of the basis functions
-    pub angular_components: Vec<Vec<(Vector3<u8>, f64)>>,
-    pub normalized_components: Vec<Vec<NormalizedComponent>>,
+    pub(crate) shells: Vec<Shell>,    // Collection of Gaussian shells
+    pub(crate) shell_ids: Vec<usize>, // Shell indices associated with each basis function
+    pub(crate) angular_momenta: Vec<Vector3<u8>>, // Angular momenta of the basis functions
+    pub(crate) angular_components: Vec<Vec<(Vector3<u8>, f64)>>,
+    pub(crate) normalized_components: Vec<Vec<NormalizedComponent>>,
 }
 
 /// An error raised before any basis functions are constructed.

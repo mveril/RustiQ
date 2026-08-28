@@ -19,17 +19,14 @@ pub(crate) fn load_sample_geometry(path: &str) -> Geometry {
 }
 
 pub(crate) fn load_sample_geometry_in_bohr(path: &str) -> Geometry {
-    // SAFETY: Test fixtures are loaded as neutral molecules.
-    let mut molecule = unsafe {
-        Molecule::new_unchecked(
-            load_sample_geometry(path),
-            Units::Angstrom,
-            0,
-            std::num::NonZeroU8::MIN,
-        )
-    };
+    let mut molecule = Molecule::new_unchecked(
+        load_sample_geometry(path),
+        Units::Angstrom,
+        0,
+        std::num::NonZeroU8::MIN,
+    );
     molecule.convert_to(Units::Bohr);
-    molecule.geometry
+    molecule.geometry().clone()
 }
 
 pub(crate) fn load_sto3g_basis(geometry: &Geometry) -> Basis {
@@ -61,7 +58,7 @@ pub(crate) struct ScfReferenceResult {
 
 pub(crate) fn run_sto3g_scf_for_sample(path: &str) -> ScfReferenceResult {
     let molecule = Molecule::from(load_sample_geometry_in_bohr(path));
-    let geometry = molecule.geometry.clone();
+    let geometry = molecule.geometry().clone();
     let basis = load_sto3g_basis(&geometry);
     let mut scf = new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
