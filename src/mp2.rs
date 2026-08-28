@@ -641,7 +641,7 @@ mod tests {
     fn test_rhf_closed_shell_mp2_h2_sto3g_matches_pyscf_reference() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let molecule = Molecule::from(geometry);
-        let basis = test_utils::load_sto3g_basis(&molecule.geometry);
+        let basis = test_utils::load_sto3g_basis(molecule.geometry());
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-12);
 
         let scf_result = scf.run().unwrap();
@@ -666,15 +666,13 @@ mod tests {
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        // SAFETY: Neutral OH has nine electrons.
-        let molecule = unsafe {
-            Molecule::new_unchecked(
-                geometry,
-                crate::molecules::units::Units::Bohr,
-                0,
-                std::num::NonZeroU8::new(2).unwrap(),
-            )
-        };
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::new(2).unwrap(),
+        )
+        .unwrap();
         let mut uhf = crate::hf::uhf::UhfCalculation::new(
             &molecule,
             &basis,

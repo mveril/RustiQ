@@ -6,8 +6,7 @@ use std::{
 };
 
 use clap::ArgAction;
-use miette::{miette, Diagnostic, IntoDiagnostic};
-use thiserror::Error;
+use miette::{miette, IntoDiagnostic};
 
 use crate::{
     basis::{gaussian::basis::Basis, BasisFile, BasisStore},
@@ -25,48 +24,6 @@ use crate::{
 };
 
 use super::{CommandResult, Runnable};
-
-#[derive(Debug, Error, Diagnostic)]
-enum MoleculeConfigError {
-    #[error("invalid molecule: total electron count must be positive, got {electrons}")]
-    #[diagnostic(
-        code(rustiq::runfile::molecule_electron_count),
-        help("Check the molecule geometry and charge in the runfile.")
-    )]
-    NonPositiveElectronCount { electrons: i32 },
-
-    #[error(
-        "invalid molecule: total electrons = {electrons}, multiplicity = {multiplicity} are incompatible"
-    )]
-    #[diagnostic(
-        code(rustiq::runfile::molecule_multiplicity),
-        help("For a valid electron configuration, the requested spin state must be compatible with the electron count.")
-    )]
-    IncompatibleMultiplicity { electrons: i32, multiplicity: u8 },
-}
-
-fn validate_molecule_config(molecule: &Molecule) -> Result<(), MoleculeConfigError> {
-    let electrons = molecule
-        .geometry
-        .atoms
-        .iter()
-        .map(|atom| atom.element.atomic_number as i32)
-        .sum::<i32>()
-        - molecule.charge;
-    if electrons <= 0 {
-        return Err(MoleculeConfigError::NonPositiveElectronCount { electrons });
-    }
-
-    let spin = molecule.unpaired_electrons() as i32;
-    if spin > electrons || (electrons - spin) % 2 != 0 {
-        return Err(MoleculeConfigError::IncompatibleMultiplicity {
-            electrons,
-            multiplicity: molecule.multiplicity.get(),
-        });
-    }
-
-    Ok(())
-}
 
 fn ensure_hf_converged_for_mp2(result: &ScfResult) -> miette::Result<()> {
     if result.converged {
@@ -172,8 +129,7 @@ impl Runnable for RunCommand {
             run.global.molecule.multiplicity,
         )
         .into_diagnostic()?;
-        validate_molecule_config(&molecule)?;
-        bat::print_xyz(&molecule.geometry.to_string());
+        bat::print_xyz(&molecule.geometry().to_string());
         molecule.convert_to(Units::Bohr);
         println!("Loading basis set...");
         let step_start = Instant::now();
@@ -286,60 +242,8 @@ impl Runnable for RunCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::molecules::{atom::Atom, geometry::Geometry, units::Units};
-    use nalgebra::point;
     #[cfg(feature = "online")]
     use rstest::rstest;
-    use std::num::NonZeroU8;
-
-    fn molecule(atom_symbols: &[&str], charge: i32, multiplicity: u8) -> Molecule {
-        let elements = periodic_table::periodic_table();
-        let atoms = atom_symbols
-            .iter()
-            .enumerate()
-            .map(|(index, symbol)| {
-                let element = elements
-                    .iter()
-                    .find(|element| element.symbol == *symbol)
-                    .unwrap();
-                Atom::new(element, point![0.0, 0.0, index as f64])
-            })
-            .collect();
-
-        // SAFETY: These tests only build molecules whose charge does not exceed
-        // their nuclear charge.
-        unsafe {
-            Molecule::new_unchecked(
-                Geometry::new("test molecule".to_string(), atoms),
-                Units::Bohr,
-                charge,
-                NonZeroU8::new(multiplicity).unwrap(),
-            )
-        }
-    }
-
-    #[test]
-    fn test_validate_molecule_config_rejects_non_positive_electron_count() {
-        let molecule = molecule(&["H"], 2, 1);
-
-        assert!(matches!(
-            validate_molecule_config(&molecule),
-            Err(MoleculeConfigError::NonPositiveElectronCount { electrons: -1 })
-        ));
-    }
-
-    #[test]
-    fn test_validate_molecule_config_rejects_incompatible_multiplicity() {
-        let molecule = molecule(&["H", "H"], 0, 2);
-
-        assert!(matches!(
-            validate_molecule_config(&molecule),
-            Err(MoleculeConfigError::IncompatibleMultiplicity {
-                electrons: 2,
-                multiplicity: 2
-            })
-        ));
-    }
 
     #[test]
     fn test_parse_runfile_reports_toml_span() {
