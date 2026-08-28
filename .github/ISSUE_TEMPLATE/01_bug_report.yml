@@ -1,0 +1,105 @@
+name: Bug report
+description: Report incorrect behavior, crashes, or misleading diagnostics
+title: "Bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve RustiQ. Please provide a minimal, reproducible example and remove any sensitive data.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Command-line interface
+        - Runfile parsing or validation
+        - Geometry or molecule handling
+        - Basis-set handling
+        - Integrals
+        - Hartree-Fock or SCF
+        - MP2
+        - Build, packaging, or development environment
+        - Other or unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the exact command and the smallest input needed to reproduce the problem.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and output
+      description: Include the complete relevant error or diagnostic output.
+    validations:
+      required: true
+
+  - type: input
+    id: rustiq_version
+    attributes:
+      label: RustiQ version or commit
+      placeholder: v0.1.0-alpha.1 or commit SHA
+    validations:
+      required: true
+
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust version
+      description: Output of `rustc --version`.
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, macOS 15, Windows 11, ...
+    validations:
+      required: true
+
+  - type: input
+    id: features
+    attributes:
+      label: Cargo features
+      description: State whether default, all, no-default, or custom features were used.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add any other relevant logs, files, or observations.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues for duplicates.
+          required: true
+        - label: I have included enough information to reproduce the problem.
+          required: true

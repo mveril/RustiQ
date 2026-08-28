@@ -1,0 +1,98 @@
+name: Reference validation case
+description: Propose a reproducible calculation for the scientific validation suite
+title: "Reference validation: "
+labels:
+  - numerical-validation
+body:
+  - type: dropdown
+    id: objective
+    attributes:
+      label: Validation objective
+      options:
+        - Cover a new molecule or electronic state
+        - Cover a new method or basis-set regime
+        - Add a numerical edge case
+        - Expand cross-platform coverage
+        - Other validation gap
+    validations:
+      required: true
+
+  - type: textarea
+    id: coverage
+    attributes:
+      label: Coverage rationale
+      description: Explain which scientific behavior or gap this case exercises.
+    validations:
+      required: true
+
+  - type: textarea
+    id: system
+    attributes:
+      label: Molecular system
+      description: Provide the exact geometry, charge, multiplicity, and electron count.
+    validations:
+      required: true
+
+  - type: textarea
+    id: basis
+    attributes:
+      label: Basis set and provenance
+      description: Identify the basis, source or revision, and any relevant contraction or normalization convention.
+    validations:
+      required: true
+
+  - type: textarea
+    id: method
+    attributes:
+      label: Method and settings
+      description: Include RHF/UHF/MP2 selection, SCF thresholds, frozen-orbital choices, and other relevant settings.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference implementation
+      description: Give the package, version, platform, complete input, and exact command needed to reproduce the calculation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_values
+    attributes:
+      label: Expected values
+      description: Report relevant nuclear, electronic, total, correlation, or other energies with sufficient precision and units.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rustiq_result
+    attributes:
+      label: Current RustiQ result
+      description: If available, include the RustiQ commit, input, command, and result.
+
+  - type: textarea
+    id: tolerance
+    attributes:
+      label: Proposed tolerance
+      description: State the acceptance tolerance and justify it scientifically and numerically.
+    validations:
+      required: true
+
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Data provenance and redistribution
+      description: Identify the source of all inputs and confirm whether they may be committed and redistributed with RustiQ.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing validation cases and issues for duplicates.
+          required: true
+        - label: The reference calculation can be independently reproduced from the information provided.
+          required: true

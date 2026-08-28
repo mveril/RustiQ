@@ -1,0 +1,81 @@
+name: Performance issue
+description: Report a regression or propose a reproducible performance improvement
+title: "Performance: "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Performance issue type
+      options:
+        - Confirmed regression
+        - Suspected regression
+        - Performance limitation
+        - Optimization opportunity
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected operation
+      options:
+        - Basis construction or loading
+        - Integral evaluation or storage
+        - Hartree-Fock or SCF
+        - MP2
+        - Geometry or parsing
+        - CLI startup or reporting
+        - Build or test execution
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Reproducible scenario
+      description: Provide the exact input, command, benchmark, and Cargo profile or features.
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: Report raw or summarized measurements, number of repetitions, variability, and commits compared.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and hardware
+      description: Include OS, Rust version, CPU, memory, thread count, and RustiQ version or commit.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expectation
+    attributes:
+      label: Expected performance
+      description: State the expected baseline or improvement and how it was established.
+    validations:
+      required: true
+
+  - type: textarea
+    id: profile
+    attributes:
+      label: Profiling evidence
+      description: Add relevant profiler output or suspected bottlenecks, if available.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues for similar performance reports.
+          required: true
+        - label: I measured an optimized build where that is relevant.
+          required: true

@@ -1,0 +1,91 @@
+name: Numerical discrepancy
+description: Report a mismatch against a trusted reference implementation
+title: "Numerical discrepancy: "
+labels:
+  - numerical-validation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when RustiQ and a trusted implementation disagree. Use **Reference validation case** to propose new validation coverage without a known mismatch.
+
+  - type: input
+    id: molecule
+    attributes:
+      label: Molecule and geometry
+      description: Name the molecule and attach or paste the exact geometry below if it is not already in the repository.
+    validations:
+      required: true
+
+  - type: textarea
+    id: geometry
+    attributes:
+      label: Geometry or input files
+      description: Paste the geometry and relevant RustiQ input, or attach the files.
+    validations:
+      required: true
+
+  - type: input
+    id: electronic_state
+    attributes:
+      label: Charge and multiplicity
+      placeholder: charge 0, multiplicity 1
+    validations:
+      required: true
+
+  - type: input
+    id: basis
+    attributes:
+      label: Basis set
+    validations:
+      required: true
+
+  - type: input
+    id: method
+    attributes:
+      label: Method and calculation settings
+      placeholder: RHF, convergence threshold 1e-8, core guess, ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: rustiq_result
+    attributes:
+      label: RustiQ command and result
+      description: Include the RustiQ commit or version, exact command, relevant output, and Cargo features.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reference_result
+    attributes:
+      label: Reference calculation and result
+      description: Include the package and version, exact input or command, and relevant output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: difference
+    attributes:
+      label: Observed difference
+      description: Give absolute and relative differences where applicable, with units.
+    validations:
+      required: true
+
+  - type: textarea
+    id: conventions
+    attributes:
+      label: Conventions and expected tolerance
+      description: Note units, normalization, frozen orbitals, energy definitions, and why the expected tolerance is appropriate.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues for duplicates.
+          required: true
+        - label: The RustiQ and reference calculations use equivalent inputs and scientific conventions.
+          required: true
