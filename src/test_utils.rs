@@ -34,7 +34,7 @@ pub(crate) fn load_sample_geometry_in_bohr(path: &str) -> Geometry {
 
 pub(crate) fn load_sto3g_basis(geometry: &Geometry) -> Basis {
     let basis_file = load_minimal_basis_file();
-    Basis::load(&basis_file, geometry)
+    Basis::try_load(&basis_file, geometry).unwrap()
 }
 
 pub(crate) fn new_one_electron_scf<'a>(

@@ -59,7 +59,8 @@ fn main() {
             .get(case.basis)
             .unwrap_or_else(|_| panic!("failed to load {} from basis store", case.basis))
             .unwrap_or_else(|| panic!("missing {} in basis store", case.basis));
-        let input = EriBenchInput::load(case.name, manifest_dir.join(case.geometry), basis_file);
+        let input = EriBenchInput::load(case.name, manifest_dir.join(case.geometry), basis_file)
+            .unwrap_or_else(|error| panic!("invalid basis {}: {error}", case.basis));
         println!("case: {}", case.name);
         println!("  basis: {}", case.basis);
         flush_stdout();

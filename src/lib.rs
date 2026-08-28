@@ -46,15 +46,15 @@ pub mod bench_support {
             name: impl Into<String>,
             geometry_path: impl AsRef<Path>,
             basis: BasisFile,
-        ) -> Self {
+        ) -> Result<Self, crate::basis::gaussian::basis::BasisError> {
             let geometry = Geometry::from_path(geometry_path.as_ref())
                 .unwrap_or_else(|err| panic!("failed to read geometry: {err:?}"));
-            let basis = Basis::load(&basis, &geometry);
+            let basis = Basis::try_load(&basis, &geometry)?;
 
-            Self {
+            Ok(Self {
                 name: name.into(),
                 basis,
-            }
+            })
         }
 
         pub fn run_once(&self) -> EriBenchResult {

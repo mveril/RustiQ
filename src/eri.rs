@@ -695,7 +695,7 @@ mod tests {
     fn test_eri_hydrogen_molecule() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         // Calculate ERI integrals for the whole molecule
         let eri_tensor = electron_repulsion_ints(&basis);
@@ -713,7 +713,7 @@ mod tests {
     fn test_eri_hydrogen_molecule_self_integral() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         // Calculate ERI integrals for the whole molecule
         let eri_tensor = electron_repulsion_ints(&basis);
@@ -733,7 +733,7 @@ mod tests {
     fn test_parallel_eri_tensor_matches_sequential_pair_calculation() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
         let pair_expansions = build_pair_expansions(&basis);
         let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
         let eri_tensor = electron_repulsion_ints(&basis);
@@ -768,7 +768,7 @@ mod tests {
     fn test_eri_schwarz_screening_skips_negligible_pair_products() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_distant_h2_geometry();
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         let eri_tensor = electron_repulsion_ints(&basis);
 
@@ -780,7 +780,7 @@ mod tests {
     fn test_eri_symmetry() {
         let geom = create_h2_geometry();
         let basis_file = test_utils::load_minimal_basis_file();
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         let eri_tensor = electron_repulsion_ints(&basis);
 

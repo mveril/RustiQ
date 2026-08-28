@@ -492,7 +492,7 @@ mod tests {
     fn test_initial_mo_coefficients() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geometry);
+        let basis = Basis::try_load(&basis_file, &geometry).unwrap();
 
         let h_core = &basis.kinetic_ints() + &basis.overlap_ints(); // Simplified H_core for testing
 
@@ -534,7 +534,7 @@ mod tests {
     fn test_build_fock_matrix() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geometry);
+        let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::from(geometry);
 
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
@@ -565,7 +565,7 @@ mod tests {
     fn test_calculate_density_matrix() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geometry);
+        let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::from(geometry);
 
         let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
@@ -596,7 +596,7 @@ mod tests {
     fn test_scf_convergence_h2() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geometry);
+        let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::from(geometry);
 
         let mut scf = ScfCalculation::new(
