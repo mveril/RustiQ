@@ -78,7 +78,7 @@ body:
     id: development_environment
     attributes:
       label: RustiQ execution environment
-      description: For `full`, run `nix develop`. For another Nix shell, run `nix develop .#<shell>`.
+      description: How was RustiQ built and run? The default Nix shell is `full` (`nix develop`); named shells use `nix develop .#<shell>`. The Dev Container also loads `full`. Choose `Custom / local` for any other setup.
       options:
         - Nix — full (default)
         - Nix — mini-rust
