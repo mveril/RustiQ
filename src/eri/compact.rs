@@ -246,6 +246,7 @@ impl IndexMut<(usize, usize, usize, usize)> for CompactEri {
 mod tests {
     use super::*;
     use ndarray::Array4;
+    use proptest::prelude::*;
 
     #[test]
     fn test_atomic_bitmap_claims_each_bit_once_across_word_boundaries() {
@@ -419,32 +420,27 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_compact_eri_from_ordered_values_par_iter_rejects_short_iterators() {
-        let error =
-            CompactEri::from_ordered_values_par_iter(1, Vec::new().into_par_iter()).unwrap_err();
+    proptest! {
+        #[test]
+        fn test_compact_eri_from_ordered_values_par_iter_rejects_invalid_lengths(
+            basis_functions in 0usize..=8,
+            values in prop::collection::vec(any::<f64>(), 0..300),
+        ) {
+            let expected = CompactEri::storage_len(basis_functions);
+            let actual = values.len();
+            prop_assume!(actual != expected);
 
-        assert_eq!(
-            error,
-            CompactEriBuildError::InvalidLength {
-                expected: 1,
-                actual: 0,
-            }
-        );
-    }
-
-    #[test]
-    fn test_compact_eri_from_ordered_values_par_iter_rejects_long_iterators() {
-        let error = CompactEri::from_ordered_values_par_iter(1, vec![1.0, 2.0].into_par_iter())
+            let error = CompactEri::from_ordered_values_par_iter(
+                basis_functions,
+                values.into_par_iter(),
+            )
             .unwrap_err();
 
-        assert_eq!(
-            error,
-            CompactEriBuildError::InvalidLength {
-                expected: 1,
-                actual: 2,
-            }
-        );
+            prop_assert_eq!(
+                error,
+                CompactEriBuildError::InvalidLength { expected, actual }
+            );
+        }
     }
 
     #[test]
