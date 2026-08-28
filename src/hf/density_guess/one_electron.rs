@@ -96,7 +96,7 @@ mod tests {
     fn test_build_density_guess_optimized() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
-        let basis = Basis::load(&basis_file, &geometry);
+        let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::from(geometry);
 
         // Calculate H_core (simplified for the test)

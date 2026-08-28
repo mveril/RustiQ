@@ -8,6 +8,7 @@ use super::contraction::Contraction;
 use super::shell::Shell;
 use factorial::DoubleFactorial;
 use rayon::prelude::*;
+use thiserror::Error;
 
 use crate::basis::basis_file::BasisFile;
 use crate::basis::function_type::FunctionType;
@@ -21,6 +22,82 @@ pub struct Basis {
     pub angular_momenta: Vec<Vector3<u8>>, // Angular momenta of the basis functions
     pub angular_components: Vec<Vec<(Vector3<u8>, f64)>>,
     pub normalized_components: Vec<Vec<NormalizedComponent>>,
+}
+
+/// An error raised before any basis functions are constructed.
+#[derive(Debug, Error, PartialEq)]
+pub enum BasisError {
+    #[error("basis file declares unsupported function type {function_type:?}")]
+    UnsupportedDeclaredFunctionType { function_type: FunctionType },
+    #[error("basis data for element Z={atomic_number} contains an ECP ({ecp_electrons} core electrons, {potential_count} potentials), but RustiQ does not support ECPs")]
+    UnsupportedEcp {
+        atomic_number: u32,
+        ecp_electrons: usize,
+        potential_count: usize,
+    },
+    #[error("electron shell {shell_index} for element Z={atomic_number} uses unsupported function type {function_type:?}")]
+    UnsupportedFunctionType {
+        atomic_number: u32,
+        shell_index: usize,
+        function_type: FunctionType,
+    },
+    #[error("electron shell {shell_index} for element Z={atomic_number} has no angular momenta")]
+    EmptyAngularMomenta {
+        atomic_number: u32,
+        shell_index: usize,
+    },
+    #[error("electron shell {shell_index} for element Z={atomic_number} has no exponents")]
+    EmptyExponents {
+        atomic_number: u32,
+        shell_index: usize,
+    },
+    #[error("electron shell {shell_index} for element Z={atomic_number} has {angular_momenta} angular momenta but {coefficient_groups} coefficient groups")]
+    ContractionCountMismatch {
+        atomic_number: u32,
+        shell_index: usize,
+        angular_momenta: usize,
+        coefficient_groups: usize,
+    },
+    #[error("coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} has length {coefficients}, expected {exponents}")]
+    PrimitiveCountMismatch {
+        atomic_number: u32,
+        shell_index: usize,
+        coefficient_group: usize,
+        exponents: usize,
+        coefficients: usize,
+    },
+    #[error("electron shell {shell_index} for element Z={atomic_number} contains an invalid exponent at index {exponent_index}: {value} (expected a finite positive number)")]
+    InvalidExponent {
+        atomic_number: u32,
+        shell_index: usize,
+        exponent_index: usize,
+        value: f64,
+    },
+    #[error("coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} contains a non-finite coefficient at index {coefficient_index}: {value}")]
+    InvalidCoefficient {
+        atomic_number: u32,
+        shell_index: usize,
+        coefficient_group: usize,
+        coefficient_index: usize,
+        value: f64,
+    },
+    #[error("coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} is identically zero")]
+    ZeroContraction {
+        atomic_number: u32,
+        shell_index: usize,
+        coefficient_group: usize,
+    },
+    #[error("electron shell {shell_index} for element Z={atomic_number} uses unsupported angular momentum l={angular_momentum} for {function_type:?}")]
+    UnsupportedAngularMomentum {
+        atomic_number: u32,
+        shell_index: usize,
+        angular_momentum: u8,
+        function_type: FunctionType,
+    },
+    #[error(
+        "basis file has no electron shells for element Z={atomic_number} required by the molecule"
+    )]
+    MissingElement { atomic_number: u32 },
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -65,8 +142,9 @@ impl Basis {
         }
     }
 
-    /// Loads a basis from a [BasisFile] and associates it with the molecule atoms.
-    pub fn load(basis_file: &BasisFile, mol: &Geometry) -> Self {
+    /// Validates and loads a basis, without constructing anything on invalid input.
+    pub fn try_load(basis_file: &BasisFile, mol: &Geometry) -> Result<Self, BasisError> {
+        Self::validate(basis_file, mol)?;
         let mut shells = Vec::new();
         for atom in &mol.atoms {
             let element = &atom.element;
@@ -91,26 +169,12 @@ impl Basis {
                             .map(|coeffs_group| (&angular_momenta[0], coeffs_group))
                             .collect()
                     } else {
-                        panic!(
-                            "Mismatch between angular_momentum.len() ({}) and coefficients.len() ({}) for element {}",
-                            angular_momenta.len(),
-                            coeffs_list.len(),
-                            element.atomic_number
-                        );
+                        // Guaranteed unreachable by validate().
+                        unreachable!("validated contraction dimensions")
                     };
 
                     for (l, coeffs_group) in angular_coeff_pairs {
                         // coeffs_group is a Vec<f64> (a coefficient group)
-                        debug_assert_eq!(
-                            alpha.len(),
-                            coeffs_group.len(),  // Compare the coefficient group length now
-                            "Mismatch between exponents.len() ({}) and coeffs.len() ({}) for element {}, l = {}",
-                            alpha.len(),
-                            coeffs_group.len(),
-                            element.atomic_number,
-                            l
-                        );
-
                         let contraction = Contraction::new(
                             *l,
                             shell.function_type == FunctionType::GtoSpherical,
@@ -121,14 +185,130 @@ impl Basis {
                         shells.push(Shell::new(alpha.clone(), vec![contraction], position));
                     }
                 }
-            } else {
-                panic!(
-                    "No electron shells found for element {}",
-                    element.atomic_number
-                );
             }
         }
-        Self::new(shells)
+        Ok(Self::new(shells))
+    }
+
+    fn validate(basis_file: &BasisFile, mol: &Geometry) -> Result<(), BasisError> {
+        if let Some(function_type) = basis_file.function_types.iter().find(|function_type| {
+            !matches!(
+                function_type,
+                FunctionType::Gto | FunctionType::GtoCartesian | FunctionType::GtoSpherical
+            )
+        }) {
+            return Err(BasisError::UnsupportedDeclaredFunctionType {
+                function_type: *function_type,
+            });
+        }
+        for (&atomic_number, element) in &basis_file.elements {
+            if element.ecp_electrons != 0 || !element.ecp_potentials.is_empty() {
+                return Err(BasisError::UnsupportedEcp {
+                    atomic_number,
+                    ecp_electrons: element.ecp_electrons,
+                    potential_count: element.ecp_potentials.len(),
+                });
+            }
+            for (shell_index, shell) in element.electron_shells.iter().enumerate() {
+                if !matches!(
+                    shell.function_type,
+                    FunctionType::Gto | FunctionType::GtoCartesian | FunctionType::GtoSpherical
+                ) {
+                    return Err(BasisError::UnsupportedFunctionType {
+                        atomic_number,
+                        shell_index,
+                        function_type: shell.function_type,
+                    });
+                }
+                if shell.angular_momentum.is_empty() {
+                    return Err(BasisError::EmptyAngularMomenta {
+                        atomic_number,
+                        shell_index,
+                    });
+                }
+                if shell.exponents.is_empty() {
+                    return Err(BasisError::EmptyExponents {
+                        atomic_number,
+                        shell_index,
+                    });
+                }
+                let counts_match = shell.angular_momentum.len() == shell.coefficients.len()
+                    || (shell.angular_momentum.len() == 1 && !shell.coefficients.is_empty());
+                if !counts_match {
+                    return Err(BasisError::ContractionCountMismatch {
+                        atomic_number,
+                        shell_index,
+                        angular_momenta: shell.angular_momentum.len(),
+                        coefficient_groups: shell.coefficients.len(),
+                    });
+                }
+                for (exponent_index, &value) in shell.exponents.iter().enumerate() {
+                    if !value.is_finite() || value <= 0.0 {
+                        return Err(BasisError::InvalidExponent {
+                            atomic_number,
+                            shell_index,
+                            exponent_index,
+                            value,
+                        });
+                    }
+                }
+                for (coefficient_group, coefficients) in shell.coefficients.iter().enumerate() {
+                    if coefficients.len() != shell.exponents.len() {
+                        return Err(BasisError::PrimitiveCountMismatch {
+                            atomic_number,
+                            shell_index,
+                            coefficient_group,
+                            exponents: shell.exponents.len(),
+                            coefficients: coefficients.len(),
+                        });
+                    }
+                    for (coefficient_index, &value) in coefficients.iter().enumerate() {
+                        if !value.is_finite() {
+                            return Err(BasisError::InvalidCoefficient {
+                                atomic_number,
+                                shell_index,
+                                coefficient_group,
+                                coefficient_index,
+                                value,
+                            });
+                        }
+                    }
+                    if coefficients.iter().all(|&value| value == 0.0) {
+                        return Err(BasisError::ZeroContraction {
+                            atomic_number,
+                            shell_index,
+                            coefficient_group,
+                        });
+                    }
+                }
+                for &angular_momentum in &shell.angular_momentum {
+                    let supported = if shell.function_type == FunctionType::GtoSpherical {
+                        angular_momentum <= 2
+                    } else {
+                        angular_momentum <= 15
+                    };
+                    if !supported {
+                        return Err(BasisError::UnsupportedAngularMomentum {
+                            atomic_number,
+                            shell_index,
+                            angular_momentum,
+                            function_type: shell.function_type,
+                        });
+                    }
+                }
+            }
+        }
+        for atom in &mol.atoms {
+            let atomic_number = atom.element.atomic_number;
+            if !basis_file
+                .elements
+                .get(&atomic_number)
+                .is_some_and(|element| !element.electron_shells.is_empty())
+            {
+                return Err(BasisError::MissingElement { atomic_number });
+            }
+        }
+        Ok(())
     }
 
     pub fn overlap_ints(&self) -> DMatrix<f64> {
@@ -571,7 +751,7 @@ mod tests {
             atoms: vec![atom],
         };
 
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         // Check overlap and kinetic integrals
         let overlap = basis.overlap_ints();
@@ -629,11 +809,79 @@ mod tests {
             atoms: vec![atom],
         };
 
-        let basis = Basis::load(&basis_file, &geom);
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         assert_eq!(basis.shells.len(), 2);
         assert_eq!(basis.nbasis(), 2);
         assert_eq!(basis.angular_momenta, vec![Vector3::zeros(); 2]);
+    }
+
+    fn hydrogen_geometry() -> Geometry {
+        Geometry {
+            comment: "Hydrogen Atom".to_string(),
+            atoms: vec![Atom {
+                element: periodic_table()[0],
+                position: Point3::origin(),
+            }],
+        }
+    }
+
+    #[test]
+    fn try_load_rejects_ecp_data() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        basis_file.elements.get_mut(&1).unwrap().ecp_electrons = 2;
+
+        assert!(matches!(
+            Basis::try_load(&basis_file, &hydrogen_geometry()),
+            Err(BasisError::UnsupportedEcp {
+                atomic_number: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn try_load_rejects_unsupported_function_type() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        basis_file.function_types = HashSet::from([FunctionType::Sto]);
+
+        assert_eq!(
+            Basis::try_load(&basis_file, &hydrogen_geometry()),
+            Err(BasisError::UnsupportedDeclaredFunctionType {
+                function_type: FunctionType::Sto,
+            })
+        );
+    }
+
+    #[test]
+    fn try_load_rejects_unsupported_spherical_angular_momentum() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        let shell = &mut basis_file.elements.get_mut(&1).unwrap().electron_shells[0];
+        shell.function_type = FunctionType::GtoSpherical;
+        shell.angular_momentum = vec![3];
+
+        assert!(matches!(
+            Basis::try_load(&basis_file, &hydrogen_geometry()),
+            Err(BasisError::UnsupportedAngularMomentum {
+                atomic_number: 1,
+                angular_momentum: 3,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn try_load_rejects_primitive_count_mismatch() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        basis_file.elements.get_mut(&1).unwrap().electron_shells[0].coefficients[0].pop();
+
+        assert!(matches!(
+            Basis::try_load(&basis_file, &hydrogen_geometry()),
+            Err(BasisError::PrimitiveCountMismatch {
+                atomic_number: 1,
+                ..
+            })
+        ));
     }
 
     #[test]

@@ -185,7 +185,7 @@ impl Runnable for RunCommand {
         );
         println!("Constructing basis functions...");
         let step_start = Instant::now();
-        let basis = Basis::load(&basis_file, &molecule);
+        let basis = Basis::try_load(&basis_file, &molecule).into_diagnostic()?;
         println!(
             "Constructed {} basis functions in {}",
             basis.nbasis(),
