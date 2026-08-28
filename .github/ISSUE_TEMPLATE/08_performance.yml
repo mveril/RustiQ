@@ -48,11 +48,39 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: environment
+  - type: dropdown
+    id: development_environment
     attributes:
-      label: Environment and hardware
-      description: Include OS, Rust version, CPU, memory, thread count, and RustiQ version or commit.
+      label: Development environment
+      description: Select the main environment used to build and run RustiQ.
+      options:
+        - Nix flake (`nix develop`)
+        - VS Code Dev Container
+        - Custom or local environment
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, macOS 15, Windows 11, ...
+    validations:
+      required: true
+
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture
+      placeholder: x86_64, aarch64, Apple Silicon, ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware_and_tools
+    attributes:
+      label: Hardware and tool versions
+      description: Include CPU, memory, thread count, Rust version, RustiQ commit, and relevant Nix, Docker, container, or custom-tool versions.
     validations:
       required: true
 

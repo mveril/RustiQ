@@ -71,6 +71,39 @@ body:
       label: Current RustiQ result
       description: If available, include the RustiQ commit, input, command, and result.
 
+  - type: dropdown
+    id: development_environment
+    attributes:
+      label: RustiQ execution environment
+      description: Select `RustiQ not run` if this issue only proposes reference data.
+      options:
+        - Nix flake (`nix develop`)
+        - VS Code Dev Container
+        - Custom or local environment
+        - RustiQ not run
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Required in practice when a RustiQ result is provided.
+      placeholder: Ubuntu 24.04, macOS 15, Windows 11, ...
+
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture
+      description: Required in practice when a RustiQ result is provided.
+      placeholder: x86_64, aarch64, Apple Silicon, ...
+
+  - type: input
+    id: environment_details
+    attributes:
+      label: Environment details
+      description: For a custom environment, list relevant tools and versions. Otherwise add Nix, Docker, or container details when useful.
+
   - type: textarea
     id: tolerance
     attributes:
