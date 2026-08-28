@@ -67,6 +67,20 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: nix_development_shell
+    attributes:
+      label: Nix development shell
+      description: Select `full` for plain `nix develop` and the default Dev Container setup. Select `Not applicable / unknown` for a custom environment.
+      options:
+        - full (default)
+        - mini-rust
+        - rust
+        - mini-pyscf
+        - Not applicable / unknown
+    validations:
+      required: true
+
   - type: input
     id: os
     attributes:
