@@ -259,6 +259,7 @@ fn build_compact_eri(
             }
         }),
     )
+    .expect("compact ERI iterator is constructed with exactly storage_len values")
 }
 
 fn unique_pair_indices(index: usize) -> (usize, usize) {
