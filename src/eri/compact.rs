@@ -1,6 +1,5 @@
 use std::{
     cell::UnsafeCell,
-    mem::MaybeUninit,
     ops::{Index, IndexMut},
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -44,16 +43,11 @@ impl AtomicBitmap {
 }
 
 #[derive(Debug)]
-struct StorageSlot(UnsafeCell<MaybeUninit<f64>>);
+struct StorageSlot(UnsafeCell<f64>);
 
 impl StorageSlot {
-    #[allow(dead_code)]
-    fn uninitialized() -> Self {
-        Self(UnsafeCell::new(MaybeUninit::uninit()))
-    }
-
     fn initialized(value: f64) -> Self {
-        Self(UnsafeCell::new(MaybeUninit::new(value)))
+        Self(UnsafeCell::new(value))
     }
 
     fn zeroed() -> Self {
@@ -62,27 +56,30 @@ impl StorageSlot {
 
     #[allow(dead_code)]
     unsafe fn write(&self, value: f64) {
-        // The bitmap guarantees that only one thread writes this slot.
-        unsafe { (*self.0.get()).write(value) };
+        // The bitmap guarantees that only one thread writes this slot while
+        // `from_par_iter` is building the tensor.
+        unsafe { *self.0.get() = value };
     }
 
     unsafe fn get(&self) -> &f64 {
-        // CompactEri is created only after every slot has been initialized.
-        unsafe { (&*self.0.get()).assume_init_ref() }
+        // All parallel writes finish before the CompactEri is returned, and
+        // later mutation requires exclusive access to the CompactEri.
+        unsafe { &*self.0.get() }
     }
 
-    unsafe fn get_mut(&mut self) -> &mut f64 {
-        // Exclusive access to the slot guarantees exclusive access to the value.
-        unsafe { (&mut *self.0.get()).assume_init_mut() }
+    fn get_mut(&mut self) -> &mut f64 {
+        self.0.get_mut()
     }
 }
 
-// Concurrent access is limited to write-once initialization guarded by the bitmap.
+// Concurrent access is limited to write-once updates guarded by the bitmap. No reader
+// can observe an update because CompactEri is returned only after all writer tasks join.
 unsafe impl Sync for StorageSlot {}
 
-#[allow(dead_code)]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum CompactEriBuildError {
+    #[error("expected {expected} compact ERI values, received {actual}")]
+    InvalidLength { expected: usize, actual: usize },
     #[error("quartet ({mu}, {nu}, {lambda}, {sigma}) contains an index outside size {size}")]
     IndexOutOfBounds {
         mu: usize,
@@ -135,51 +132,26 @@ impl CompactEri {
         }
     }
 
-    /// Builds a compact ERI tensor from quartets yielded in compact storage order.
-    #[allow(dead_code)]
-    pub(crate) fn from_indexed_par_iter<I>(size: usize, par_iter: I) -> Self
-    where
-        I: IndexedParallelIterator<Item = (usize, usize, usize, usize, f64)>,
-    {
-        let storage_len = Self::storage_len(size);
-        let mut storage = (0..storage_len)
-            .map(|_| StorageSlot::zeroed())
-            .collect::<Box<[_]>>();
-        let compact_par_iter = par_iter
-            .map(|(mu, nu, lambda, sigma, value)| (EriIndex::new(mu, nu, lambda, sigma).0, value));
-
-        storage
-            .par_iter_mut()
-            .enumerate()
-            .zip(compact_par_iter)
-            .for_each(|((storage_index, slot), (compact_index, value))| {
-                debug_assert_eq!(storage_index, compact_index);
-                // The zipped indexed iterator gives exclusive access to each slot.
-                unsafe { *slot.get_mut() = value };
-            });
-
-        Self { storage }
-    }
-
     /// Builds a compact ERI tensor from values yielded in compact storage order.
-    pub(crate) fn from_ordered_values_par_iter<I>(size: usize, par_iter: I) -> Self
+    pub(crate) fn from_ordered_values_par_iter<I>(
+        size: usize,
+        par_iter: I,
+    ) -> Result<Self, CompactEriBuildError>
     where
         I: IndexedParallelIterator<Item = f64>,
     {
         let storage_len = Self::storage_len(size);
-        let storage = (0..storage_len)
-            .into_par_iter()
-            .map(|_| StorageSlot::uninitialized())
-            .collect::<Box<[_]>>();
+        let actual = par_iter.len();
+        if actual != storage_len {
+            return Err(CompactEriBuildError::InvalidLength {
+                expected: storage_len,
+                actual,
+            });
+        }
 
-        par_iter.enumerate().for_each(|(index, value)| {
-            // The indexed iterator yields each compact slot exactly once.
-            unsafe {
-                storage[index].write(value);
-            }
-        });
+        let storage = par_iter.map(StorageSlot::initialized).collect();
 
-        Self { storage }
+        Ok(Self { storage })
     }
 
     /// Builds a compact ERI tensor from quartets yielded in any order.
@@ -193,7 +165,7 @@ impl CompactEri {
         let storage_len = Self::storage_len(size);
         let storage = (0..storage_len)
             .into_par_iter()
-            .map(|_| StorageSlot::uninitialized())
+            .map(|_| StorageSlot::zeroed())
             .collect::<Box<[_]>>();
         let bitmap = AtomicBitmap::new(storage_len);
 
@@ -250,8 +222,7 @@ impl Index<EriIndex> for CompactEri {
 
 impl IndexMut<EriIndex> for CompactEri {
     fn index_mut(&mut self, index: EriIndex) -> &mut Self::Output {
-        // All slots are initialized before CompactEri is returned.
-        unsafe { self.storage[index.0].get_mut() }
+        self.storage[index.0].get_mut()
     }
 }
 
@@ -267,8 +238,7 @@ impl Index<(usize, usize, usize, usize)> for CompactEri {
 impl IndexMut<(usize, usize, usize, usize)> for CompactEri {
     fn index_mut(&mut self, index: (usize, usize, usize, usize)) -> &mut Self::Output {
         let (mu, nu, lambda, sigma) = index;
-        // All slots are initialized before CompactEri is returned.
-        unsafe { self.storage[EriIndex::new(mu, nu, lambda, sigma).0].get_mut() }
+        self.storage[EriIndex::new(mu, nu, lambda, sigma).0].get_mut()
     }
 }
 
@@ -428,27 +398,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compact_eri_from_indexed_par_iter_uses_four_indexes() {
-        let basis_functions = 2;
-        let storage_len = CompactEri::storage_len(basis_functions);
-
-        let eri = CompactEri::from_indexed_par_iter(
-            basis_functions,
-            (0..storage_len).into_par_iter().map(|compact_index| {
-                let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-                let (mu, nu) = basis_function_pair(pair_pq);
-                let (lambda, sigma) = basis_function_pair(pair_rs);
-                (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
-            }),
-        );
-
-        assert_eq!(eri[(0, 0, 0, 0)], 0.25);
-        assert_eq!(eri[(1, 0, 0, 0)], 1.25);
-        assert_eq!(eri[(1, 0, 1, 0)], 2.25);
-        assert_eq!(eri[(1, 1, 1, 1)], 5.25);
-    }
-
-    #[test]
     fn test_compact_eri_from_ordered_values_par_iter_uses_compact_order() {
         let basis_functions = 5;
         let storage_len = CompactEri::storage_len(basis_functions);
@@ -458,7 +407,8 @@ mod tests {
             (0..storage_len)
                 .into_par_iter()
                 .map(|compact_index| compact_index as f64 + 0.25),
-        );
+        )
+        .unwrap();
 
         assert_eq!(eri[(0, 0, 0, 0)], 0.25);
         assert_eq!(eri[(1, 0, 0, 0)], 1.25);
@@ -466,6 +416,34 @@ mod tests {
         assert_eq!(
             eri[(4, 4, 4, 4)],
             CompactEri::storage_len(basis_functions) as f64 - 0.75
+        );
+    }
+
+    #[test]
+    fn test_compact_eri_from_ordered_values_par_iter_rejects_short_iterators() {
+        let error =
+            CompactEri::from_ordered_values_par_iter(1, Vec::new().into_par_iter()).unwrap_err();
+
+        assert_eq!(
+            error,
+            CompactEriBuildError::InvalidLength {
+                expected: 1,
+                actual: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn test_compact_eri_from_ordered_values_par_iter_rejects_long_iterators() {
+        let error = CompactEri::from_ordered_values_par_iter(1, vec![1.0, 2.0].into_par_iter())
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            CompactEriBuildError::InvalidLength {
+                expected: 1,
+                actual: 2,
+            }
         );
     }
 
