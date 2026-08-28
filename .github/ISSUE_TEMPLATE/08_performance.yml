@@ -51,26 +51,15 @@ body:
   - type: dropdown
     id: development_environment
     attributes:
-      label: Development environment
-      description: Select the main environment used to build and run RustiQ.
+      label: RustiQ execution environment
+      description: Select the environment and, for Nix, the exact development-shell command used to build and run RustiQ.
       options:
-        - Nix flake (`nix develop`)
-        - VS Code Dev Container
+        - Nix flake — nix develop (full, default)
+        - Nix flake — nix develop .#mini-rust
+        - Nix flake — nix develop .#rust
+        - Nix flake — nix develop .#mini-pyscf
+        - VS Code Dev Container (full shell)
         - Custom or local environment
-    validations:
-      required: true
-
-  - type: dropdown
-    id: nix_development_shell
-    attributes:
-      label: Nix development shell
-      description: Select `full` for plain `nix develop` and the default Dev Container setup. Select `Not applicable / unknown` for a custom environment.
-      options:
-        - full (default)
-        - mini-rust
-        - rust
-        - mini-pyscf
-        - Not applicable / unknown
     validations:
       required: true
 
@@ -86,7 +75,7 @@ body:
     id: architecture
     attributes:
       label: Architecture
-      placeholder: x86_64, aarch64, Apple Silicon, ...
+      placeholder: x86_64, aarch64, ...
     validations:
       required: true
 
