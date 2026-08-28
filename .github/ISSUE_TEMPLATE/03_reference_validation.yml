@@ -75,14 +75,14 @@ body:
     id: development_environment
     attributes:
       label: RustiQ execution environment
-      description: Select the environment and, for Nix, the exact development-shell command used. Select `RustiQ not run` if this issue only proposes reference data.
+      description: For `full`, run `nix develop`. For another Nix shell, run `nix develop .#<shell>`. Select `RustiQ not run` when only proposing reference data.
       options:
-        - Nix flake — nix develop (full, default)
-        - Nix flake — nix develop .#mini-rust
-        - Nix flake — nix develop .#rust
-        - Nix flake — nix develop .#mini-pyscf
-        - VS Code Dev Container (full shell)
-        - Custom or local environment
+        - Nix — full (default)
+        - Nix — mini-rust
+        - Nix — rust
+        - Nix — mini-pyscf
+        - Dev Container — full
+        - Custom / local
         - RustiQ not run
     validations:
       required: true
