@@ -3,6 +3,7 @@
   "image": "mcr.microsoft.com/devcontainers/base:1-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/nix:1": {
+      "multiUser": true,
       "extraNixConfig": "experimental-features = nix-command flakes\nsandbox = true"
     },
     "ghcr.io/devcontainers-extra/features/direnv:1": {}
