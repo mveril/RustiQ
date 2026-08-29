@@ -38,6 +38,7 @@ dependencies = [
  "special",
  "tabled",
  "temp-env",
+ "tempfile",
  "thiserror",
  "tokio",
  "toml-spanner",

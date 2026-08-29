@@ -1,9 +1,10 @@
 use serde_json::Error as SerdeError;
 use std::{
-    fs::{self, DirEntry, File},
+    fs::{self, DirEntry},
     io::{self, Read, Seek},
     path::{Component, Path, PathBuf},
 };
+use tempfile::NamedTempFile;
 use thiserror::Error;
 
 #[cfg(feature = "online")]
@@ -205,7 +206,7 @@ impl BasisStore {
     ///
     /// # Errors
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
-    /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    /// or a [`DownloadSaveError::Save`] if the file cannot be saved.
     #[cfg(feature = "online")]
     fn basis_url(&self, name: &str) -> io::Result<Url> {
         self.get_path(name)?;
@@ -222,25 +223,36 @@ impl BasisStore {
         name: &str,
         progress_callback: &mut impl FnMut(u64, Option<u64>),
     ) -> Result<(), DownloadSaveError> {
-        let url = self.basis_url(name)?;
+        let url = self.basis_url(name).map_err(SaveError::from)?;
         // Start downloading the file
         let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
         let mut response = client.get(url).send().await?.error_for_status()?;
         let total_size = response.content_length();
-        let path = self.get_path(name)?;
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-        let mut file = tokio::fs::File::create(path).await?;
+        let path = self.get_path(name).map_err(SaveError::from)?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid file path"))
+            .map_err(SaveError::from)?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(SaveError::from)?;
+        let temp_file = NamedTempFile::new_in(parent).map_err(SaveError::from)?;
+        let (file, temp_path) = temp_file.into_parts();
+        let mut file = tokio::fs::File::from_std(file);
         let mut downloaded: u64 = 0;
         while let Some(chunk) = response.chunk().await? {
-            file.write_all(&chunk).await?;
+            file.write_all(&chunk).await.map_err(SaveError::from)?;
             downloaded += chunk.len() as u64;
 
             // Update the progress
             progress_callback(downloaded, total_size);
         }
-        file.flush().await?;
+        file.flush().await.map_err(SaveError::from)?;
+        file.sync_all().await.map_err(SaveError::from)?;
+        let file = file.into_std().await;
+        NamedTempFile::from_parts(file, temp_path)
+            .persist(path)
+            .map_err(SaveError::from)?;
         Ok(())
     }
 
@@ -252,11 +264,11 @@ impl BasisStore {
     ///
     /// # Errors
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
-    /// or a [`DownloadSaveError::Io`] if there is an issue with file I/O.
+    /// or a [`DownloadSaveError::Save`] if the file cannot be saved.
     #[cfg(feature = "online")]
     #[allow(dead_code)]
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
-        let url = self.basis_url(name)?;
+        let url = self.basis_url(name).map_err(SaveError::from)?;
         // Start downloading the file
         let client = BlockingClientBuilder::new()
             .user_agent(USER_AGENT)
@@ -272,9 +284,9 @@ impl BasisStore {
     /// * data - The content of the basis set file to save.
     ///
     /// # Errors
-    /// This function returns a [`FileError::Serde`] If the file cannot be parsed as a [`BasisFile`]
-    /// or a [`FileError::Io`] if there is an issue with file I/O.
-    pub fn import<R: Read + Seek>(&self, mut data: R) -> Result<String, FileError> {
+    /// This function returns an [`ImportError::Serde`] if the file cannot be parsed as a
+    /// [`BasisFile`], or an [`ImportError::Save`] if it cannot be saved.
+    pub fn import<R: Read + Seek>(&self, mut data: R) -> Result<String, ImportError> {
         let basis = BasisFile::from_reader(&mut data)?;
         self.import_as_raw(&basis.name, data)?;
         Ok(basis.name)
@@ -282,25 +294,29 @@ impl BasisStore {
 
     /// Imports a basis set file under the given store name after validating its content.
     #[allow(dead_code)]
-    pub fn import_as<R: Read + Seek>(&self, name: &str, mut data: R) -> Result<(), FileError> {
+    pub fn import_as<R: Read + Seek>(&self, name: &str, mut data: R) -> Result<(), ImportError> {
         BasisFile::from_reader(&mut data)?;
         self.import_as_raw(name, data)?;
         Ok(())
     }
 
-    fn import_as_raw<R: Read + Seek>(&self, name: &str, mut data: R) -> io::Result<()> {
+    fn import_as_raw<R: Read + Seek>(&self, name: &str, mut data: R) -> Result<(), SaveError> {
         data.seek(io::SeekFrom::Start(0))?;
         self.save(name, &mut data)?;
         Ok(())
     }
 
-    fn save<R: Read>(&self, name: &str, mut data: &mut R) -> Result<(), io::Error> {
+    fn save<R: Read>(&self, name: &str, data: &mut R) -> Result<(), SaveError> {
         let path = self.get_path(name)?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let mut file = File::create(path)?;
-        io::copy(&mut data, &mut file)?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid file path"))?;
+        fs::create_dir_all(parent)?;
+
+        let mut temp_file = NamedTempFile::new_in(parent)?;
+        io::copy(data, &mut temp_file)?;
+        temp_file.as_file().sync_all()?;
+        temp_file.persist(path)?;
         Ok(())
     }
 
@@ -380,6 +396,30 @@ impl From<FileError> for DownloadParseSaveError {
     }
 }
 
+/// Error type for importing a basis file into the store.
+#[derive(Error, Debug)]
+pub enum ImportError {
+    /// The imported JSON could not be deserialized.
+    #[error("Serialization error: {0}")]
+    Serde(#[from] SerdeError),
+
+    /// The validated basis file could not be saved.
+    #[error(transparent)]
+    Save(#[from] SaveError),
+}
+
+/// Error type for atomic basis file writes.
+#[derive(Error, Debug)]
+pub enum SaveError {
+    /// I/O error occurred while writing the temporary file.
+    #[error("I/O error while saving: {0}")]
+    Io(#[from] io::Error),
+
+    /// The completed temporary file could not replace the destination.
+    #[error("failed to persist temporary file: {0}")]
+    Persist(#[from] tempfile::PersistError),
+}
+
 /// Custom error type for errors occurring during the online listing of basis sets.
 #[cfg(feature = "online")]
 #[derive(Error, Debug)]
@@ -397,9 +437,9 @@ pub enum DownloadParseError {
 #[cfg(feature = "online")]
 #[derive(Error, Debug)]
 pub enum DownloadSaveError {
-    /// I/O error occurred while writing the downloaded file.
-    #[error("I/O error: {0}")]
-    Io(#[from] io::Error),
+    /// Error occurred while saving the downloaded file.
+    #[error(transparent)]
+    Save(#[from] SaveError),
 
     /// HTTP error occurred during the download.
     #[error("HTTP error: {0}")]
@@ -410,9 +450,13 @@ pub enum DownloadSaveError {
 #[cfg(feature = "online")]
 #[derive(Error, Debug)]
 pub enum DownloadParseSaveError {
-    /// I/O error occurred while writing the downloaded file.
+    /// I/O error occurred while reading a saved basis file.
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
+
+    /// Error occurred while saving the downloaded file.
+    #[error(transparent)]
+    Save(#[from] SaveError),
 
     /// Serde JSON deserialization error.
     #[error("Serialization error: {0}")]
@@ -437,7 +481,7 @@ impl From<DownloadSaveError> for DownloadParseSaveError {
     fn from(value: DownloadSaveError) -> Self {
         match value {
             DownloadSaveError::Http(e) => DownloadParseSaveError::Http(e),
-            DownloadSaveError::Io(e) => DownloadParseSaveError::Io(e),
+            DownloadSaveError::Save(e) => DownloadParseSaveError::Save(e),
         }
     }
 }
@@ -446,6 +490,24 @@ impl From<DownloadSaveError> for DownloadParseSaveError {
 mod tests {
     use super::*;
     use std::{env, path::PathBuf};
+
+    struct FailingReader(bool);
+
+    impl Read for FailingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            if self.0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "simulated read failure",
+                ));
+            }
+
+            self.0 = true;
+            let partial_data = b"partial";
+            buffer[..partial_data.len()].copy_from_slice(partial_data);
+            Ok(partial_data.len())
+        }
+    }
 
     #[test]
     fn test_default_uses_rustiq_data_home() {
@@ -483,5 +545,22 @@ mod tests {
                 io::ErrorKind::InvalidInput
             );
         }
+    }
+
+    #[test]
+    fn test_save_keeps_existing_file_when_reading_fails() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = BasisStore::new(&temp_dir.path());
+        let destination = temp_dir.path().join("test.json");
+        fs::write(&destination, b"existing data").unwrap();
+
+        let error = store.save("test", &mut FailingReader(false)).unwrap_err();
+
+        assert!(matches!(
+            error,
+            SaveError::Io(ref error) if error.kind() == io::ErrorKind::UnexpectedEof
+        ));
+        assert_eq!(fs::read(&destination).unwrap(), b"existing data");
+        assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 1);
     }
 }
