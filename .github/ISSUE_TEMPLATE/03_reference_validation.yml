@@ -3,6 +3,7 @@ description: Propose a reproducible calculation for the scientific validation su
 title: "Reference validation: "
 labels:
   - numerical-validation
+assignees: []
 body:
   - type: dropdown
     id: objective

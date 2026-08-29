@@ -1,0 +1,100 @@
+name: Scientific feature
+description: Propose a new quantum-chemistry method, property, or scientific capability
+title: "Science: "
+labels:
+  - enhancement
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for scientific capabilities. For user-facing CLI or workflow changes, use **Software feature** instead.
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Scientific motivation
+      description: What scientific use case or current limitation would this capability address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: capability
+    attributes:
+      label: Proposed capability and initial scope
+      description: Describe the desired method, property, or algorithm. Separate the minimum useful implementation from possible later extensions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: theory
+    attributes:
+      label: Theory and references
+      description: Provide relevant equations, publications, or authoritative references.
+    validations:
+      required: true
+
+  - type: textarea
+    id: conventions
+    attributes:
+      label: Approximations and conventions
+      description: State assumptions involving units, normalization, spin, references, frozen orbitals, integral ordering, or energy definitions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: interface
+    attributes:
+      label: Inputs and results
+      description: Describe required inputs and observable results. Include a possible CLI or runfile interface when useful, without treating it as a fixed design.
+
+  - type: checkboxes
+    id: affected_methods
+    attributes:
+      label: Interaction with existing methods
+      description: Select every existing area that may be affected.
+      options:
+        - label: Basis-set handling
+        - label: Integral evaluation or storage
+        - label: RHF
+        - label: UHF
+        - label: MP2
+        - label: Other or not yet known
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation strategy
+      description: Identify trusted implementations, representative systems, expected values, and appropriate tolerances.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Computational constraints
+      description: Note expected scaling, memory requirements, numerical risks, or known limits.
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be implemented, tested, and documented for this issue to be complete?
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Which related capabilities should explicitly be deferred?
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues and roadmap for related proposals.
+          required: true
+        - label: I included enough scientific context to evaluate the proposal.
+          required: true

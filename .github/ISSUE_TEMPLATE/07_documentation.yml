@@ -3,6 +3,7 @@ description: Report missing, incorrect, or unclear documentation
 title: "Docs: "
 labels:
   - documentation
+assignees: []
 body:
   - type: dropdown
     id: location

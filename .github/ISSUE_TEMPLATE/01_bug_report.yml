@@ -3,6 +3,7 @@ description: Report incorrect behavior, crashes, or misleading diagnostics
 title: "Bug: "
 labels:
   - bug
+assignees: []
 body:
   - type: markdown
     attributes:
@@ -38,8 +39,22 @@ body:
     id: reproduction
     attributes:
       label: Minimal reproduction
-      description: Include the exact command and the smallest input needed to reproduce the problem.
-      render: shell
+      description: Describe the smallest sequence of steps needed to reproduce the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: input_files
+    attributes:
+      label: Input files
+      description: Drag and drop the relevant runfile (`.toml`), geometry (`.xyz`), or other input files here. If an attachment is not accepted, paste its contents in a code block or attach a `.zip` archive.
+
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: Provide the exact command used to reproduce the problem.
+      placeholder: cargo run -- run path/to/calculation.toml
     validations:
       required: true
 
@@ -53,10 +68,17 @@ body:
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior and output
-      description: Include the complete relevant error or diagnostic output.
+      label: Actual behavior
+      description: Describe what happened instead.
     validations:
       required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output or logs
+      description: Include the complete relevant error or diagnostic output.
+      render: shell
 
   - type: input
     id: rustiq_version

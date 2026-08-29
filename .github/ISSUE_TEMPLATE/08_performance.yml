@@ -3,6 +3,7 @@ description: Report a regression or propose a reproducible performance improveme
 title: "Performance: "
 labels:
   - enhancement
+assignees: []
 body:
   - type: dropdown
     id: kind
