@@ -1,0 +1,78 @@
+name: Software feature
+description: Propose a user-visible CLI, input, output, diagnostic, or workflow capability
+title: "Feature: "
+labels:
+  - enhancement
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for user-visible behavior. For quantum-chemistry methods or properties, use **Scientific feature** instead.
+
+  - type: textarea
+    id: user_problem
+    attributes:
+      label: User problem
+      description: Who needs this capability, and what are they currently unable to do easily?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired behavior from the user's perspective.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Command-line interface
+        - Runfile or configuration
+        - Input or output format
+        - Diagnostics
+        - Basis-set management
+        - Reporting
+        - Other user-facing workflow
+    validations:
+      required: true
+
+  - type: textarea
+    id: example_interface
+    attributes:
+      label: Example interface
+      description: Show an example command, runfile fragment, input, output, or diagnostic when applicable. This is a starting point for design, not a required implementation.
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and errors
+      description: Describe compatibility expectations for existing commands and files, along with the desired behavior for invalid or unsupported inputs.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current alternatives
+      description: How can users accomplish this today, and why is that insufficient?
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: What observable behavior, tests, and documentation would make this complete?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues and roadmap for related proposals.
+          required: true
+        - label: This proposal describes a user-visible capability rather than a scientific method or an internal refactor.
+          required: true

@@ -1,0 +1,73 @@
+name: Engineering improvement
+description: Improve maintainability, contributor experience, tests, builds, CI, or architecture
+title: "Engineering: "
+labels:
+  - enhancement
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for internal engineering work. Describe the maintenance problem independently of any proposed implementation.
+
+  - type: textarea
+    id: current_limitation
+    attributes:
+      label: Current limitation
+      description: Describe the concrete maintenance or contributor problem, with evidence such as duplication, fragile tests, slow feedback, or recurring failures.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected_areas
+    attributes:
+      label: Affected areas
+      description: Select every area that applies.
+      options:
+        - label: Developer experience
+        - label: Build or Nix environment
+        - label: CI or release infrastructure
+        - label: Architecture or refactor
+        - label: Dependencies
+        - label: Test infrastructure
+        - label: Repository maintenance
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired_outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the measurable improvement without requiring a particular technical solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_direction
+    attributes:
+      label: Proposed direction
+      description: If you have an implementation direction in mind, describe it here.
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs and migration
+      description: Identify risks, compatibility constraints, migration work, or alternatives.
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: How will maintainers verify that the improvement is complete?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the existing issues for related maintenance work.
+          required: true
+        - label: The issue describes the problem independently of the proposed solution.
+          required: true

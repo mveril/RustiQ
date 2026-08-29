@@ -1,0 +1,71 @@
+name: Documentation issue
+description: Report missing, incorrect, or unclear documentation
+title: "Docs: "
+labels:
+  - documentation
+assignees: []
+body:
+  - type: dropdown
+    id: location
+    attributes:
+      label: Documentation area
+      options:
+        - README or quick start
+        - Contribution or development setup
+        - Scientific conventions
+        - CLI or runfile behavior
+        - Samples or reference tooling
+        - Rust API documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Location
+      description: Link to or name the file, section, command, or symbol concerned.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Primary audience
+      options:
+        - RustiQ users
+        - Computational chemists
+        - Contributors and maintainers
+        - Multiple audiences
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Documentation problem
+      description: Explain what is missing, incorrect, ambiguous, or difficult to find.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected information
+      description: What should a reader understand or be able to do after the documentation is improved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested correction
+      description: Optionally propose wording, an example, or a better structure.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the repository and existing issues for this information.
+          required: true
