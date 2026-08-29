@@ -43,6 +43,11 @@ impl<T> Spin<T> {
         Self { alpha, beta }
     }
 
+    #[cfg(test)]
+    fn as_ref(&self) -> Spin<&T> {
+        Spin::new(&self.alpha, &self.beta)
+    }
+
     fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
         Spin::new(f(self.alpha, other.alpha), f(self.beta, other.beta))
     }
@@ -168,8 +173,7 @@ impl<'a> UhfCalculation<'a> {
         let total_density = density_guess_builder
             .build_density_guess(&h_core, molecule, basis, &orthogonalizer)
             .map_err(ScfSetupError::DensityGuess)?;
-        let density =
-            split_density_guess(total_density, molecule.total_electrons(), occupied_orbitals);
+        let density = split_density_guess(total_density, occupied_orbitals);
         setup_timings.density_guess = step_start.elapsed();
 
         progress("Building initial molecular orbitals");
@@ -460,21 +464,13 @@ fn alpha_beta_occupied_orbitals(molecule: &Molecule) -> Spin<usize> {
 
 fn split_density_guess(
     total_density: DMatrix<f64>,
-    electrons: usize,
     occupied_orbitals: Spin<usize>,
 ) -> SpinMatrices {
-    if electrons == 0 {
-        return SpinMatrices {
-            alpha: DMatrix::zeros(total_density.nrows(), total_density.ncols()),
-            beta: DMatrix::zeros(total_density.nrows(), total_density.ncols()),
-        };
-    }
-    let alpha_scale = occupied_orbitals.alpha as f64 / electrons as f64;
-    let beta_scale = occupied_orbitals.beta as f64 / electrons as f64;
-    SpinMatrices {
-        alpha: &total_density * alpha_scale,
-        beta: total_density * beta_scale,
-    }
+    // Density guesses use doubly occupied orbitals up to the alpha occupation.
+    let guess_electrons = 2 * occupied_orbitals.alpha;
+    SpinMatrices::duplicate(total_density).zip_map(occupied_orbitals, |density, occupied| {
+        density * occupied as f64 / guess_electrons as f64
+    })
 }
 
 fn density_from_mo_coefficients(
@@ -597,10 +593,24 @@ mod tests {
         .unwrap();
         uhf.enable_diis(6).unwrap();
 
-        let result = uhf.run().unwrap();
         let overlap = basis.overlap_ints();
-        let alpha_electrons = (&uhf.density.alpha * &overlap).trace();
-        let beta_electrons = (&uhf.density.beta * &overlap).trace();
+        let initial_electrons = uhf
+            .density
+            .as_ref()
+            .zip_map(Spin::duplicate(&overlap), |density, overlap| {
+                (density * overlap).trace()
+            });
+
+        assert_abs_diff_eq!(initial_electrons.alpha, 5.0, epsilon = 1e-8);
+        assert_abs_diff_eq!(initial_electrons.beta, 4.0, epsilon = 1e-8);
+
+        let result = uhf.run().unwrap();
+        let electrons = uhf
+            .density
+            .as_ref()
+            .zip_map(Spin::duplicate(&overlap), |density, overlap| {
+                (density * overlap).trace()
+            });
 
         assert!(result.converged);
         assert_abs_diff_eq!(
@@ -609,7 +619,7 @@ mod tests {
             epsilon = 5e-7
         );
         assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 5e-7);
-        assert_abs_diff_eq!(alpha_electrons, 5.0, epsilon = 1e-8);
-        assert_abs_diff_eq!(beta_electrons, 4.0, epsilon = 1e-8);
+        assert_abs_diff_eq!(electrons.alpha, 5.0, epsilon = 1e-8);
+        assert_abs_diff_eq!(electrons.beta, 4.0, epsilon = 1e-8);
     }
 }
