@@ -23,6 +23,7 @@ impl DensityGuess for RandomSymmetric {
         _h_core: &DMatrix<f64>,
         molecule: &Molecule,
         basis: &Basis,
+        orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error> {
         let nbasis = basis.nbasis();
         let sampler = self.config.random.sample_iter()?;
@@ -31,7 +32,7 @@ impl DensityGuess for RandomSymmetric {
         Ok(density_from_fock_like_matrix(
             &random_matrix,
             molecule,
-            basis,
+            orthogonalizer,
         )?)
     }
 }

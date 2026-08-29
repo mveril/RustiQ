@@ -4,9 +4,7 @@ use std::time::Instant;
 
 use crate::{
     eri::{electron_repulsion_ints, CompactEri},
-    hf::numerical_error::{
-        ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
-    },
+    hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     runfile::validated::DiisSize,
 };
 use nalgebra::{DMatrix, DVector};
@@ -15,6 +13,7 @@ use rayon::prelude::*;
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
 
+use super::orthogonalization::symmetric_orthogonalizer;
 use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
@@ -129,11 +128,9 @@ impl<'a> ScfCalculation<'a> {
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
-        ensure_positive_definite(&overlap_matrix, "overlap")?;
-
         progress("Building symmetric orthogonalizer");
         let step_start = Instant::now();
-        let s_inv_sqrt = Self::symmetric_orthogonalizer(&overlap_matrix)?;
+        let s_inv_sqrt = symmetric_orthogonalizer(&overlap_matrix, "overlap")?;
         setup_timings.orthogonalizer = step_start.elapsed();
 
         // Calculate the two-electron integrals
@@ -146,7 +143,7 @@ impl<'a> ScfCalculation<'a> {
         progress("Building initial density guess");
         let step_start = Instant::now();
         let density_matrix = density_guess_builder
-            .build_density_guess(&h_core, molecule, basis)
+            .build_density_guess(&h_core, molecule, basis, &s_inv_sqrt)
             .map_err(ScfSetupError::DensityGuess)?;
         setup_timings.density_guess = step_start.elapsed();
 
@@ -218,14 +215,6 @@ impl<'a> ScfCalculation<'a> {
             DVector::from_iterator(order.len(), order.iter().map(|&i| orbital_energies[i]));
 
         Ok((DMatrix::from_columns(&sorted_vectors), sorted_energies))
-    }
-
-    fn symmetric_orthogonalizer(s: &DMatrix<f64>) -> Result<DMatrix<f64>, NumericalError> {
-        ensure_positive_definite(s, "overlap")?;
-        let eig = s.clone().symmetric_eigen();
-        let inv_sqrt_values = eig.eigenvalues.map(|value| 1.0 / value.sqrt());
-        let inv_sqrt_diag = DMatrix::from_diagonal(&inv_sqrt_values);
-        Ok(&eig.eigenvectors * inv_sqrt_diag * eig.eigenvectors.transpose())
     }
 
     /// Execute the SCF calculation loop
@@ -473,6 +462,7 @@ mod tests {
             _h_core: &DMatrix<f64>,
             _molecule: &Molecule,
             basis: &gaussian::basis::Basis,
+            _orthogonalizer: &DMatrix<f64>,
         ) -> Result<DMatrix<f64>, Self::Error> {
             // Simple initial guess: identity matrix scaled by 1.0
             Ok(DMatrix::identity(basis.nbasis(), basis.nbasis()))
@@ -497,7 +487,7 @@ mod tests {
         let h_core = &basis.kinetic_ints() + &basis.overlap_ints(); // Simplified H_core for testing
 
         let overlap = basis.overlap_ints();
-        let s_inv_sqrt = ScfCalculation::symmetric_orthogonalizer(&overlap).unwrap();
+        let s_inv_sqrt = symmetric_orthogonalizer(&overlap, "overlap").unwrap();
         let (mo_coeff, orbital_energies) =
             ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt).unwrap();
 
