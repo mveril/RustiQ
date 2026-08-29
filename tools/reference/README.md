@@ -52,6 +52,13 @@ Run a single case by name:
 uv run --locked python tools/reference/compare_pyscf.py h2-sto-3g-rhf
 ```
 
+The open-shell, non-degenerate H₂⁺ UHF reference used by the Rust UHF test can
+be reproduced with:
+
+```sh
+uv run --locked python tools/reference/compare_pyscf.py h2-plus-sto-3g-uhf
+```
+
 The equivalent flake app invocation is:
 
 ```sh
