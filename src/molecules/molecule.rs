@@ -31,13 +31,6 @@ impl Deref for Molecule {
     }
 }
 
-impl From<Geometry> for Molecule {
-    fn from(geometry: Geometry) -> Self {
-        Self::try_new(geometry, Units::Bohr, 0, std::num::NonZeroU8::MIN)
-            .expect("a neutral geometry must have a closed-shell singlet electron configuration")
-    }
-}
-
 impl Molecule {
     pub fn try_new(
         geometry: Geometry,
