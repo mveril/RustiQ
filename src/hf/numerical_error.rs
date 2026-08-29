@@ -9,6 +9,15 @@ pub(crate) enum NumericalError {
     NonFiniteValues { values: &'static str },
     #[error("{value} is not finite")]
     NonFiniteScalar { value: &'static str },
+    #[error(
+        "effective overlap rank {effective_rank} is smaller than the {occupied_orbitals} occupied orbitals"
+    )]
+    InsufficientOverlapRank {
+        effective_rank: usize,
+        occupied_orbitals: usize,
+    },
+    #[error("linear dependency threshold {threshold} must be non-negative and finite")]
+    InvalidLinearDependencyThreshold { threshold: f64 },
 }
 
 pub(crate) fn ensure_finite_values(

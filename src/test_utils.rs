@@ -45,6 +45,7 @@ pub(crate) fn new_one_electron_scf<'a>(
         basis,
         max_iterations,
         convergence_threshold,
+        1e-8,
         OneElectron::default(),
     )
     .unwrap()

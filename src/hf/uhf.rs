@@ -11,7 +11,7 @@ use crate::{
     molecules::molecule::Molecule,
 };
 
-use super::orthogonalization::symmetric_orthogonalizer;
+use super::orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo};
 use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
@@ -76,7 +76,8 @@ pub(crate) struct UhfCalculation<'a> {
     pub t_matrix: DMatrix<f64>,
     pub v_matrix: DMatrix<f64>,
     overlap_matrix: DMatrix<f64>,
-    s_inv_sqrt: DMatrix<f64>,
+    orthogonalizer: DMatrix<f64>,
+    orthogonalization: OrthogonalizationInfo,
     pub occupied_orbitals: Spin<usize>,
     timings: ScfTimings,
 }
@@ -88,6 +89,7 @@ impl<'a> UhfCalculation<'a> {
         basis: &'a Basis,
         max_iterations: usize,
         convergence_threshold: f64,
+        linear_dependency_threshold: f64,
         density_guess_builder: G,
     ) -> Result<Self, UhfSetupError<G::Error>>
     where
@@ -99,6 +101,7 @@ impl<'a> UhfCalculation<'a> {
             basis,
             max_iterations,
             convergence_threshold,
+            linear_dependency_threshold,
             density_guess_builder,
             |_| {},
         )
@@ -109,6 +112,7 @@ impl<'a> UhfCalculation<'a> {
         basis: &'a Basis,
         max_iterations: usize,
         convergence_threshold: f64,
+        linear_dependency_threshold: f64,
         density_guess_builder: G,
         mut progress: F,
     ) -> Result<Self, UhfSetupError<G::Error>>
@@ -132,11 +136,27 @@ impl<'a> UhfCalculation<'a> {
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
-        progress("Building symmetric orthogonalizer");
+        progress("Building overlap orthogonalizer");
         let step_start = Instant::now();
-        let s_inv_sqrt = symmetric_orthogonalizer(&overlap_matrix, "overlap")
+        let orthogonalization_result =
+            orthogonalizer(&overlap_matrix, "overlap", linear_dependency_threshold)
+                .map_err(ScfSetupError::Numerical)?;
+        let orthogonalization = orthogonalization_result.info;
+        let orthogonalizer = orthogonalization_result.matrix;
+        let required_occupied_orbitals = occupied_orbitals.alpha.max(occupied_orbitals.beta);
+        ensure_sufficient_rank(orthogonalization, required_occupied_orbitals)
             .map_err(ScfSetupError::Numerical)?;
         setup_timings.orthogonalizer = step_start.elapsed();
+        progress(
+            format!(
+                "Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})",
+                orthogonalization.effective_rank,
+                orthogonalization.basis_dimension,
+                orthogonalization.discarded_directions,
+                orthogonalization.relative_threshold,
+            )
+            .as_str(),
+        );
 
         progress("Building electron repulsion integrals");
         let step_start = Instant::now();
@@ -146,7 +166,7 @@ impl<'a> UhfCalculation<'a> {
         progress("Building initial density guess");
         let step_start = Instant::now();
         let total_density = density_guess_builder
-            .build_density_guess(&h_core, molecule, basis, &s_inv_sqrt)
+            .build_density_guess(&h_core, molecule, basis, &orthogonalizer)
             .map_err(ScfSetupError::DensityGuess)?;
         let density =
             split_density_guess(total_density, molecule.total_electrons(), occupied_orbitals);
@@ -155,7 +175,7 @@ impl<'a> UhfCalculation<'a> {
         progress("Building initial molecular orbitals");
         let step_start = Instant::now();
         let (mo_coefficients, orbital_energies) =
-            Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)
+            Self::initial_mo_coefficients(&h_core, &orthogonalizer)
                 .map_err(ScfSetupError::Numerical)?;
         setup_timings.initial_orbitals = step_start.elapsed();
 
@@ -182,7 +202,8 @@ impl<'a> UhfCalculation<'a> {
             t_matrix,
             v_matrix,
             overlap_matrix,
-            s_inv_sqrt,
+            orthogonalizer,
+            orthogonalization,
             occupied_orbitals,
             timings: ScfTimings {
                 setup: setup_timings,
@@ -266,17 +287,18 @@ impl<'a> UhfCalculation<'a> {
             delta_energy,
             residual_norm: self.residual_norm,
             energy_details,
+            orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
         })
     }
 
     fn initial_mo_coefficients(
         h_core: &DMatrix<f64>,
-        s_inv_sqrt: &DMatrix<f64>,
+        orthogonalizer: &DMatrix<f64>,
     ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
-        let fock_preconditioned = &s_inv_sqrt.transpose() * h_core * s_inv_sqrt;
+        let fock_preconditioned = &orthogonalizer.transpose() * h_core * orthogonalizer;
         let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = s_inv_sqrt * eig.eigenvectors;
+        let mo_coefficients = orthogonalizer * eig.eigenvectors;
         Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
@@ -333,9 +355,10 @@ impl<'a> UhfCalculation<'a> {
         &self,
         fock_matrix: &DMatrix<f64>,
     ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
-        let fock_preconditioned = &self.s_inv_sqrt.transpose() * fock_matrix * &self.s_inv_sqrt;
+        let fock_preconditioned =
+            &self.orthogonalizer.transpose() * fock_matrix * &self.orthogonalizer;
         let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = &self.s_inv_sqrt * eig.eigenvectors;
+        let mo_coefficients = &self.orthogonalizer * eig.eigenvectors;
         Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
@@ -505,7 +528,8 @@ mod tests {
         )
         .unwrap();
         let mut uhf =
-            UhfCalculation::new(&molecule, &basis, 100, 1e-8, OneElectron::default()).unwrap();
+            UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
+                .unwrap();
 
         let result = uhf.run().unwrap();
 
@@ -530,7 +554,8 @@ mod tests {
         )
         .unwrap();
         let mut uhf =
-            UhfCalculation::new(&molecule, &basis, 100, 1e-8, OneElectron::default()).unwrap();
+            UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
+                .unwrap();
 
         let result = uhf.run().unwrap();
         let overlap = basis.overlap_ints();
@@ -561,8 +586,15 @@ mod tests {
             std::num::NonZeroU8::new(2).unwrap(),
         )
         .unwrap();
-        let mut uhf =
-            UhfCalculation::new(&molecule, &basis, 100, 1e-5, CoreHamiltonian::default()).unwrap();
+        let mut uhf = UhfCalculation::new(
+            &molecule,
+            &basis,
+            100,
+            1e-5,
+            1e-8,
+            CoreHamiltonian::default(),
+        )
+        .unwrap();
         uhf.enable_diis(6).unwrap();
 
         let result = uhf.run().unwrap();

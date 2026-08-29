@@ -141,6 +141,10 @@ fn humanized_runfile_error(
             "The HF convergence threshold must be a positive finite number.".to_string(),
             "expected a positive finite threshold".to_string(),
         ),
+        "hf.linear_dependency_threshold" => (
+            "The HF linear dependency threshold must be a non-negative finite number.".to_string(),
+            "expected a non-negative finite threshold".to_string(),
+        ),
         "hf.diis" => (
             "The DIIS flag must be a boolean.".to_string(),
             "expected true or false".to_string(),

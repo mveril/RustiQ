@@ -142,7 +142,7 @@ fn sort_orbitals(
 mod tests {
     use super::*;
     use crate::hf::core::core_hamiltonian_ints;
-    use crate::hf::orthogonalization::symmetric_orthogonalizer;
+    use crate::hf::orthogonalization::orthogonalizer as build_orthogonalizer;
     use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
     use crate::runfile::random_config::distribution_config::NormalDistributionConfig;
     use crate::runfile::random_config::DistributionConfig;
@@ -215,7 +215,9 @@ mod tests {
     }
 
     fn orthogonalizer(basis: &Basis) -> DMatrix<f64> {
-        symmetric_orthogonalizer(&basis.overlap_ints(), "overlap").unwrap()
+        build_orthogonalizer(&basis.overlap_ints(), "overlap", 1e-8)
+            .unwrap()
+            .matrix
     }
 
     #[test]

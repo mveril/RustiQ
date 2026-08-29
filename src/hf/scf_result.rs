@@ -1,3 +1,4 @@
+use super::orthogonalization::OrthogonalizationInfo;
 use super::scf_energy_details::ScfEnergyDetails;
 use std::time::Duration;
 
@@ -11,6 +12,7 @@ pub struct ScfResult {
     pub delta_energy: f64,
     pub residual_norm: f64,
     pub energy_details: ScfEnergyDetails,
+    pub orthogonalization: OrthogonalizationInfo,
     pub timings: ScfTimings,
 }
 

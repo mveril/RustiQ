@@ -63,6 +63,14 @@ where
             "Total Energy (including nuclear repulsion): {:.6} Hartree",
             result.total_energy
         )?;
+        writeln!(
+            self.writer,
+            "Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})",
+            result.orthogonalization.effective_rank,
+            result.orthogonalization.basis_dimension,
+            result.orthogonalization.discarded_directions,
+            result.orthogonalization.relative_threshold,
+        )?;
         writeln!(self.writer, "Energy Details:")?;
         writeln!(
             self.writer,
@@ -204,6 +212,8 @@ mod tests {
                         nuclear_attraction_energy: -1.5,
                         electron_repulsion_energy: 0.2,
                     },
+                    orthogonalization: crate::hf::orthogonalization::OrthogonalizationInfo::default(
+                    ),
                     timings: crate::hf::scf_result::ScfTimings::default(),
                 })
                 .unwrap();
@@ -213,6 +223,7 @@ mod tests {
         assert!(output.contains("iter"));
         assert!(output.contains("SCF converged after 1 iterations."));
         assert!(output.contains("Energy Details:"));
+        assert!(output.contains("Overlap effective rank:"));
         assert!(output.contains("Timings:"));
     }
 }
