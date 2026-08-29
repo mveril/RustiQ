@@ -403,7 +403,7 @@ impl<'a> UhfCalculation<'a> {
         let values = (0..n_pairs)
             .into_par_iter()
             .map(|index| {
-                let (mu, nu) = basis_function_pair(index);
+                let (mu, nu) = PairIndex(index).indices();
                 let mut g_term = 0.0;
 
                 for lambda in 0..nbasis {
@@ -492,10 +492,6 @@ fn scf_residual_norm(
         .map(|value| value.powi(2))
         .sum::<f64>()
         .sqrt()
-}
-
-fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    PairIndex(pair_index).indices()
 }
 
 #[cfg(test)]
