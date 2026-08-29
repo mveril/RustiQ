@@ -55,6 +55,7 @@ nutype = { version = "0.7", features = ["serde"] }
 cfg-if = "1"
 const_format = "0.2"
 smallvec = "1"
+tempfile = "3.27.0"
 
 [dev-dependencies]
 rstest = "0.26"
