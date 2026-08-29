@@ -7,6 +7,27 @@ impl PairIndex {
 
         Self(a * (a + 1) / 2 + b)
     }
+
+    pub fn indices(self) -> (usize, usize) {
+        let mut low = 0;
+        let mut high = self.0.saturating_add(1);
+
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            if triangular_number(middle).is_some_and(|value| value <= self.0) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+
+        let second = self.0 - triangular_number(low).expect("decoded triangular number fits");
+        (low, second)
+    }
+}
+
+fn triangular_number(value: usize) -> Option<usize> {
+    value.checked_add(1)?.checked_mul(value).map(|n| n / 2)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -34,6 +55,7 @@ mod tests {
             for j in 0..=i {
                 assert_eq!(PairIndex::new(i, j), PairIndex(expected));
                 assert_eq!(PairIndex::new(j, i), PairIndex(expected));
+                assert_eq!(PairIndex(expected).indices(), (i, j));
                 expected += 1;
             }
         }
@@ -45,8 +67,8 @@ mod tests {
         let mut expected = 0;
         for p in 0..pair_count {
             for q in 0..=p {
-                let (mu, nu) = basis_function_pair(p);
-                let (lambda, sigma) = basis_function_pair(q);
+                let (mu, nu) = PairIndex(p).indices();
+                let (lambda, sigma) = PairIndex(q).indices();
 
                 assert_eq!(EriIndex::new(mu, nu, lambda, sigma), EriIndex(expected));
                 assert_eq!(EriIndex::new(lambda, sigma, mu, nu), EriIndex(expected));
@@ -78,9 +100,12 @@ mod tests {
         }
     }
 
-    fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-        let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-        let second = pair_index - first * (first + 1) / 2;
-        (first, second)
+    #[test]
+    fn test_pair_index_decodes_large_indices_exactly() {
+        let first = 100_000_000;
+        let second = 42_424_242;
+        let pair = PairIndex::new(first, second);
+
+        assert_eq!(pair.indices(), (first, second));
     }
 }

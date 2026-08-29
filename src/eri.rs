@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
-mod index;
+pub(crate) mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
 use crate::math_utils::boys::CachedBoysFunction;
 use nalgebra::{Point3, Vector3};
@@ -263,15 +263,11 @@ fn build_compact_eri(
 }
 
 fn unique_pair_indices(index: usize) -> (usize, usize) {
-    let pair_pq = (((8 * index + 1) as f64).sqrt() as usize - 1) / 2;
-    let pair_rs = index - pair_pq * (pair_pq + 1) / 2;
-    (pair_pq, pair_rs)
+    index::PairIndex(index).indices()
 }
 
 fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
+    index::PairIndex(pair_index).indices()
 }
 
 struct PairPrimitive {

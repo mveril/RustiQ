@@ -245,6 +245,7 @@ impl IndexMut<(usize, usize, usize, usize)> for CompactEri {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eri::index::PairIndex;
     use ndarray::Array4;
     use proptest::prelude::*;
 
@@ -550,14 +551,10 @@ mod tests {
     }
 
     fn unique_pair_indices(index: usize) -> (usize, usize) {
-        let pair_pq = (((8 * index + 1) as f64).sqrt() as usize - 1) / 2;
-        let pair_rs = index - pair_pq * (pair_pq + 1) / 2;
-        (pair_pq, pair_rs)
+        PairIndex(index).indices()
     }
 
     fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-        let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-        let second = pair_index - first * (first + 1) / 2;
-        (first, second)
+        PairIndex(pair_index).indices()
     }
 }

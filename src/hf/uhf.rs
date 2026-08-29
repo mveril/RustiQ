@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::{electron_repulsion_ints, CompactEri},
+    eri::{electron_repulsion_ints, index::PairIndex, CompactEri},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
 };
@@ -495,9 +495,7 @@ fn scf_residual_norm(
 }
 
 fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
+    PairIndex(pair_index).indices()
 }
 
 #[cfg(test)]

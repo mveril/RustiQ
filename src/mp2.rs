@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
-    eri::CompactEri,
+    eri::{index::PairIndex, CompactEri},
     hf::{
         numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
         scf::ScfCalculation,
@@ -487,9 +487,7 @@ fn orbital_pair_index(left: usize, right: usize, right_count: usize) -> usize {
 }
 
 fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
+    PairIndex(pair_index).indices()
 }
 
 fn basis_function_pair_count(basis_functions: usize) -> usize {

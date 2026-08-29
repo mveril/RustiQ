@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use crate::{
-    eri::{electron_repulsion_ints, CompactEri},
+    eri::{electron_repulsion_ints, index::PairIndex, CompactEri},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     runfile::validated::DiisSize,
 };
@@ -457,9 +457,7 @@ impl<'a> ScfCalculation<'a> {
 }
 
 fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
+    PairIndex(pair_index).indices()
 }
 
 #[cfg(test)]
