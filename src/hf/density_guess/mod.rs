@@ -5,7 +5,6 @@ use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
 use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
-use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
 use crate::runfile::random_config::distribution_config::{
     DistributionCreationError, RandomSampler,
@@ -30,45 +29,46 @@ pub(crate) mod zero;
 
 pub(crate) trait DensityGuess: Send + Sync {
     type Error: Error;
-    fn build_density_guess(
+    fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
-        molecule: &Molecule,
         basis: &Basis,
-        orthogonalizer: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, Self::Error>;
+    ) -> Result<OrbitalGuess, Self::Error>;
+}
+
+/// Input to the shared SCF orbital-to-density construction path.
+///
+/// Strategies cannot return an arbitrary AO density matrix: normal guesses provide a
+/// symmetric Fock-like matrix, while `Zero` is an explicit startup sentinel.
+pub(crate) enum OrbitalGuess {
+    FockLike(DMatrix<f64>),
+    Zero,
 }
 
 impl DensityGuess for DensityGuessConfig {
     type Error = DensityGuessError;
 
-    fn build_density_guess(
+    fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
-        molecule: &Molecule,
         basis: &Basis,
-        orthogonalizer: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, Self::Error> {
-        let matrix = match self {
-            DensityGuessConfig::CoreHamiltonian { perturbation } => CoreHamiltonian::new(
-                *perturbation,
-            )
-            .build_density_guess(h_core, molecule, basis, orthogonalizer)?,
-            DensityGuessConfig::OneElectron { perturbation } => OneElectron::new(*perturbation)
-                .build_density_guess(h_core, molecule, basis, orthogonalizer)?,
+    ) -> Result<OrbitalGuess, Self::Error> {
+        match self {
+            DensityGuessConfig::CoreHamiltonian { perturbation } => {
+                CoreHamiltonian::new(*perturbation).build_orbital_guess(h_core, basis)
+            }
+            DensityGuessConfig::OneElectron { perturbation } => {
+                OneElectron::new(*perturbation).build_orbital_guess(h_core, basis)
+            }
             DensityGuessConfig::Random { config } => {
-                Random::new(*config).build_density_guess(h_core, molecule, basis, orthogonalizer)?
+                Random::new(*config).build_orbital_guess(h_core, basis)
             }
-            DensityGuessConfig::RandomSymmetric { config } => RandomSymmetric::new(*config)
-                .build_density_guess(h_core, molecule, basis, orthogonalizer)?,
-            DensityGuessConfig::Zero => {
-                match Zero::build_density_guess(&Zero, h_core, molecule, basis, orthogonalizer) {
-                    Ok(matrix) => matrix,
-                    Err(error) => match error {},
-                }
+            DensityGuessConfig::RandomSymmetric { config } => {
+                RandomSymmetric::new(*config).build_orbital_guess(h_core, basis)
             }
-        };
-        Ok(matrix)
+            DensityGuessConfig::Zero => Ok(Zero::build_orbital_guess(&Zero, h_core, basis)
+                .unwrap_or_else(|error| match error {})),
+        }
     }
 }
 
@@ -99,28 +99,15 @@ fn symmetric_random_matrix<T: RandomSampler>(
     Ok(matrix)
 }
 
-pub(crate) fn density_from_fock_like_matrix(
+pub(crate) fn mo_coefficients_from_fock_like_matrix(
     fock_like: &DMatrix<f64>,
-    molecule: &Molecule,
     orthogonalizer: &DMatrix<f64>,
 ) -> Result<DMatrix<f64>, NumericalError> {
     let orthogonal_fock = &orthogonalizer.transpose() * fock_like * orthogonalizer;
     let eig = orthogonal_fock.symmetric_eigen();
     let mo_coefficients = orthogonalizer * eig.eigenvectors;
     let sorted_mo_coefficients = sort_orbitals(mo_coefficients, eig.eigenvalues)?;
-    Ok(density_from_mo_coefficients(
-        &sorted_mo_coefficients,
-        molecule.occupied_orbitals(),
-    ))
-}
-
-pub(crate) fn density_from_mo_coefficients(
-    mo_coefficients: &DMatrix<f64>,
-    occupied_orbitals: usize,
-) -> DMatrix<f64> {
-    let occupied_columns: Vec<usize> = (0..occupied_orbitals).collect();
-    let c_occ = mo_coefficients.select_columns(&occupied_columns);
-    2.0 * &c_occ * &c_occ.transpose()
+    Ok(sorted_mo_coefficients)
 }
 
 fn sort_orbitals(
@@ -143,6 +130,7 @@ mod tests {
     use super::*;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::orthogonalization::orthogonalizer as build_orthogonalizer;
+    use crate::molecules::molecule::Molecule;
     use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
     use crate::runfile::random_config::distribution_config::NormalDistributionConfig;
     use crate::runfile::random_config::DistributionConfig;
@@ -150,6 +138,36 @@ mod tests {
     use crate::test_utils;
     use std::mem::discriminant;
     use toml_spanner::Toml;
+
+    trait DensityGuessTestExt: DensityGuess
+    where
+        Self::Error: 'static,
+    {
+        fn build_density_guess(
+            &self,
+            h_core: &DMatrix<f64>,
+            molecule: &Molecule,
+            basis: &Basis,
+            orthogonalizer: &DMatrix<f64>,
+        ) -> Result<DMatrix<f64>, Box<dyn Error>> {
+            match self.build_orbital_guess(h_core, basis)? {
+                OrbitalGuess::FockLike(fock_like) => {
+                    let coefficients =
+                        mo_coefficients_from_fock_like_matrix(&fock_like, orthogonalizer)?;
+                    let occupied = coefficients.columns(0, molecule.occupied_orbitals());
+                    Ok(2.0 * occupied * occupied.transpose())
+                }
+                OrbitalGuess::Zero => Ok(DMatrix::zeros(basis.nbasis(), basis.nbasis())),
+            }
+        }
+    }
+
+    impl<T> DensityGuessTestExt for T
+    where
+        T: DensityGuess,
+        T::Error: 'static,
+    {
+    }
 
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
@@ -259,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random_density_guess_has_expected_range() {
+    fn test_random_density_guess_is_a_valid_symmetric_density() {
         let (molecule, basis, h_core) = h2_system();
         let orthogonalizer = orthogonalizer(&basis);
         let density = Random::default()
@@ -268,12 +286,8 @@ mod tests {
 
         assert_density_shape(&density, &basis);
         assert_finite(&density);
-        for value in density.iter() {
-            assert!(
-                (-1.0..=1.0).contains(value),
-                "random density value {value} is outside [-1, 1]"
-            );
-        }
+        assert_symmetric(&density);
+        assert_electron_count(&density, &molecule, &basis);
     }
 
     #[test]
@@ -305,6 +319,10 @@ mod tests {
 
         for guess in [
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
+            DensityGuessConfig::OneElectron { perturbation: None },
+            DensityGuessConfig::Random {
+                config: RandomGuessConfig::default(),
+            },
             DensityGuessConfig::RandomSymmetric {
                 config: RandomGuessConfig::default(),
             },

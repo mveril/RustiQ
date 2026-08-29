@@ -16,7 +16,7 @@ use crate::molecules::molecule::Molecule;
 use super::orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo};
 use super::{
     core::core_hamiltonian_ints,
-    density_guess::DensityGuess,
+    density_guess::{mo_coefficients_from_fock_like_matrix, DensityGuess, OrbitalGuess},
     diis::DiisAccelerator,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
@@ -163,17 +163,25 @@ impl<'a> ScfCalculation<'a> {
         // Initialize density matrix using a density guess builder
         progress("Building initial density guess");
         let step_start = Instant::now();
-        let density_matrix = density_guess_builder
-            .build_density_guess(&h_core, molecule, basis, &orthogonalizer)
+        let orbital_guess = density_guess_builder
+            .build_orbital_guess(&h_core, basis)
             .map_err(ScfSetupError::DensityGuess)?;
+        let (density_matrix, mo_coefficients, orbital_energies) = match orbital_guess {
+            OrbitalGuess::FockLike(fock_like) => {
+                let mo_coefficients =
+                    mo_coefficients_from_fock_like_matrix(&fock_like, &orthogonalizer)?;
+                let density_matrix =
+                    Self::density_from_mo_coefficients(&mo_coefficients, occupied_orbitals);
+                let orbital_energies = DVector::zeros(mo_coefficients.ncols());
+                (density_matrix, mo_coefficients, orbital_energies)
+            }
+            OrbitalGuess::Zero => (
+                DMatrix::zeros(basis.nbasis(), basis.nbasis()),
+                DMatrix::zeros(basis.nbasis(), orthogonalizer.ncols()),
+                DVector::zeros(orthogonalizer.ncols()),
+            ),
+        };
         setup_timings.density_guess = step_start.elapsed();
-
-        // Initial molecular orbital coefficients from diagonalization of H_core
-        progress("Building initial molecular orbitals");
-        let step_start = Instant::now();
-        let (mo_coefficients, orbital_energies) =
-            Self::initial_mo_coefficients(&h_core, &orthogonalizer)?;
-        setup_timings.initial_orbitals = step_start.elapsed();
 
         // Initial Fock matrix
         let fock_matrix = h_core.clone(); // F = H_core initially
@@ -208,17 +216,6 @@ impl<'a> ScfCalculation<'a> {
 
     pub fn enable_diis(&mut self, diis_size: DiisSize) {
         self.diis = Some(DiisAccelerator::new(diis_size));
-    }
-
-    fn initial_mo_coefficients(
-        h_core: &DMatrix<f64>,
-        orthogonalizer: &DMatrix<f64>,
-    ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
-        // Diagonalization of H_core to obtain initial MO coefficients
-        let fock_preconditioned = &orthogonalizer.transpose() * h_core * orthogonalizer;
-        let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = orthogonalizer * eig.eigenvectors;
-        Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
     fn sort_orbitals(
@@ -414,7 +411,14 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn calculate_density_matrix(&self) -> DMatrix<f64> {
-        let c_occ = self.mo_coefficients.columns(0, self.occupied_orbitals);
+        Self::density_from_mo_coefficients(&self.mo_coefficients, self.occupied_orbitals)
+    }
+
+    fn density_from_mo_coefficients(
+        mo_coefficients: &DMatrix<f64>,
+        occupied_orbitals: usize,
+    ) -> DMatrix<f64> {
+        let c_occ = mo_coefficients.columns(0, occupied_orbitals);
         2.0 * c_occ * c_occ.transpose()
     }
 
@@ -475,15 +479,15 @@ mod tests {
 
     impl DensityGuess for TestDensityGuess {
         type Error = Infallible;
-        fn build_density_guess(
+        fn build_orbital_guess(
             &self,
             _h_core: &DMatrix<f64>,
-            _molecule: &Molecule,
             basis: &gaussian::basis::Basis,
-            _orthogonalizer: &DMatrix<f64>,
-        ) -> Result<DMatrix<f64>, Self::Error> {
-            // Simple initial guess: identity matrix scaled by 1.0
-            Ok(DMatrix::identity(basis.nbasis(), basis.nbasis()))
+        ) -> Result<OrbitalGuess, Self::Error> {
+            Ok(OrbitalGuess::FockLike(DMatrix::identity(
+                basis.nbasis(),
+                basis.nbasis(),
+            )))
         }
     }
 
@@ -497,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn test_initial_mo_coefficients() {
+    fn test_metric_orthogonalized_guess_orbitals() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
@@ -506,13 +510,11 @@ mod tests {
 
         let overlap = basis.overlap_ints();
         let s_inv_sqrt = orthogonalizer(&overlap, "overlap", 0.0).unwrap().matrix;
-        let (mo_coeff, orbital_energies) =
-            ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt).unwrap();
+        let mo_coeff = mo_coefficients_from_fock_like_matrix(&h_core, &s_inv_sqrt).unwrap();
 
         // Check dimensions
         assert_eq!(mo_coeff.nrows(), basis.nbasis());
         assert_eq!(mo_coeff.ncols(), basis.nbasis());
-        assert_eq!(orbital_energies.len(), basis.nbasis());
 
         // Molecular orbitals are orthonormal in the AO metric: C^T S C = I.
         let overlap = basis.overlap_ints();
@@ -566,6 +568,12 @@ mod tests {
         assert_eq!(scf.orthogonalization.effective_rank, 1);
         assert_eq!(scf.orthogonalization.discarded_directions, 1);
         assert_eq!(scf.mo_coefficients.shape(), (2, 1));
+        let initial_electrons = (&scf.density_matrix * basis.overlap_ints()).trace();
+        assert_abs_diff_eq!(
+            initial_electrons,
+            molecule.total_electrons() as f64,
+            epsilon = 1e-8
+        );
 
         let result = scf.run().unwrap();
 

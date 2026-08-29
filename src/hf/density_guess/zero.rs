@@ -1,21 +1,17 @@
 use std::convert::Infallible;
 
-use super::DensityGuess;
+use super::{DensityGuess, OrbitalGuess};
 use crate::basis::gaussian::basis::Basis;
-use crate::molecules::molecule::Molecule;
-use nalgebra::DMatrix;
 
 pub struct Zero;
 
 impl DensityGuess for Zero {
     type Error = Infallible;
-    fn build_density_guess(
+    fn build_orbital_guess(
         &self,
-        _h_core: &DMatrix<f64>,
-        _molecule: &Molecule,
-        basis: &Basis,
-        _orthogonalizer: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, Self::Error> {
-        Ok(DMatrix::zeros(basis.nbasis(), basis.nbasis()))
+        _h_core: &nalgebra::DMatrix<f64>,
+        _basis: &Basis,
+    ) -> Result<OrbitalGuess, Self::Error> {
+        Ok(OrbitalGuess::Zero)
     }
 }

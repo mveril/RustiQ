@@ -1,7 +1,5 @@
-use super::{density_from_fock_like_matrix, DensityGuess, DensityGuessError};
+use super::{symmetric_random_matrix, DensityGuess, DensityGuessError, OrbitalGuess};
 use crate::basis::gaussian::basis::Basis;
-use crate::hf::density_guess::symmetric_random_matrix;
-use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::RandomGuessConfig;
 use nalgebra::DMatrix;
 
@@ -18,21 +16,15 @@ impl RandomSymmetric {
 
 impl DensityGuess for RandomSymmetric {
     type Error = DensityGuessError;
-    fn build_density_guess(
+    fn build_orbital_guess(
         &self,
         _h_core: &DMatrix<f64>,
-        molecule: &Molecule,
         basis: &Basis,
-        orthogonalizer: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, Self::Error> {
+    ) -> Result<OrbitalGuess, Self::Error> {
         let nbasis = basis.nbasis();
         let sampler = self.config.random.sample_iter()?;
         let random_matrix = symmetric_random_matrix(nbasis, sampler)?;
 
-        Ok(density_from_fock_like_matrix(
-            &random_matrix,
-            molecule,
-            orthogonalizer,
-        )?)
+        Ok(OrbitalGuess::FockLike(random_matrix))
     }
 }

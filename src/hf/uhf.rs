@@ -14,7 +14,7 @@ use crate::{
 use super::orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo};
 use super::{
     core::core_hamiltonian_ints,
-    density_guess::DensityGuess,
+    density_guess::{mo_coefficients_from_fock_like_matrix, DensityGuess, OrbitalGuess},
     diis::{DiisAccelerator, DiisError},
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
@@ -172,18 +172,32 @@ impl<'a> UhfCalculation<'a> {
 
         progress("Building initial density guess");
         let step_start = Instant::now();
-        let total_density = density_guess_builder
-            .build_density_guess(&h_core, molecule, basis, &orthogonalizer)
+        let orbital_guess = density_guess_builder
+            .build_orbital_guess(&h_core, basis)
             .map_err(ScfSetupError::DensityGuess)?;
-        let density = split_density_guess(total_density, occupied_orbitals);
+        let (density, mo_coefficients, orbital_energies) = match orbital_guess {
+            OrbitalGuess::FockLike(fock_like) => {
+                let mo_coefficients =
+                    mo_coefficients_from_fock_like_matrix(&fock_like, &orthogonalizer)
+                        .map_err(ScfSetupError::Numerical)?;
+                let density = SpinMatrices::duplicate(mo_coefficients.clone())
+                    .zip_map(occupied_orbitals, |coefficients, occupied| {
+                        density_from_mo_coefficients(&coefficients, occupied)
+                    });
+                let orbital_energies = Spin::duplicate(DVector::zeros(mo_coefficients.ncols()));
+                (
+                    density,
+                    SpinMatrices::duplicate(mo_coefficients),
+                    orbital_energies,
+                )
+            }
+            OrbitalGuess::Zero => (
+                SpinMatrices::duplicate(DMatrix::zeros(basis.nbasis(), basis.nbasis())),
+                SpinMatrices::duplicate(DMatrix::zeros(basis.nbasis(), orthogonalizer.ncols())),
+                Spin::duplicate(DVector::zeros(orthogonalizer.ncols())),
+            ),
+        };
         setup_timings.density_guess = step_start.elapsed();
-
-        progress("Building initial molecular orbitals");
-        let step_start = Instant::now();
-        let (mo_coefficients, orbital_energies) =
-            Self::initial_mo_coefficients(&h_core, &orthogonalizer)
-                .map_err(ScfSetupError::Numerical)?;
-        setup_timings.initial_orbitals = step_start.elapsed();
 
         let fock = SpinMatrices {
             alpha: h_core.clone(),
@@ -197,8 +211,8 @@ impl<'a> UhfCalculation<'a> {
             max_iterations,
             convergence_threshold,
             energy: 0.0,
-            mo_coefficients: SpinMatrices::duplicate(mo_coefficients),
-            orbital_energies: Spin::duplicate(orbital_energies),
+            mo_coefficients,
+            orbital_energies,
             density,
             fock,
             residual_norm: f64::INFINITY,
@@ -296,16 +310,6 @@ impl<'a> UhfCalculation<'a> {
             orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
         })
-    }
-
-    fn initial_mo_coefficients(
-        h_core: &DMatrix<f64>,
-        orthogonalizer: &DMatrix<f64>,
-    ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
-        let fock_preconditioned = &orthogonalizer.transpose() * h_core * orthogonalizer;
-        let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = orthogonalizer * eig.eigenvectors;
-        Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
     fn sort_orbitals(
@@ -464,17 +468,6 @@ fn alpha_beta_occupied_orbitals(molecule: &Molecule) -> Spin<usize> {
     Spin::new(alpha, beta)
 }
 
-fn split_density_guess(
-    total_density: DMatrix<f64>,
-    occupied_orbitals: Spin<usize>,
-) -> SpinMatrices {
-    // Density guesses use doubly occupied orbitals up to the alpha occupation.
-    let guess_electrons = 2 * occupied_orbitals.alpha;
-    SpinMatrices::duplicate(total_density).zip_map(occupied_orbitals, |density, occupied| {
-        density * occupied as f64 / guess_electrons as f64
-    })
-}
-
 fn density_from_mo_coefficients(
     mo_coefficients: &DMatrix<f64>,
     occupied_orbitals: usize,
@@ -548,6 +541,10 @@ mod tests {
         let mut uhf =
             UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
                 .unwrap();
+
+        let overlap = basis.overlap_ints();
+        assert_abs_diff_eq!((&uhf.density.alpha * &overlap).trace(), 1.0, epsilon = 1e-8);
+        assert_abs_diff_eq!((&uhf.density.beta * &overlap).trace(), 0.0, epsilon = 1e-8);
 
         let result = uhf.run().unwrap();
         let overlap = basis.overlap_ints();
