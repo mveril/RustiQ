@@ -55,6 +55,18 @@ CASES = [
         tolerance=1e-6,
     ),
     ReferenceCase(
+        name="h2-plus-sto-3g-uhf",
+        runfile=REPO_ROOT / "samples/h2/sto-3g/uhf_h2_plus_calculation.toml",
+        xyz=REPO_ROOT / "samples/h2/molecule.xyz",
+        basis="sto-3g",
+        charge=1,
+        spin=1,
+        method="uhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        tolerance=1e-6,
+    ),
+    ReferenceCase(
         name="oh-sto-3g-uhf",
         runfile=REPO_ROOT / "samples/oh/sto-3g/calculation.toml",
         xyz=REPO_ROOT / "samples/oh/oh.xyz",

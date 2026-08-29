@@ -565,7 +565,36 @@ mod tests {
     }
 
     #[test]
-    fn test_uhf_oh_doublet_matches_pyscf_reference_energy() {
+    fn test_uhf_h2_plus_doublet_matches_pyscf_reference_energy() {
+        const PYSCF_UHF_ELECTRONIC_ENERGY: f64 = -1.253_309_787_402_661_5;
+        const PYSCF_UHF_TOTAL_ENERGY: f64 = -0.538_205_448_344_553_5;
+
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            1,
+            std::num::NonZeroU8::new(2).unwrap(),
+        )
+        .unwrap();
+        let mut uhf =
+            UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
+                .unwrap();
+
+        let result = uhf.run().unwrap();
+
+        assert!(result.converged);
+        assert_abs_diff_eq!(
+            result.electronic_energy,
+            PYSCF_UHF_ELECTRONIC_ENERGY,
+            epsilon = 1e-8
+        );
+        assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 1e-8);
+    }
+
+    #[test]
+    fn test_uhf_oh_doublet_preserves_scf_invariants() {
         const PYSCF_UHF_ELECTRONIC_ENERGY: f64 = -78.727_017_326_066_2;
         const PYSCF_UHF_TOTAL_ENERGY: f64 = -74.362_669_194_767_24;
 
@@ -608,6 +637,8 @@ mod tests {
                 (density * overlap).trace()
             });
 
+        // OH has degenerate pi orbitals. Their orientation may vary by linear-algebra
+        // backend, but the SCF energy and spin-resolved electron counts are invariant.
         assert!(result.converged);
         assert_abs_diff_eq!(
             result.electronic_energy,
