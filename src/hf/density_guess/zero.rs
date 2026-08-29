@@ -14,6 +14,7 @@ impl DensityGuess for Zero {
         _h_core: &DMatrix<f64>,
         _molecule: &Molecule,
         basis: &Basis,
+        _orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error> {
         Ok(DMatrix::zeros(basis.nbasis(), basis.nbasis()))
     }

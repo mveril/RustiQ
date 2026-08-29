@@ -4,7 +4,7 @@ use crate::basis::gaussian::basis::Basis;
 use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
-use crate::hf::numerical_error::{ensure_finite_values, ensure_positive_definite, NumericalError};
+use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
 use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
 use crate::runfile::random_config::distribution_config::{
@@ -35,6 +35,7 @@ pub(crate) trait DensityGuess: Send + Sync {
         h_core: &DMatrix<f64>,
         molecule: &Molecule,
         basis: &Basis,
+        orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error>;
 }
 
@@ -46,22 +47,22 @@ impl DensityGuess for DensityGuessConfig {
         h_core: &DMatrix<f64>,
         molecule: &Molecule,
         basis: &Basis,
+        orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error> {
         let matrix = match self {
-            DensityGuessConfig::CoreHamiltonian { perturbation } => {
-                CoreHamiltonian::new(*perturbation).build_density_guess(h_core, molecule, basis)?
-            }
-            DensityGuessConfig::OneElectron { perturbation } => {
-                OneElectron::new(*perturbation).build_density_guess(h_core, molecule, basis)?
-            }
+            DensityGuessConfig::CoreHamiltonian { perturbation } => CoreHamiltonian::new(
+                *perturbation,
+            )
+            .build_density_guess(h_core, molecule, basis, orthogonalizer)?,
+            DensityGuessConfig::OneElectron { perturbation } => OneElectron::new(*perturbation)
+                .build_density_guess(h_core, molecule, basis, orthogonalizer)?,
             DensityGuessConfig::Random { config } => {
-                Random::new(*config).build_density_guess(h_core, molecule, basis)?
+                Random::new(*config).build_density_guess(h_core, molecule, basis, orthogonalizer)?
             }
-            DensityGuessConfig::RandomSymmetric { config } => {
-                RandomSymmetric::new(*config).build_density_guess(h_core, molecule, basis)?
-            }
+            DensityGuessConfig::RandomSymmetric { config } => RandomSymmetric::new(*config)
+                .build_density_guess(h_core, molecule, basis, orthogonalizer)?,
             DensityGuessConfig::Zero => {
-                match Zero::build_density_guess(&Zero, h_core, molecule, basis) {
+                match Zero::build_density_guess(&Zero, h_core, molecule, basis, orthogonalizer) {
                     Ok(matrix) => matrix,
                     Err(error) => match error {},
                 }
@@ -101,13 +102,11 @@ fn symmetric_random_matrix<T: RandomSampler>(
 pub(crate) fn density_from_fock_like_matrix(
     fock_like: &DMatrix<f64>,
     molecule: &Molecule,
-    basis: &Basis,
+    orthogonalizer: &DMatrix<f64>,
 ) -> Result<DMatrix<f64>, NumericalError> {
-    let overlap = basis.overlap_ints();
-    let s_inv_sqrt = symmetric_orthogonalizer(&overlap)?;
-    let orthogonal_fock = &s_inv_sqrt.transpose() * fock_like * &s_inv_sqrt;
+    let orthogonal_fock = &orthogonalizer.transpose() * fock_like * orthogonalizer;
     let eig = orthogonal_fock.symmetric_eigen();
-    let mo_coefficients = &s_inv_sqrt * eig.eigenvectors;
+    let mo_coefficients = orthogonalizer * eig.eigenvectors;
     let sorted_mo_coefficients = sort_orbitals(mo_coefficients, eig.eigenvalues)?;
     Ok(density_from_mo_coefficients(
         &sorted_mo_coefficients,
@@ -139,17 +138,11 @@ fn sort_orbitals(
     Ok(DMatrix::from_columns(&sorted_vectors))
 }
 
-fn symmetric_orthogonalizer(overlap: &DMatrix<f64>) -> Result<DMatrix<f64>, NumericalError> {
-    ensure_positive_definite(overlap, "overlap")?;
-    let eig = overlap.clone().symmetric_eigen();
-    let inv_sqrt_values = eig.eigenvalues.map(|value| 1.0 / value.sqrt());
-    Ok(&eig.eigenvectors * DMatrix::from_diagonal(&inv_sqrt_values) * eig.eigenvectors.transpose())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::hf::core::core_hamiltonian_ints;
+    use crate::hf::orthogonalization::symmetric_orthogonalizer;
     use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
     use crate::runfile::random_config::distribution_config::NormalDistributionConfig;
     use crate::runfile::random_config::DistributionConfig;
@@ -221,9 +214,14 @@ mod tests {
         );
     }
 
+    fn orthogonalizer(basis: &Basis) -> DMatrix<f64> {
+        symmetric_orthogonalizer(&basis.overlap_ints(), "overlap").unwrap()
+    }
+
     #[test]
     fn test_all_density_guesses_have_expected_shape_and_finite_values() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
 
         for guess_type in [
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
@@ -237,7 +235,7 @@ mod tests {
             DensityGuessConfig::Zero,
         ] {
             let density = guess_type
-                .build_density_guess(&h_core, &molecule, &basis)
+                .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
                 .unwrap();
 
             assert_density_shape(&density, &basis);
@@ -248,8 +246,9 @@ mod tests {
     #[test]
     fn test_zero_density_guess() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
         let density = Zero
-            .build_density_guess(&h_core, &molecule, &basis)
+            .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
             .unwrap();
 
         assert_density_shape(&density, &basis);
@@ -260,8 +259,9 @@ mod tests {
     #[test]
     fn test_random_density_guess_has_expected_range() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
         let density = Random::default()
-            .build_density_guess(&h_core, &molecule, &basis)
+            .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
             .unwrap();
 
         assert_density_shape(&density, &basis);
@@ -277,6 +277,7 @@ mod tests {
     #[test]
     fn test_symmetric_density_guesses_are_symmetric() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
 
         for guess in [
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
@@ -287,7 +288,7 @@ mod tests {
             DensityGuessConfig::Zero,
         ] {
             let density = guess
-                .build_density_guess(&h_core, &molecule, &basis)
+                .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
                 .unwrap();
 
             assert_density_shape(&density, &basis);
@@ -298,6 +299,7 @@ mod tests {
     #[test]
     fn test_fock_like_density_guesses_have_electron_count() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
 
         for guess in [
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
@@ -306,7 +308,7 @@ mod tests {
             },
         ] {
             let density = guess
-                .build_density_guess(&h_core, &molecule, &basis)
+                .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
                 .unwrap();
 
             assert_density_shape(&density, &basis);
@@ -317,15 +319,16 @@ mod tests {
     #[test]
     fn test_perturbed_core_hamiltonian_guess_is_reproducible_with_seed() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
         let first = DensityGuessConfig::CoreHamiltonian {
             perturbation: Some(perturbation(42)),
         }
-        .build_density_guess(&h_core, &molecule, &basis)
+        .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
         .unwrap();
         let second = DensityGuessConfig::CoreHamiltonian {
             perturbation: Some(perturbation(42)),
         }
-        .build_density_guess(&h_core, &molecule, &basis)
+        .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
         .unwrap();
 
         assert_eq!(first, second);
@@ -337,15 +340,16 @@ mod tests {
     #[test]
     fn test_perturbed_core_hamiltonian_guess_changes_with_seed() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
         let first = DensityGuessConfig::CoreHamiltonian {
             perturbation: Some(perturbation(42)),
         }
-        .build_density_guess(&h_core, &molecule, &basis)
+        .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
         .unwrap();
         let second = DensityGuessConfig::CoreHamiltonian {
             perturbation: Some(perturbation(43)),
         }
-        .build_density_guess(&h_core, &molecule, &basis)
+        .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
         .unwrap();
 
         assert_ne!(first, second);
@@ -354,15 +358,16 @@ mod tests {
     #[test]
     fn test_perturbed_one_electron_guess_is_symmetric_and_reproducible() {
         let (molecule, basis, h_core) = h2_system();
+        let orthogonalizer = orthogonalizer(&basis);
         let first = DensityGuessConfig::OneElectron {
             perturbation: Some(perturbation(42)),
         }
-        .build_density_guess(&h_core, &molecule, &basis)
+        .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
         .unwrap();
         let second = DensityGuessConfig::OneElectron {
             perturbation: Some(perturbation(42)),
         }
-        .build_density_guess(&h_core, &molecule, &basis)
+        .build_density_guess(&h_core, &molecule, &basis, &orthogonalizer)
         .unwrap();
 
         assert_eq!(first, second);

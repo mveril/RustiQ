@@ -23,9 +23,14 @@ impl DensityGuess for CoreHamiltonian {
         &self,
         h_core: &DMatrix<f64>,
         molecule: &Molecule,
-        basis: &Basis,
+        _basis: &Basis,
+        orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error> {
         let fock_like = perturb_fock_like_matrix(h_core, self.perturbation)?;
-        Ok(density_from_fock_like_matrix(&fock_like, molecule, basis)?)
+        Ok(density_from_fock_like_matrix(
+            &fock_like,
+            molecule,
+            orthogonalizer,
+        )?)
     }
 }

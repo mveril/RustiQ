@@ -22,6 +22,7 @@ impl DensityGuess for Random {
         _h_core: &DMatrix<f64>,
         _molecule: &crate::molecules::molecule::Molecule,
         basis: &crate::basis::gaussian::basis::Basis,
+        _orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error> {
         let nbasis = basis.nbasis();
         Ok(DMatrix::from_iterator(

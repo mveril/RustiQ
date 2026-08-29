@@ -25,6 +25,7 @@ impl DensityGuess for OneElectron {
         h_core: &DMatrix<f64>,
         molecule: &Molecule,
         _basis: &Basis,
+        _orthogonalizer: &DMatrix<f64>,
     ) -> Result<DMatrix<f64>, Self::Error> {
         // Check that H_core is symmetric
         crate::debug_assert_is_symmetric!(h_core, 1e-8);
@@ -77,6 +78,7 @@ mod tests {
             h_core: &DMatrix<f64>,
             _molecule: &Molecule,
             _basis: &Basis,
+            _orthogonalizer: &DMatrix<f64>,
         ) -> Result<DMatrix<f64>, Self::Error> {
             // Use Identity for tests
             Ok(DMatrix::identity(h_core.nrows(), h_core.ncols()))

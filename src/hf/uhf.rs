@@ -7,12 +7,11 @@ use thiserror::Error;
 use crate::{
     basis::gaussian::basis::Basis,
     eri::{electron_repulsion_ints, CompactEri},
-    hf::numerical_error::{
-        ensure_finite_value, ensure_finite_values, ensure_positive_definite, NumericalError,
-    },
+    hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
 };
 
+use super::orthogonalization::symmetric_orthogonalizer;
 use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
@@ -133,12 +132,10 @@ impl<'a> UhfCalculation<'a> {
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
-        ensure_positive_definite(&overlap_matrix, "overlap").map_err(ScfSetupError::Numerical)?;
-
         progress("Building symmetric orthogonalizer");
         let step_start = Instant::now();
-        let s_inv_sqrt =
-            Self::symmetric_orthogonalizer(&overlap_matrix).map_err(ScfSetupError::Numerical)?;
+        let s_inv_sqrt = symmetric_orthogonalizer(&overlap_matrix, "overlap")
+            .map_err(ScfSetupError::Numerical)?;
         setup_timings.orthogonalizer = step_start.elapsed();
 
         progress("Building electron repulsion integrals");
@@ -149,7 +146,7 @@ impl<'a> UhfCalculation<'a> {
         progress("Building initial density guess");
         let step_start = Instant::now();
         let total_density = density_guess_builder
-            .build_density_guess(&h_core, molecule, basis)
+            .build_density_guess(&h_core, molecule, basis, &s_inv_sqrt)
             .map_err(ScfSetupError::DensityGuess)?;
         let density =
             split_density_guess(total_density, molecule.total_electrons(), occupied_orbitals);
@@ -299,15 +296,6 @@ impl<'a> UhfCalculation<'a> {
             DVector::from_iterator(order.len(), order.iter().map(|&i| orbital_energies[i]));
 
         Ok((DMatrix::from_columns(&sorted_vectors), sorted_energies))
-    }
-
-    fn symmetric_orthogonalizer(s: &DMatrix<f64>) -> Result<DMatrix<f64>, NumericalError> {
-        ensure_positive_definite(s, "overlap")?;
-        let eig = s.clone().symmetric_eigen();
-        let inv_sqrt_values = eig.eigenvalues.map(|value| 1.0 / value.sqrt());
-        Ok(&eig.eigenvectors
-            * DMatrix::from_diagonal(&inv_sqrt_values)
-            * eig.eigenvectors.transpose())
     }
 
     fn update_fock_matrices(&mut self) {
