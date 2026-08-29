@@ -64,10 +64,12 @@ fn main() {
         println!("case: {}", case.name);
         println!("  basis: {}", case.basis);
         flush_stdout();
-        let result = input.run_once_with_observer(|stage, elapsed| {
-            println!("  {stage}: {:.3}s", elapsed.as_secs_f64());
-            flush_stdout();
-        });
+        let result = input
+            .run_once_with_observer(|stage, elapsed| {
+                println!("  {stage}: {:.3}s", elapsed.as_secs_f64());
+                flush_stdout();
+            })
+            .expect("ERI benchmark input should produce valid Coulomb self-integrals");
         println!("  basis functions: {}", result.basis_functions);
         println!("  basis pairs: {}", result.pair_count);
         println!("  compact integrals: {}", result.compact_integrals);
