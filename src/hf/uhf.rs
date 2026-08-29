@@ -509,7 +509,13 @@ mod tests {
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
         let mut uhf =
             UhfCalculation::new(&molecule, &basis, 100, 1e-8, OneElectron::default()).unwrap();
 

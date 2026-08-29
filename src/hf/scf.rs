@@ -535,7 +535,13 @@ mod tests {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
 
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
         let _h_core = &t_matrix + &v_matrix;
@@ -566,7 +572,13 @@ mod tests {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
 
         let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
 
@@ -597,7 +609,13 @@ mod tests {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
 
         let mut scf = ScfCalculation::new(
             &molecule,
@@ -675,7 +693,13 @@ mod tests {
     fn test_scf_residual_norm_is_small_after_convergence() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
         let result = scf.run().unwrap();
@@ -696,7 +720,13 @@ mod tests {
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
         scf.enable_diis(DiisSize::try_new(6).unwrap());
 
@@ -719,7 +749,13 @@ mod tests {
     fn test_scf_result_reports_non_convergence() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 1, 1e-12);
 
         let result = scf.run().unwrap();
@@ -749,7 +785,13 @@ mod tests {
         for path in ["samples/h2/molecule.xyz", "samples/h2o/h2o.xyz"] {
             let geometry = test_utils::load_sample_geometry_in_bohr(path);
             let basis = test_utils::load_sto3g_basis(&geometry);
-            let molecule = Molecule::from(geometry);
+            let molecule = Molecule::try_new(
+                geometry,
+                crate::molecules::units::Units::Bohr,
+                0,
+                std::num::NonZeroU8::MIN,
+            )
+            .unwrap();
             let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
 
             assert_symmetric_matrix(&basis.overlap_ints(), 1e-10, "S");

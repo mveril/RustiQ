@@ -97,7 +97,13 @@ mod tests {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
 
         // Calculate H_core (simplified for the test)
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);

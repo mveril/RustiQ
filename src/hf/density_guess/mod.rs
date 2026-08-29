@@ -161,7 +161,13 @@ mod tests {
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
         let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
         let h_core = t_matrix + v_matrix;
         (molecule, basis, h_core)
