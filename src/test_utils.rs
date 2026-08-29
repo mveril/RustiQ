@@ -57,7 +57,13 @@ pub(crate) struct ScfReferenceResult {
 }
 
 pub(crate) fn run_sto3g_scf_for_sample(path: &str) -> ScfReferenceResult {
-    let molecule = Molecule::from(load_sample_geometry_in_bohr(path));
+    let molecule = Molecule::try_new(
+        load_sample_geometry_in_bohr(path),
+        Units::Bohr,
+        0,
+        std::num::NonZeroU8::MIN,
+    )
+    .unwrap();
     let geometry = molecule.geometry().clone();
     let basis = load_sto3g_basis(&geometry);
     let mut scf = new_one_electron_scf(&molecule, &basis, 100, 1e-8);

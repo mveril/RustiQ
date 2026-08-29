@@ -640,7 +640,13 @@ mod tests {
     #[test]
     fn test_rhf_closed_shell_mp2_h2_sto3g_matches_pyscf_reference() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
-        let molecule = Molecule::from(geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
         let basis = test_utils::load_sto3g_basis(molecule.geometry());
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-12);
 
