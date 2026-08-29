@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
-    eri::CompactEri,
+    eri::{index::PairIndex, CompactEri},
     hf::{
         numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
         scf::ScfCalculation,
@@ -275,11 +275,11 @@ fn build_ao_pair_matrix(
     let rows: Vec<Vec<(usize, f64)>> = (0..pair_count)
         .into_par_iter()
         .map(|left_pair_index| {
-            let (mu, nu) = basis_function_pair(left_pair_index);
+            let (mu, nu) = PairIndex(left_pair_index).indices();
             let mut row = Vec::with_capacity(left_pair_index + 1);
 
             for right_pair_index in 0..=left_pair_index {
-                let (lambda, sigma) = basis_function_pair(right_pair_index);
+                let (lambda, sigma) = PairIndex(right_pair_index).indices();
                 let value = two_electron_integrals[(mu, nu, lambda, sigma)];
                 row.push((right_pair_index, value));
             }
@@ -321,7 +321,7 @@ fn build_orbital_pair_transform(
             let mut values = Vec::with_capacity(ao_pair_count);
 
             for ao_pair_index in 0..ao_pair_count {
-                let (mu, nu) = basis_function_pair(ao_pair_index);
+                let (mu, nu) = PairIndex(ao_pair_index).indices();
                 values.push(pair_transform_coefficient(
                     mo_coefficients,
                     mu,
@@ -484,12 +484,6 @@ fn pair_transform_coefficient(
 
 fn orbital_pair_index(left: usize, right: usize, right_count: usize) -> usize {
     left * right_count + right
-}
-
-fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
 }
 
 fn basis_function_pair_count(basis_functions: usize) -> usize {

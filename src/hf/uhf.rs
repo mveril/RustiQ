@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::{electron_repulsion_ints, CompactEri},
+    eri::{electron_repulsion_ints, index::PairIndex, CompactEri},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
 };
@@ -403,7 +403,7 @@ impl<'a> UhfCalculation<'a> {
         let values = (0..n_pairs)
             .into_par_iter()
             .map(|index| {
-                let (mu, nu) = basis_function_pair(index);
+                let (mu, nu) = PairIndex(index).indices();
                 let mut g_term = 0.0;
 
                 for lambda in 0..nbasis {
@@ -492,12 +492,6 @@ fn scf_residual_norm(
         .map(|value| value.powi(2))
         .sum::<f64>()
         .sqrt()
-}
-
-fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
 }
 
 #[cfg(test)]

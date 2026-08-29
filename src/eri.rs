@@ -8,9 +8,10 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
-mod index;
+pub(crate) mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
 use crate::math_utils::boys::CachedBoysFunction;
+use index::PairIndex;
 use nalgebra::{Point3, Vector3};
 use rayon::prelude::*;
 use smallvec::SmallVec;
@@ -248,7 +249,7 @@ fn build_compact_eri(
     CompactEri::from_ordered_values_par_iter(
         basis_function_count,
         (0..storage_len).into_par_iter().map(|index| {
-            let (pair_pq, pair_rs) = unique_pair_indices(index);
+            let (pair_pq, pair_rs) = PairIndex(index).indices();
             let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
             if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
                 0.0
@@ -260,18 +261,6 @@ fn build_compact_eri(
         }),
     )
     .expect("compact ERI iterator is constructed with exactly storage_len values")
-}
-
-fn unique_pair_indices(index: usize) -> (usize, usize) {
-    let pair_pq = (((8 * index + 1) as f64).sqrt() as usize - 1) / 2;
-    let pair_rs = index - pair_pq * (pair_pq + 1) / 2;
-    (pair_pq, pair_rs)
-}
-
-fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
 }
 
 struct PairPrimitive {
@@ -290,7 +279,7 @@ fn build_pair_expansions(basis: &Basis) -> Vec<PairExpansion> {
     (0..n_pairs)
         .into_par_iter()
         .map(|pair_index| {
-            let (i, j) = basis_function_pair(pair_index);
+            let (i, j) = PairIndex(pair_index).indices();
             build_pair_expansion(basis, i, j)
         })
         .collect()
@@ -742,8 +731,8 @@ mod tests {
             for nu in 0..basis.nbasis() {
                 for lambda in 0..basis.nbasis() {
                     for sigma in 0..basis.nbasis() {
-                        let pair_pq = index::PairIndex::new(mu, nu).0;
-                        let pair_rs = index::PairIndex::new(lambda, sigma).0;
+                        let pair_pq = PairIndex::new(mu, nu).0;
+                        let pair_rs = PairIndex::new(lambda, sigma).0;
                         let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
                         let expected = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
                             0.0

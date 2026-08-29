@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use crate::{
-    eri::{electron_repulsion_ints, CompactEri},
+    eri::{electron_repulsion_ints, index::PairIndex, CompactEri},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     runfile::validated::DiisSize,
 };
@@ -368,7 +368,7 @@ impl<'a> ScfCalculation<'a> {
         let values = (0..n_pairs)
             .into_par_iter()
             .map(|index| {
-                let (mu, nu) = basis_function_pair(index);
+                let (mu, nu) = PairIndex(index).indices();
                 let mut g_term = 0.0;
 
                 for lambda in 0..nbasis {
@@ -454,12 +454,6 @@ impl<'a> ScfCalculation<'a> {
     fn calculate_nuclear_attraction_energy(&self) -> f64 {
         self.density_matrix.dot(&self.v_matrix)
     }
-}
-
-fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-    let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-    let second = pair_index - first * (first + 1) / 2;
-    (first, second)
 }
 
 #[cfg(test)]

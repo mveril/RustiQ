@@ -245,6 +245,7 @@ impl IndexMut<(usize, usize, usize, usize)> for CompactEri {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eri::index::PairIndex;
     use ndarray::Array4;
     use proptest::prelude::*;
 
@@ -285,9 +286,9 @@ mod tests {
     fn test_compact_index_decoding_round_trips() {
         for basis_functions in 0..=64 {
             for compact_index in 0..CompactEri::storage_len(basis_functions) {
-                let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-                let (mu, nu) = basis_function_pair(pair_pq);
-                let (lambda, sigma) = basis_function_pair(pair_rs);
+                let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
+                let (mu, nu) = PairIndex(pair_pq).indices();
+                let (lambda, sigma) = PairIndex(pair_rs).indices();
 
                 assert!(mu < basis_functions);
                 assert!(nu <= mu);
@@ -379,9 +380,9 @@ mod tests {
                 .rev()
                 .filter(|_| true)
                 .map(|compact_index| {
-                    let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-                    let (mu, nu) = basis_function_pair(pair_pq);
-                    let (lambda, sigma) = basis_function_pair(pair_rs);
+                    let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
+                    let (mu, nu) = PairIndex(pair_pq).indices();
+                    let (lambda, sigma) = PairIndex(pair_rs).indices();
                     (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
                 }),
             basis_functions,
@@ -453,9 +454,9 @@ mod tests {
                     CompactEri::from_par_iter(
                         (0..storage_len).into_par_iter().rev().filter(|_| true).map(
                             |compact_index| {
-                                let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-                                let (mu, nu) = basis_function_pair(pair_pq);
-                                let (lambda, sigma) = basis_function_pair(pair_rs);
+                                let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
+                                let (mu, nu) = PairIndex(pair_pq).indices();
+                                let (lambda, sigma) = PairIndex(pair_rs).indices();
                                 (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
                             },
                         ),
@@ -464,9 +465,9 @@ mod tests {
                     .unwrap();
 
                 for compact_index in 0..storage_len {
-                    let (pair_pq, pair_rs) = unique_pair_indices(compact_index);
-                    let (mu, nu) = basis_function_pair(pair_pq);
-                    let (lambda, sigma) = basis_function_pair(pair_rs);
+                    let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
+                    let (mu, nu) = PairIndex(pair_pq).indices();
+                    let (lambda, sigma) = PairIndex(pair_rs).indices();
                     assert_eq!(eri[(mu, nu, lambda, sigma)], compact_index as f64 + 0.25);
                 }
             }
@@ -547,17 +548,5 @@ mod tests {
             (lambda, sigma, nu, mu),
             (sigma, lambda, nu, mu),
         ]
-    }
-
-    fn unique_pair_indices(index: usize) -> (usize, usize) {
-        let pair_pq = (((8 * index + 1) as f64).sqrt() as usize - 1) / 2;
-        let pair_rs = index - pair_pq * (pair_pq + 1) / 2;
-        (pair_pq, pair_rs)
-    }
-
-    fn basis_function_pair(pair_index: usize) -> (usize, usize) {
-        let first = (((8 * pair_index + 1) as f64).sqrt() as usize - 1) / 2;
-        let second = pair_index - first * (first + 1) / 2;
-        (first, second)
     }
 }
