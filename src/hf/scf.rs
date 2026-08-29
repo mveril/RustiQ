@@ -13,7 +13,7 @@ use rayon::prelude::*;
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
 
-use super::orthogonalization::symmetric_orthogonalizer;
+use super::orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo};
 use super::{
     core::core_hamiltonian_ints,
     density_guess::DensityGuess,
@@ -67,8 +67,9 @@ pub struct ScfCalculation<'a> {
     pub(crate) v_matrix: DMatrix<f64>,
     /// Overlap matrix (S).
     overlap_matrix: DMatrix<f64>,
-    /// Symmetric orthogonalizer (S^(-1/2)).
-    s_inv_sqrt: DMatrix<f64>,
+    /// AO-to-orthonormal-space transformation.
+    orthogonalizer: DMatrix<f64>,
+    orthogonalization: OrthogonalizationInfo,
     /// Number of occupied orbitals (related to the number of electrons / 2 for closed-shell systems).
     pub(crate) occupied_orbitals: usize,
     timings: ScfTimings,
@@ -82,6 +83,7 @@ impl<'a> ScfCalculation<'a> {
         basis: &'a Basis,
         max_iterations: usize,
         convergence_threshold: f64,
+        linear_dependency_threshold: f64,
         density_guess_builder: G,
     ) -> Result<Self, ScfSetupError<G::Error>>
     where
@@ -93,6 +95,7 @@ impl<'a> ScfCalculation<'a> {
             basis,
             max_iterations,
             convergence_threshold,
+            linear_dependency_threshold,
             density_guess_builder,
             |_| {},
         )
@@ -103,6 +106,7 @@ impl<'a> ScfCalculation<'a> {
         basis: &'a Basis,
         max_iterations: usize,
         convergence_threshold: f64,
+        linear_dependency_threshold: f64,
         density_guess_builder: G,
         mut progress: F,
     ) -> Result<Self, ScfSetupError<G::Error>>
@@ -128,10 +132,25 @@ impl<'a> ScfCalculation<'a> {
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
-        progress("Building symmetric orthogonalizer");
+        progress("Building overlap orthogonalizer");
         let step_start = Instant::now();
-        let s_inv_sqrt = symmetric_orthogonalizer(&overlap_matrix, "overlap")?;
+        let orthogonalization_result =
+            orthogonalizer(&overlap_matrix, "overlap", linear_dependency_threshold)?;
+        let orthogonalization = orthogonalization_result.info;
+        let orthogonalizer = orthogonalization_result.matrix;
+        let occupied_orbitals = molecule.occupied_orbitals();
+        ensure_sufficient_rank(orthogonalization, occupied_orbitals)?;
         setup_timings.orthogonalizer = step_start.elapsed();
+        progress(
+            format!(
+                "Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})",
+                orthogonalization.effective_rank,
+                orthogonalization.basis_dimension,
+                orthogonalization.discarded_directions,
+                orthogonalization.relative_threshold,
+            )
+            .as_str(),
+        );
 
         // Calculate the two-electron integrals
         progress("Building electron repulsion integrals");
@@ -143,7 +162,7 @@ impl<'a> ScfCalculation<'a> {
         progress("Building initial density guess");
         let step_start = Instant::now();
         let density_matrix = density_guess_builder
-            .build_density_guess(&h_core, molecule, basis, &s_inv_sqrt)
+            .build_density_guess(&h_core, molecule, basis, &orthogonalizer)
             .map_err(ScfSetupError::DensityGuess)?;
         setup_timings.density_guess = step_start.elapsed();
 
@@ -151,7 +170,7 @@ impl<'a> ScfCalculation<'a> {
         progress("Building initial molecular orbitals");
         let step_start = Instant::now();
         let (mo_coefficients, orbital_energies) =
-            Self::initial_mo_coefficients(&h_core, &s_inv_sqrt)?;
+            Self::initial_mo_coefficients(&h_core, &orthogonalizer)?;
         setup_timings.initial_orbitals = step_start.elapsed();
 
         // Initial Fock matrix
@@ -175,8 +194,9 @@ impl<'a> ScfCalculation<'a> {
             t_matrix,
             v_matrix,
             overlap_matrix,
-            s_inv_sqrt,
-            occupied_orbitals: molecule.occupied_orbitals(),
+            orthogonalizer,
+            orthogonalization,
+            occupied_orbitals,
             timings: ScfTimings {
                 setup: setup_timings,
                 ..ScfTimings::default()
@@ -190,12 +210,12 @@ impl<'a> ScfCalculation<'a> {
 
     fn initial_mo_coefficients(
         h_core: &DMatrix<f64>,
-        s_inv_sqrt: &DMatrix<f64>,
+        orthogonalizer: &DMatrix<f64>,
     ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
         // Diagonalization of H_core to obtain initial MO coefficients
-        let fock_preconditioned = &s_inv_sqrt.transpose() * h_core * s_inv_sqrt;
+        let fock_preconditioned = &orthogonalizer.transpose() * h_core * orthogonalizer;
         let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = s_inv_sqrt * eig.eigenvectors;
+        let mo_coefficients = orthogonalizer * eig.eigenvectors;
         Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
@@ -296,6 +316,7 @@ impl<'a> ScfCalculation<'a> {
             delta_energy,
             residual_norm: self.residual_norm,
             energy_details,
+            orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
         })
     }
@@ -384,9 +405,9 @@ impl<'a> ScfCalculation<'a> {
 
     fn solve_roothaan_hall(&self) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
         let fock_preconditioned =
-            &self.s_inv_sqrt.transpose() * &self.fock_matrix * &self.s_inv_sqrt;
+            &self.orthogonalizer.transpose() * &self.fock_matrix * &self.orthogonalizer;
         let eig = fock_preconditioned.symmetric_eigen();
-        let mo_coefficients = &self.s_inv_sqrt * eig.eigenvectors;
+        let mo_coefficients = &self.orthogonalizer * eig.eigenvectors;
         Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
     }
 
@@ -445,6 +466,7 @@ fn basis_function_pair(pair_index: usize) -> (usize, usize) {
 mod tests {
     use super::*;
     use crate::basis::gaussian;
+    use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
     use crate::test_utils;
@@ -487,7 +509,7 @@ mod tests {
         let h_core = &basis.kinetic_ints() + &basis.overlap_ints(); // Simplified H_core for testing
 
         let overlap = basis.overlap_ints();
-        let s_inv_sqrt = symmetric_orthogonalizer(&overlap, "overlap").unwrap();
+        let s_inv_sqrt = orthogonalizer(&overlap, "overlap", 0.0).unwrap().matrix;
         let (mo_coeff, orbital_energies) =
             ScfCalculation::initial_mo_coefficients(&h_core, &s_inv_sqrt).unwrap();
 
@@ -521,6 +543,43 @@ mod tests {
     }
 
     #[test]
+    fn test_scf_runs_after_discarding_linearly_dependent_basis_function() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        let source_basis = test_utils::load_sto3g_basis(&geometry);
+        let duplicated_shell = source_basis.shells[0].clone();
+        let basis = Basis::new(vec![duplicated_shell.clone(), duplicated_shell]);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+
+        let mut scf = ScfCalculation::new(
+            &molecule,
+            &basis,
+            50,
+            1e-8,
+            1e-8,
+            CoreHamiltonian::default(),
+        )
+        .unwrap();
+
+        assert_eq!(scf.orthogonalization.basis_dimension, 2);
+        assert_eq!(scf.orthogonalization.effective_rank, 1);
+        assert_eq!(scf.orthogonalization.discarded_directions, 1);
+        assert_eq!(scf.mo_coefficients.shape(), (2, 1));
+
+        let result = scf.run().unwrap();
+
+        assert!(result.converged);
+        assert!(result.total_energy.is_finite());
+        assert_eq!(result.orthogonalization.effective_rank, 1);
+        assert_eq!(scf.mo_coefficients.shape(), (2, 1));
+    }
+
+    #[test]
     fn test_build_fock_matrix() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
@@ -538,7 +597,7 @@ mod tests {
 
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
-        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, 1e-8, TestDensityGuess).unwrap();
 
         let fock = scf.build_fock_matrix(&scf.density_matrix);
 
@@ -570,7 +629,7 @@ mod tests {
         )
         .unwrap();
 
-        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
+        let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, 1e-8, TestDensityGuess).unwrap();
 
         let density = scf.calculate_density_matrix();
 
@@ -612,6 +671,7 @@ mod tests {
             &basis,
             50, // Increase the maximum number of iterations if needed
             1e-6,
+            1e-8,
             TestDensityGuess,
         )
         .unwrap();

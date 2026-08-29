@@ -6,7 +6,7 @@ use toml_spanner::Toml;
 
 use crate::{
     molecules::molecule::Molecule,
-    runfile::validated::{DiisSize, PositiveFiniteF64},
+    runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
 };
 
 mod density_guess_config;
@@ -27,6 +27,8 @@ pub(crate) struct HfConfig {
     pub max_iterations: NonZeroUsize,
     #[toml(default = default_conv_threshold())]
     pub convergence_threshold: PositiveFiniteF64,
+    #[toml(default = default_linear_dependency_threshold())]
+    pub linear_dependency_threshold: NonNegativeFiniteF64,
     #[toml(default)]
     pub guess: DensityGuessConfig,
     #[toml(default)]
@@ -106,6 +108,11 @@ fn default_conv_threshold() -> PositiveFiniteF64 {
     PositiveFiniteF64::try_new(1e-8).expect("default convergence threshold is positive and finite")
 }
 
+fn default_linear_dependency_threshold() -> NonNegativeFiniteF64 {
+    NonNegativeFiniteF64::try_new(1e-8)
+        .expect("default linear dependency threshold is non-negative and finite")
+}
+
 fn default_max_iter() -> NonZeroUsize {
     NonZeroUsize::new(100).expect("default max iterations is non-zero")
 }
@@ -156,6 +163,7 @@ mod tests {
         assert_eq!(config.method, HfMethod::Auto);
         assert_eq!(config.max_iterations.get(), 100);
         assert_eq!(config.convergence_threshold.into_inner(), 1e-8);
+        assert_eq!(config.linear_dependency_threshold.into_inner(), 1e-8);
         assert_eq!(config.diis_size.into_inner(), 6);
         assert_eq!(config.format, HfOutputFormat::Normal);
     }
@@ -409,6 +417,23 @@ mod tests {
 
         assert!(zero.is_err());
         assert!(negative.is_err());
+    }
+
+    #[test]
+    fn test_hf_config_linear_dependency_threshold_accepts_zero() {
+        let config =
+            toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = 0.0").unwrap();
+
+        assert_eq!(config.linear_dependency_threshold.into_inner(), 0.0);
+    }
+
+    #[test]
+    fn test_hf_config_rejects_invalid_linear_dependency_threshold() {
+        let negative = toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = -1e-8");
+        let infinite = toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = inf");
+
+        assert!(negative.is_err());
+        assert!(infinite.is_err());
     }
 
     #[test]

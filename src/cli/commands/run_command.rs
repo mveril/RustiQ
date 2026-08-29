@@ -160,6 +160,7 @@ impl Runnable for RunCommand {
                         &basis,
                         hf.max_iterations.get(),
                         hf.convergence_threshold.into_inner(),
+                        hf.linear_dependency_threshold.into_inner(),
                         hf.guess,
                         |step| println!("  {step}..."),
                     )
@@ -198,6 +199,7 @@ impl Runnable for RunCommand {
                         &basis,
                         hf.max_iterations.get(),
                         hf.convergence_threshold.into_inner(),
+                        hf.linear_dependency_threshold.into_inner(),
                         hf.guess,
                         |step| println!("  {step}..."),
                     )

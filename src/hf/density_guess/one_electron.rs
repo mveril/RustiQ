@@ -114,7 +114,7 @@ mod tests {
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
         let scf: ScfCalculation<'_> =
-            ScfCalculation::new(&molecule, &basis, 10, 1e-6, TestDensityGuess).unwrap();
+            ScfCalculation::new(&molecule, &basis, 10, 1e-6, 1e-8, TestDensityGuess).unwrap();
 
         let density = scf.density_matrix.clone();
 

@@ -12,6 +12,12 @@ use toml_spanner::{Arena, Context, Failed, FromToml, Item, ToToml, ToTomlError};
 pub(crate) struct PositiveFiniteF64(f64);
 
 #[nutype(
+    validate(finite, greater_or_equal = 0.0),
+    derive(Debug, Clone, Copy, PartialEq, PartialOrd, TryFrom, Into)
+)]
+pub(crate) struct NonNegativeFiniteF64(f64);
+
+#[nutype(
     validate(greater = 1),
     derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFrom, Into)
 )]
@@ -37,6 +43,19 @@ impl<'de> FromToml<'de> for PositiveFiniteF64 {
 }
 
 impl ToToml for PositiveFiniteF64 {
+    fn to_toml<'a>(&'a self, _arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
+        let value: f64 = (*self).into();
+        Ok(Item::from(value))
+    }
+}
+
+impl<'de> FromToml<'de> for NonNegativeFiniteF64 {
+    fn from_toml(ctx: &mut Context<'de>, item: &Item<'de>) -> Result<Self, Failed> {
+        from_toml_via_try_from::<Self, f64>(ctx, item)
+    }
+}
+
+impl ToToml for NonNegativeFiniteF64 {
     fn to_toml<'a>(&'a self, _arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
         let value: f64 = (*self).into();
         Ok(Item::from(value))

@@ -37,6 +37,15 @@ pub enum Mp2Error {
         energy_len: usize,
     },
     #[error(
+        "UHF MP2 coefficient dimensions do not match: alpha is {alpha_rows}x{alpha_cols}, beta is {beta_rows}x{beta_cols}"
+    )]
+    SpinDimensionMismatch {
+        alpha_rows: usize,
+        alpha_cols: usize,
+        beta_rows: usize,
+        beta_cols: usize,
+    },
+    #[error(
         "closed-shell MP2 requires at least one occupied and one virtual orbital, but got {occupied} occupied orbitals out of {total}"
     )]
     InvalidOrbitalPartition { occupied: usize, total: usize },
@@ -93,7 +102,7 @@ pub(crate) fn correlation_energy(input: &Mp2Input<'_>) -> Result<f64, Mp2Error> 
     let mo_coefficients = input.mo_coefficients;
     let orbital_energies = input.orbital_energies;
 
-    if mo_coefficients.nrows() != mo_coefficients.ncols()
+    if mo_coefficients.ncols() > mo_coefficients.nrows()
         || orbital_energies.len() != mo_coefficients.ncols()
     {
         return Err(Mp2Error::DimensionMismatch {
@@ -200,11 +209,12 @@ fn uhf_correlation_energy(
 
     let alpha_total_orbitals = alpha.mo_coefficients.ncols();
     let beta_total_orbitals = beta.mo_coefficients.ncols();
-    if alpha_total_orbitals != beta_total_orbitals {
-        return Err(Mp2Error::DimensionMismatch {
-            coeff_rows: alpha.mo_coefficients.nrows(),
-            coeff_cols: alpha_total_orbitals,
-            energy_len: beta_total_orbitals,
+    if alpha.mo_coefficients.shape() != beta.mo_coefficients.shape() {
+        return Err(Mp2Error::SpinDimensionMismatch {
+            alpha_rows: alpha.mo_coefficients.nrows(),
+            alpha_cols: alpha_total_orbitals,
+            beta_rows: beta.mo_coefficients.nrows(),
+            beta_cols: beta_total_orbitals,
         });
     }
 
@@ -335,7 +345,7 @@ fn build_orbital_pair_transform(
 }
 
 fn validate_spin_input(input: &Mp2SpinInput<'_>) -> Result<(), Mp2Error> {
-    if input.mo_coefficients.nrows() != input.mo_coefficients.ncols()
+    if input.mo_coefficients.ncols() > input.mo_coefficients.nrows()
         || input.orbital_energies.len() != input.mo_coefficients.ncols()
     {
         return Err(Mp2Error::DimensionMismatch {
@@ -566,6 +576,32 @@ mod tests {
     }
 
     #[test]
+    fn test_closed_shell_mp2_accepts_rank_reduced_coefficients() {
+        let mo_coefficients = DMatrix::from_row_slice(
+            3,
+            2,
+            &[
+                1.0, 0.0, //
+                0.0, 1.0, //
+                0.0, 0.0,
+            ],
+        );
+        let orbital_energies = DVector::from_vec(vec![-1.0, 0.5]);
+        let eri = CompactEri::Zeroed(3);
+        let input = Mp2Input {
+            mo_coefficients: &mo_coefficients,
+            orbital_energies: &orbital_energies,
+            occupied_orbitals: 1,
+            frozen_orbitals: 0,
+            two_electron_integrals: &eri,
+        };
+
+        let correlation_energy = correlation_energy(&input).unwrap();
+
+        assert_abs_diff_eq!(correlation_energy, 0.0, epsilon = 1e-12);
+    }
+
+    #[test]
     fn test_uhf_unrestricted_mp2_allows_empty_beta_sector() {
         let mo_coefficients = DMatrix::identity(2, 2);
         let alpha_orbital_energies = DVector::from_vec(vec![-1.0, 0.5]);
@@ -586,6 +622,38 @@ mod tests {
         };
 
         let correlation_energy = uhf_correlation_energy(alpha, beta, &eri).unwrap();
+        assert_abs_diff_eq!(correlation_energy, 0.0, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn test_uhf_mp2_accepts_rank_reduced_coefficients() {
+        let mo_coefficients = DMatrix::from_row_slice(
+            3,
+            2,
+            &[
+                1.0, 0.0, //
+                0.0, 1.0, //
+                0.0, 0.0,
+            ],
+        );
+        let alpha_orbital_energies = DVector::from_vec(vec![-1.0, 0.5]);
+        let beta_orbital_energies = DVector::from_vec(vec![0.25, 0.75]);
+        let eri = CompactEri::Zeroed(3);
+        let alpha = Mp2SpinInput {
+            mo_coefficients: &mo_coefficients,
+            orbital_energies: &alpha_orbital_energies,
+            occupied_orbitals: 1,
+            frozen_orbitals: 0,
+        };
+        let beta = Mp2SpinInput {
+            mo_coefficients: &mo_coefficients,
+            orbital_energies: &beta_orbital_energies,
+            occupied_orbitals: 0,
+            frozen_orbitals: 0,
+        };
+
+        let correlation_energy = uhf_correlation_energy(alpha, beta, &eri).unwrap();
+
         assert_abs_diff_eq!(correlation_energy, 0.0, epsilon = 1e-12);
     }
 
@@ -666,6 +734,55 @@ mod tests {
     }
 
     #[test]
+    fn test_rhf_mp2_runs_in_rank_reduced_sto3g_space() {
+        use crate::basis::gaussian::basis::Basis;
+        use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
+
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        let source_basis = test_utils::load_sto3g_basis(&geometry);
+        let basis = Basis::new(vec![
+            source_basis.shells[0].clone(),
+            source_basis.shells[0].clone(),
+            source_basis.shells[1].clone(),
+        ]);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+        let mut scf = ScfCalculation::new(
+            &molecule,
+            &basis,
+            100,
+            1e-12,
+            1e-8,
+            CoreHamiltonian::default(),
+        )
+        .unwrap();
+
+        let scf_result = scf.run().unwrap();
+        let mp2_result = rhf_closed_shell(&scf, 0).unwrap();
+
+        assert!(scf_result.converged);
+        assert_eq!(scf_result.orthogonalization.basis_dimension, 3);
+        assert_eq!(scf_result.orthogonalization.effective_rank, 2);
+        assert_eq!(scf_result.orthogonalization.discarded_directions, 1);
+        assert_eq!(scf.mo_coefficients.shape(), (3, 2));
+        assert_abs_diff_eq!(
+            scf_result.electronic_energy,
+            -1.831_863_646_477_507,
+            epsilon = 1e-10
+        );
+        assert_abs_diff_eq!(
+            mp2_result.correlation_energy,
+            -0.013_138_073_589_533,
+            epsilon = 1e-11
+        );
+    }
+
+    #[test]
     #[ignore = "platform-dependent choice of degenerate OH orbitals changes the UMP2 correlation energy; re-enable once orbital selection is deterministic"]
     fn test_uhf_unrestricted_mp2_oh_sto3g_matches_pyscf_reference() {
         use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
@@ -683,6 +800,7 @@ mod tests {
             &molecule,
             &basis,
             2000,
+            1e-8,
             1e-8,
             CoreHamiltonian::default(),
         )

@@ -68,6 +68,8 @@ mod tests {
                             nuclear_attraction_energy: 0.0,
                             electron_repulsion_energy: 0.0,
                         },
+                        orthogonalization:
+                            crate::hf::orthogonalization::OrthogonalizationInfo::default(),
                         timings: crate::hf::scf_result::ScfTimings::default(),
                     },
                 )
