@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use crate::{
-    eri::{electron_repulsion_ints, index::PairIndex, CompactEri},
+    eri::{electron_repulsion_ints, index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     runfile::validated::DiisSize,
 };
@@ -34,6 +34,8 @@ where
     DensityGuess(E),
     #[error(transparent)]
     Numerical(#[from] NumericalError),
+    #[error(transparent)]
+    ElectronRepulsion(#[from] EriError),
 }
 
 /// Structure for an SCF calculation.
@@ -155,7 +157,7 @@ impl<'a> ScfCalculation<'a> {
         // Calculate the two-electron integrals
         progress("Building electron repulsion integrals");
         let step_start = Instant::now();
-        let two_electron_integrals: CompactEri = electron_repulsion_ints(basis);
+        let two_electron_integrals: CompactEri = electron_repulsion_ints(basis)?;
         setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
         // Initialize density matrix using a density guess builder

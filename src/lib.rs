@@ -17,6 +17,7 @@ pub(crate) mod test_utils;
 #[cfg(feature = "bench-support")]
 pub mod bench_support {
     pub use crate::basis::BasisStore;
+    pub use crate::eri::EriError;
     use std::path::Path;
     use std::time::Duration;
 
@@ -57,18 +58,18 @@ pub mod bench_support {
             })
         }
 
-        pub fn run_once(&self) -> EriBenchResult {
+        pub fn run_once(&self) -> Result<EriBenchResult, EriError> {
             self.run_once_with_observer(|_, _| {})
         }
 
         pub fn run_once_with_observer(
             &self,
             observer: impl FnMut(&'static str, Duration),
-        ) -> EriBenchResult {
+        ) -> Result<EriBenchResult, EriError> {
             let (integrals, breakdown) =
-                electron_repulsion_ints_timed_with_observer(&self.basis, observer);
+                electron_repulsion_ints_timed_with_observer(&self.basis, observer)?;
 
-            EriBenchResult {
+            Ok(EriBenchResult {
                 name: self.name.clone(),
                 basis_functions: breakdown.basis_functions,
                 pair_count: breakdown.pair_count,
@@ -78,7 +79,7 @@ pub mod bench_support {
                 compact_fill: breakdown.compact_fill,
                 elapsed: breakdown.total,
                 coulomb_cache_sizes: breakdown.coulomb_cache_sizes,
-            }
+            })
         }
     }
 }

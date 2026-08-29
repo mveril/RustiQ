@@ -15,8 +15,10 @@ use index::PairIndex;
 use nalgebra::{Point3, Vector3};
 use rayon::prelude::*;
 use smallvec::SmallVec;
+use thiserror::Error;
 
 const ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
+const ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE: f64 = 1e-12;
 const COULOMB_CACHE_SMALLVEC_CAPACITY: usize = 128;
 
 #[cfg(feature = "bench-support")]
@@ -144,11 +146,25 @@ pub fn compute_eri_primitive(
 /// # Returns
 ///
 /// A 4D tensor containing all ERI integrals.
-pub fn electron_repulsion_ints(basis: &Basis) -> CompactEri {
+#[derive(Debug, Error, PartialEq)]
+pub enum EriError {
+    #[error("non-finite Coulomb self-integral for AO pair {pair_index}: {value}")]
+    NonFiniteSelfIntegral { pair_index: usize, value: f64 },
+    #[error(
+        "negative Coulomb self-integral for AO pair {pair_index}: {value:.6e} (tolerance {tolerance:.6e})"
+    )]
+    NegativeSelfIntegral {
+        pair_index: usize,
+        value: f64,
+        tolerance: f64,
+    },
+}
+
+pub fn electron_repulsion_ints(basis: &Basis) -> Result<CompactEri, EriError> {
     let n = basis.nbasis();
     let pair_expansions = build_pair_expansions(basis);
-    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
-    build_compact_eri(n, &pair_expansions, &pair_bounds)
+    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions)?;
+    Ok(build_compact_eri(n, &pair_expansions, &pair_bounds))
 }
 
 #[cfg(feature = "bench-support")]
@@ -197,7 +213,9 @@ impl CacheSizeStats {
 
 #[cfg(feature = "bench-support")]
 #[allow(dead_code)]
-pub fn electron_repulsion_ints_timed(basis: &Basis) -> (CompactEri, EriTimingBreakdown) {
+pub fn electron_repulsion_ints_timed(
+    basis: &Basis,
+) -> Result<(CompactEri, EriTimingBreakdown), EriError> {
     electron_repulsion_ints_timed_with_observer(basis, |_, _| {})
 }
 
@@ -205,7 +223,7 @@ pub fn electron_repulsion_ints_timed(basis: &Basis) -> (CompactEri, EriTimingBre
 pub fn electron_repulsion_ints_timed_with_observer(
     basis: &Basis,
     mut observer: impl FnMut(&'static str, Duration),
-) -> (CompactEri, EriTimingBreakdown) {
+) -> Result<(CompactEri, EriTimingBreakdown), EriError> {
     reset_coulomb_cache_size_stats();
     let total_start = Instant::now();
     let n = basis.nbasis();
@@ -216,7 +234,7 @@ pub fn electron_repulsion_ints_timed_with_observer(
     observer("pair expansions", pair_expansions_elapsed);
 
     let schwarz_bounds_start = Instant::now();
-    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
+    let pair_bounds = build_pair_schwarz_bounds(&pair_expansions)?;
     let schwarz_bounds_elapsed = schwarz_bounds_start.elapsed();
     observer("schwarz bounds", schwarz_bounds_elapsed);
 
@@ -237,7 +255,7 @@ pub fn electron_repulsion_ints_timed_with_observer(
         coulomb_cache_sizes: coulomb_cache_size_stats(),
     };
 
-    (integrals, breakdown)
+    Ok((integrals, breakdown))
 }
 
 fn build_compact_eri(
@@ -328,15 +346,33 @@ fn build_pair_expansion(basis: &Basis, i: usize, j: usize) -> PairExpansion {
     expansion
 }
 
-fn build_pair_schwarz_bounds(pair_expansions: &[PairExpansion]) -> Vec<f64> {
+fn build_pair_schwarz_bounds(pair_expansions: &[PairExpansion]) -> Result<Vec<f64>, EriError> {
     pair_expansions
         .par_iter()
-        .map(|pair_expansion| {
-            compute_eri_pair(pair_expansion, pair_expansion)
-                .abs()
-                .sqrt()
+        .enumerate()
+        .map(|(pair_index, pair_expansion)| {
+            let raw = compute_eri_pair(pair_expansion, pair_expansion);
+            schwarz_bound_from_self_integral(pair_index, raw)
         })
         .collect()
+}
+
+fn schwarz_bound_from_self_integral(pair_index: usize, raw: f64) -> Result<f64, EriError> {
+    if !raw.is_finite() {
+        return Err(EriError::NonFiniteSelfIntegral {
+            pair_index,
+            value: raw,
+        });
+    }
+    if raw < -ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE {
+        return Err(EriError::NegativeSelfIntegral {
+            pair_index,
+            value: raw,
+            tolerance: ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE,
+        });
+    }
+
+    Ok(raw.max(0.0).sqrt())
 }
 
 fn compute_eri_pair(pair_ab: &PairExpansion, pair_cd: &PairExpansion) -> f64 {
@@ -604,6 +640,32 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
 
+    #[test]
+    fn test_schwarz_bound_rejects_materially_negative_self_integral() {
+        let raw = -1e-4;
+
+        assert_eq!(
+            schwarz_bound_from_self_integral(7, raw),
+            Err(EriError::NegativeSelfIntegral {
+                pair_index: 7,
+                value: raw,
+                tolerance: ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE,
+            })
+        );
+    }
+
+    #[test]
+    fn test_schwarz_bound_clamps_negative_roundoff_to_zero() {
+        let raw = -ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE / 2.0;
+
+        assert_eq!(schwarz_bound_from_self_integral(0, raw), Ok(0.0));
+    }
+
+    #[test]
+    fn test_schwarz_bound_uses_non_negative_self_integral() {
+        assert_eq!(schwarz_bound_from_self_integral(0, 0.25), Ok(0.5));
+    }
+
     /// Structure for a simple contraction (s-orbital, STO-3G).
     #[allow(dead_code)]
     fn create_sto3g_contraction() -> Contraction {
@@ -687,7 +749,7 @@ mod tests {
         let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         // Calculate ERI integrals for the whole molecule
-        let eri_tensor = electron_repulsion_ints(&basis);
+        let eri_tensor = electron_repulsion_ints(&basis).unwrap();
 
         // Select the (0,1,0,1) integral for H2
         let eri = eri_tensor[(0, 1, 0, 1)];
@@ -705,7 +767,7 @@ mod tests {
         let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
         // Calculate ERI integrals for the whole molecule
-        let eri_tensor = electron_repulsion_ints(&basis);
+        let eri_tensor = electron_repulsion_ints(&basis).unwrap();
 
         // Select the (0,0,0,0) integral for H2
         let eri = eri_tensor[(0, 0, 0, 0)];
@@ -724,8 +786,8 @@ mod tests {
         let geom = create_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geom).unwrap();
         let pair_expansions = build_pair_expansions(&basis);
-        let pair_bounds = build_pair_schwarz_bounds(&pair_expansions);
-        let eri_tensor = electron_repulsion_ints(&basis);
+        let pair_bounds = build_pair_schwarz_bounds(&pair_expansions).unwrap();
+        let eri_tensor = electron_repulsion_ints(&basis).unwrap();
 
         for mu in 0..basis.nbasis() {
             for nu in 0..basis.nbasis() {
@@ -759,7 +821,7 @@ mod tests {
         let geom = create_distant_h2_geometry();
         let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
-        let eri_tensor = electron_repulsion_ints(&basis);
+        let eri_tensor = electron_repulsion_ints(&basis).unwrap();
 
         assert_eq!(eri_tensor[(0, 1, 0, 1)], 0.0);
     }
@@ -771,7 +833,7 @@ mod tests {
         let basis_file = test_utils::load_minimal_basis_file();
         let basis = Basis::try_load(&basis_file, &geom).unwrap();
 
-        let eri_tensor = electron_repulsion_ints(&basis);
+        let eri_tensor = electron_repulsion_ints(&basis).unwrap();
 
         for p in 0..basis.nbasis() {
             for q in 0..basis.nbasis() {

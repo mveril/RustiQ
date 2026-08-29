@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::{electron_repulsion_ints, index::PairIndex, CompactEri},
+    eri::{electron_repulsion_ints, index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
 };
@@ -30,6 +30,8 @@ where
 {
     #[error(transparent)]
     Scf(#[from] ScfSetupError<E>),
+    #[error(transparent)]
+    ElectronRepulsion(#[from] EriError),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -165,7 +167,7 @@ impl<'a> UhfCalculation<'a> {
 
         progress("Building electron repulsion integrals");
         let step_start = Instant::now();
-        let two_electron_integrals = electron_repulsion_ints(basis);
+        let two_electron_integrals = electron_repulsion_ints(basis)?;
         setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
         progress("Building initial density guess");
