@@ -74,5 +74,7 @@ hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.
 
 RustiQ is invoked with `run --format json`; the validator reads schema version 1
-JSON directly rather than parsing the human-readable terminal report. This keeps
-reference validation independent of report wording and decimal formatting.
+JSON directly, verifies that the HF calculation converged, and emits its report
+with Python's CSV writer rather than parsing the human-readable terminal report.
+This keeps reference validation independent of report wording and decimal
+formatting.
