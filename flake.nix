@@ -221,13 +221,13 @@
               pythonPyscf
             ];
             text = ''
-              reference_tool="$PWD/tools/reference/compare_pyscf.py"
-              if [[ ! -f "$reference_tool" ]]; then
+              reference_tests="$PWD/tools/reference"
+              if [[ ! -d "$reference_tests" ]]; then
                 echo "pyscf-check must be run from the root of a RustiQ checkout." >&2
                 exit 2
               fi
 
-              RUSTIQ_BIN="${rustiq}/bin/RustiQ" exec python "$reference_tool" "$@"
+              RUSTIQ_BIN="${rustiq}/bin/RustiQ" exec pytest "$reference_tests" "$@"
             '';
           };
         in
@@ -242,7 +242,7 @@
             pyscf-check = {
               type = "app";
               program = "${pyscfCheck}/bin/pyscf-check";
-              meta.description = "Compare RustiQ sample energies against PySCF";
+              meta.description = "Run RustiQ/PySCF reference tests with pytest";
             };
           };
 
