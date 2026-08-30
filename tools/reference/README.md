@@ -15,6 +15,18 @@ From the Dev Container, run all reference comparisons with:
 python tools/reference/compare_pyscf.py
 ```
 
+Run the reference-tool tests with:
+
+```sh
+pytest tools/reference
+```
+
+Outside the Dev Container, the minimal Nix shell includes the same test group:
+
+```sh
+nix develop .#mini-pyscf --command pytest tools/reference
+```
+
 From another Nix-capable environment, run:
 
 ```sh
@@ -74,5 +86,7 @@ hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.
 
 RustiQ is invoked with `run --format json`; the validator reads schema version 1
-JSON directly rather than parsing the human-readable terminal report. This keeps
-reference validation independent of report wording and decimal formatting.
+JSON directly, verifies that the HF calculation converged, and emits its report
+with Python's CSV writer rather than parsing the human-readable terminal report.
+This keeps reference validation independent of report wording and decimal
+formatting.

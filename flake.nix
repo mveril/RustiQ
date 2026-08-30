@@ -122,6 +122,10 @@
 
           pythonPyscf = pythonSet.mkVirtualEnv "rustiq-pyscf-environment" pythonWorkspace.deps.default;
 
+          pythonPyscfTest = pythonSet.mkVirtualEnv "rustiq-pyscf-test-environment" (
+            pkgs.lib.mapAttrs (_: _: [ "test" ]) pythonWorkspace.deps.default
+          );
+
           pythonScientific = pythonSet.mkVirtualEnv "rustiq-scientific-environment" pythonWorkspace.deps.all;
 
           rustBuildPackages = with pkgs; [
@@ -248,7 +252,7 @@
             rust = mkDevShell { packages = completeRustPackages; };
 
             "mini-pyscf" = mkDevShell {
-              packages = minimalRustPackages ++ [ pythonPyscf ];
+              packages = minimalRustPackages ++ [ pythonPyscfTest ];
               extraEnv = pythonEnv;
             };
 

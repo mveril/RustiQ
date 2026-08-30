@@ -49,6 +49,9 @@ jobs:
       - name: Check the Python lock
         run: nix develop .#full --command uv lock --check
 
+      - name: Test the reference comparison tooling
+        run: nix develop .#mini-pyscf --command pytest tools/reference
+
       - name: Build all native Nix checks
         run: nix flake check
 

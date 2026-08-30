@@ -9,6 +9,7 @@ does not need network access for the RustiQ runs.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import shutil
@@ -18,10 +19,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from pyscf import gto, mp, scf
-
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 @dataclass(frozen=True)
 class ReferenceCase:
@@ -144,7 +143,14 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         [rustiq_bin, "run", str(case.runfile), "--format", "json"]
         if rustiq_bin
         else [
-            "cargo", "run", "--quiet", "--", "run", str(case.runfile), "--format", "json"
+            "cargo",
+            "run",
+            "--quiet",
+            "--",
+            "run",
+            str(case.runfile),
+            "--format",
+            "json",
         ]
     )
     stdout = run_command(
@@ -155,6 +161,8 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         result = json.loads(stdout)
         if result["schema_version"] != 1:
             raise RuntimeError(f"Unsupported RustiQ JSON schema for {case.name}.")
+        if result["calculation"]["hf"]["converged"] is not True:
+            raise RuntimeError(f"RustiQ did not converge for {case.name}.")
         return result
     except (json.JSONDecodeError, KeyError, TypeError) as error:
         raise RuntimeError(
@@ -163,6 +171,8 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
 
 
 def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
+    from pyscf import gto, mp, scf
+
     mol = gto.M(
         atom=load_xyz_body(case.xyz),
         basis=case.basis,
@@ -219,7 +229,19 @@ def main() -> int:
     failures = 0
 
     try:
-        print("case,rustiq_hf,pyscf_hf,hf_delta,rustiq_mp2_corr,pyscf_mp2_corr,mp2_delta,status")
+        writer = csv.writer(sys.stdout, lineterminator="\n")
+        writer.writerow(
+            [
+                "case",
+                "rustiq_hf",
+                "pyscf_hf",
+                "hf_delta",
+                "rustiq_mp2_corr",
+                "pyscf_mp2_corr",
+                "mp2_delta",
+                "status",
+            ]
+        )
         for case in selected_cases(args.cases):
             rustiq = rustiq_result(case, env)
             rustiq_hf = float(rustiq["calculation"]["hf"]["total_energy"])
@@ -227,10 +249,14 @@ def main() -> int:
             hf_delta = abs(rustiq_hf - pyscf_hf)
             rustiq_mp2 = rustiq["calculation"].get("mp2")
             rustiq_mp2_corr = (
-                float(rustiq_mp2["correlation_energy"]) if rustiq_mp2 is not None else None
+                float(rustiq_mp2["correlation_energy"])
+                if rustiq_mp2 is not None
+                else None
             )
             if case.mp2 and rustiq_mp2_corr is None:
-                raise RuntimeError(f"RustiQ JSON output did not include MP2 for {case.name}.")
+                raise RuntimeError(
+                    f"RustiQ JSON output did not include MP2 for {case.name}."
+                )
             mp2_delta = (
                 abs(rustiq_mp2_corr - pyscf_mp2_corr)
                 if rustiq_mp2_corr is not None and pyscf_mp2_corr is not None
@@ -241,15 +267,17 @@ def main() -> int:
             )
             failures += 0 if ok else 1
             status = "ok" if ok else "failed"
-            print(
-                f"{case.name},"
-                f"{rustiq_hf:.15f},"
-                f"{pyscf_hf:.15f},"
-                f"{hf_delta:.3e},"
-                f"{'' if rustiq_mp2_corr is None else f'{rustiq_mp2_corr:.15f}'},"
-                f"{'' if pyscf_mp2_corr is None else f'{pyscf_mp2_corr:.15f}'},"
-                f"{'' if mp2_delta is None else f'{mp2_delta:.3e}'},"
-                f"{status}"
+            writer.writerow(
+                [
+                    case.name,
+                    f"{rustiq_hf:.15f}",
+                    f"{pyscf_hf:.15f}",
+                    f"{hf_delta:.3e}",
+                    "" if rustiq_mp2_corr is None else f"{rustiq_mp2_corr:.15f}",
+                    "" if pyscf_mp2_corr is None else f"{pyscf_mp2_corr:.15f}",
+                    "" if mp2_delta is None else f"{mp2_delta:.3e}",
+                    status,
+                ]
             )
     finally:
         shutil.rmtree(data_home, ignore_errors=True)
