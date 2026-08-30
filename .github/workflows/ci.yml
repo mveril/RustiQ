@@ -94,7 +94,7 @@ jobs:
       - name: Check the minimal PySCF shell
         run: nix develop .#mini-pyscf --command python -c "import pyscf; print('PySCF', pyscf.__version__)"
 
-      - name: Test the reference comparison tooling
+      - name: Check reference energies against PySCF
         run: nix develop .#mini-pyscf --command pytest tools/reference
 
       - name: Build RustiQ with Nix
@@ -102,8 +102,6 @@ jobs:
 
       - name: Keep Crane artifacts for the cache
         run: nix build .#cargo-artifacts --out-link result-cargo-artifacts
-      - name: Check H2 energy against PySCF
-        run: nix run .#pyscf-check -- h2-sto-3g-rhf
 
   devcontainer:
     name: Dev Container

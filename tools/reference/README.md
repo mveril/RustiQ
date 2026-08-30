@@ -9,13 +9,7 @@ platforms declared by the flake. Inside the Dev Container, the same tools are
 prepared automatically and are available directly on `PATH`. No `.venv` or
 activation step is required.
 
-From the Dev Container, run all reference comparisons with:
-
-```sh
-python tools/reference/compare_pyscf.py
-```
-
-Run the reference-tool tests with:
+From the Dev Container, run all reference comparisons with the canonical interface:
 
 ```sh
 pytest tools/reference
@@ -30,7 +24,7 @@ nix develop .#mini-pyscf --command pytest tools/reference
 From another Nix-capable environment, run:
 
 ```sh
-nix develop --command python tools/reference/compare_pyscf.py
+nix develop --command pytest tools/reference
 ```
 
 The flake also exposes a manual app that supplies the Nix-built RustiQ binary,
@@ -50,7 +44,7 @@ Without Nix, install the Rust toolchain described in the root `README.md` and
 [`uv`](https://docs.astral.sh/uv/). Then run:
 
 ```sh
-uv run --locked python tools/reference/compare_pyscf.py
+uv run --locked pytest tools/reference
 ```
 
 This uses the cross-platform lock and requires compatible binary wheels; it
@@ -58,35 +52,35 @@ does not build Python packages from source. PySCF supports Linux, macOS, and
 WSL2, but not native Windows. The comparison script also invokes `cargo`, so
 Cargo must remain on `PATH`.
 
-Run a single case by name:
+Run a single case by its pytest parameter ID:
 
 ```sh
-uv run --locked python tools/reference/compare_pyscf.py h2-sto-3g-rhf
+uv run --locked pytest tools/reference -k h2-sto-3g-rhf
 ```
 
 The open-shell, non-degenerate H₂⁺ UHF reference used by the Rust UHF test can
 be reproduced with:
 
 ```sh
-uv run --locked python tools/reference/compare_pyscf.py h2-plus-sto-3g-uhf
+uv run --locked pytest tools/reference -k h2-plus-sto-3g-uhf
 ```
 
 The equivalent flake app invocation is:
 
 ```sh
-nix run .#pyscf-check -- h2-sto-3g-rhf
+nix run .#pyscf-check -- -k h2-sto-3g-rhf
 ```
 
 Prefix the single-case command with `nix develop --command` when running it
 outside the Dev Container or an active Nix development shell.
 
-The script prepares a temporary RustiQ basis store from `tests/data/sto-3g.json`
+The tests prepare a temporary RustiQ basis store from `tests/data/sto-3g.json`
 and does not download basis data for RustiQ. `uv.lock` records the wheels and
 hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.
 
-RustiQ is invoked with `run --format json`; the validator reads schema version 1
-JSON directly, verifies that the HF calculation converged, and emits its report
-with Python's CSV writer rather than parsing the human-readable terminal report.
-This keeps reference validation independent of report wording and decimal
-formatting.
+RustiQ is invoked with `run --format json`; pytest reads schema version 1 JSON
+directly, checks convergence, methods, and energies, and provides all comparison
+reporting. This keeps reference validation independent of terminal report wording
+and decimal formatting. `python tools/reference/compare_pyscf.py` remains a thin
+compatibility launcher that forwards its arguments to pytest.

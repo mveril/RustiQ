@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare RustiQ sample energies against PySCF references.
+"""Helpers and reference cases for RustiQ/PySCF pytest comparisons.
 
 The script is intended for development checks, not for the Rust test suite.
 It prepares an isolated RustiQ basis store from tests/data/sto-3g.json so it
@@ -8,8 +8,6 @@ does not need network access for the RustiQ runs.
 
 from __future__ import annotations
 
-import argparse
-import csv
 import json
 import os
 import shutil
@@ -158,13 +156,8 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         env=env,
     )
     try:
-        result = json.loads(stdout)
-        if result["schema_version"] != 1:
-            raise RuntimeError(f"Unsupported RustiQ JSON schema for {case.name}.")
-        if result["calculation"]["hf"]["converged"] is not True:
-            raise RuntimeError(f"RustiQ did not converge for {case.name}.")
-        return result
-    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        return json.loads(stdout)
+    except json.JSONDecodeError as error:
         raise RuntimeError(
             f"Could not parse RustiQ JSON output for {case.name}: {error}\nstdout:\n{stdout}"
         ) from error
@@ -203,87 +196,13 @@ def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
     )
 
 
-def selected_cases(names: list[str]) -> list[ReferenceCase]:
-    if not names:
-        return CASES
-    by_name = {case.name: case for case in CASES}
-    unknown = sorted(set(names) - set(by_name))
-    if unknown:
-        raise ValueError(f"Unknown case(s): {', '.join(unknown)}")
-    return [by_name[name] for name in names]
+def main(pytest_args: list[str] | None = None) -> int:
+    """Run the canonical pytest reference suite, forwarding any arguments."""
+    import pytest
 
-
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Compare RustiQ sample total energies against PySCF."
-    )
-    parser.add_argument(
-        "cases",
-        nargs="*",
-        help="Optional case names. Defaults to all cases.",
-    )
-    args = parser.parse_args()
-
-    env = prepare_rustiq_env()
-    data_home = Path(env["RUSTIQ_DATA_HOME"])
-    failures = 0
-
-    try:
-        writer = csv.writer(sys.stdout, lineterminator="\n")
-        writer.writerow(
-            [
-                "case",
-                "rustiq_hf",
-                "pyscf_hf",
-                "hf_delta",
-                "rustiq_mp2_corr",
-                "pyscf_mp2_corr",
-                "mp2_delta",
-                "status",
-            ]
-        )
-        for case in selected_cases(args.cases):
-            rustiq = rustiq_result(case, env)
-            rustiq_hf = float(rustiq["calculation"]["hf"]["total_energy"])
-            pyscf_hf, pyscf_mp2_corr = pyscf_result(case)
-            hf_delta = abs(rustiq_hf - pyscf_hf)
-            rustiq_mp2 = rustiq["calculation"].get("mp2")
-            rustiq_mp2_corr = (
-                float(rustiq_mp2["correlation_energy"])
-                if rustiq_mp2 is not None
-                else None
-            )
-            if case.mp2 and rustiq_mp2_corr is None:
-                raise RuntimeError(
-                    f"RustiQ JSON output did not include MP2 for {case.name}."
-                )
-            mp2_delta = (
-                abs(rustiq_mp2_corr - pyscf_mp2_corr)
-                if rustiq_mp2_corr is not None and pyscf_mp2_corr is not None
-                else None
-            )
-            ok = hf_delta <= case.tolerance and (
-                mp2_delta is None or mp2_delta <= case.mp2_tolerance
-            )
-            failures += 0 if ok else 1
-            status = "ok" if ok else "failed"
-            writer.writerow(
-                [
-                    case.name,
-                    f"{rustiq_hf:.15f}",
-                    f"{pyscf_hf:.15f}",
-                    f"{hf_delta:.3e}",
-                    "" if rustiq_mp2_corr is None else f"{rustiq_mp2_corr:.15f}",
-                    "" if pyscf_mp2_corr is None else f"{pyscf_mp2_corr:.15f}",
-                    "" if mp2_delta is None else f"{mp2_delta:.3e}",
-                    status,
-                ]
-            )
-    finally:
-        shutil.rmtree(data_home, ignore_errors=True)
-
-    return 1 if failures else 0
+    test_path = Path(__file__).with_name("test_compare_pyscf.py")
+    return pytest.main([str(test_path), *(pytest_args or [])])
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

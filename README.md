@@ -440,7 +440,7 @@ The repository uses [`uv`](https://docs.astral.sh/uv/) for that environment on
 Linux, macOS, and WSL2:
 
 ```sh
-uv run --locked python tools/reference/compare_pyscf.py
+uv run --locked pytest tools/reference
 ```
 
 PySCF does not support native Windows; use WSL2 for this optional comparison.

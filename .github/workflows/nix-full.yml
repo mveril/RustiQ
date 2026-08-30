@@ -49,7 +49,7 @@ jobs:
       - name: Check the Python lock
         run: nix develop .#full --command uv lock --check
 
-      - name: Test the reference comparison tooling
+      - name: Check reference energies against PySCF
         run: nix develop .#mini-pyscf --command pytest tools/reference
 
       - name: Build all native Nix checks
@@ -57,6 +57,3 @@ jobs:
 
       - name: Keep Crane artifacts for the cache
         run: nix build .#cargo-artifacts --out-link result-cargo-artifacts
-
-      - name: Check all reference energies against PySCF
-        run: nix run .#pyscf-check
