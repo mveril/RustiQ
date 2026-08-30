@@ -296,6 +296,9 @@ impl<'a> ScfCalculation<'a> {
 
             energy_last = self.energy;
         }
+        if converged {
+            self.canonicalize_final_fock()?;
+        }
         self.timings.iterations = iterations_start.elapsed();
 
         // Calculate final energy including nuclear repulsion
@@ -341,6 +344,10 @@ impl<'a> ScfCalculation<'a> {
         self.mo_coefficients = mo_coefficients;
         self.orbital_energies = orbital_energies;
         Ok(())
+    }
+
+    fn canonicalize_final_fock(&mut self) -> Result<(), NumericalError> {
+        self.solve_roothaan_hall_equation()
     }
 
     fn update_density_matrix(&mut self) {
@@ -796,6 +803,34 @@ mod tests {
             result.residual_norm < 1e-8,
             "SCF residual norm is {}, expected < 1e-8",
             result.residual_norm
+        );
+    }
+
+    #[test]
+    fn test_converged_rhf_orbitals_are_canonical_for_final_fock() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+        let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
+        scf.enable_diis(DiisSize::try_new(6).unwrap());
+
+        let result = scf.run().unwrap();
+
+        assert!(result.converged);
+        let lhs = &scf.fock_matrix * &scf.mo_coefficients;
+        let rhs = &scf.overlap_matrix
+            * &scf.mo_coefficients
+            * DMatrix::from_diagonal(&scf.orbital_energies);
+        assert!(
+            (&lhs - &rhs).norm() < 1e-8,
+            "final RHF canonical equation residual is {}",
+            (&lhs - &rhs).norm()
         );
     }
 

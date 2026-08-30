@@ -289,6 +289,9 @@ impl<'a> UhfCalculation<'a> {
 
             energy_last = self.energy;
         }
+        if converged {
+            self.canonicalize_final_fock()?;
+        }
         self.timings.iterations = iterations_start.elapsed();
 
         let nuclear_repulsion = self.molecule.geometry().nucl_repulsion();
@@ -359,6 +362,10 @@ impl<'a> UhfCalculation<'a> {
         self.mo_coefficients = SpinMatrices::new(alpha_mo_coefficients, beta_mo_coefficients);
         self.orbital_energies = Spin::new(alpha_orbital_energies, beta_orbital_energies);
         Ok(())
+    }
+
+    fn canonicalize_final_fock(&mut self) -> Result<(), NumericalError> {
+        self.solve_roothaan_hall_equations()
     }
 
     fn solve_roothaan_hall(
@@ -588,6 +595,49 @@ mod tests {
             epsilon = 1e-8
         );
         assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 1e-8);
+    }
+
+    #[test]
+    fn test_converged_uhf_orbitals_are_canonical_for_final_fock() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::new(2).unwrap(),
+        )
+        .unwrap();
+        let mut uhf = UhfCalculation::new(
+            &molecule,
+            &basis,
+            100,
+            1e-5,
+            1e-8,
+            CoreHamiltonian::default(),
+        )
+        .unwrap();
+        uhf.enable_diis(6).unwrap();
+
+        let result = uhf.run().unwrap();
+
+        assert!(result.converged);
+        let residuals = uhf.fock.as_ref().zip_map(
+            uhf.mo_coefficients
+                .as_ref()
+                .zip_map(uhf.orbital_energies.as_ref(), |coefficients, energies| {
+                    (coefficients, DMatrix::from_diagonal(energies))
+                }),
+            |fock, (coefficients, energies)| {
+                (fock * coefficients - &uhf.overlap_matrix * coefficients * energies).norm()
+            },
+        );
+        for (label, residual) in [("alpha", residuals.alpha), ("beta", residuals.beta)] {
+            assert!(
+                residual < 1e-8,
+                "final UHF {label} canonical equation residual is {residual}"
+            );
+        }
     }
 
     #[test]
