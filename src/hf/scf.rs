@@ -827,11 +827,7 @@ mod tests {
         let rhs = &scf.overlap_matrix
             * &scf.mo_coefficients
             * DMatrix::from_diagonal(&scf.orbital_energies);
-        assert!(
-            (&lhs - &rhs).norm() < 1e-8,
-            "final RHF canonical equation residual is {}",
-            (&lhs - &rhs).norm()
-        );
+        assert_abs_diff_eq!((&lhs - &rhs).norm(), 0.0, epsilon = 1e-8);
     }
 
     #[test]

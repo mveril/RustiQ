@@ -632,11 +632,8 @@ mod tests {
                 (fock * coefficients - &uhf.overlap_matrix * coefficients * energies).norm()
             },
         );
-        for (label, residual) in [("alpha", residuals.alpha), ("beta", residuals.beta)] {
-            assert!(
-                residual < 1e-8,
-                "final UHF {label} canonical equation residual is {residual}"
-            );
+        for residual in [residuals.alpha, residuals.beta] {
+            assert_abs_diff_eq!(residual, 0.0, epsilon = 1e-8);
         }
     }
 
