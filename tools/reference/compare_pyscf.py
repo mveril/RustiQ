@@ -9,8 +9,8 @@ does not need network access for the RustiQ runs.
 from __future__ import annotations
 
 import argparse
+import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -18,14 +18,10 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from pyscf import gto, scf
+from pyscf import gto, mp, scf
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TOTAL_ENERGY_RE = re.compile(
-    r"Total Energy \(including nuclear repulsion\):\s+([-+0-9.eE]+)\s+Hartree"
-)
-
 
 @dataclass(frozen=True)
 class ReferenceCase:
@@ -39,6 +35,8 @@ class ReferenceCase:
     conv_tol: float
     max_cycle: int
     tolerance: float
+    mp2: bool = False
+    mp2_tolerance: float | None = None
 
 
 CASES = [
@@ -52,7 +50,9 @@ CASES = [
         method="rhf",
         conv_tol=1e-10,
         max_cycle=80,
-        tolerance=1e-6,
+        # The JSON contract preserves the Rust f64 rather than the former
+        # six-decimal text report. H2 is deterministic and non-degenerate.
+        tolerance=2e-10,
     ),
     ReferenceCase(
         name="h2-plus-sto-3g-uhf",
@@ -64,7 +64,9 @@ CASES = [
         method="uhf",
         conv_tol=1e-10,
         max_cycle=80,
-        tolerance=1e-6,
+        # H2+ is deterministic and non-degenerate; its UHF implementation
+        # difference is about 8e-10 Hartree, still far below the old text limit.
+        tolerance=1e-9,
     ),
     ReferenceCase(
         name="oh-sto-3g-uhf",
@@ -76,7 +78,23 @@ CASES = [
         method="uhf",
         conv_tol=1e-5,
         max_cycle=100,
+        # OH has open-shell orbital near-degeneracies and backend-dependent
+        # convergence behavior, so retain its scientifically justified margin.
         tolerance=1e-5,
+    ),
+    ReferenceCase(
+        name="h2-sto-3g-rhf-mp2",
+        runfile=REPO_ROOT / "samples/h2/sto-3g/mp2_calculation.toml",
+        xyz=REPO_ROOT / "samples/h2/molecule.xyz",
+        basis="sto-3g",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        tolerance=2e-10,
+        mp2=True,
+        mp2_tolerance=1e-10,
     ),
 ]
 
@@ -120,24 +138,31 @@ def prepare_rustiq_env() -> dict[str, str]:
     return env
 
 
-def rustiq_total_energy(case: ReferenceCase, env: dict[str, str]) -> float:
+def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]:
     rustiq_bin = os.environ.get("RUSTIQ_BIN")
     command = (
-        [rustiq_bin, "run", str(case.runfile)]
+        [rustiq_bin, "run", str(case.runfile), "--format", "json"]
         if rustiq_bin
-        else ["cargo", "run", "--quiet", "--", "run", str(case.runfile)]
+        else [
+            "cargo", "run", "--quiet", "--", "run", str(case.runfile), "--format", "json"
+        ]
     )
     stdout = run_command(
         command,
         env=env,
     )
-    match = TOTAL_ENERGY_RE.search(stdout)
-    if match is None:
-        raise RuntimeError(f"Could not find total energy in RustiQ output for {case.name}.")
-    return float(match.group(1))
+    try:
+        result = json.loads(stdout)
+        if result["schema_version"] != 1:
+            raise RuntimeError(f"Unsupported RustiQ JSON schema for {case.name}.")
+        return result
+    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        raise RuntimeError(
+            f"Could not parse RustiQ JSON output for {case.name}: {error}\nstdout:\n{stdout}"
+        ) from error
 
 
-def pyscf_total_energy(case: ReferenceCase) -> float:
+def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
     mol = gto.M(
         atom=load_xyz_body(case.xyz),
         basis=case.basis,
@@ -158,7 +183,14 @@ def pyscf_total_energy(case: ReferenceCase) -> float:
     energy = mf.kernel()
     if not mf.converged:
         raise RuntimeError(f"PySCF did not converge for {case.name}.")
-    return float(energy)
+    mp2_correlation_energy = None
+    if case.mp2:
+        if case.method != "rhf":
+            raise ValueError(f"MP2 reference is only configured for RHF: {case.name}")
+        mp2_correlation_energy, _ = mp.MP2(mf).kernel()
+    return float(energy), (
+        float(mp2_correlation_energy) if mp2_correlation_energy is not None else None
+    )
 
 
 def selected_cases(names: list[str]) -> list[ReferenceCase]:
@@ -187,20 +219,36 @@ def main() -> int:
     failures = 0
 
     try:
-        print("case,rustiq_hartree,pyscf_hartree,abs_delta,tolerance,status")
+        print("case,rustiq_hf,pyscf_hf,hf_delta,rustiq_mp2_corr,pyscf_mp2_corr,mp2_delta,status")
         for case in selected_cases(args.cases):
-            rustiq_energy = rustiq_total_energy(case, env)
-            pyscf_energy = pyscf_total_energy(case)
-            delta = abs(rustiq_energy - pyscf_energy)
-            ok = delta <= case.tolerance
+            rustiq = rustiq_result(case, env)
+            rustiq_hf = float(rustiq["calculation"]["hf"]["total_energy"])
+            pyscf_hf, pyscf_mp2_corr = pyscf_result(case)
+            hf_delta = abs(rustiq_hf - pyscf_hf)
+            rustiq_mp2 = rustiq["calculation"].get("mp2")
+            rustiq_mp2_corr = (
+                float(rustiq_mp2["correlation_energy"]) if rustiq_mp2 is not None else None
+            )
+            if case.mp2 and rustiq_mp2_corr is None:
+                raise RuntimeError(f"RustiQ JSON output did not include MP2 for {case.name}.")
+            mp2_delta = (
+                abs(rustiq_mp2_corr - pyscf_mp2_corr)
+                if rustiq_mp2_corr is not None and pyscf_mp2_corr is not None
+                else None
+            )
+            ok = hf_delta <= case.tolerance and (
+                mp2_delta is None or mp2_delta <= case.mp2_tolerance
+            )
             failures += 0 if ok else 1
             status = "ok" if ok else "failed"
             print(
                 f"{case.name},"
-                f"{rustiq_energy:.12f},"
-                f"{pyscf_energy:.12f},"
-                f"{delta:.3e},"
-                f"{case.tolerance:.3e},"
+                f"{rustiq_hf:.15f},"
+                f"{pyscf_hf:.15f},"
+                f"{hf_delta:.3e},"
+                f"{'' if rustiq_mp2_corr is None else f'{rustiq_mp2_corr:.15f}'},"
+                f"{'' if pyscf_mp2_corr is None else f'{pyscf_mp2_corr:.15f}'},"
+                f"{'' if mp2_delta is None else f'{mp2_delta:.3e}'},"
                 f"{status}"
             )
     finally:

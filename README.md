@@ -483,6 +483,29 @@ Run an MP2 example:
 cargo run -- run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
+### Machine-readable JSON output
+
+For automation and scientific validation, request the versioned JSON result
+contract. JSON mode writes only machine-readable data to standard output; normal
+output remains the human-oriented default.
+
+```sh
+cargo run -- run samples/h2/sto-3g/calculation.toml --format json
+```
+
+Schema version 1 reports the resolved HF method, convergence and final SCF
+energies, orthogonalization rank information, and (when requested) MP2 energies.
+Floating-point quantities are JSON numbers serialized directly from RustiQ's
+`f64` results, without display rounding. For example:
+
+```json
+{"schema_version":1,"calculation":{"hf":{"method":"RHF","converged":true,"iterations":2,"electronic_energy":-1.831863646477507,"nuclear_repulsion_energy":0.715104339081081,"total_energy":-1.116759307396426,"delta_energy":0.0,"residual_norm":0.0,"orthogonalization":{"ao_basis_dimension":2,"effective_rank":2,"discarded_directions":0,"relative_linear_dependency_threshold":1e-8}}}}
+```
+
+Future additions may extend this versioned schema; consumers should check
+`schema_version` and ignore fields they do not use. Use JSON output for tools;
+the default terminal report is intentionally free to evolve for human readers.
+
 Run an open-shell UHF example:
 
 ```sh

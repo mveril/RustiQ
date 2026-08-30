@@ -72,3 +72,7 @@ The script prepares a temporary RustiQ basis store from `tests/data/sto-3g.json`
 and does not download basis data for RustiQ. `uv.lock` records the wheels and
 hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.
+
+RustiQ is invoked with `run --format json`; the validator reads schema version 1
+JSON directly rather than parsing the human-readable terminal report. This keeps
+reference validation independent of report wording and decimal formatting.
