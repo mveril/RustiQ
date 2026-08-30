@@ -94,6 +94,9 @@ jobs:
       - name: Check the minimal PySCF shell
         run: nix develop .#mini-pyscf --command python -c "import pyscf; print('PySCF', pyscf.__version__)"
 
+      - name: Test the reference comparison tooling
+        run: nix develop .#mini-pyscf --command pytest tools/reference
+
       - name: Build RustiQ with Nix
         run: nix build .#default
 

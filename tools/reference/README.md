@@ -15,6 +15,18 @@ From the Dev Container, run all reference comparisons with:
 python tools/reference/compare_pyscf.py
 ```
 
+Run the reference-tool tests with:
+
+```sh
+pytest tools/reference
+```
+
+Outside the Dev Container, the minimal Nix shell includes the same test group:
+
+```sh
+nix develop .#mini-pyscf --command pytest tools/reference
+```
+
 From another Nix-capable environment, run:
 
 ```sh

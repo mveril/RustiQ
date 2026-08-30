@@ -19,10 +19,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from pyscf import gto, mp, scf
-
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 @dataclass(frozen=True)
 class ReferenceCase:
@@ -145,7 +143,14 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         [rustiq_bin, "run", str(case.runfile), "--format", "json"]
         if rustiq_bin
         else [
-            "cargo", "run", "--quiet", "--", "run", str(case.runfile), "--format", "json"
+            "cargo",
+            "run",
+            "--quiet",
+            "--",
+            "run",
+            str(case.runfile),
+            "--format",
+            "json",
         ]
     )
     stdout = run_command(
@@ -166,6 +171,8 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
 
 
 def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
+    from pyscf import gto, mp, scf
+
     mol = gto.M(
         atom=load_xyz_body(case.xyz),
         basis=case.basis,
@@ -242,10 +249,14 @@ def main() -> int:
             hf_delta = abs(rustiq_hf - pyscf_hf)
             rustiq_mp2 = rustiq["calculation"].get("mp2")
             rustiq_mp2_corr = (
-                float(rustiq_mp2["correlation_energy"]) if rustiq_mp2 is not None else None
+                float(rustiq_mp2["correlation_energy"])
+                if rustiq_mp2 is not None
+                else None
             )
             if case.mp2 and rustiq_mp2_corr is None:
-                raise RuntimeError(f"RustiQ JSON output did not include MP2 for {case.name}.")
+                raise RuntimeError(
+                    f"RustiQ JSON output did not include MP2 for {case.name}."
+                )
             mp2_delta = (
                 abs(rustiq_mp2_corr - pyscf_mp2_corr)
                 if rustiq_mp2_corr is not None and pyscf_mp2_corr is not None
