@@ -18,6 +18,8 @@ pub(crate) enum NumericalError {
     },
     #[error("linear dependency threshold {threshold} must be non-negative and finite")]
     InvalidLinearDependencyThreshold { threshold: f64 },
+    #[error("final SCF canonicalization did not reproduce the converged density after {max_iterations} iterations")]
+    FinalizationNotConverged { max_iterations: usize },
 }
 
 pub(crate) fn ensure_finite_values(
