@@ -130,6 +130,7 @@ jobs:
               command -v ruff
               command -v uv
               command -v python
+              command -v pytest
               cargo --version
               rustc --version
               rust-analyzer --version
@@ -137,4 +138,5 @@ jobs:
               cargo metadata --no-deps --format-version 1 > /dev/null
               cargo build --all-targets --all-features
               cargo test --all-targets --all-features
+              pytest tools/reference
             '
