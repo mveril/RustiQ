@@ -300,7 +300,7 @@ impl<'a> ScfCalculation<'a> {
             energy_last = self.energy;
         }
         if converged {
-            self.canonicalize_final_fock()?;
+            delta_energy = self.canonicalize_final_fock(delta_energy)?;
         }
         self.timings.iterations = iterations_start.elapsed();
 
@@ -349,8 +349,36 @@ impl<'a> ScfCalculation<'a> {
         Ok(())
     }
 
-    fn canonicalize_final_fock(&mut self) -> Result<(), NumericalError> {
-        self.solve_roothaan_hall_equation()
+    fn canonicalize_final_fock(&mut self, mut delta_energy: f64) -> Result<f64, NumericalError> {
+        // Keep F, P, and C mutually consistent.  The main SCF loop leaves
+        // `fock_matrix` as F(P), but its coefficients were obtained from the
+        // preceding Fock matrix.  Diagonalizing F(P) is therefore necessary
+        // for canonical orbitals; if it changes the occupied projector, take
+        // another undamped SCF step before trying again.
+        for _ in 0..self.max_iterations {
+            self.solve_roothaan_hall_equation()?;
+            let canonical_density = self.calculate_density_matrix();
+
+            if (&canonical_density - &self.density_matrix).norm() < self.convergence_threshold
+                && delta_energy < self.convergence_threshold
+                && self.residual_norm < self.convergence_threshold
+            {
+                return Ok(delta_energy);
+            }
+
+            let previous_energy = self.energy;
+            self.density_matrix = canonical_density;
+            self.update_residual_norm_and_next_fock();
+            self.update_total_energy_from_current_fock();
+            ensure_finite_value(self.energy, "SCF electronic energy")?;
+            ensure_finite_value(self.residual_norm, "SCF residual norm")?;
+            delta_energy = (self.energy - previous_energy).abs();
+            ensure_finite_value(delta_energy, "SCF delta energy")?;
+        }
+
+        Err(NumericalError::FinalizationNotConverged {
+            max_iterations: self.max_iterations,
+        })
     }
 
     fn update_density_matrix(&mut self) {
@@ -591,6 +619,7 @@ mod tests {
         assert!(result.total_energy.is_finite());
         assert_eq!(result.orthogonalization.effective_rank, 1);
         assert_eq!(scf.mo_coefficients.shape(), (2, 1));
+        assert_final_density_matches_canonical_orbitals(&scf, 1e-8);
     }
 
     #[test]
@@ -702,6 +731,7 @@ mod tests {
             result.electronic_energy.abs() > 0.0,
             "L'énergie SCF devrait être non nulle après convergence."
         );
+        assert_final_density_matches_canonical_orbitals(&scf, 1e-6);
     }
 
     #[test]
@@ -826,6 +856,7 @@ mod tests {
         let result = scf.run().unwrap();
 
         assert!(result.converged);
+        assert_final_density_matches_canonical_orbitals(&scf, 1e-8);
         let lhs = &scf.fock_matrix * &scf.mo_coefficients;
         let rhs = &scf.overlap_matrix
             * &scf.mo_coefficients
@@ -866,6 +897,17 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn assert_final_density_matches_canonical_orbitals(scf: &ScfCalculation<'_>, epsilon: f64) {
+        let reconstructed = ScfCalculation::density_from_mo_coefficients(
+            &scf.mo_coefficients,
+            scf.occupied_orbitals,
+        );
+        assert!(
+            (&reconstructed - &scf.density_matrix).norm() < epsilon,
+            "final canonical orbitals do not reproduce the stored RHF density"
+        );
     }
 
     #[test]

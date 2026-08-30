@@ -307,7 +307,7 @@ impl<'a> UhfCalculation<'a> {
             energy_last = self.energy;
         }
         if converged {
-            self.canonicalize_final_fock()?;
+            delta_energy = self.canonicalize_final_fock(delta_energy)?;
         }
         self.timings.iterations = iterations_start.elapsed();
 
@@ -381,8 +381,41 @@ impl<'a> UhfCalculation<'a> {
         Ok(())
     }
 
-    fn canonicalize_final_fock(&mut self) -> Result<(), NumericalError> {
-        self.solve_roothaan_hall_equations()
+    fn canonicalize_final_fock(&mut self, mut delta_energy: f64) -> Result<f64, NumericalError> {
+        // As in RHF, canonicalization must not expose orbitals whose occupied
+        // projectors differ materially from the density used to build F.
+        for _ in 0..self.max_iterations {
+            self.solve_roothaan_hall_equations()?;
+            let canonical_density = self.mo_coefficients.clone().zip_map(
+                self.occupied_orbitals,
+                |mo_coefficients, occupied_orbitals| {
+                    density_from_mo_coefficients(&mo_coefficients, occupied_orbitals)
+                },
+            );
+            let density_change = (&canonical_density.alpha - &self.density.alpha)
+                .norm()
+                .hypot((&canonical_density.beta - &self.density.beta).norm());
+
+            if density_change < self.convergence_threshold
+                && delta_energy < self.convergence_threshold
+                && self.residual_norm < self.convergence_threshold
+            {
+                return Ok(delta_energy);
+            }
+
+            let previous_energy = self.energy;
+            self.density = canonical_density;
+            self.update_residual_norm_and_next_fock();
+            self.update_total_energy_from_current_fock();
+            ensure_finite_value(self.energy, "UHF electronic energy")?;
+            ensure_finite_value(self.residual_norm, "UHF residual norm")?;
+            delta_energy = (self.energy - previous_energy).abs();
+            ensure_finite_value(delta_energy, "UHF delta energy")?;
+        }
+
+        Err(NumericalError::FinalizationNotConverged {
+            max_iterations: self.max_iterations,
+        })
     }
 
     fn solve_roothaan_hall(
@@ -547,6 +580,22 @@ mod tests {
         assert_abs_diff_eq!(matrix, &matrix.transpose(), epsilon = 1e-10);
     }
 
+    fn assert_final_densities_match_canonical_orbitals(uhf: &UhfCalculation<'_>, epsilon: f64) {
+        let alpha_density =
+            density_from_mo_coefficients(&uhf.mo_coefficients.alpha, uhf.occupied_orbitals.alpha);
+        let beta_density =
+            density_from_mo_coefficients(&uhf.mo_coefficients.beta, uhf.occupied_orbitals.beta);
+
+        assert!(
+            (&alpha_density - &uhf.density.alpha).norm() < epsilon,
+            "final canonical alpha orbitals do not reproduce the stored UHF density"
+        );
+        assert!(
+            (&beta_density - &uhf.density.beta).norm() < epsilon,
+            "final canonical beta orbitals do not reproduce the stored UHF density"
+        );
+    }
+
     fn closed_shell_h2() -> (Molecule, Basis) {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
@@ -694,6 +743,7 @@ mod tests {
             (&broken.density.alpha - &broken.density.beta).norm() > 1e-5,
             "stretched H2 must retain a broken-symmetry density"
         );
+        assert_final_densities_match_canonical_orbitals(&broken, 1e-10);
         assert!(
             broken_result.total_energy < common_result.total_energy - 1e-6,
             "broken-symmetry UHF energy ({}) must be below common-orbital energy ({})",
@@ -768,6 +818,7 @@ mod tests {
             epsilon = 1e-8
         );
         assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 1e-8);
+        assert_final_densities_match_canonical_orbitals(&uhf, 1e-8);
     }
 
     #[test]
@@ -795,6 +846,7 @@ mod tests {
         let result = uhf.run().unwrap();
 
         assert!(result.converged);
+        assert_final_densities_match_canonical_orbitals(&uhf, 1e-5);
         let residuals = uhf.fock.as_ref().zip_map(
             uhf.mo_coefficients
                 .as_ref()
