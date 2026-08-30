@@ -1,8 +1,5 @@
-use super::{
-    density_from_fock_like_matrix, perturb_fock_like_matrix, DensityGuess, DensityGuessError,
-};
+use super::{perturb_fock_like_matrix, DensityGuess, DensityGuessError, OrbitalGuess};
 use crate::basis::gaussian::basis::Basis;
-use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::GuessPerturbationConfig;
 use nalgebra::DMatrix;
 
@@ -19,18 +16,12 @@ impl CoreHamiltonian {
 
 impl DensityGuess for CoreHamiltonian {
     type Error = DensityGuessError;
-    fn build_density_guess(
+    fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
-        molecule: &Molecule,
         _basis: &Basis,
-        orthogonalizer: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, Self::Error> {
+    ) -> Result<OrbitalGuess, Self::Error> {
         let fock_like = perturb_fock_like_matrix(h_core, self.perturbation)?;
-        Ok(density_from_fock_like_matrix(
-            &fock_like,
-            molecule,
-            orthogonalizer,
-        )?)
+        Ok(OrbitalGuess::FockLike(fock_like))
     }
 }

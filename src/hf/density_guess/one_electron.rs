@@ -1,8 +1,5 @@
-use super::{DensityGuess, DensityGuessError};
+use super::{perturb_fock_like_matrix, DensityGuess, DensityGuessError, OrbitalGuess};
 use crate::basis::gaussian::basis::Basis;
-use crate::hf::density_guess::perturb_fock_like_matrix;
-use crate::hf::numerical_error::ensure_finite_values;
-use crate::molecules::molecule::Molecule;
 use crate::runfile::hf::GuessPerturbationConfig;
 use nalgebra::DMatrix;
 
@@ -20,38 +17,16 @@ impl OneElectron {
 
 impl DensityGuess for OneElectron {
     type Error = DensityGuessError;
-    fn build_density_guess(
+    fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
-        molecule: &Molecule,
         _basis: &Basis,
-        _orthogonalizer: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, Self::Error> {
-        // Check that H_core is symmetric
+    ) -> Result<OrbitalGuess, Self::Error> {
         crate::debug_assert_is_symmetric!(h_core, 1e-8);
-        let h_core = perturb_fock_like_matrix(h_core, self.perturbation)?;
-
-        // Diagonalize H_core to obtain the initial MO coefficients
-        let eig = h_core.symmetric_eigen();
-        ensure_finite_values(&eig.eigenvalues, "orbital energies")?;
-        let mut order: Vec<usize> = (0..eig.eigenvalues.len()).collect();
-        order.sort_by(|&a, &b| eig.eigenvalues[a].total_cmp(&eig.eigenvalues[b]));
-        let sorted_vectors = order
-            .iter()
-            .map(|&i| eig.eigenvectors.column(i).into_owned())
-            .collect::<Vec<_>>();
-        let mo_coefficients = DMatrix::from_columns(&sorted_vectors);
-        let _orbital_energies = eig.eigenvalues; // Not used here, but available if needed
-
-        // Determine the number of occupied orbitals
-        let occupied_orbitals = molecule.occupied_orbitals();
-
-        // Extract the occupied orbital columns
-        let occupied_columns: Vec<usize> = (0..occupied_orbitals).collect();
-        let c_occ = mo_coefficients.select_columns(&occupied_columns);
-
-        // Calculate the electron density matrix D = 2 * C_occ * C_occ^T
-        Ok(2.0 * &c_occ * &c_occ.transpose())
+        Ok(OrbitalGuess::FockLike(perturb_fock_like_matrix(
+            h_core,
+            self.perturbation,
+        )?))
     }
 }
 
@@ -64,6 +39,7 @@ mod tests {
     use crate::hf::scf::ScfCalculation;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
+    use crate::molecules::molecule::Molecule;
     use crate::test_utils;
     use nalgebra::point;
     use std::convert::Infallible;
@@ -73,15 +49,15 @@ mod tests {
 
     impl DensityGuess for TestDensityGuess {
         type Error = Infallible;
-        fn build_density_guess(
+        fn build_orbital_guess(
             &self,
             h_core: &DMatrix<f64>,
-            _molecule: &Molecule,
             _basis: &Basis,
-            _orthogonalizer: &DMatrix<f64>,
-        ) -> Result<DMatrix<f64>, Self::Error> {
-            // Use Identity for tests
-            Ok(DMatrix::identity(h_core.nrows(), h_core.ncols()))
+        ) -> Result<OrbitalGuess, Self::Error> {
+            Ok(OrbitalGuess::FockLike(DMatrix::identity(
+                h_core.nrows(),
+                h_core.ncols(),
+            )))
         }
     }
 
@@ -121,8 +97,8 @@ mod tests {
         // Check that the density is symmetric
         crate::debug_assert_is_symmetric!(&density, 1e-8);
 
-        // Check that the density trace matches the number of electrons
-        let trace = density.trace();
+        // AO densities are normalized in the overlap metric, not the Euclidean trace.
+        let trace = (&density * basis.overlap_ints()).trace();
         let expected_trace = molecule.total_electrons() as f64;
         assert!(
             (trace - expected_trace).abs() < 1e-6,

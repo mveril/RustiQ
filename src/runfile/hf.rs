@@ -388,7 +388,7 @@ mod tests {
         let random_config: HfConfig = toml_spanner::from_str(
             r#"
             [guess]
-            type = "RandomSymmetric"
+            type = "Random"
             distribution = "Normal"
             mean = 0.0
             std_dev = 0.5
@@ -398,7 +398,7 @@ mod tests {
         .unwrap();
         let random_toml = toml_spanner::to_string(&random_config).unwrap();
 
-        assert!(random_toml.contains("type = \"RandomSymmetric\""));
+        assert!(random_toml.contains("type = \"Random\""));
         assert!(random_toml.contains("distribution = \"Normal\""));
         assert!(random_toml.contains("seed = 42"));
     }
