@@ -1,5 +1,5 @@
-use std::fmt::{self, Display, Formatter};
 use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
 enum ParseElementError {
@@ -12,11 +12,11 @@ impl Display for ParseElementError {
         match self {
             ParseElementError::ZNotFound(z) => {
                 write!(f, "Element with atomic number {} not found.", z)
-            },
+            }
             ParseElementError::SymbolNotFound(symbols) => {
                 let symbols_str = symbols.join(", ");
                 write!(f, "Element with symbol {} not found", symbols_str)
-            },
+            }
         }
     }
 }

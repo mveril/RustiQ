@@ -39,7 +39,7 @@ with:
 ```sh
 nix flake check --all-systems --no-build
 nix flake check
-nix fmt -- --fail-on-change
+nix fmt -- --fail-on-change # Nix, Rust, Python, TOML, YAML, JSON, and Markdown
 nix run .#pyscf-check
 ```
 

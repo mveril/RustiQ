@@ -65,7 +65,9 @@ impl std::fmt::Display for ResolvedHfMethod {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum HfMethodResolutionError {
-    #[error("RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}")]
+    #[error(
+        "RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}"
+    )]
     RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
 }
 

@@ -13,6 +13,11 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -40,6 +45,7 @@
       pyproject-build-systems,
       pyproject-nix,
       rust-overlay,
+      treefmt-nix,
       uv2nix,
       ...
     }:
@@ -76,6 +82,21 @@
           cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
           sourceRoot = ./.;
+
+          treefmt = treefmt-nix.lib.evalModule pkgs {
+            projectRootFile = "flake.nix";
+            programs = {
+              nixfmt.enable = true;
+              prettier.enable = true;
+              ruff-format.enable = true;
+              rustfmt = {
+                enable = true;
+                edition = "2021";
+                package = rustToolchain;
+              };
+              taplo.enable = true;
+            };
+          };
 
           cargoSource = pkgs.lib.cleanSourceWith {
             src = sourceRoot;
@@ -264,14 +285,9 @@
             default = full;
           };
 
-          formatter = pkgs.nixfmt-tree;
+          formatter = treefmt.config.build.wrapper;
 
-          checks.formatting = craneLib.cargoFmt { src = cargoSource; };
-
-          checks.nix-formatting = pkgs.runCommand "rustiq-nix-formatting" { } ''
-            ${pkgs.nixfmt}/bin/nixfmt --check ${./flake.nix}
-            touch "$out"
-          '';
+          checks.formatting = treefmt.config.build.check sourceRoot;
 
           checks.clippy = craneLib.cargoClippy (
             commonCargoArgs

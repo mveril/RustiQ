@@ -3,26 +3,13 @@ name = "rustiq-reference-tools"
 version = "0.0.0"
 description = "Python tooling used to validate RustiQ against reference implementations"
 requires-python = ">=3.12,<3.15"
-dependencies = [
-    "pyscf==2.14.0",
-]
+dependencies = ["pyscf==2.14.0"]
 
 [dependency-groups]
-test = [
-    "pytest",
-]
-dev = [
-    "ipykernel",
-    "jupyterlab",
-    "matplotlib",
-    "numpy",
-    "scipy",
-]
+test = ["pytest"]
+dev = ["ipykernel", "jupyterlab", "matplotlib", "numpy", "scipy"]
 
 [tool.uv]
 package = false
-environments = [
-    "sys_platform == 'darwin'",
-    "sys_platform == 'linux'",
-]
+environments = ["sys_platform == 'darwin'", "sys_platform == 'linux'"]
 no-build = true
