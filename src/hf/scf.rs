@@ -167,7 +167,10 @@ impl<'a> ScfCalculation<'a> {
             .build_orbital_guess(&h_core, basis)
             .map_err(ScfSetupError::DensityGuess)?;
         let (density_matrix, mo_coefficients, orbital_energies) = match orbital_guess {
-            OrbitalGuess::FockLike(fock_like) => {
+            OrbitalGuess::CommonFockLike(fock_like)
+            | OrbitalGuess::UnrestrictedFockLike(crate::hf::uhf::Spin {
+                alpha: fock_like, ..
+            }) => {
                 let mo_coefficients =
                     mo_coefficients_from_fock_like_matrix(&fock_like, &orthogonalizer)?;
                 let density_matrix =
@@ -491,7 +494,7 @@ mod tests {
             _h_core: &DMatrix<f64>,
             basis: &gaussian::basis::Basis,
         ) -> Result<OrbitalGuess, Self::Error> {
-            Ok(OrbitalGuess::FockLike(DMatrix::identity(
+            Ok(OrbitalGuess::CommonFockLike(DMatrix::identity(
                 basis.nbasis(),
                 basis.nbasis(),
             )))

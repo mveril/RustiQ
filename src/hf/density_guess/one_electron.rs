@@ -1,4 +1,6 @@
-use super::{perturb_fock_like_matrix, DensityGuess, DensityGuessError, OrbitalGuess};
+use super::{
+    unrestricted_perturb_fock_like_matrices, DensityGuess, DensityGuessError, OrbitalGuess,
+};
 use crate::basis::gaussian::basis::Basis;
 use crate::runfile::hf::GuessPerturbationConfig;
 use nalgebra::DMatrix;
@@ -23,10 +25,12 @@ impl DensityGuess for OneElectron {
         _basis: &Basis,
     ) -> Result<OrbitalGuess, Self::Error> {
         crate::debug_assert_is_symmetric!(h_core, 1e-8);
-        Ok(OrbitalGuess::FockLike(perturb_fock_like_matrix(
-            h_core,
-            self.perturbation,
-        )?))
+        match self.perturbation {
+            Some(perturbation) => {
+                unrestricted_perturb_fock_like_matrices(h_core, perturbation).map_err(Into::into)
+            }
+            None => Ok(OrbitalGuess::CommonFockLike(h_core.clone())),
+        }
     }
 }
 
@@ -54,7 +58,7 @@ mod tests {
             h_core: &DMatrix<f64>,
             _basis: &Basis,
         ) -> Result<OrbitalGuess, Self::Error> {
-            Ok(OrbitalGuess::FockLike(DMatrix::identity(
+            Ok(OrbitalGuess::CommonFockLike(DMatrix::identity(
                 h_core.nrows(),
                 h_core.ncols(),
             )))
