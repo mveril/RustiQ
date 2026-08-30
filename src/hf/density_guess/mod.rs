@@ -2,7 +2,6 @@ use self::one_electron::OneElectron;
 use self::random::Random;
 use crate::basis::gaussian::basis::Basis;
 use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
-use crate::hf::density_guess::random_symmetric::RandomSymmetric;
 use crate::hf::density_guess::zero::Zero;
 use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
 use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
@@ -24,7 +23,6 @@ pub(crate) enum DensityGuessError {
 pub(crate) mod core_hamiltonian;
 pub(crate) mod one_electron;
 pub(crate) mod random;
-pub(crate) mod random_symmetric;
 pub(crate) mod zero;
 
 pub(crate) trait DensityGuess: Send + Sync {
@@ -62,9 +60,6 @@ impl DensityGuess for DensityGuessConfig {
             }
             DensityGuessConfig::Random { config } => {
                 Random::new(*config).build_orbital_guess(h_core, basis)
-            }
-            DensityGuessConfig::RandomSymmetric { config } => {
-                RandomSymmetric::new(*config).build_orbital_guess(h_core, basis)
             }
             DensityGuessConfig::Zero => Ok(Zero::build_orbital_guess(&Zero, h_core, basis)
                 .unwrap_or_else(|error| match error {})),
@@ -249,9 +244,6 @@ mod tests {
             DensityGuessConfig::Random {
                 config: RandomGuessConfig::default(),
             },
-            DensityGuessConfig::RandomSymmetric {
-                config: RandomGuessConfig::default(),
-            },
             DensityGuessConfig::Zero,
         ] {
             let density = guess_type
@@ -291,14 +283,14 @@ mod tests {
     }
 
     #[test]
-    fn test_symmetric_density_guesses_are_symmetric() {
+    fn test_random_density_guess_is_symmetric() {
         let (molecule, basis, h_core) = h2_system();
         let orthogonalizer = orthogonalizer(&basis);
 
         for guess in [
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
             DensityGuessConfig::OneElectron { perturbation: None },
-            DensityGuessConfig::RandomSymmetric {
+            DensityGuessConfig::Random {
                 config: RandomGuessConfig::default(),
             },
             DensityGuessConfig::Zero,
@@ -321,9 +313,6 @@ mod tests {
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
             DensityGuessConfig::OneElectron { perturbation: None },
             DensityGuessConfig::Random {
-                config: RandomGuessConfig::default(),
-            },
-            DensityGuessConfig::RandomSymmetric {
                 config: RandomGuessConfig::default(),
             },
         ] {
@@ -436,18 +425,6 @@ mod tests {
                 type = "CoreHamiltonian"
                 "#,
                 DensityGuessConfig::CoreHamiltonian { perturbation: None },
-            ),
-            (
-                r#"
-                [guess]
-                type = "RandomSymmetric"
-                distribution = "Uniform"
-                min = -1.0
-                max = 1.0
-                "#,
-                DensityGuessConfig::RandomSymmetric {
-                    config: RandomGuessConfig::default(),
-                },
             ),
         ] {
             let config: GuessConfig = toml_spanner::from_str(toml).unwrap();

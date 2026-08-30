@@ -17,10 +17,6 @@ pub(crate) enum DensityGuessConfig {
         #[toml(default, flatten, with = flatten_any)]
         config: RandomGuessConfig,
     },
-    RandomSymmetric {
-        #[toml(default, flatten, with = flatten_any)]
-        config: RandomGuessConfig,
-    },
     Zero,
 }
 
