@@ -4,6 +4,7 @@ use crate::basis::gaussian::basis::Basis;
 use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::zero::Zero;
 use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
+use crate::hf::uhf::Spin;
 use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
 use crate::runfile::random_config::distribution_config::{
     DistributionCreationError, RandomSampler,
@@ -36,10 +37,11 @@ pub(crate) trait DensityGuess: Send + Sync {
 
 /// Input to the shared SCF orbital-to-density construction path.
 ///
-/// Strategies cannot return an arbitrary AO density matrix: normal guesses provide a
-/// symmetric Fock-like matrix, while `Zero` is an explicit startup sentinel.
+/// Strategies cannot return an arbitrary AO density matrix: normal guesses provide
+/// symmetric Fock-like matrices, while `Zero` is an explicit startup sentinel.
 pub(crate) enum OrbitalGuess {
-    FockLike(DMatrix<f64>),
+    CommonFockLike(DMatrix<f64>),
+    UnrestrictedFockLike(Spin<DMatrix<f64>>),
     Zero,
 }
 
@@ -67,19 +69,20 @@ impl DensityGuess for DensityGuessConfig {
     }
 }
 
-pub(crate) fn perturb_fock_like_matrix(
+pub(crate) fn unrestricted_perturb_fock_like_matrices(
     fock_like: &DMatrix<f64>,
-    perturbation: Option<GuessPerturbationConfig>,
-) -> Result<DMatrix<f64>, DistributionCreationError> {
-    let Some(perturbation) = perturbation else {
-        return Ok(fock_like.clone());
-    };
-    Ok(fock_like + symmetric_random_matrix(fock_like.nrows(), perturbation.random.sample_iter()?)?)
+    perturbation: GuessPerturbationConfig,
+) -> Result<OrbitalGuess, DistributionCreationError> {
+    let mut sampler = perturbation.random.sample_iter()?;
+    Ok(OrbitalGuess::UnrestrictedFockLike(Spin::new(
+        fock_like + symmetric_random_matrix(fock_like.nrows(), &mut sampler)?,
+        fock_like + symmetric_random_matrix(fock_like.nrows(), &mut sampler)?,
+    )))
 }
 
-fn symmetric_random_matrix<T: RandomSampler>(
+pub(crate) fn symmetric_random_matrix<T: RandomSampler + ?Sized>(
     size: usize,
-    mut sampler: T,
+    sampler: &mut T,
 ) -> Result<DMatrix<f64>, DistributionCreationError> {
     let mut matrix = DMatrix::zeros(size, size);
     for i in 0..size {
@@ -146,9 +149,15 @@ mod tests {
             orthogonalizer: &DMatrix<f64>,
         ) -> Result<DMatrix<f64>, Box<dyn Error>> {
             match self.build_orbital_guess(h_core, basis)? {
-                OrbitalGuess::FockLike(fock_like) => {
+                OrbitalGuess::CommonFockLike(fock_like) => {
                     let coefficients =
                         mo_coefficients_from_fock_like_matrix(&fock_like, orthogonalizer)?;
+                    let occupied = coefficients.columns(0, molecule.occupied_orbitals());
+                    Ok(2.0 * occupied * occupied.transpose())
+                }
+                OrbitalGuess::UnrestrictedFockLike(Spin { alpha, .. }) => {
+                    let coefficients =
+                        mo_coefficients_from_fock_like_matrix(&alpha, orthogonalizer)?;
                     let occupied = coefficients.columns(0, molecule.occupied_orbitals());
                     Ok(2.0 * occupied * occupied.transpose())
                 }

@@ -41,22 +41,22 @@ pub(crate) struct Spin<T> {
 }
 
 impl<T> Spin<T> {
-    fn new(alpha: T, beta: T) -> Self {
+    pub(crate) fn new(alpha: T, beta: T) -> Self {
         Self { alpha, beta }
     }
 
     #[cfg(test)]
-    fn as_ref(&self) -> Spin<&T> {
+    pub(crate) fn as_ref(&self) -> Spin<&T> {
         Spin::new(&self.alpha, &self.beta)
     }
 
-    fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
+    pub(crate) fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
         Spin::new(f(self.alpha, other.alpha), f(self.beta, other.beta))
     }
 }
 
 impl<T: Clone> Spin<T> {
-    fn duplicate(value: T) -> Self {
+    pub(crate) fn duplicate(value: T) -> Self {
         Self {
             alpha: value.clone(),
             beta: value,
@@ -176,20 +176,37 @@ impl<'a> UhfCalculation<'a> {
             .build_orbital_guess(&h_core, basis)
             .map_err(ScfSetupError::DensityGuess)?;
         let (density, mo_coefficients, orbital_energies) = match orbital_guess {
-            OrbitalGuess::FockLike(fock_like) => {
-                let mo_coefficients =
+            OrbitalGuess::CommonFockLike(fock_like) => {
+                let coefficients =
                     mo_coefficients_from_fock_like_matrix(&fock_like, &orthogonalizer)
                         .map_err(ScfSetupError::Numerical)?;
-                let density = SpinMatrices::duplicate(mo_coefficients.clone())
+                let mo_coefficients = SpinMatrices::duplicate(coefficients);
+                let density = mo_coefficients
+                    .clone()
                     .zip_map(occupied_orbitals, |coefficients, occupied| {
                         density_from_mo_coefficients(&coefficients, occupied)
                     });
-                let orbital_energies = Spin::duplicate(DVector::zeros(mo_coefficients.ncols()));
-                (
-                    density,
-                    SpinMatrices::duplicate(mo_coefficients),
-                    orbital_energies,
-                )
+                let orbital_energies =
+                    Spin::duplicate(DVector::zeros(mo_coefficients.alpha.ncols()));
+                (density, mo_coefficients, orbital_energies)
+            }
+            OrbitalGuess::UnrestrictedFockLike(Spin { alpha, beta }) => {
+                let mo_coefficients = SpinMatrices::new(
+                    mo_coefficients_from_fock_like_matrix(&alpha, &orthogonalizer)
+                        .map_err(ScfSetupError::Numerical)?,
+                    mo_coefficients_from_fock_like_matrix(&beta, &orthogonalizer)
+                        .map_err(ScfSetupError::Numerical)?,
+                );
+                let density = mo_coefficients
+                    .clone()
+                    .zip_map(occupied_orbitals, |coefficients, occupied| {
+                        density_from_mo_coefficients(&coefficients, occupied)
+                    });
+                let orbital_energies = Spin::new(
+                    DVector::zeros(mo_coefficients.alpha.ncols()),
+                    DVector::zeros(mo_coefficients.beta.ncols()),
+                );
+                (density, mo_coefficients, orbital_energies)
             }
             OrbitalGuess::Zero => (
                 SpinMatrices::duplicate(DMatrix::zeros(basis.nbasis(), basis.nbasis())),
@@ -501,9 +518,107 @@ mod tests {
     use super::*;
     use crate::{
         hf::density_guess::{core_hamiltonian::CoreHamiltonian, one_electron::OneElectron},
+        runfile::{
+            hf::GuessPerturbationConfig,
+            random_config::{
+                distribution_config::NormalDistributionConfig, DistributionConfig, RandomConfig,
+            },
+            validated::PositiveFiniteF64,
+        },
         test_utils,
     };
     use approx::assert_abs_diff_eq;
+
+    fn perturbed_core_guess(seed: u64, std_dev: f64) -> CoreHamiltonian {
+        CoreHamiltonian::new(Some(GuessPerturbationConfig {
+            random: RandomConfig {
+                distribution: DistributionConfig::Normal {
+                    config: NormalDistributionConfig {
+                        mean: 0.0,
+                        std_dev: PositiveFiniteF64::try_new(std_dev).unwrap(),
+                    },
+                },
+                seed: Some(seed),
+            },
+        }))
+    }
+
+    fn assert_symmetric(matrix: &DMatrix<f64>) {
+        assert_abs_diff_eq!(matrix, &matrix.transpose(), epsilon = 1e-10);
+    }
+
+    fn closed_shell_h2() -> (Molecule, Basis) {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+        (molecule, basis)
+    }
+
+    #[test]
+    fn test_perturbed_uhf_guess_has_distinct_normalized_spin_densities() {
+        let (molecule, basis) = closed_shell_h2();
+        let uhf = UhfCalculation::new(
+            &molecule,
+            &basis,
+            100,
+            1e-8,
+            1e-8,
+            perturbed_core_guess(42, 1e-4),
+        )
+        .unwrap();
+
+        let overlap = basis.overlap_ints();
+        assert!(
+            (&uhf.density.alpha - &uhf.density.beta).norm() > 1e-10,
+            "spin-resolved initial densities must differ"
+        );
+        for (density, coefficients) in [
+            (&uhf.density.alpha, &uhf.mo_coefficients.alpha),
+            (&uhf.density.beta, &uhf.mo_coefficients.beta),
+        ] {
+            assert_symmetric(density);
+            assert_abs_diff_eq!((density * &overlap).trace(), 1.0, epsilon = 1e-8);
+            assert_abs_diff_eq!(
+                coefficients.transpose() * &overlap * coefficients,
+                DMatrix::identity(coefficients.ncols(), coefficients.ncols()),
+                epsilon = 1e-8
+            );
+        }
+    }
+
+    #[test]
+    fn test_seeded_perturbed_uhf_guess_is_reproducible() {
+        let (molecule, basis) = closed_shell_h2();
+        let first = UhfCalculation::new(
+            &molecule,
+            &basis,
+            100,
+            1e-8,
+            1e-8,
+            perturbed_core_guess(7, 1e-4),
+        )
+        .unwrap();
+        let second = UhfCalculation::new(
+            &molecule,
+            &basis,
+            100,
+            1e-8,
+            1e-8,
+            perturbed_core_guess(7, 1e-4),
+        )
+        .unwrap();
+
+        assert_eq!(first.density.alpha, second.density.alpha);
+        assert_eq!(first.density.beta, second.density.beta);
+        assert_eq!(first.mo_coefficients.alpha, second.mo_coefficients.alpha);
+        assert_eq!(first.mo_coefficients.beta, second.mo_coefficients.beta);
+    }
 
     #[test]
     fn test_uhf_h2_singlet_matches_rhf_reference_energy() {
@@ -532,6 +647,64 @@ mod tests {
             epsilon = 1e-8
         );
         assert_abs_diff_eq!(result.total_energy, PYSCF_RHF_TOTAL_ENERGY, epsilon = 1e-8);
+    }
+
+    #[test]
+    fn test_stretched_h2_uhf_breaks_spin_symmetry_and_lowers_energy() {
+        // PySCF UHF/STO-3G at R = 4 bohr, seeded from atom-localized spin densities.
+        const PYSCF_BROKEN_SYMMETRY_TOTAL_ENERGY: f64 = -0.935_842_328_314;
+
+        let mut geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        geometry.atoms[0].position.z = -2.0;
+        geometry.atoms[1].position.z = 2.0;
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+
+        let mut common = UhfCalculation::new(
+            &molecule,
+            &basis,
+            200,
+            1e-10,
+            1e-8,
+            CoreHamiltonian::default(),
+        )
+        .unwrap();
+        let common_result = common.run().unwrap();
+
+        let mut broken = UhfCalculation::new(
+            &molecule,
+            &basis,
+            200,
+            1e-10,
+            1e-8,
+            perturbed_core_guess(42, 0.1),
+        )
+        .unwrap();
+        let broken_result = broken.run().unwrap();
+
+        assert!(common_result.converged);
+        assert!(broken_result.converged);
+        assert!(
+            (&broken.density.alpha - &broken.density.beta).norm() > 1e-5,
+            "stretched H2 must retain a broken-symmetry density"
+        );
+        assert!(
+            broken_result.total_energy < common_result.total_energy - 1e-6,
+            "broken-symmetry UHF energy ({}) must be below common-orbital energy ({})",
+            broken_result.total_energy,
+            common_result.total_energy
+        );
+        assert_abs_diff_eq!(
+            broken_result.total_energy,
+            PYSCF_BROKEN_SYMMETRY_TOTAL_ENERGY,
+            epsilon = 1e-8
+        );
     }
 
     #[test]
