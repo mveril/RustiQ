@@ -217,7 +217,14 @@ impl Basis {
                 function_type: *function_type,
             });
         }
-        for (&atomic_number, element) in &basis_file.elements {
+        for atom in &mol.atoms {
+            let atomic_number = atom.element.atomic_number;
+            let Some(element) = basis_file.elements.get(&atomic_number) else {
+                return Err(BasisError::MissingElement { atomic_number });
+            };
+            if element.electron_shells.is_empty() {
+                return Err(BasisError::MissingElement { atomic_number });
+            }
             if element.ecp_electrons != 0 || !element.ecp_potentials.is_empty() {
                 return Err(BasisError::UnsupportedEcp {
                     atomic_number,
@@ -312,16 +319,6 @@ impl Basis {
                         });
                     }
                 }
-            }
-        }
-        for atom in &mol.atoms {
-            let atomic_number = atom.element.atomic_number;
-            if !basis_file
-                .elements
-                .get(&atomic_number)
-                .is_some_and(|element| !element.electron_shells.is_empty())
-            {
-                return Err(BasisError::MissingElement { atomic_number });
             }
         }
         Ok(())
@@ -884,6 +881,18 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn try_load_ignores_unsupported_shells_for_unused_elements() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        let mut other_basis_file = test_utils::load_minimal_basis_file();
+        let mut unused_element = other_basis_file.elements.remove(&1).unwrap();
+        unused_element.electron_shells[0].function_type = FunctionType::GtoSpherical;
+        unused_element.electron_shells[0].angular_momentum = vec![3];
+        basis_file.elements.insert(29, unused_element);
+
+        assert!(Basis::try_load(&basis_file, &hydrogen_geometry()).is_ok());
     }
 
     #[test]
