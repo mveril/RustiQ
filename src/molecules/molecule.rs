@@ -13,13 +13,17 @@ pub struct Molecule {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MoleculeError {
-    #[error("invalid molecular electron count: nuclear charge = {nuclear_charge}, molecular charge = {charge}, total electrons = {electrons}")]
+    #[error(
+        "invalid molecular electron count: nuclear charge = {nuclear_charge}, molecular charge = {charge}, total electrons = {electrons}"
+    )]
     InvalidElectronCount {
         nuclear_charge: i32,
         charge: i32,
         electrons: i32,
     },
-    #[error("invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}")]
+    #[error(
+        "invalid electron configuration: total electrons = {electrons}, multiplicity = {multiplicity}"
+    )]
     IncompatibleMultiplicity { electrons: usize, multiplicity: u8 },
 }
 

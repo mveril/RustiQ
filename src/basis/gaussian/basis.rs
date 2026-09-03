@@ -29,13 +29,17 @@ pub struct Basis {
 pub enum BasisError {
     #[error("basis file declares unsupported function type {function_type:?}")]
     UnsupportedDeclaredFunctionType { function_type: FunctionType },
-    #[error("basis data for element Z={atomic_number} contains an ECP ({ecp_electrons} core electrons, {potential_count} potentials), but RustiQ does not support ECPs")]
+    #[error(
+        "basis data for element Z={atomic_number} contains an ECP ({ecp_electrons} core electrons, {potential_count} potentials), but RustiQ does not support ECPs"
+    )]
     UnsupportedEcp {
         atomic_number: u32,
         ecp_electrons: usize,
         potential_count: usize,
     },
-    #[error("electron shell {shell_index} for element Z={atomic_number} uses unsupported function type {function_type:?}")]
+    #[error(
+        "electron shell {shell_index} for element Z={atomic_number} uses unsupported function type {function_type:?}"
+    )]
     UnsupportedFunctionType {
         atomic_number: u32,
         shell_index: usize,
@@ -51,14 +55,18 @@ pub enum BasisError {
         atomic_number: u32,
         shell_index: usize,
     },
-    #[error("electron shell {shell_index} for element Z={atomic_number} has {angular_momenta} angular momenta but {coefficient_groups} coefficient groups")]
+    #[error(
+        "electron shell {shell_index} for element Z={atomic_number} has {angular_momenta} angular momenta but {coefficient_groups} coefficient groups"
+    )]
     ContractionCountMismatch {
         atomic_number: u32,
         shell_index: usize,
         angular_momenta: usize,
         coefficient_groups: usize,
     },
-    #[error("coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} has length {coefficients}, expected {exponents}")]
+    #[error(
+        "coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} has length {coefficients}, expected {exponents}"
+    )]
     PrimitiveCountMismatch {
         atomic_number: u32,
         shell_index: usize,
@@ -66,14 +74,18 @@ pub enum BasisError {
         exponents: usize,
         coefficients: usize,
     },
-    #[error("electron shell {shell_index} for element Z={atomic_number} contains an invalid exponent at index {exponent_index}: {value} (expected a finite positive number)")]
+    #[error(
+        "electron shell {shell_index} for element Z={atomic_number} contains an invalid exponent at index {exponent_index}: {value} (expected a finite positive number)"
+    )]
     InvalidExponent {
         atomic_number: u32,
         shell_index: usize,
         exponent_index: usize,
         value: f64,
     },
-    #[error("coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} contains a non-finite coefficient at index {coefficient_index}: {value}")]
+    #[error(
+        "coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} contains a non-finite coefficient at index {coefficient_index}: {value}"
+    )]
     InvalidCoefficient {
         atomic_number: u32,
         shell_index: usize,
@@ -81,13 +93,17 @@ pub enum BasisError {
         coefficient_index: usize,
         value: f64,
     },
-    #[error("coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} is identically zero")]
+    #[error(
+        "coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} is identically zero"
+    )]
     ZeroContraction {
         atomic_number: u32,
         shell_index: usize,
         coefficient_group: usize,
     },
-    #[error("electron shell {shell_index} for element Z={atomic_number} uses unsupported angular momentum l={angular_momentum} for {function_type:?}")]
+    #[error(
+        "electron shell {shell_index} for element Z={atomic_number} uses unsupported angular momentum l={angular_momentum} for {function_type:?}"
+    )]
     UnsupportedAngularMomentum {
         atomic_number: u32,
         shell_index: usize,

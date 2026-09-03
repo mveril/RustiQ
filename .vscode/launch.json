@@ -7,14 +7,10 @@
     {
       "type": "lldb",
       "request": "launch",
-      "env": {"RUST_BACKTRACE":"1"},
+      "env": { "RUST_BACKTRACE": "1" },
       "name": "Debug executable 'RustiQ'",
       "cargo": {
-        "args": [
-          "build",
-          "--bin=RustiQ",
-          "--package=RustiQ",
-        ],
+        "args": ["build", "--bin=RustiQ", "--package=RustiQ"],
         "filter": {
           "name": "RustiQ",
           "kind": "bin"
@@ -28,12 +24,7 @@
       "request": "launch",
       "name": "Debug unit tests in executable 'RustiQ'",
       "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--bin=RustiQ",
-          "--package=RustiQ",
-        ],
+        "args": ["test", "--no-run", "--bin=RustiQ", "--package=RustiQ"],
         "filter": {
           "name": "RustiQ",
           "kind": "bin"

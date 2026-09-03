@@ -369,12 +369,12 @@ cargo run -- run samples/h2/sto-3g/calculation.toml
 Four shells are available so that contributors only load the tools needed for
 their current task:
 
-| Shell | Contents | Command |
-| --- | --- | --- |
-| `mini-rust` | Rust toolchain and native build dependencies | `nix develop .#mini-rust` |
-| `rust` | Complete Rust development, debugging, and profiling tools without Python | `nix develop .#rust` |
-| `mini-pyscf` | Minimal Rust build environment plus Python and PySCF | `nix develop .#mini-pyscf` |
-| `full` | Complete Rust and scientific Python environment | `nix develop .#full` |
+| Shell        | Contents                                                                 | Command                    |
+| ------------ | ------------------------------------------------------------------------ | -------------------------- |
+| `mini-rust`  | Rust toolchain and native build dependencies                             | `nix develop .#mini-rust`  |
+| `rust`       | Complete Rust development, debugging, and profiling tools without Python | `nix develop .#rust`       |
+| `mini-pyscf` | Minimal Rust build environment plus Python and PySCF                     | `nix develop .#mini-pyscf` |
+| `full`       | Complete Rust and scientific Python environment                          | `nix develop .#full`       |
 
 Running `nix develop` without a shell name selects `full`.
 
@@ -499,7 +499,27 @@ Floating-point quantities are JSON numbers serialized directly from RustiQ's
 `f64` results, without display rounding. For example:
 
 ```json
-{"schema_version":1,"calculation":{"hf":{"method":"RHF","converged":true,"iterations":2,"electronic_energy":-1.831863646477507,"nuclear_repulsion_energy":0.715104339081081,"total_energy":-1.116759307396426,"delta_energy":0.0,"residual_norm":0.0,"orthogonalization":{"ao_basis_dimension":2,"effective_rank":2,"discarded_directions":0,"relative_linear_dependency_threshold":1e-8}}}}
+{
+  "schema_version": 1,
+  "calculation": {
+    "hf": {
+      "method": "RHF",
+      "converged": true,
+      "iterations": 2,
+      "electronic_energy": -1.831863646477507,
+      "nuclear_repulsion_energy": 0.715104339081081,
+      "total_energy": -1.116759307396426,
+      "delta_energy": 0.0,
+      "residual_norm": 0.0,
+      "orthogonalization": {
+        "ao_basis_dimension": 2,
+        "effective_rank": 2,
+        "discarded_directions": 0,
+        "relative_linear_dependency_threshold": 1e-8
+      }
+    }
+  }
+}
 ```
 
 Future additions may extend this versioned schema; consumers should check

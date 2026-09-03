@@ -180,7 +180,7 @@ mod tests {
                     };
                     let error = (result - expected).abs();
                     assert!(
-                    error <= 1e-9,
+                        error <= 1e-9,
                         "max_order={max_order}, m={m}, x={x}, result={result}, expected={expected}, error={error}"
                     );
                 }

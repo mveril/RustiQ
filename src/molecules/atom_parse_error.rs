@@ -1,9 +1,6 @@
-pub (crate) enum AtomParseError{
-  LineShouldHaveForPart,
-  AtomCoordinateError(usize,ParseFloatError)
-
+pub(crate) enum AtomParseError {
+    LineShouldHaveForPart,
+    AtomCoordinateError(usize, ParseFloatError),
 }
 
-impl Error for AtomParseError{
-  
-}
+impl Error for AtomParseError {}
