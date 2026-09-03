@@ -2,8 +2,7 @@
 """Helpers and reference cases for RustiQ/PySCF pytest comparisons.
 
 The script is intended for development checks, not for the Rust test suite.
-It prepares an isolated RustiQ basis store from tests/data/sto-3g.json so it
-does not need network access for the RustiQ runs.
+It prepares an isolated store from basis files fetched through RustiQ from BSE.
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ class ReferenceCase:
     conv_tol: float
     max_cycle: int
     tolerance: float
+    ao_dimension: int
     mp2: bool = False
     mp2_tolerance: float | None = None
 
@@ -50,6 +50,75 @@ CASES = [
         # The JSON contract preserves the Rust f64 rather than the former
         # six-decimal text report. H2 is deterministic and non-degenerate.
         tolerance=2e-10,
+        ao_dimension=2,
+    ),
+    ReferenceCase(
+        name="h2-6-31g-rhf",
+        runfile=REPO_ROOT / "samples/h2/6-31g/calculation.toml",
+        xyz=REPO_ROOT / "samples/h2/molecule.xyz",
+        basis="6-31g",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        # The remaining difference is about 3.7e-9 Hartree.
+        tolerance=5e-9,
+        ao_dimension=4,
+    ),
+    ReferenceCase(
+        name="h2-cc-pvdz-rhf",
+        runfile=REPO_ROOT / "samples/h2/cc-pvdz/calculation.toml",
+        xyz=REPO_ROOT / "samples/h2/molecule.xyz",
+        basis="cc-pvdz",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        tolerance=2e-9,
+        ao_dimension=10,
+    ),
+    ReferenceCase(
+        name="h2o-sto-3g-rhf",
+        runfile=REPO_ROOT / "samples/h2o/sto-3g/calculation.toml",
+        xyz=REPO_ROOT / "samples/h2o/h2o.xyz",
+        basis="sto-3g",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        # The BSE coefficients reproduce PySCF within about 2.5e-8 Hartree.
+        tolerance=3e-8,
+        ao_dimension=7,
+    ),
+    ReferenceCase(
+        name="h2o-6-31g-rhf",
+        runfile=REPO_ROOT / "samples/h2o/6-31g/calculation.toml",
+        xyz=REPO_ROOT / "samples/h2o/h2o.xyz",
+        basis="6-31g",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        # The BSE coefficients reproduce PySCF within about 7e-9 Hartree.
+        tolerance=1e-8,
+        ao_dimension=13,
+    ),
+    ReferenceCase(
+        name="h2o-cc-pvdz-rhf",
+        runfile=REPO_ROOT / "samples/h2o/cc-pvdz/calculation.toml",
+        xyz=REPO_ROOT / "samples/h2o/h2o.xyz",
+        basis="cc-pvdz",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-10,
+        max_cycle=80,
+        tolerance=1e-10,
+        ao_dimension=24,
     ),
     ReferenceCase(
         name="h2-plus-sto-3g-uhf",
@@ -64,6 +133,7 @@ CASES = [
         # H2+ is deterministic and non-degenerate; its UHF implementation
         # difference is about 8e-10 Hartree, still far below the old text limit.
         tolerance=1e-9,
+        ao_dimension=2,
     ),
     ReferenceCase(
         name="oh-sto-3g-uhf",
@@ -78,6 +148,7 @@ CASES = [
         # OH has open-shell orbital near-degeneracies and backend-dependent
         # convergence behavior, so retain its scientifically justified margin.
         tolerance=1e-5,
+        ao_dimension=6,
     ),
     ReferenceCase(
         name="h2-sto-3g-rhf-mp2",
@@ -90,6 +161,7 @@ CASES = [
         conv_tol=1e-10,
         max_cycle=80,
         tolerance=2e-10,
+        ao_dimension=2,
         mp2=True,
         mp2_tolerance=1e-10,
     ),
@@ -126,12 +198,14 @@ def prepare_rustiq_env() -> dict[str, str]:
     env = os.environ.copy()
     env["RUSTIQ_DATA_HOME"] = str(data_home)
     env["RUSTIQ_AUTO_DOWNLOAD"] = "0"
+    fixture_store = REPO_ROOT / "tests/data/reference/RustiQ/basis_sets"
     basis_store = data_home / "RustiQ/basis_sets"
     basis_store.mkdir(parents=True)
-    shutil.copyfile(
-        REPO_ROOT / "tests/data/sto-3g.json",
-        basis_store / "sto-3g.json",
-    )
+    for basis_name in sorted({case.basis for case in CASES}):
+        shutil.copyfile(
+            fixture_store / f"{basis_name}.json",
+            basis_store / f"{basis_name}.json",
+        )
     return env
 
 
