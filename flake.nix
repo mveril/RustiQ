@@ -176,10 +176,10 @@
             time
           ];
 
-          rustBuildPlatformPackages = pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.libiconv ];
+          rustBuildPlatformPackages = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
 
           rustDevelopmentPlatformPackages =
-            pkgs.lib.optionals pkgs.stdenv.isLinux (
+            pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (
               with pkgs;
               [
                 clang
@@ -189,7 +189,7 @@
                 perf
               ]
             )
-            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (
+            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin (
               with pkgs;
               [
                 samply
