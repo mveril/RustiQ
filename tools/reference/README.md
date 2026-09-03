@@ -58,6 +58,20 @@ Run a single case by its pytest parameter ID:
 uv run --locked pytest tools/reference -k h2-sto-3g-rhf
 ```
 
+The H₂ matrix also covers the split-valence 6-31G and correlation-consistent
+cc-pVDZ basis sets:
+
+```sh
+uv run --locked pytest tools/reference -k 'h2-6-31g-rhf or h2-cc-pvdz-rhf'
+```
+
+Water exercises a polyatomic, polar geometry and oxygen s/p contractions in all
+three basis families, plus spherical d polarization functions with cc-pVDZ:
+
+```sh
+uv run --locked pytest tools/reference -k h2o
+```
+
 The open-shell, non-degenerate H₂⁺ UHF reference used by the Rust UHF test can
 be reproduced with:
 
@@ -74,8 +88,12 @@ nix run .#pyscf-check -- -k h2-sto-3g-rhf
 Prefix the single-case command with `nix develop --command` when running it
 outside the Dev Container or an active Nix development shell.
 
-The tests prepare a temporary RustiQ basis store from `tests/data/sto-3g.json`
-and does not download basis data for RustiQ. `uv.lock` records the wheels and
+The versioned store under `tests/data/reference/` contains unmodified basis files
+downloaded from Basis Set Exchange with RustiQ. At session startup, pytest copies
+the required files into a temporary store, so all comparisons run offline. To
+refresh a fixture while keeping the source explicit, point `RUSTIQ_DATA_HOME` at
+`tests/data/reference` and run `cargo run -- basis download <name>`.
+`uv.lock` records the wheels and
 hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.
 

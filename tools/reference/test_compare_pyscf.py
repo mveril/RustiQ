@@ -32,6 +32,7 @@ def test_rustiq_matches_pyscf(
     assert isinstance(hf, dict)
     assert hf["converged"] is True
     assert hf["method"] == case.method.upper()
+    assert hf["orthogonalization"]["ao_basis_dimension"] == case.ao_dimension
     assert float(hf["total_energy"]) == pytest.approx(
         pyscf_hf_energy, abs=case.tolerance, rel=0.0
     )
