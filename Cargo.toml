@@ -32,7 +32,7 @@ rayon = "1"
 tokio = { version = "1", features = ["fs", "io-util", "rt"], optional = true }
 serde_json = "1.0.*"
 serde = { version = "1", features = ["derive"] }
-cached = "2"
+cached = "3"
 delegate = "0.13"
 ndarray = "0.17"
 arrayvec = "0.7.*"
@@ -40,7 +40,7 @@ bounded-vec-deque = "0.1.1"
 thiserror = "2"
 rand = "0.10"
 rand_distr = "0.6"
-special = { version = "0.13", default-features = false, features = ["std"] }
+special = { version = "0.14", default-features = false, features = ["std"] }
 factorial = "0.4.0"
 approx = "0.5.1"
 tabled = "0.21"
