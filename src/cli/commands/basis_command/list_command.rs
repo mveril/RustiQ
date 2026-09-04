@@ -4,7 +4,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
 use crate::{
-    basis::BasisStore,
+    basis::{BasisEntry, BasisStore},
     cli::{
         commands::{CommandResult, Runnable},
         ux::BasisTableItem,
@@ -57,37 +57,21 @@ impl Runnable for ListCommand {
 
         let list = store.list().into_diagnostic()?;
         if self.verbose {
-            let v: std::io::Result<Vec<_>> =
-                list.par_bridge()
-                    .map(|item| {
-                        let item = item?;
-                        let path = item.path();
-                        let name = path
-                            .file_stem()
-                            .and_then(|name| name.to_str())
-                            .ok_or_else(|| std::io::Error::other("invalid basis file name"))?;
-                        let basis_file = store
-                            .get(name)
-                            .map_err(std::io::Error::other)?
-                            .ok_or_else(|| {
-                                std::io::Error::new(
-                                    std::io::ErrorKind::NotFound,
-                                    format!("basis file '{name}' disappeared during listing"),
-                                )
-                            })?;
-                        Ok(BasisTableItem::from(basis_file))
-                    })
-                    .collect();
+            let v: Result<Vec<_>, crate::basis::FileError> = list
+                .par_bridge()
+                .map(|item| {
+                    item.map(BasisEntry::into_basis_file)
+                        .map(BasisTableItem::from)
+                })
+                .collect();
             pagin_print(&Table::new(v.into_diagnostic()?).to_string())
         } else {
             let mut str = String::new();
             for item in list {
                 match item {
                     Ok(entry) => {
-                        if let Some(name) = entry.path().file_stem() {
-                            str.push_str(&name.to_string_lossy());
-                            str.push('\n');
-                        }
+                        str.push_str(entry.name());
+                        str.push('\n');
                     }
                     Err(err) => eprint!("Failed to load an item: {err}."),
                 }
