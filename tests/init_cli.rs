@@ -8,7 +8,7 @@ fn init_generates_runnable_hf_and_mp2_calculations() {
     let data = temp.path().join("data");
     let store = BasisStore::new(&data.join("RustiQ/basis_sets"));
     store
-        .import_as("sto-3g", Cursor::new(include_bytes!("data/sto-3g.json")))
+        .import(Cursor::new(include_bytes!("data/sto-3g.json")))
         .unwrap();
     for options in [vec![], vec!["--mp2", "--force"]] {
         let result = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
