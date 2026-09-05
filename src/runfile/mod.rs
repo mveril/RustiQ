@@ -2,6 +2,7 @@ mod diagnostics;
 pub mod global;
 pub mod hf;
 pub mod mp2;
+pub(crate) mod output;
 use global::Global;
 pub(crate) mod parser;
 pub mod random_config;
