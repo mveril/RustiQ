@@ -665,3 +665,42 @@ fn atomic_mass(symbol: &str) -> f64 {
         _ => panic!("unexpected test atom symbol: {symbol}"),
     }
 }
+
+#[test]
+fn basis_names_are_canonical_in_lists_and_resolve_in_runs() {
+    let root = tempfile::tempdir().unwrap();
+    let store_dir = root.path().join("RustiQ/basis_sets");
+    let store = BasisStore::new(&store_dir);
+    // Synthetic name on the small H2 fixture isolates name resolution from chemistry.
+    let mut json: serde_json::Value =
+        serde_json::from_slice(include_bytes!("data/sto-3g.json")).unwrap();
+    json["name"] = "6-31G**".into();
+    let data = serde_json::to_vec(&json).unwrap();
+    store.import(Cursor::new(&data)).unwrap();
+    fs::write(store_dir.join("6-31g**.json"), &data).unwrap();
+
+    for args in [vec!["basis", "list"], vec!["basis", "list", "--verbose"]] {
+        let output = run_rustiq_with_data_home(&args, root.path());
+        assert_success(&output);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(stdout.matches("6-31G**").count(), 1);
+        assert!(!stdout.contains("_st_"));
+    }
+
+    for name in ["6-31G**", "6-31g_st__st_"] {
+        let geometry = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz");
+        let input = root.path().join("calculation.toml");
+        fs::write(&input, format!(
+            "[global]\nbasis = {name:?}\n[global.molecule]\ngeometry = {:?}\n[hf.guess]\ntype = \"CoreHamiltonian\"\n",
+            geometry.to_str().unwrap()
+        )).unwrap();
+        let output = run_rustiq_with_data_home(
+            &["run", input.to_str().unwrap(), "--no-auto-download"],
+            root.path(),
+        );
+        assert_success(&output);
+    }
+    let output = run_rustiq_with_data_home(&["basis", "remove", "6-31G**"], root.path());
+    assert_success(&output);
+    assert_eq!(store.list().unwrap().count(), 0);
+}

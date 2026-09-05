@@ -4,7 +4,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
 use crate::{
-    basis::BasisStore,
+    basis::{BasisFile, BasisStore},
     cli::{
         commands::{CommandResult, Runnable},
         ux::BasisTableItem,
@@ -46,8 +46,8 @@ impl Runnable for ListCommand {
                 pagin_print(&Table::new(items).to_string());
             } else {
                 let mut str = String::new();
-                for item in list.keys() {
-                    str.push_str(item);
+                for item in list.values() {
+                    str.push_str(&item.display_name);
                     str.push('\n');
                 }
                 pagin_print(&str);
@@ -55,44 +55,25 @@ impl Runnable for ListCommand {
             return Ok(());
         }
 
-        let list = store.list().into_diagnostic()?;
+        let items: std::io::Result<Vec<_>> = store
+            .list()
+            .into_diagnostic()?
+            .par_bridge()
+            .map(|entry| {
+                let file = std::fs::File::open(entry?.path())?;
+                BasisFile::from_reader(file)
+                    .map(BasisTableItem::from)
+                    .map_err(std::io::Error::other)
+            })
+            .collect();
+        let mut items = items.into_diagnostic()?;
+        items.sort_by(|a, b| a.name.cmp(&b.name));
+        items.dedup_by(|a, b| a.name == b.name);
         if self.verbose {
-            let v: std::io::Result<Vec<_>> =
-                list.par_bridge()
-                    .map(|item| {
-                        let item = item?;
-                        let path = item.path();
-                        let name = path
-                            .file_stem()
-                            .and_then(|name| name.to_str())
-                            .ok_or_else(|| std::io::Error::other("invalid basis file name"))?;
-                        let basis_file = store
-                            .get(name)
-                            .map_err(std::io::Error::other)?
-                            .ok_or_else(|| {
-                                std::io::Error::new(
-                                    std::io::ErrorKind::NotFound,
-                                    format!("basis file '{name}' disappeared during listing"),
-                                )
-                            })?;
-                        Ok(BasisTableItem::from(basis_file))
-                    })
-                    .collect();
-            pagin_print(&Table::new(v.into_diagnostic()?).to_string())
+            pagin_print(&Table::new(items).to_string());
         } else {
-            let mut str = String::new();
-            for item in list {
-                match item {
-                    Ok(entry) => {
-                        if let Some(name) = entry.path().file_stem() {
-                            str.push_str(&name.to_string_lossy());
-                            str.push('\n');
-                        }
-                    }
-                    Err(err) => eprint!("Failed to load an item: {err}."),
-                }
-            }
-            pagin_print(&str);
+            let names = items.into_iter().map(|item| item.name).collect::<Vec<_>>();
+            pagin_print(&names.join("\n"));
         }
         Ok(())
     }

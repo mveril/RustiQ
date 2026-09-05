@@ -64,7 +64,32 @@ impl BasisStore {
             ));
         }
 
-        Ok(self.path.join(format!("{name}.json")))
+        let id = Self::basis_id(name);
+        Ok(self.path.join(format!("{id}.json")))
+    }
+
+    /// BSE identifier used for cache filenames and API requests.
+    fn basis_id(name: &str) -> String {
+        name.to_lowercase().replace('*', "_st_")
+    }
+
+    /// Include old filenames so caches created before normalization remain usable.
+    fn matching_paths(&self, name: &str) -> io::Result<Vec<PathBuf>> {
+        let normalized = self.get_path(name)?;
+        let id = Self::basis_id(name);
+        let mut paths = vec![normalized.clone()];
+        for entry in self.list()? {
+            let path = entry?.path();
+            if path != normalized
+                && path
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .is_some_and(|stem| Self::basis_id(stem) == id)
+            {
+                paths.push(path);
+            }
+        }
+        Ok(paths)
     }
 
     /// Retrieves a `BasisFile` by its name from the store.
@@ -76,13 +101,14 @@ impl BasisStore {
     /// Returns a [`FileError::Io`] if the file cannot be opened, or
     /// [`FileError::Serde`] if it cannot be deserialized from JSON.
     pub fn get(&self, name: &str) -> Result<Option<BasisFile>, FileError> {
-        let basis_path = self.get_path(name)?;
-        if !basis_path.exists() {
-            return Ok(None);
+        for path in self.matching_paths(name)? {
+            match fs::File::open(path) {
+                Ok(file) => return Ok(Some(BasisFile::from_reader(file)?)),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
+            }
         }
-        let file = fs::File::open(&basis_path)?;
-        let basis_file = serde_json::from_reader(file)?;
-        Ok(Some(basis_file))
+        Ok(None)
     }
 
     /// Retrieves a `BasisFile` by its name from the store.
@@ -213,7 +239,7 @@ impl BasisStore {
         let mut url = self.url.clone();
         url.path_segments_mut()
             .map_err(|()| io::Error::new(io::ErrorKind::InvalidInput, "invalid BSE base URL"))?
-            .extend(["api", "basis", name, "format", "json"]);
+            .extend(["api", "basis", &Self::basis_id(name), "format", "json"]);
         Ok(url)
     }
 
@@ -346,11 +372,12 @@ impl BasisStore {
         I::Item: AsRef<str>,
     {
         for name in names {
-            let path = self.get_path(name.as_ref())?;
-            match fs::remove_file(path) {
-                Ok(()) => {}
-                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-                Err(err) => return Err(err),
+            for path in self.matching_paths(name.as_ref())? {
+                match fs::remove_file(path) {
+                    Ok(()) => {}
+                    Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                    Err(err) => return Err(err),
+                }
             }
         }
         Ok(())
@@ -490,6 +517,91 @@ impl From<DownloadSaveError> for DownloadParseSaveError {
 mod tests {
     use super::*;
     use std::{env, path::PathBuf};
+
+    fn starred_basis() -> Vec<u8> {
+        // Only the metadata is changed: these tests exercise storage, not integrals.
+        let mut json: serde_json::Value =
+            serde_json::from_slice(include_bytes!("../../tests/data/sto-3g.json")).unwrap();
+        json["name"] = "6-31G**".into();
+        serde_json::to_vec(&json).unwrap()
+    }
+
+    #[test]
+    fn test_import_get_and_remove_use_normalized_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = BasisStore::new(&dir.path());
+        assert_eq!(
+            store.import(io::Cursor::new(starred_basis())).unwrap(),
+            "6-31G**"
+        );
+        assert!(dir.path().join("6-31g_st__st_.json").exists());
+        for name in ["6-31G**", "6-31g**", "6-31g_st__st_"] {
+            assert_eq!(store.get(name).unwrap().unwrap().name, "6-31G**");
+        }
+        store.remove(["6-31G**"]).unwrap();
+        assert_eq!(store.list().unwrap().count(), 0);
+    }
+
+    #[test]
+    fn test_legacy_names_remain_readable_and_remove_cleans_duplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = BasisStore::new(&dir.path());
+        fs::write(dir.path().join("6-31G**.json"), starred_basis()).unwrap();
+        assert_eq!(store.get("6-31g_st__st_").unwrap().unwrap().name, "6-31G**");
+        store.import(io::Cursor::new(starred_basis())).unwrap();
+        store.remove(["6-31g_st__st_"]).unwrap();
+        store.remove(["6-31G**"]).unwrap();
+        assert_eq!(store.list().unwrap().count(), 0);
+    }
+
+    #[cfg(feature = "online")]
+    #[test]
+    fn test_downloads_and_run_cache_lookup_share_id() {
+        use std::io::{BufRead, Write};
+        for asynchronous in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut store = BasisStore::new(&dir.path());
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            store.url = Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut reader = io::BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                assert!(line.starts_with("GET /api/basis/6-31g_st__st_/format/json "));
+                loop {
+                    line.clear();
+                    reader.read_line(&mut line).unwrap();
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                let body = starred_basis();
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .unwrap();
+                stream.write_all(&body).unwrap();
+            });
+            if asynchronous {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(store.download("6-31G**", &mut |_, _| {}))
+                    .unwrap();
+            } else {
+                assert_eq!(store.get_or_download("6-31G**").unwrap().name, "6-31G**");
+            }
+            server.join().unwrap();
+            assert!(dir.path().join("6-31g_st__st_.json").exists());
+            // The server is gone: online run resolution must use the cached file.
+            assert_eq!(store.get_or_download("6-31g**").unwrap().name, "6-31G**");
+            assert_eq!(store.list().unwrap().count(), 1);
+        }
+    }
 
     struct FailingReader(bool);
 
