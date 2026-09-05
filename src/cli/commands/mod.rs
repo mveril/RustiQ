@@ -1,4 +1,5 @@
 mod basis_command;
+mod init_command;
 mod run_command;
 use run_command::RunCommand;
 mod geometry_command;
@@ -13,6 +14,8 @@ pub(crate) use runnable::{CommandResult, Runnable};
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Create a calculation TOML file from an XYZ geometry
+    Init(init_command::InitCommand),
     /// Run a calculation defined in toml format
     Run(RunCommand),
     /// Command to handle basis set cache
@@ -30,6 +33,7 @@ pub enum Commands {
 impl Runnable for Commands {
     delegate! {
         to match self {
+            Commands::Init(command) => command,
             Commands::Run(command) => command,
             Commands::Basis { command } => command,
             Commands::Geometry { command } => command,

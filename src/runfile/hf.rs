@@ -39,6 +39,21 @@ pub(crate) struct HfConfig {
     pub format: HfOutputFormat,
 }
 
+impl Default for HfConfig {
+    fn default() -> Self {
+        Self {
+            method: HfMethod::default(),
+            max_iterations: default_max_iter(),
+            convergence_threshold: default_conv_threshold(),
+            linear_dependency_threshold: default_linear_dependency_threshold(),
+            guess: DensityGuessConfig::default(),
+            diis: false,
+            diis_size: default_diis_size(),
+            format: HfOutputFormat::default(),
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Toml, PartialEq, Eq)]
 #[toml(Toml)]
 pub(crate) enum HfMethod {
@@ -160,6 +175,11 @@ mod tests {
     #[test]
     fn test_hf_config_diis_defaults() {
         let config: HfConfig = toml_spanner::from_str("").unwrap();
+
+        assert_eq!(
+            toml_spanner::to_string(&config).unwrap(),
+            toml_spanner::to_string(&HfConfig::default()).unwrap()
+        );
 
         assert!(!config.diis);
         assert_eq!(config.method, HfMethod::Auto);

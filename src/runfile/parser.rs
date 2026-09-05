@@ -23,7 +23,7 @@ pub(crate) fn parse_runfile(
         .to::<RunFile>()
         .map_err(|error| error.into_miette_diagnostic(source_name, toml_content))?;
     let formatted_toml = toml_spanner::Formatting::preserved_from(&document)
-        .format(&runfile)
+        .format(&runfile.output(super::output::Defaults::Include))
         .into_diagnostic()?;
 
     Ok(ParsedRunFile {

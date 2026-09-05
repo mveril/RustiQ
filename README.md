@@ -540,6 +540,34 @@ cargo run -- run samples/ethanol/sto-3g/calculation.toml
 
 ## Input Files
 
+Create a calculation file from an XYZ geometry:
+
+```bash
+cargo run -- init molecule.xyz
+cargo run -- init molecule.xyz --hf uhf --multiplicity 3 --mp2
+cargo run -- init molecule.xyz --basis cc-pvdz --charge -1 -o calculation.toml --force
+```
+
+`init` writes `calculation.toml` in the current directory. Use `-o` / `--output`
+to choose another file in an existing directory, and `-f` / `--force` to replace
+an existing file. The XYZ is referenced relative to the calculation file, not copied.
+The source geometry, directories, and symbolic links cannot be overwritten.
+
+Defaults are `--basis sto-3g`, `--charge 0`, `--units angstrom`, and `--hf auto`.
+Units can also be `bohr`; HF methods are `auto`, `rhf`, and `uhf`.
+Without `--multiplicity`, an even electron count selects a singlet and an odd count
+selects a doublet, taking charge into account. This is an initial convention, not
+a prediction of the ground state; use `--multiplicity` to specify another state.
+Incompatible charge, multiplicity, or RHF choices are rejected before writing.
+`--mp2` adds an MP2 calculation with no frozen orbitals. Other HF settings use the
+existing calculation defaults. Generated TOML omits default-valued parameters,
+keeping the required basis and geometry plus `[hf]` and, when requested, `[mp2]`.
+Non-default values, including an automatically selected doublet, are written explicitly.
+The TOML display in `run` still includes the effective default settings; both
+outputs use the same calculation model with a context-specific formatting policy.
+Initialization requires no network access or cached
+basis; basis availability and numerical MP2 requirements are checked by `run`.
+
 A minimal calculation file looks like this:
 
 ```toml
