@@ -24,7 +24,7 @@ fn prepare_basis_store(temp_root: &Path) {
     let _ = fs::remove_dir_all(temp_root);
     let store = BasisStore::new(&basis_dir);
     store
-        .import_as("sto-3g", Cursor::new(include_bytes!("data/sto-3g.json")))
+        .import(Cursor::new(include_bytes!("data/sto-3g.json")))
         .unwrap();
 }
 

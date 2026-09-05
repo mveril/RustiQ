@@ -9,6 +9,8 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 
+use super::{BasisId, InvalidBasisId};
+
 /// JSON for describing metadata for a single basis set
 #[derive(Debug, Deserialize)]
 pub struct BasisFile {
@@ -51,6 +53,16 @@ impl BasisFile {
     /// Loads a basis file from its JSON representation.
     pub fn from_reader(reader: impl Read) -> Result<Self, serde_json::Error> {
         serde_json::from_reader(reader)
+    }
+
+    /// Returns the identifier derived from the canonical JSON `name` field.
+    pub fn id(&self) -> Result<BasisId<'_>, InvalidBasisId> {
+        BasisId::new(&self.name)
+    }
+
+    /// Returns the canonical basis-set name as declared in the JSON document.
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 
