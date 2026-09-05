@@ -46,8 +46,8 @@ impl Runnable for ListCommand {
                 pagin_print(&Table::new(items).to_string());
             } else {
                 let mut str = String::new();
-                for item in list.keys() {
-                    str.push_str(item.as_str());
+                for item in list.values() {
+                    str.push_str(&item.display_name);
                     str.push('\n');
                 }
                 pagin_print(&str);
