@@ -665,3 +665,33 @@ fn atomic_mass(symbol: &str) -> f64 {
         _ => panic!("unexpected test atom symbol: {symbol}"),
     }
 }
+
+#[test]
+fn run_accepts_bare_filename_in_current_directory() {
+    let root = tempfile::tempdir().unwrap();
+    prepare_basis_store(root.path());
+    fs::write(
+        root.path().join("molecule.xyz"),
+        include_bytes!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("calculation.toml"),
+        "[global]\nbasis = \"sto-3g\"\n[global.molecule]\ngeometry = \"molecule.xyz\"\n[hf]\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .current_dir(root.path())
+        .env("RUSTIQ_DATA_HOME", root.path())
+        .args([
+            "run",
+            "calculation.toml",
+            "--no-auto-download",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    assert_success(&output);
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+}
