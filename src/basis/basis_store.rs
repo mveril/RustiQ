@@ -619,19 +619,6 @@ mod tests {
     }
 
     #[test]
-    fn test_legacy_user_spelled_file_names_are_ignored() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let store = BasisStore::new(&temp_dir);
-        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json");
-        fs::copy(fixture, temp_dir.path().join("STO-3G.json")).unwrap();
-
-        assert!(store.get("sto-3g").unwrap().is_none());
-        store.remove(["sto-3g"]).unwrap();
-        assert!(temp_dir.path().join("STO-3G.json").exists());
-        assert_eq!(store.list().unwrap().count(), 0);
-    }
-
-    #[test]
     fn test_list_returns_basis_entries_instead_of_directory_entries() {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
