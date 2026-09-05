@@ -40,7 +40,7 @@ impl From<BasisSetDetail> for BasisTableItem {
                 .filter(|name| *name != value.display_name),
         );
         BasisTableItem {
-            name: value.basename,
+            name: value.basename.to_string(),
             friendly_names: friendly,
             elements,
         }

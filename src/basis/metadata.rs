@@ -1,12 +1,13 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use super::function_type::FunctionType;
+use super::{basis_id::deserialize_owned, function_type::FunctionType, BasisId};
 
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 pub struct BasisSetDetail {
-    pub basename: String,
+    #[serde(deserialize_with = "deserialize_owned")]
+    pub basename: BasisId<'static>,
     pub description: String,
     pub display_name: String,
     pub family: String,

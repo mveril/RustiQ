@@ -2,7 +2,7 @@ use serde_json::Error as SerdeError;
 use std::{
     fs,
     io::{self, Read, Seek},
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -14,9 +14,9 @@ use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "online")]
 use tokio::io::AsyncWriteExt;
 
-use super::basis_file::BasisFile;
+use super::{basis_file::BasisFile, BasisId, InvalidBasisId};
 #[cfg(feature = "online")]
-use super::metadata::BasisSetDetail;
+use super::{basis_id::OwnedBasisId, metadata::BasisSetDetail};
 use crate::env::DATA_BASIS_PATH;
 #[cfg(feature = "online")]
 use crate::env::USER_AGENT;
@@ -38,22 +38,20 @@ pub struct BasisStore {
 /// declared in the basis-set JSON file.
 #[derive(Debug)]
 pub struct BasisEntry {
-    #[allow(dead_code)]
-    id: String,
-    name: String,
+    id: BasisId<'static>,
     basis: BasisFile,
 }
 
 impl BasisEntry {
     /// The normalized identifier used to locate this basis set in the store.
     #[allow(dead_code)]
-    pub fn id(&self) -> &str {
+    pub fn id(&self) -> &BasisId<'static> {
         &self.id
     }
 
     /// The canonical basis-set name declared by BSE.
     pub fn name(&self) -> &str {
-        &self.name
+        &self.basis.name
     }
 
     /// Consumes the entry and returns its decoded basis set.
@@ -79,41 +77,12 @@ impl BasisStore {
         &self.path
     }
 
-    /// Converts a BSE name into its normalized storage identifier.
-    ///
-    /// This follows BSE's `transform_basis_name`: names are case-insensitive,
-    /// while `/` and `*` are represented by filesystem-safe tokens.
-    fn storage_id(name: &str) -> io::Result<String> {
-        if name.is_empty() || name.contains('\\') {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("invalid basis set name '{name}'"),
-            ));
-        }
-
-        let id = name
-            .to_lowercase()
-            .replace('/', "_sl_")
-            .replace('*', "_st_");
-        let mut components = Path::new(&id).components();
-        let is_single_normal_component =
-            matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
-        if !is_single_normal_component {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("invalid basis set name '{name}'"),
-            ));
-        }
-
-        Ok(id)
-    }
-
     /// Constructs the full path for a given BSE basis file name.
     ///
     /// # Arguments
     /// * `name` - The name of the basis file (without extension).
-    fn get_path(&self, name: &str) -> io::Result<PathBuf> {
-        Ok(self.path.join(format!("{}.json", Self::storage_id(name)?)))
+    fn get_path(&self, id: &BasisId<'_>) -> PathBuf {
+        self.path.join(format!("{id}.json"))
     }
 
     /// Finds a stored file by its normalized BSE identifier.
@@ -122,21 +91,21 @@ impl BasisStore {
     /// caches written by older RustiQ versions (which kept the user spelling)
     /// remain readable.
     fn existing_path(&self, name: &str) -> io::Result<Option<PathBuf>> {
-        let path = self.get_path(name)?;
+        let id = BasisId::new(name).map_err(io::Error::from)?;
+        let path = self.get_path(&id);
         if path.exists() || !self.path.exists() {
             return Ok(path.exists().then_some(path));
         }
 
-        let id = Self::storage_id(name)?;
         for entry in self.path.read_dir()? {
             let path = entry?.path();
             let matches_id = path.extension().and_then(|ext| ext.to_str()) == Some("json")
                 && path
                     .file_stem()
                     .and_then(|stem| stem.to_str())
-                    .and_then(|stem| Self::storage_id(stem).ok())
-                    .as_deref()
-                    == Some(id.as_str());
+                    .and_then(|stem| BasisId::new(stem).ok())
+                    .as_ref()
+                    == Some(&id);
             if matches_id {
                 return Ok(Some(path));
             }
@@ -190,11 +159,12 @@ impl BasisStore {
     #[cfg(any(test, feature = "bench-support"))]
     #[allow(dead_code)]
     pub fn copy_from(&self, source: &BasisStore, name: &str) -> io::Result<()> {
-        let destination = self.get_path(name)?;
+        let id = BasisId::new(name)?;
+        let destination = self.get_path(&id);
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::copy(source.get_path(name)?, destination)?;
+        fs::copy(source.get_path(&id), destination)?;
         Ok(())
     }
 
@@ -222,29 +192,21 @@ impl BasisStore {
         let result = read_dir.filter_map(|entry_result| match entry_result {
             Ok(entry) => {
                 let path = entry.path();
-                if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                if !path.is_file() || path.extension().unwrap_or_default().to_str() != Some("json")
+                {
                     return None;
                 }
 
                 Some((|| {
-                    if !entry.metadata()?.is_file() {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "basis store entry is not a file",
-                        )
-                        .into());
-                    }
                     let id = path
                         .file_stem()
                         .and_then(|stem| stem.to_str())
-                        .ok_or_else(|| io::Error::other("invalid basis file name"))?
-                        .to_owned();
+                        .ok_or_else(|| io::Error::other("invalid basis file name"))?;
+                    let id = BasisId::new(id)
+                        .map(BasisId::into_owned)
+                        .map_err(io::Error::from)?;
                     let basis = BasisFile::from_reader(fs::File::open(path)?)?;
-                    Ok(BasisEntry {
-                        id,
-                        name: basis.name.clone(),
-                        basis,
-                    })
+                    Ok(BasisEntry { id, basis })
                 })())
             }
             Err(err) => Some(Err(err.into())),
@@ -259,14 +221,19 @@ impl BasisStore {
     /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
     /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
     #[cfg(feature = "online")]
-    pub fn list_online_sync(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
+    pub fn list_online_sync(
+        &self,
+    ) -> Result<HashMap<BasisId<'static>, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let client = BlockingClientBuilder::new()
             .user_agent(USER_AGENT)
             .build()?;
-        let basis_sets: HashMap<String, BasisSetDetail> =
+        let basis_sets: HashMap<OwnedBasisId, BasisSetDetail> =
             client.get(url).send()?.error_for_status()?.json()?;
-        Ok(basis_sets)
+        Ok(basis_sets
+            .into_iter()
+            .map(|(id, detail)| (id.0, detail))
+            .collect())
     }
 
     /// Lists all basis set metadata available online (asynchronous).
@@ -276,17 +243,22 @@ impl BasisStore {
     /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
     #[cfg(feature = "online")]
     #[allow(dead_code)]
-    pub async fn list_online(&self) -> Result<HashMap<String, BasisSetDetail>, DownloadParseError> {
+    pub async fn list_online(
+        &self,
+    ) -> Result<HashMap<BasisId<'static>, BasisSetDetail>, DownloadParseError> {
         let url = format!("{}{}", self.url, "api/metadata");
         let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
-        let basis_sets = client
+        let basis_sets: HashMap<OwnedBasisId, BasisSetDetail> = client
             .get(url)
             .send()
             .await?
             .error_for_status()?
             .json()
             .await?;
-        Ok(basis_sets)
+        Ok(basis_sets
+            .into_iter()
+            .map(|(id, detail)| (id.0, detail))
+            .collect())
     }
 
     /// Downloads a basis set file asynchronously from a remote URL and saves it locally.
@@ -301,7 +273,7 @@ impl BasisStore {
     /// or a [`DownloadSaveError::Save`] if the file cannot be saved.
     #[cfg(feature = "online")]
     fn basis_url(&self, name: &str) -> io::Result<Url> {
-        self.get_path(name)?;
+        BasisId::new(name).map_err(io::Error::from)?;
         let mut url = self.url.clone();
         url.path_segments_mut()
             .map_err(|()| io::Error::new(io::ErrorKind::InvalidInput, "invalid BSE base URL"))?
@@ -320,7 +292,10 @@ impl BasisStore {
         let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
         let mut response = client.get(url).send().await?.error_for_status()?;
         let total_size = response.content_length();
-        let path = self.get_path(name).map_err(SaveError::from)?;
+        let id = BasisId::new(name)
+            .map_err(io::Error::from)
+            .map_err(SaveError::from)?;
+        let path = self.get_path(&id);
         let parent = path
             .parent()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid file path"))
@@ -380,16 +355,9 @@ impl BasisStore {
     /// [`BasisFile`], or an [`ImportError::Save`] if it cannot be saved.
     pub fn import<R: Read + Seek>(&self, mut data: R) -> Result<String, ImportError> {
         let basis = BasisFile::from_reader(&mut data)?;
-        self.import_as_raw(&basis.name, data)?;
+        let id = basis.id()?;
+        self.import_as_raw(id.as_str(), data)?;
         Ok(basis.name)
-    }
-
-    /// Imports a basis set file under the given store name after validating its content.
-    #[allow(dead_code)]
-    pub fn import_as<R: Read + Seek>(&self, name: &str, mut data: R) -> Result<(), ImportError> {
-        BasisFile::from_reader(&mut data)?;
-        self.import_as_raw(name, data)?;
-        Ok(())
     }
 
     fn import_as_raw<R: Read + Seek>(&self, name: &str, mut data: R) -> Result<(), SaveError> {
@@ -399,7 +367,8 @@ impl BasisStore {
     }
 
     fn save<R: Read>(&self, name: &str, data: &mut R) -> Result<(), SaveError> {
-        let path = self.get_path(name)?;
+        let id = BasisId::new(name).map_err(io::Error::from)?;
+        let path = self.get_path(&id);
         let parent = path
             .parent()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid file path"))?;
@@ -496,6 +465,9 @@ pub enum ImportError {
     /// The imported JSON could not be deserialized.
     #[error("Serialization error: {0}")]
     Serde(#[from] SerdeError),
+    /// The basis-set name cannot be used as a safe local identifier.
+    #[error(transparent)]
+    InvalidBasisId(#[from] InvalidBasisId),
 
     /// The validated basis file could not be saved.
     #[error(transparent)]
@@ -643,8 +615,8 @@ mod tests {
 
     #[test]
     fn test_storage_id_matches_bse_name_transformation() {
-        assert_eq!(BasisStore::storage_id("6-31G*").unwrap(), "6-31g_st_");
-        assert_eq!(BasisStore::storage_id("cc-pV/DZ").unwrap(), "cc-pv_sl_dz");
+        assert_eq!(BasisId::new("6-31G*").unwrap().as_str(), "6-31g_st_");
+        assert_eq!(BasisId::new("cc-pV/DZ").unwrap().as_str(), "cc-pv_sl_dz");
     }
 
     #[test]
@@ -689,7 +661,7 @@ mod tests {
         let entries: Vec<_> = store.list().unwrap().collect::<Result<_, _>>().unwrap();
 
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].id(), "6-31g_st_");
+        assert_eq!(entries[0].id().as_str(), "6-31g_st_");
         assert_eq!(entries[0].name(), "STO-3G");
     }
 
@@ -708,5 +680,22 @@ mod tests {
         ));
         assert_eq!(fs::read(&destination).unwrap(), b"existing data");
         assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn test_import_rejects_an_invalid_basis_name() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = BasisStore::new(&temp_dir);
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json");
+        let mut basis: serde_json::Value =
+            serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
+        basis["name"] = serde_json::Value::String("..".to_owned());
+
+        let error = store
+            .import(io::Cursor::new(serde_json::to_vec(&basis).unwrap()))
+            .unwrap_err();
+
+        assert!(matches!(error, ImportError::InvalidBasisId(_)));
+        assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 0);
     }
 }

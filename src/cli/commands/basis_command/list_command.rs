@@ -47,7 +47,7 @@ impl Runnable for ListCommand {
             } else {
                 let mut str = String::new();
                 for item in list.keys() {
-                    str.push_str(item);
+                    str.push_str(item.as_str());
                     str.push('\n');
                 }
                 pagin_print(&str);
