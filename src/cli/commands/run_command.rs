@@ -124,7 +124,7 @@ impl Runnable for RunCommand {
         }
         let (source_name, toml_content) = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml).into_diagnostic()?;
-            if let Some(dir) = path_toml.parent() {
+            if let Some(dir) = path_toml.parent().filter(|dir| !dir.as_os_str().is_empty()) {
                 env::set_current_dir(dir).into_diagnostic()?;
             }
             (path_toml.display().to_string(), content)
