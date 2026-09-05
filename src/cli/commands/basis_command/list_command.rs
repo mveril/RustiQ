@@ -68,7 +68,6 @@ impl Runnable for ListCommand {
             .collect();
         let mut items = items.into_diagnostic()?;
         items.sort_by(|a, b| a.name.cmp(&b.name));
-        items.dedup_by(|a, b| a.name == b.name);
         if self.verbose {
             pagin_print(&Table::new(items).to_string());
         } else {

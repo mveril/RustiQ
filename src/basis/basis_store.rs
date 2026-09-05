@@ -73,25 +73,6 @@ impl BasisStore {
         name.to_lowercase().replace('*', "_st_")
     }
 
-    /// Include old filenames so caches created before normalization remain usable.
-    fn matching_paths(&self, name: &str) -> io::Result<Vec<PathBuf>> {
-        let normalized = self.get_path(name)?;
-        let id = Self::basis_id(name);
-        let mut paths = vec![normalized.clone()];
-        for entry in self.list()? {
-            let path = entry?.path();
-            if path != normalized
-                && path
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .is_some_and(|stem| Self::basis_id(stem) == id)
-            {
-                paths.push(path);
-            }
-        }
-        Ok(paths)
-    }
-
     /// Retrieves a `BasisFile` by its name from the store.
     ///
     /// # Arguments
@@ -101,14 +82,11 @@ impl BasisStore {
     /// Returns a [`FileError::Io`] if the file cannot be opened, or
     /// [`FileError::Serde`] if it cannot be deserialized from JSON.
     pub fn get(&self, name: &str) -> Result<Option<BasisFile>, FileError> {
-        for path in self.matching_paths(name)? {
-            match fs::File::open(path) {
-                Ok(file) => return Ok(Some(BasisFile::from_reader(file)?)),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(error.into()),
-            }
+        match fs::File::open(self.get_path(name)?) {
+            Ok(file) => Ok(Some(BasisFile::from_reader(file)?)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
         }
-        Ok(None)
     }
 
     /// Retrieves a `BasisFile` by its name from the store.
@@ -372,12 +350,10 @@ impl BasisStore {
         I::Item: AsRef<str>,
     {
         for name in names {
-            for path in self.matching_paths(name.as_ref())? {
-                match fs::remove_file(path) {
-                    Ok(()) => {}
-                    Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-                    Err(err) => return Err(err),
-                }
+            match fs::remove_file(self.get_path(name.as_ref())?) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
             }
         }
         Ok(())
@@ -538,18 +514,6 @@ mod tests {
         for name in ["6-31G**", "6-31g**", "6-31g_st__st_"] {
             assert_eq!(store.get(name).unwrap().unwrap().name, "6-31G**");
         }
-        store.remove(["6-31G**"]).unwrap();
-        assert_eq!(store.list().unwrap().count(), 0);
-    }
-
-    #[test]
-    fn test_legacy_names_remain_readable_and_remove_cleans_duplicates() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = BasisStore::new(&dir.path());
-        fs::write(dir.path().join("6-31G**.json"), starred_basis()).unwrap();
-        assert_eq!(store.get("6-31g_st__st_").unwrap().unwrap().name, "6-31G**");
-        store.import(io::Cursor::new(starred_basis())).unwrap();
-        store.remove(["6-31g_st__st_"]).unwrap();
         store.remove(["6-31G**"]).unwrap();
         assert_eq!(store.list().unwrap().count(), 0);
     }

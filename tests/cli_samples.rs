@@ -677,7 +677,6 @@ fn basis_names_are_canonical_in_lists_and_resolve_in_runs() {
     json["name"] = "6-31G**".into();
     let data = serde_json::to_vec(&json).unwrap();
     store.import(Cursor::new(&data)).unwrap();
-    fs::write(store_dir.join("6-31g**.json"), &data).unwrap();
 
     for args in [vec!["basis", "list"], vec!["basis", "list", "--verbose"]] {
         let output = run_rustiq_with_data_home(&args, root.path());
