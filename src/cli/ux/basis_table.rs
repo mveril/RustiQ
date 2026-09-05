@@ -40,7 +40,7 @@ impl From<BasisSetDetail> for BasisTableItem {
                 .filter(|name| *name != value.display_name),
         );
         BasisTableItem {
-            name: value.basename.to_string(),
+            name: value.display_name,
             friendly_names: friendly,
             elements,
         }
@@ -58,5 +58,45 @@ impl From<BasisFile> for BasisTableItem {
                 .map(|index| periodic_table()[*index as usize - 1].symbol.to_owned())
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::basis::{
+        metadata::{BasisSetDetail, Version},
+        BasisId,
+    };
+
+    use super::BasisTableItem;
+
+    #[test]
+    fn online_items_display_the_canonical_name() {
+        let detail = BasisSetDetail {
+            basename: BasisId::new("6-31g_st__st_").unwrap().into_owned(),
+            description: String::new(),
+            display_name: "6-31G**".into(),
+            family: String::new(),
+            function_types: vec![],
+            latest_version: "1".into(),
+            notes_exist: vec![],
+            other_names: vec![],
+            relpath: String::new(),
+            role: String::new(),
+            tags: vec![],
+            versions: HashMap::from([(
+                "1".into(),
+                Version {
+                    elements: vec![],
+                    file_relpath: String::new(),
+                    revdate: String::new(),
+                    revdesc: String::new(),
+                },
+            )]),
+        };
+
+        assert_eq!(BasisTableItem::from(detail).name, "6-31G**");
     }
 }

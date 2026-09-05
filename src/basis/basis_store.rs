@@ -86,32 +86,10 @@ impl BasisStore {
     }
 
     /// Finds a stored file by its normalized BSE identifier.
-    ///
-    /// The directory scan is only used when the normalized path is absent, so
-    /// caches written by older RustiQ versions (which kept the user spelling)
-    /// remain readable.
     fn existing_path(&self, name: &str) -> io::Result<Option<PathBuf>> {
         let id = BasisId::new(name).map_err(io::Error::from)?;
         let path = self.get_path(&id);
-        if path.exists() || !self.path.exists() {
-            return Ok(path.exists().then_some(path));
-        }
-
-        for entry in self.path.read_dir()? {
-            let path = entry?.path();
-            let matches_id = path.extension().and_then(|ext| ext.to_str()) == Some("json")
-                && path
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .and_then(|stem| BasisId::new(stem).ok())
-                    .as_ref()
-                    == Some(&id);
-            if matches_id {
-                return Ok(Some(path));
-            }
-        }
-
-        Ok(None)
+        Ok(path.exists().then_some(path))
     }
 
     /// Retrieves a `BasisFile` by its name from the store.
@@ -197,17 +175,21 @@ impl BasisStore {
                     return None;
                 }
 
-                Some((|| {
-                    let id = path
+                (|| {
+                    let stem = path
                         .file_stem()
                         .and_then(|stem| stem.to_str())
                         .ok_or_else(|| io::Error::other("invalid basis file name"))?;
-                    let id = BasisId::new(id)
+                    let id = BasisId::new(stem)
                         .map(BasisId::into_owned)
                         .map_err(io::Error::from)?;
+                    if id.as_str() != stem {
+                        return Ok(None);
+                    }
                     let basis = BasisFile::from_reader(fs::File::open(path)?)?;
-                    Ok(BasisEntry { id, basis })
-                })())
+                    Ok(Some(BasisEntry { id, basis }))
+                })()
+                .transpose()
             }
             Err(err) => Some(Err(err.into())),
         });
@@ -637,13 +619,16 @@ mod tests {
     }
 
     #[test]
-    fn test_get_reads_legacy_user_spelled_file_names() {
+    fn test_legacy_user_spelled_file_names_are_ignored() {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
         let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json");
         fs::copy(fixture, temp_dir.path().join("STO-3G.json")).unwrap();
 
-        assert!(store.get("sto-3g").unwrap().is_some());
+        assert!(store.get("sto-3g").unwrap().is_none());
+        store.remove(["sto-3g"]).unwrap();
+        assert!(temp_dir.path().join("STO-3G.json").exists());
+        assert_eq!(store.list().unwrap().count(), 0);
     }
 
     #[test]
