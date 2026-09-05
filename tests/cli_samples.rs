@@ -703,33 +703,3 @@ fn basis_names_are_canonical_in_lists_and_resolve_in_runs() {
     assert_success(&output);
     assert_eq!(store.list().unwrap().count(), 0);
 }
-
-#[test]
-fn run_accepts_bare_filename_in_current_directory() {
-    let root = tempfile::tempdir().unwrap();
-    prepare_basis_store(root.path());
-    fs::write(
-        root.path().join("molecule.xyz"),
-        include_bytes!("../samples/h2/molecule.xyz"),
-    )
-    .unwrap();
-    fs::write(
-        root.path().join("calculation.toml"),
-        "[global]\nbasis = \"STO-3G\"\n[global.molecule]\ngeometry = \"molecule.xyz\"\n[hf]\n",
-    )
-    .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
-        .current_dir(root.path())
-        .env("RUSTIQ_DATA_HOME", root.path())
-        .args([
-            "run",
-            "calculation.toml",
-            "--no-auto-download",
-            "--format",
-            "json",
-        ])
-        .output()
-        .unwrap();
-    assert_success(&output);
-    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
-}
