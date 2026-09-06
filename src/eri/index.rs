@@ -33,13 +33,16 @@ fn triangular_number(value: usize) -> Option<usize> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EriIndex(pub usize);
 impl EriIndex {
-    pub fn new(mu: usize, nu: usize, lambda: usize, sigma: usize) -> EriIndex {
-        let PairIndex(p) = PairIndex::new(mu, nu);
-        let PairIndex(q) = PairIndex::new(lambda, sigma);
-
+    pub fn from_pairs(p: PairIndex, q: PairIndex) -> EriIndex {
+        let PairIndex(p) = p;
+        let PairIndex(q) = q;
         let (a, b) = if p >= q { (p, q) } else { (q, p) };
 
         EriIndex(a * (a + 1) / 2 + b)
+    }
+
+    pub fn new(mu: usize, nu: usize, lambda: usize, sigma: usize) -> EriIndex {
+        EriIndex::from_pairs(PairIndex::new(mu, nu), PairIndex::new(lambda, sigma))
     }
 }
 
@@ -70,6 +73,14 @@ mod tests {
                 let (mu, nu) = PairIndex(p).indices();
                 let (lambda, sigma) = PairIndex(q).indices();
 
+                assert_eq!(
+                    EriIndex::from_pairs(PairIndex(p), PairIndex(q)),
+                    EriIndex(expected)
+                );
+                assert_eq!(
+                    EriIndex::from_pairs(PairIndex(q), PairIndex(p)),
+                    EriIndex(expected)
+                );
                 assert_eq!(EriIndex::new(mu, nu, lambda, sigma), EriIndex(expected));
                 assert_eq!(EriIndex::new(lambda, sigma, mu, nu), EriIndex(expected));
                 expected += 1;

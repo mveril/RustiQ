@@ -3,7 +3,10 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
-    eri::{index::PairIndex, CompactEri},
+    eri::{
+        index::{EriIndex, PairIndex},
+        CompactEri,
+    },
     hf::{
         numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
         scf::ScfCalculation,
@@ -289,28 +292,19 @@ fn build_ao_pair_matrix(
     let pair_count = basis_function_pair_count(basis_functions);
     let mut matrix = DMatrix::zeros(pair_count, pair_count);
 
-    let rows: Vec<Vec<(usize, f64)>> = (0..pair_count)
-        .into_par_iter()
-        .map(|left_pair_index| {
-            let (mu, nu) = PairIndex(left_pair_index).indices();
-            let mut row = Vec::with_capacity(left_pair_index + 1);
-
-            for right_pair_index in 0..=left_pair_index {
-                let (lambda, sigma) = PairIndex(right_pair_index).indices();
-                let value = two_electron_integrals[(mu, nu, lambda, sigma)];
-                row.push((right_pair_index, value));
+    // DMatrix stores columns contiguously; each worker owns a disjoint column.
+    // Read both symmetric entries directly from CompactEri to avoid staging rows.
+    matrix
+        .as_mut_slice()
+        .par_chunks_mut(pair_count.max(1))
+        .enumerate()
+        .for_each(|(right_pair_index, column)| {
+            let right_pair = PairIndex(right_pair_index);
+            for (left_pair_index, value) in column.iter_mut().enumerate() {
+                *value = two_electron_integrals
+                    [EriIndex::from_pairs(PairIndex(left_pair_index), right_pair)];
             }
-
-            row
-        })
-        .collect();
-
-    for (left_pair_index, row) in rows.into_iter().enumerate() {
-        for (right_pair_index, value) in row {
-            matrix[(left_pair_index, right_pair_index)] = value;
-            matrix[(right_pair_index, left_pair_index)] = value;
-        }
-    }
+        });
 
     matrix
 }
@@ -328,35 +322,21 @@ fn build_orbital_pair_transform(
     let ao_pair_count = basis_function_pair_count(basis_functions);
     let mut transform = DMatrix::zeros(ao_pair_count, pair_count);
 
-    let columns: Vec<(usize, Vec<f64>)> = (0..pair_count)
-        .into_par_iter()
-        .map(|column| {
+    // Mutate final column storage directly, including when the matrix is empty.
+    transform
+        .as_mut_slice()
+        .par_chunks_mut(ao_pair_count.max(1))
+        .enumerate()
+        .for_each(|(column, values)| {
             let i = column / virtual_orbitals;
             let a = column % virtual_orbitals;
             let i_orbital = occupied_start + i;
             let a_orbital = virtual_start + a;
-            let mut values = Vec::with_capacity(ao_pair_count);
-
-            for ao_pair_index in 0..ao_pair_count {
+            for (ao_pair_index, value) in values.iter_mut().enumerate() {
                 let (mu, nu) = PairIndex(ao_pair_index).indices();
-                values.push(pair_transform_coefficient(
-                    mo_coefficients,
-                    mu,
-                    nu,
-                    i_orbital,
-                    a_orbital,
-                ));
+                *value = pair_transform_coefficient(mo_coefficients, mu, nu, i_orbital, a_orbital);
             }
-
-            (column, values)
-        })
-        .collect();
-
-    for (column, values) in columns {
-        for (ao_pair_index, value) in values.into_iter().enumerate() {
-            transform[(ao_pair_index, column)] = value;
-        }
-    }
+        });
 
     transform
 }
@@ -548,6 +528,82 @@ mod tests {
     use super::*;
     use crate::{molecules::molecule::Molecule, test_utils};
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_ao_pair_matrix_matches_previous_builder_bitwise() {
+        for threads in [1, 4] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            for basis_functions in [0, 1, 2, 5] {
+                let pair_count = basis_function_pair_count(basis_functions);
+                let mut eri = CompactEri::Zeroed(basis_functions);
+                let mut expected = DMatrix::zeros(pair_count, pair_count);
+                // Previous builder: read the lower triangle and mirror each value.
+                for left in 0..pair_count {
+                    let (mu, nu) = PairIndex(left).indices();
+                    for right in 0..=left {
+                        let (lambda, sigma) = PairIndex(right).indices();
+                        let value = (left as f64 - 2.0 * right as f64) / 7.0;
+                        eri[(mu, nu, lambda, sigma)] = value;
+                        expected[(left, right)] = value;
+                        expected[(right, left)] = value;
+                    }
+                }
+                let actual = pool.install(|| build_ao_pair_matrix(&eri, basis_functions));
+                assert_matrix_bits_equal(&actual, &expected);
+            }
+        }
+    }
+
+    #[test]
+    fn test_orbital_pair_transform_matches_previous_builder_bitwise() {
+        for threads in [1, 4] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            // Square/rank-reduced coefficients, frozen orbitals and empty sectors.
+            for (rows, cols) in [(0, 0), (1, 1), (5, 5), (6, 4)] {
+                let coefficients =
+                    DMatrix::from_fn(rows, cols, |row, col| (row as f64 - 2.0 * col as f64) / 7.0);
+                for occupied_end in 0..=cols {
+                    for occupied_start in 0..=occupied_end {
+                        let virtuals = cols - occupied_end;
+                        let ao_pairs = basis_function_pair_count(rows);
+                        let pairs = (occupied_end - occupied_start) * virtuals;
+                        let mut expected = DMatrix::zeros(ao_pairs, pairs);
+                        // Preserve the previous builder's column and AO-pair order.
+                        for column in 0..pairs {
+                            let i = occupied_start + column / virtuals;
+                            let a = occupied_end + column % virtuals;
+                            for pair in 0..ao_pairs {
+                                let (mu, nu) = PairIndex(pair).indices();
+                                expected[(pair, column)] =
+                                    pair_transform_coefficient(&coefficients, mu, nu, i, a);
+                            }
+                        }
+                        let actual = pool.install(|| {
+                            build_orbital_pair_transform(
+                                &coefficients,
+                                occupied_start,
+                                occupied_end,
+                            )
+                        });
+                        assert_matrix_bits_equal(&actual, &expected);
+                    }
+                }
+            }
+        }
+    }
+
+    fn assert_matrix_bits_equal(actual: &DMatrix<f64>, expected: &DMatrix<f64>) {
+        assert_eq!(actual.shape(), expected.shape());
+        for (actual, expected) in actual.iter().zip(expected.iter()) {
+            assert_eq!(actual.to_bits(), expected.to_bits());
+        }
+    }
 
     #[test]
     fn test_denominator_guard_boundary_and_non_finite_values() {
