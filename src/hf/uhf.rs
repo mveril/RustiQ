@@ -307,7 +307,7 @@ impl<'a> UhfCalculation<'a> {
             energy_last = self.energy;
         }
         if converged {
-            delta_energy = self.canonicalize_final_fock(delta_energy)?;
+            delta_energy = self.canonicalize_final_fock(delta_energy, &mut iterations, observer)?;
         }
         self.timings.iterations = iterations_start.elapsed();
 
@@ -381,10 +381,15 @@ impl<'a> UhfCalculation<'a> {
         Ok(())
     }
 
-    fn canonicalize_final_fock(&mut self, mut delta_energy: f64) -> Result<f64, NumericalError> {
+    fn canonicalize_final_fock<O: ScfObserver>(
+        &mut self,
+        mut delta_energy: f64,
+        iterations: &mut usize,
+        observer: &mut O,
+    ) -> Result<f64, NumericalError> {
         // As in RHF, canonicalization must not expose orbitals whose occupied
         // projectors differ materially from the density used to build F.
-        for _ in 0..self.max_iterations {
+        loop {
             self.solve_roothaan_hall_equations()?;
             let canonical_density = self.mo_coefficients.clone().zip_map(
                 self.occupied_orbitals,
@@ -403,6 +408,13 @@ impl<'a> UhfCalculation<'a> {
                 return Ok(delta_energy);
             }
 
+            // A diagonalization that only verifies the final orbitals is not an
+            // SCF update. Any further density update uses the shared iteration budget.
+            if *iterations >= self.max_iterations {
+                return Err(NumericalError::FinalizationNotConverged {
+                    max_iterations: self.max_iterations,
+                });
+            }
             let previous_energy = self.energy;
             self.density = canonical_density;
             self.update_residual_norm_and_next_fock();
@@ -411,11 +423,14 @@ impl<'a> UhfCalculation<'a> {
             ensure_finite_value(self.residual_norm, "UHF residual norm")?;
             delta_energy = (self.energy - previous_energy).abs();
             ensure_finite_value(delta_energy, "UHF delta energy")?;
+            *iterations += 1;
+            observer.on_iteration(&ScfIteration {
+                iteration: *iterations,
+                electronic_energy: self.energy,
+                delta_energy,
+                residual_norm: self.residual_norm,
+            });
         }
-
-        Err(NumericalError::FinalizationNotConverged {
-            max_iterations: self.max_iterations,
-        })
     }
 
     fn solve_roothaan_hall(
@@ -843,9 +858,16 @@ mod tests {
         .unwrap();
         uhf.enable_diis(6).unwrap();
 
-        let result = uhf.run().unwrap();
+        let mut run_observer = crate::hf::scf_observer::RecordingScfObserver::default();
+        let result = uhf.run_with_observer(&mut run_observer).unwrap();
 
         assert!(result.converged);
+        assert_eq!(result.iterations, run_observer.0.len());
+        let last = run_observer.0.last().unwrap();
+        assert_eq!(last.iteration, result.iterations);
+        assert_eq!(last.electronic_energy, result.electronic_energy);
+        assert_eq!(last.delta_energy, result.delta_energy);
+        assert_eq!(last.residual_norm, result.residual_norm);
         assert_final_densities_match_canonical_orbitals(&uhf, 1e-5);
         let residuals = uhf.fock.as_ref().zip_map(
             uhf.mo_coefficients
@@ -860,6 +882,33 @@ mod tests {
         for residual in [residuals.alpha, residuals.beta] {
             assert_abs_diff_eq!(residual, 0.0, epsilon = 1e-8);
         }
+
+        let mut observer = crate::hf::scf_observer::RecordingScfObserver::default();
+        let mut iterations = result.iterations;
+        // Force a refinement even though the preceding calculation converged.
+        let delta = uhf
+            .canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer)
+            .unwrap();
+        assert!(!observer.0.is_empty());
+        assert_eq!(iterations, result.iterations + observer.0.len());
+        assert!(iterations <= uhf.max_iterations);
+        for (offset, step) in observer.0.iter().enumerate() {
+            assert_eq!(step.iteration, result.iterations + offset + 1);
+        }
+        let last = observer.0.last().unwrap();
+        assert_eq!(last.electronic_energy, uhf.energy);
+        assert_eq!(last.delta_energy, delta);
+        assert_eq!(last.residual_norm, uhf.residual_norm);
+
+        // An exhausted budget may verify orbitals, but cannot update density.
+        uhf.max_iterations = iterations;
+        let count = observer.0.len();
+        assert!(matches!(
+            uhf.canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer),
+            Err(NumericalError::FinalizationNotConverged { .. })
+        ));
+        assert_eq!(iterations, uhf.max_iterations);
+        assert_eq!(observer.0.len(), count);
     }
 
     #[test]
