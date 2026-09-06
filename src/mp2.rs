@@ -3,7 +3,10 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
-    eri::{index::PairIndex, CompactEri},
+    eri::{
+        index::{EriIndex, PairIndex},
+        CompactEri,
+    },
     hf::{
         numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
         scf::ScfCalculation,
@@ -296,10 +299,10 @@ fn build_ao_pair_matrix(
         .par_chunks_mut(pair_count.max(1))
         .enumerate()
         .for_each(|(right_pair_index, column)| {
-            let (lambda, sigma) = PairIndex(right_pair_index).indices();
+            let right_pair = PairIndex(right_pair_index);
             for (left_pair_index, value) in column.iter_mut().enumerate() {
-                let (mu, nu) = PairIndex(left_pair_index).indices();
-                *value = two_electron_integrals[(mu, nu, lambda, sigma)];
+                *value = two_electron_integrals
+                    [EriIndex::from_pairs(PairIndex(left_pair_index), right_pair)];
             }
         });
 
