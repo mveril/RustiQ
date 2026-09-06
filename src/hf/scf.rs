@@ -300,7 +300,7 @@ impl<'a> ScfCalculation<'a> {
             energy_last = self.energy;
         }
         if converged {
-            delta_energy = self.canonicalize_final_fock(delta_energy)?;
+            delta_energy = self.canonicalize_final_fock(delta_energy, &mut iterations, observer)?;
         }
         self.timings.iterations = iterations_start.elapsed();
 
@@ -349,13 +349,18 @@ impl<'a> ScfCalculation<'a> {
         Ok(())
     }
 
-    fn canonicalize_final_fock(&mut self, mut delta_energy: f64) -> Result<f64, NumericalError> {
+    fn canonicalize_final_fock<O: ScfObserver>(
+        &mut self,
+        mut delta_energy: f64,
+        iterations: &mut usize,
+        observer: &mut O,
+    ) -> Result<f64, NumericalError> {
         // Keep F, P, and C mutually consistent.  The main SCF loop leaves
         // `fock_matrix` as F(P), but its coefficients were obtained from the
         // preceding Fock matrix.  Diagonalizing F(P) is therefore necessary
         // for canonical orbitals; if it changes the occupied projector, take
         // another undamped SCF step before trying again.
-        for _ in 0..self.max_iterations {
+        loop {
             self.solve_roothaan_hall_equation()?;
             let canonical_density = self.calculate_density_matrix();
 
@@ -366,6 +371,13 @@ impl<'a> ScfCalculation<'a> {
                 return Ok(delta_energy);
             }
 
+            // A diagonalization that only verifies the final orbitals is not an
+            // SCF update. Any further density update uses the shared iteration budget.
+            if *iterations >= self.max_iterations {
+                return Err(NumericalError::FinalizationNotConverged {
+                    max_iterations: self.max_iterations,
+                });
+            }
             let previous_energy = self.energy;
             self.density_matrix = canonical_density;
             self.update_residual_norm_and_next_fock();
@@ -374,11 +386,14 @@ impl<'a> ScfCalculation<'a> {
             ensure_finite_value(self.residual_norm, "SCF residual norm")?;
             delta_energy = (self.energy - previous_energy).abs();
             ensure_finite_value(delta_energy, "SCF delta energy")?;
+            *iterations += 1;
+            observer.on_iteration(&ScfIteration {
+                iteration: *iterations,
+                electronic_energy: self.energy,
+                delta_energy,
+                residual_norm: self.residual_norm,
+            });
         }
-
-        Err(NumericalError::FinalizationNotConverged {
-            max_iterations: self.max_iterations,
-        })
     }
 
     fn update_density_matrix(&mut self) {
@@ -853,15 +868,49 @@ mod tests {
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
         scf.enable_diis(DiisSize::try_new(6).unwrap());
 
-        let result = scf.run().unwrap();
+        let mut run_observer = crate::hf::scf_observer::RecordingScfObserver::default();
+        let result = scf.run_with_observer(&mut run_observer).unwrap();
 
         assert!(result.converged);
+        assert_eq!(result.iterations, run_observer.0.len());
+        let last = run_observer.0.last().unwrap();
+        assert_eq!(last.iteration, result.iterations);
+        assert_eq!(last.electronic_energy, result.electronic_energy);
+        assert_eq!(last.delta_energy, result.delta_energy);
+        assert_eq!(last.residual_norm, result.residual_norm);
         assert_final_density_matches_canonical_orbitals(&scf, 1e-8);
         let lhs = &scf.fock_matrix * &scf.mo_coefficients;
         let rhs = &scf.overlap_matrix
             * &scf.mo_coefficients
             * DMatrix::from_diagonal(&scf.orbital_energies);
         assert_abs_diff_eq!((&lhs - &rhs).norm(), 0.0, epsilon = 1e-8);
+
+        let mut observer = crate::hf::scf_observer::RecordingScfObserver::default();
+        let mut iterations = result.iterations;
+        // Force a refinement even though the preceding calculation converged.
+        let delta = scf
+            .canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer)
+            .unwrap();
+        assert!(!observer.0.is_empty());
+        assert_eq!(iterations, result.iterations + observer.0.len());
+        assert!(iterations <= scf.max_iterations);
+        for (offset, step) in observer.0.iter().enumerate() {
+            assert_eq!(step.iteration, result.iterations + offset + 1);
+        }
+        let last = observer.0.last().unwrap();
+        assert_eq!(last.electronic_energy, scf.energy);
+        assert_eq!(last.delta_energy, delta);
+        assert_eq!(last.residual_norm, scf.residual_norm);
+
+        // An exhausted budget may verify orbitals, but cannot update density.
+        scf.max_iterations = iterations;
+        let count = observer.0.len();
+        assert!(matches!(
+            scf.canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer),
+            Err(NumericalError::FinalizationNotConverged { .. })
+        ));
+        assert_eq!(iterations, scf.max_iterations);
+        assert_eq!(observer.0.len(), count);
     }
 
     #[test]
