@@ -27,8 +27,6 @@ pub struct Basis {
 /// An error raised before any basis functions are constructed.
 #[derive(Debug, Error, PartialEq)]
 pub enum BasisError {
-    #[error("basis file declares unsupported function type {function_type:?}")]
-    UnsupportedDeclaredFunctionType { function_type: FunctionType },
     #[error(
         "basis data for element Z={atomic_number} contains an ECP ({ecp_electrons} core electrons, {potential_count} potentials), but RustiQ does not support ECPs"
     )]
@@ -207,16 +205,8 @@ impl Basis {
     }
 
     fn validate(basis_file: &BasisFile, mol: &Geometry) -> Result<(), BasisError> {
-        if let Some(function_type) = basis_file.function_types.iter().find(|function_type| {
-            !matches!(
-                function_type,
-                FunctionType::Gto | FunctionType::GtoCartesian | FunctionType::GtoSpherical
-            )
-        }) {
-            return Err(BasisError::UnsupportedDeclaredFunctionType {
-                function_type: *function_type,
-            });
-        }
+        // File-wide function types also describe elements absent from the molecule.
+        // Validate the actual shells of the requested elements below.
         for atom in &mol.atoms {
             let atomic_number = atom.element.atomic_number;
             let Some(element) = basis_file.elements.get(&atomic_number) else {
@@ -857,10 +847,14 @@ mod tests {
     fn try_load_rejects_unsupported_function_type() {
         let mut basis_file = test_utils::load_minimal_basis_file();
         basis_file.function_types = HashSet::from([FunctionType::Sto]);
+        basis_file.elements.get_mut(&1).unwrap().electron_shells[0].function_type =
+            FunctionType::Sto;
 
         assert_eq!(
             Basis::try_load(&basis_file, &hydrogen_geometry()),
-            Err(BasisError::UnsupportedDeclaredFunctionType {
+            Err(BasisError::UnsupportedFunctionType {
+                atomic_number: 1,
+                shell_index: 0,
                 function_type: FunctionType::Sto,
             })
         );
@@ -891,6 +885,20 @@ mod tests {
         unused_element.electron_shells[0].function_type = FunctionType::GtoSpherical;
         unused_element.electron_shells[0].angular_momentum = vec![3];
         basis_file.elements.insert(29, unused_element);
+
+        assert!(Basis::try_load(&basis_file, &hydrogen_geometry()).is_ok());
+    }
+
+    #[test]
+    fn try_load_ignores_function_types_declared_for_unused_elements() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        let mut unused_element = test_utils::load_minimal_basis_file()
+            .elements
+            .remove(&1)
+            .unwrap();
+        unused_element.electron_shells[0].function_type = FunctionType::Sto;
+        basis_file.elements.insert(29, unused_element);
+        basis_file.function_types.insert(FunctionType::Sto);
 
         assert!(Basis::try_load(&basis_file, &hydrogen_geometry()).is_ok());
     }
