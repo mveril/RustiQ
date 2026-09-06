@@ -21,7 +21,6 @@ fn format_slice(vec: &[String]) -> String {
 
 impl From<BasisSetDetail> for BasisTableItem {
     fn from(value: BasisSetDetail) -> Self {
-        let mut friendly = vec![value.display_name.clone()];
         let elements = {
             value.get_latest_version().elements.iter().map(|el| {
                 if let Ok(el_num) = el.parse::<usize>() {
@@ -33,12 +32,11 @@ impl From<BasisSetDetail> for BasisTableItem {
             })
         }
         .collect();
-        friendly.extend(
-            value
-                .other_names
-                .into_iter()
-                .filter(|name| *name != value.display_name),
-        );
+        let friendly = value
+            .other_names
+            .into_iter()
+            .filter(|name| *name != value.display_name)
+            .collect();
         BasisTableItem {
             name: value.display_name,
             friendly_names: friendly,
@@ -49,9 +47,14 @@ impl From<BasisSetDetail> for BasisTableItem {
 
 impl From<BasisFile> for BasisTableItem {
     fn from(value: BasisFile) -> Self {
+        let name = value.name.clone();
+        let friendly_names = value
+            .names
+            .iter()
+            .filter(|friendly_name| friendly_name.as_str() != name.as_str());
         BasisTableItem {
             name: value.name,
-            friendly_names: value.names,
+            friendly_names: friendly_names.cloned().collect(),
             elements: value
                 .elements
                 .keys()
