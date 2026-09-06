@@ -28,6 +28,8 @@ pub struct Mp2Result {
 
 #[derive(Debug, Error)]
 pub enum Mp2Error {
+    #[error("MP2 energy denominator {denominator} Hartree is too close to zero (minimum magnitude: {threshold} Hartree)")]
+    NearZeroDenominator { denominator: f64, threshold: f64 },
     #[error(
         "MP2 input dimensions do not match: MO coefficients are {coeff_rows}x{coeff_cols}, orbital energies have length {energy_len}"
     )]
@@ -53,6 +55,21 @@ pub enum Mp2Error {
     InvalidFrozenOrbitalCount { frozen: usize, occupied: usize },
     #[error(transparent)]
     Numerical(#[from] NumericalError),
+}
+
+// Absolute floor in Hartree: reject numerically singular perturbation terms.
+// This is a numerical guard, not a criterion for MP2's physical validity.
+const MIN_MP2_DENOMINATOR: f64 = 1e-12;
+
+fn validate_denominator(denominator: f64) -> Result<(), Mp2Error> {
+    ensure_finite_value(denominator, "MP2 energy denominator")?;
+    if denominator.abs() <= MIN_MP2_DENOMINATOR {
+        return Err(Mp2Error::NearZeroDenominator {
+            denominator,
+            threshold: MIN_MP2_DENOMINATOR,
+        });
+    }
+    Ok(())
 }
 
 pub fn rhf_closed_shell(
@@ -155,7 +172,7 @@ pub(crate) fn correlation_energy(input: &Mp2Input<'_>) -> Result<f64, Mp2Error> 
                         let denominator = orbital_energies[i_orbital] + orbital_energies[j_orbital]
                             - orbital_energies[a_orbital]
                             - orbital_energies[b_orbital];
-                        ensure_finite_value(denominator, "MP2 energy denominator")?;
+                        validate_denominator(denominator)?;
 
                         partial_energy += ((2.0 * iajb) - ibja) * iajb / denominator;
                     }
@@ -388,6 +405,10 @@ fn same_spin_correlation_energy(
                     let ia = orbital_pair_index(i, a, virtual_orbitals);
                     let ja = orbital_pair_index(j, a, virtual_orbitals);
                     for b in 0..virtual_orbitals {
+                        // Antisymmetry makes these same-spin contributions identically zero.
+                        if i == j || a == b {
+                            continue;
+                        }
                         let b_orbital = occupied_orbitals + b;
                         let ib = orbital_pair_index(i, b, virtual_orbitals);
                         let jb = orbital_pair_index(j, b, virtual_orbitals);
@@ -396,7 +417,7 @@ fn same_spin_correlation_energy(
                         let denominator = orbital_energies[i_orbital] + orbital_energies[j_orbital]
                             - orbital_energies[a_orbital]
                             - orbital_energies[b_orbital];
-                        ensure_finite_value(denominator, "MP2 energy denominator")?;
+                        validate_denominator(denominator)?;
 
                         partial_energy += 0.5 * direct * (direct - exchange) / denominator;
                     }
@@ -444,7 +465,7 @@ fn opposite_spin_correlation_energy(
                             + beta_orbital_energies[j_orbital]
                             - alpha_orbital_energies[a_orbital]
                             - beta_orbital_energies[b_orbital];
-                        ensure_finite_value(denominator, "MP2 energy denominator")?;
+                        validate_denominator(denominator)?;
 
                         partial_energy += direct * direct / denominator;
                     }
@@ -527,6 +548,82 @@ mod tests {
     use super::*;
     use crate::{molecules::molecule::Molecule, test_utils};
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_denominator_guard_boundary_and_non_finite_values() {
+        for denominator in [0.0, 1e-15, -1e-15, 1e-12, -1e-12] {
+            assert!(matches!(
+                validate_denominator(denominator),
+                Err(Mp2Error::NearZeroDenominator { .. })
+            ));
+        }
+        for denominator in [2e-12, -2e-12, -1.0] {
+            assert!(validate_denominator(denominator).is_ok());
+        }
+        for denominator in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(matches!(
+                validate_denominator(denominator),
+                Err(Mp2Error::Numerical(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn test_rhf_and_opposite_spin_reject_near_zero_denominators() {
+        let coefficients = DMatrix::identity(2, 2);
+        let integrals = DMatrix::from_element(1, 1, 1.0);
+        let mut eri = CompactEri::Zeroed(2);
+        eri[(0, 1, 0, 1)] = 1.0;
+        for gap in [0.0, 1e-15, -1e-15] {
+            let energies = DVector::from_vec(vec![0.0, gap]);
+            let input = Mp2Input {
+                mo_coefficients: &coefficients,
+                orbital_energies: &energies,
+                occupied_orbitals: 1,
+                frozen_orbitals: 0,
+                two_electron_integrals: &eri,
+            };
+            for result in [
+                correlation_energy(&input),
+                opposite_spin_correlation_energy(&integrals, &energies, 1, 0, &energies, 1, 0),
+            ] {
+                assert!(matches!(result, Err(Mp2Error::NearZeroDenominator { .. })));
+            }
+        }
+    }
+
+    #[test]
+    fn test_same_spin_skips_identically_zero_contributions() {
+        // Exercise i == j and a == b separately, including a frozen orbital.
+        for (occupied, virtuals, frozen) in [(1, 2, 0), (2, 1, 0), (2, 2, 1)] {
+            let pairs = (occupied - frozen) * virtuals;
+            let integrals = DMatrix::from_element(pairs, pairs, 1.0);
+            for gap in [0.0, 1e-15, -1e-15] {
+                let mut energies = DVector::zeros(occupied + virtuals);
+                for a in occupied..energies.len() {
+                    energies[a] = gap;
+                }
+                assert_eq!(
+                    same_spin_correlation_energy(&integrals, &energies, occupied, frozen).unwrap(),
+                    0.0
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_same_spin_rejects_near_zero_denominator_for_distinct_orbitals() {
+        let mut integrals = DMatrix::zeros(4, 4);
+        integrals[(0, 3)] = 1.0;
+        integrals[(3, 0)] = 1.0;
+        for gap in [0.0, 1e-15, -1e-15] {
+            let energies = DVector::from_vec(vec![0.0, 0.0, gap, gap]);
+            assert!(matches!(
+                same_spin_correlation_energy(&integrals, &energies, 2, 0),
+                Err(Mp2Error::NearZeroDenominator { .. })
+            ));
+        }
+    }
 
     #[test]
     fn test_closed_shell_mp2_distinguishes_iajb_from_ijab() {
