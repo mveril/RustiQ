@@ -49,9 +49,14 @@ impl From<BasisSetDetail> for BasisTableItem {
 
 impl From<BasisFile> for BasisTableItem {
     fn from(value: BasisFile) -> Self {
+        let name = value.name.clone();
+        let friendly_names = value
+            .names
+            .iter()
+            .filter(|friendly_name| friendly_name.as_str() != name.as_str());
         BasisTableItem {
             name: value.name,
-            friendly_names: value.names,
+            friendly_names: friendly_names.cloned().collect(),
             elements: value
                 .elements
                 .keys()
