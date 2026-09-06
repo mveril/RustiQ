@@ -405,6 +405,10 @@ fn same_spin_correlation_energy(
                     let ia = orbital_pair_index(i, a, virtual_orbitals);
                     let ja = orbital_pair_index(j, a, virtual_orbitals);
                     for b in 0..virtual_orbitals {
+                        // Antisymmetry makes these same-spin contributions identically zero.
+                        if i == j || a == b {
+                            continue;
+                        }
                         let b_orbital = occupied_orbitals + b;
                         let ib = orbital_pair_index(i, b, virtual_orbitals);
                         let jb = orbital_pair_index(j, b, virtual_orbitals);
@@ -565,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_mp2_channels_reject_near_zero_denominators() {
+    fn test_rhf_and_opposite_spin_reject_near_zero_denominators() {
         let coefficients = DMatrix::identity(2, 2);
         let integrals = DMatrix::from_element(1, 1, 1.0);
         let mut eri = CompactEri::Zeroed(2);
@@ -581,11 +585,43 @@ mod tests {
             };
             for result in [
                 correlation_energy(&input),
-                same_spin_correlation_energy(&integrals, &energies, 1, 0),
                 opposite_spin_correlation_energy(&integrals, &energies, 1, 0, &energies, 1, 0),
             ] {
                 assert!(matches!(result, Err(Mp2Error::NearZeroDenominator { .. })));
             }
+        }
+    }
+
+    #[test]
+    fn test_same_spin_skips_identically_zero_contributions() {
+        // Exercise i == j and a == b separately, including a frozen orbital.
+        for (occupied, virtuals, frozen) in [(1, 2, 0), (2, 1, 0), (2, 2, 1)] {
+            let pairs = (occupied - frozen) * virtuals;
+            let integrals = DMatrix::from_element(pairs, pairs, 1.0);
+            for gap in [0.0, 1e-15, -1e-15] {
+                let mut energies = DVector::zeros(occupied + virtuals);
+                for a in occupied..energies.len() {
+                    energies[a] = gap;
+                }
+                assert_eq!(
+                    same_spin_correlation_energy(&integrals, &energies, occupied, frozen).unwrap(),
+                    0.0
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_same_spin_rejects_near_zero_denominator_for_distinct_orbitals() {
+        let mut integrals = DMatrix::zeros(4, 4);
+        integrals[(0, 3)] = 1.0;
+        integrals[(3, 0)] = 1.0;
+        for gap in [0.0, 1e-15, -1e-15] {
+            let energies = DVector::from_vec(vec![0.0, 0.0, gap, gap]);
+            assert!(matches!(
+                same_spin_correlation_energy(&integrals, &energies, 2, 0),
+                Err(Mp2Error::NearZeroDenominator { .. })
+            ));
         }
     }
 
