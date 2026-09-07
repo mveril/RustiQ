@@ -3,10 +3,8 @@ use std::cell::OnceCell;
 use indicatif::{ProgressBar, ProgressStyle};
 use miette::IntoDiagnostic;
 
-use crate::{
-    basis::BasisStore,
-    cli::commands::{AsyncRunnable, CommandResult},
-};
+use crate::cli::commands::{AsyncRunnable, CommandResult};
+use RustiQ::basis::BasisStore;
 
 #[derive(clap::Args, Debug)]
 pub struct DownloadCommand {

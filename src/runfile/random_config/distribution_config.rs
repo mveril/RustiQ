@@ -27,7 +27,7 @@ pub(crate) enum DistributionConfig {
 }
 #[derive(Debug, Error)]
 #[error("Random distribution creation error: {0}")]
-pub(crate) enum DistributionCreationError {
+pub enum DistributionCreationError {
     #[error("Error on creation of uniform distribution {0}")]
     Uniform(#[from] UniformError),
     #[error("Error on creation of normal distribution {0}")]

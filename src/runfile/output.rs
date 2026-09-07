@@ -3,18 +3,18 @@ use toml_spanner::{Arena, FromToml, Item, TableStyle, ToToml, ToTomlError};
 use super::RunFile;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Defaults {
+pub enum Defaults {
     Include,
     Omit,
 }
 
-pub(crate) struct TomlOutput<'a, T> {
+pub struct TomlOutput<'a, T> {
     value: &'a T,
     defaults: Defaults,
 }
 
 impl RunFile {
-    pub(crate) fn output(&self, defaults: Defaults) -> TomlOutput<'_, Self> {
+    pub fn output(&self, defaults: Defaults) -> TomlOutput<'_, Self> {
         TomlOutput::new(self, defaults)
     }
 }

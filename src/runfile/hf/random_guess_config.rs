@@ -5,7 +5,7 @@ use crate::runfile::random_config::{DistributionConfig, RandomConfig};
 
 #[derive(Debug, Clone, Copy, Toml)]
 #[toml(Toml)]
-pub(crate) struct RandomGuessConfig {
+pub struct RandomGuessConfig {
     #[toml(flatten, with = flatten_any)]
     pub(crate) random: RandomConfig,
 }

@@ -9,19 +9,19 @@ use toml_spanner::{Arena, Context, Failed, FromToml, Item, ToToml, ToTomlError};
     validate(finite, greater = 0.0),
     derive(Debug, Clone, Copy, PartialEq, PartialOrd, TryFrom, Into)
 )]
-pub(crate) struct PositiveFiniteF64(f64);
+pub struct PositiveFiniteF64(f64);
 
 #[nutype(
     validate(finite, greater_or_equal = 0.0),
     derive(Debug, Clone, Copy, PartialEq, PartialOrd, TryFrom, Into)
 )]
-pub(crate) struct NonNegativeFiniteF64(f64);
+pub struct NonNegativeFiniteF64(f64);
 
 #[nutype(
     validate(greater = 1),
     derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFrom, Into)
 )]
-pub(crate) struct DiisSize(usize);
+pub struct DiisSize(usize);
 
 fn from_toml_via_try_from<'de, T, Raw>(
     ctx: &mut Context<'de>,

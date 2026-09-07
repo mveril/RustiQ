@@ -1,16 +1,19 @@
 #![allow(dead_code, non_snake_case)]
 
+//! Shared domain and scientific implementation used by the CLI and benchmarks.
+//!
+//! The existing module layout is retained while establishing the library boundary.
+//! Runfile configuration remains here because the calculation APIs depend on it.
+
 pub mod basis;
 pub mod env;
+pub mod eri;
+pub mod hf;
+pub mod math_utils;
+pub mod molecules;
+pub mod mp2;
+pub mod runfile;
 
-#[cfg(any(feature = "bench-support", test))]
-mod eri;
-#[cfg(test)]
-mod hf;
-mod math_utils;
-mod molecules;
-#[cfg(test)]
-mod runfile;
 #[cfg(test)]
 pub(crate) mod test_utils;
 

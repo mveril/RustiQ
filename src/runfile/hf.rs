@@ -13,13 +13,13 @@ mod density_guess_config;
 mod guess_perturbation_config;
 mod random_guess_config;
 
-pub(crate) use density_guess_config::DensityGuessConfig;
-pub(crate) use guess_perturbation_config::GuessPerturbationConfig;
-pub(crate) use random_guess_config::RandomGuessConfig;
+pub use density_guess_config::DensityGuessConfig;
+pub use guess_perturbation_config::GuessPerturbationConfig;
+pub use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Toml)]
 #[toml(Toml, recoverable)]
-pub(crate) struct HfConfig {
+pub struct HfConfig {
     #[toml(default)]
     pub method: HfMethod,
     #[toml(default = default_max_iter())]
@@ -56,7 +56,7 @@ impl Default for HfConfig {
 
 #[derive(Debug, Default, Serialize, Deserialize, Toml, PartialEq, Eq)]
 #[toml(Toml)]
-pub(crate) enum HfMethod {
+pub enum HfMethod {
     #[default]
     Auto,
     Rhf,
@@ -64,7 +64,7 @@ pub(crate) enum HfMethod {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ResolvedHfMethod {
+pub enum ResolvedHfMethod {
     Rhf,
     Uhf,
 }
@@ -79,7 +79,7 @@ impl std::fmt::Display for ResolvedHfMethod {
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
-pub(crate) enum HfMethodResolutionError {
+pub enum HfMethodResolutionError {
     #[error(
         "RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}"
     )]
@@ -87,7 +87,7 @@ pub(crate) enum HfMethodResolutionError {
 }
 
 impl HfMethod {
-    pub(crate) fn resolve(
+    pub fn resolve(
         &self,
         molecule: &Molecule,
     ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
@@ -115,7 +115,7 @@ impl HfMethod {
 
 #[derive(Debug, Default, Toml, PartialEq, Eq)]
 #[toml(Toml)]
-pub(crate) enum HfOutputFormat {
+pub enum HfOutputFormat {
     #[default]
     Normal,
     Nope,

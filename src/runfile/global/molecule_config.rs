@@ -6,19 +6,19 @@ use crate::molecules::units::Units;
 
 #[derive(Debug, Toml)]
 #[toml(Toml)]
-pub(crate) struct MoleculeConfig {
+pub struct MoleculeConfig {
     #[toml(
         default = default_molecule_file(),
         with = crate::runfile::validated::non_empty_path_buf
     )]
-    pub(crate) geometry: PathBuf,
+    pub geometry: PathBuf,
     #[toml(default)]
-    pub(crate) charge: i32,
+    pub charge: i32,
     #[toml(default = default_multiplicity())]
     #[toml(with = crate::runfile::validated::non_zero_u8)]
-    pub(crate) multiplicity: NonZeroU8,
+    pub multiplicity: NonZeroU8,
     #[toml(default = default_molecule_unit())]
-    pub(crate) molecule_unit: Units,
+    pub molecule_unit: Units,
 }
 
 impl Default for MoleculeConfig {

@@ -6,10 +6,8 @@ use std::{
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use thiserror::Error;
 
-use crate::{
-    basis::BasisStore,
-    cli::commands::{CommandResult, Runnable},
-};
+use crate::cli::commands::{CommandResult, Runnable};
+use RustiQ::basis::BasisStore;
 
 #[derive(clap::Args, Debug)]
 pub struct ImportCommand {

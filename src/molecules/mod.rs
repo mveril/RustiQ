@@ -1,9 +1,9 @@
-pub(crate) mod atom;
+pub mod atom;
 pub(crate) mod convert_length;
 pub(crate) mod element_ext;
 pub(crate) mod element_parser;
-pub(crate) mod geometry;
-pub(crate) mod geometry_parse_error;
-pub(crate) mod molecule;
-pub(crate) mod units;
+pub mod geometry;
+pub mod geometry_parse_error;
+pub mod molecule;
+pub mod units;
 pub(crate) mod xyz_parser;

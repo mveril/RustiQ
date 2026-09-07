@@ -24,7 +24,7 @@ use super::{
 };
 
 #[derive(Debug, Error)]
-pub(crate) enum UhfSetupError<E>
+pub enum UhfSetupError<E>
 where
     E: std::error::Error + 'static,
 {
@@ -35,7 +35,7 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct Spin<T> {
+pub struct Spin<T> {
     pub alpha: T,
     pub beta: T,
 }
@@ -65,8 +65,8 @@ impl<T: Clone> Spin<T> {
 }
 
 pub(crate) type SpinDiisAccelerators = Spin<DiisAccelerator>;
-pub(crate) type SpinMatrices = Spin<DMatrix<f64>>;
-pub(crate) struct UhfCalculation<'a> {
+pub type SpinMatrices = Spin<DMatrix<f64>>;
+pub struct UhfCalculation<'a> {
     pub molecule: &'a Molecule,
     pub basis: &'a Basis,
     pub max_iterations: usize,

@@ -5,8 +5,8 @@ use toml_spanner::Toml;
 
 #[derive(Debug, Toml)]
 #[toml(Toml, recoverable)]
-pub(crate) struct Global {
-    pub(crate) basis: String,
+pub struct Global {
+    pub basis: String,
     #[toml(default)]
-    pub(crate) molecule: MoleculeConfig,
+    pub molecule: MoleculeConfig,
 }

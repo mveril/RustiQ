@@ -2,7 +2,7 @@ use nalgebra::DVector;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum NumericalError {
+pub enum NumericalError {
     #[error("{matrix} matrix is not positive definite")]
     IndefiniteMatrix { matrix: &'static str },
     #[error("{values} contain a non-finite value")]

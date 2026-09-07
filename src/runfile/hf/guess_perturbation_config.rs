@@ -6,7 +6,7 @@ use crate::runfile::validated::PositiveFiniteF64;
 
 #[derive(Debug, Clone, Copy, Toml)]
 #[toml(ToToml)]
-pub(crate) struct GuessPerturbationConfig {
+pub struct GuessPerturbationConfig {
     #[toml(flatten, with = flatten_any)]
     pub(crate) random: RandomConfig,
 }

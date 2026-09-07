@@ -14,7 +14,7 @@ use std::error::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum DensityGuessError {
+pub enum DensityGuessError {
     #[error("random distribution creation failed: {0}")]
     DistributionCreation(#[from] DistributionCreationError),
     #[error(transparent)]
@@ -26,7 +26,7 @@ pub(crate) mod one_electron;
 pub(crate) mod random;
 pub(crate) mod zero;
 
-pub(crate) trait DensityGuess: Send + Sync {
+pub trait DensityGuess: Send + Sync {
     type Error: Error;
     fn build_orbital_guess(
         &self,
@@ -39,7 +39,7 @@ pub(crate) trait DensityGuess: Send + Sync {
 ///
 /// Strategies cannot return an arbitrary AO density matrix: normal guesses provide
 /// symmetric Fock-like matrices, while `Zero` is an explicit startup sentinel.
-pub(crate) enum OrbitalGuess {
+pub enum OrbitalGuess {
     CommonFockLike(DMatrix<f64>),
     UnrestrictedFockLike(Spin<DMatrix<f64>>),
     Zero,

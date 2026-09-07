@@ -1,3 +1,4 @@
+pub use distribution_config::DistributionCreationError;
 pub(crate) mod distribution_config;
 pub(crate) use distribution_config::DistributionConfig;
 use rand::rngs::StdRng;
