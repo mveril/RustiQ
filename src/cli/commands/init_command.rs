@@ -9,7 +9,7 @@ use clap::{Args, ValueEnum};
 use miette::{miette, IntoDiagnostic, WrapErr};
 
 use super::{CommandResult, Runnable};
-use crate::{
+use RustiQ::{
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
     runfile::{
         global::{molecule_config::MoleculeConfig, Global},
@@ -197,11 +197,9 @@ impl Runnable for InitCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        cli::{commands::Commands, Cli},
-        runfile::parser::parse_runfile,
-    };
+    use crate::cli::{commands::Commands, Cli};
     use clap::Parser;
+    use RustiQ::runfile::parser::parse_runfile;
 
     fn command(input: &Path, output: &Path, extra: &[&str]) -> InitCommand {
         let mut args = vec![

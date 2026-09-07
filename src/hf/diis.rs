@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::runfile::validated::DiisSize;
 
 #[derive(Debug, Error)]
-pub(crate) enum DiisError {
+pub enum DiisError {
     #[error("DIIS history size must be at least 2, got {0}")]
     HistoryTooSmall(usize),
 }

@@ -2,7 +2,7 @@ use std::io::Write;
 
 use serde::Serialize;
 
-use crate::{
+use RustiQ::{
     hf::{orthogonalization::OrthogonalizationInfo, scf_result::ScfResult},
     mp2::Mp2Result,
     runfile::hf::ResolvedHfMethod,
@@ -140,7 +140,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     use super::*;
-    use crate::hf::{
+    use RustiQ::hf::{
         orthogonalization::OrthogonalizationInfo, scf_energy_details::ScfEnergyDetails,
         scf_result::ScfTimings,
     };

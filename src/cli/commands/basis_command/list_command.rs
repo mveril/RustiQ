@@ -3,13 +3,11 @@ use miette::IntoDiagnostic;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tabled::Table;
 
-use crate::{
-    basis::{BasisEntry, BasisStore},
-    cli::{
-        commands::{CommandResult, Runnable},
-        ux::BasisTableItem,
-    },
+use crate::cli::{
+    commands::{CommandResult, Runnable},
+    ux::BasisTableItem,
 };
+use RustiQ::basis::{BasisEntry, BasisStore};
 
 fn pagin_print(content: &str) {
     if PrettyPrinter::new()
@@ -57,7 +55,7 @@ impl Runnable for ListCommand {
 
         let list = store.list().into_diagnostic()?;
         if self.verbose {
-            let v: Result<Vec<_>, crate::basis::FileError> = list
+            let v: Result<Vec<_>, RustiQ::basis::FileError> = list
                 .par_bridge()
                 .map(|item| {
                     item.map(BasisEntry::into_basis_file)

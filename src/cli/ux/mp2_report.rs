@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use crate::{hf::scf_result::ScfResult, mp2::Mp2Result};
+use RustiQ::{hf::scf_result::ScfResult, mp2::Mp2Result};
 
 pub(crate) struct Mp2Reporter<W> {
     writer: W,
@@ -63,14 +63,14 @@ mod tests {
                         total_energy: -0.8,
                         delta_energy: 0.0,
                         residual_norm: 0.0,
-                        energy_details: crate::hf::scf_energy_details::ScfEnergyDetails {
+                        energy_details: RustiQ::hf::scf_energy_details::ScfEnergyDetails {
                             kinetic_energy: 0.0,
                             nuclear_attraction_energy: 0.0,
                             electron_repulsion_energy: 0.0,
                         },
                         orthogonalization:
-                            crate::hf::orthogonalization::OrthogonalizationInfo::default(),
-                        timings: crate::hf::scf_result::ScfTimings::default(),
+                            RustiQ::hf::orthogonalization::OrthogonalizationInfo::default(),
+                        timings: RustiQ::hf::scf_result::ScfTimings::default(),
                     },
                 )
                 .unwrap();

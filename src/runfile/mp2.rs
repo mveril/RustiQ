@@ -3,7 +3,7 @@ use toml_spanner::Toml;
 
 #[derive(Debug, Default, Serialize, Deserialize, Toml)]
 #[toml(Toml)]
-pub(crate) struct Mp2Config {
+pub struct Mp2Config {
     #[toml(default)]
     #[toml(with = crate::runfile::validated::usize_as_integer)]
     pub frozen_orbitals: usize,

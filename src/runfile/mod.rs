@@ -2,20 +2,20 @@ mod diagnostics;
 pub mod global;
 pub mod hf;
 pub mod mp2;
-pub(crate) mod output;
+pub mod output;
 use global::Global;
-pub(crate) mod parser;
+pub mod parser;
 pub mod random_config;
-pub(crate) mod validated;
+pub mod validated;
 use toml_spanner::Toml;
 
 #[derive(Debug, Toml)]
 #[toml(Toml, recoverable)]
-pub(crate) struct RunFile {
-    pub(crate) global: Global,
-    pub(crate) hf: Option<hf::HfConfig>,
+pub struct RunFile {
+    pub global: Global,
+    pub hf: Option<hf::HfConfig>,
     #[toml(default)]
-    pub(crate) mp2: Option<mp2::Mp2Config>,
+    pub mp2: Option<mp2::Mp2Config>,
 }
 
 #[cfg(test)]

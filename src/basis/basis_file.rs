@@ -55,6 +55,21 @@ impl BasisFile {
         serde_json::from_reader(reader)
     }
 
+    /// Returns the alternative names declared in the basis file.
+    pub fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    /// Returns the function types declared in the basis file.
+    pub fn function_types(&self) -> &HashSet<FunctionType> {
+        &self.function_types
+    }
+
+    /// Returns the atomic numbers for which this file contains basis data.
+    pub fn atomic_numbers(&self) -> impl Iterator<Item = u32> + '_ {
+        self.elements.keys().copied()
+    }
+
     /// Returns the identifier derived from the canonical JSON `name` field.
     pub fn id(&self) -> Result<BasisId<'_>, InvalidBasisId> {
         BasisId::new(&self.name)

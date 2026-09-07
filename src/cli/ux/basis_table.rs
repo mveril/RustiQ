@@ -1,6 +1,6 @@
-use crate::basis::{metadata::BasisSetDetail, BasisFile};
 use periodic_table::periodic_table;
 use tabled::Tabled;
+use RustiQ::basis::{metadata::BasisSetDetail, BasisFile};
 
 #[derive(Tabled)]
 pub(crate) struct BasisTableItem {
@@ -47,18 +47,19 @@ impl From<BasisSetDetail> for BasisTableItem {
 
 impl From<BasisFile> for BasisTableItem {
     fn from(value: BasisFile) -> Self {
-        let name = value.name.clone();
+        let name = value.name().to_owned();
         let friendly_names = value
-            .names
+            .names()
             .iter()
-            .filter(|friendly_name| friendly_name.as_str() != name.as_str());
+            .filter(|friendly_name| friendly_name.as_str() != name.as_str())
+            .cloned()
+            .collect();
         BasisTableItem {
-            name: value.name,
-            friendly_names: friendly_names.cloned().collect(),
+            name,
+            friendly_names,
             elements: value
-                .elements
-                .keys()
-                .map(|index| periodic_table()[*index as usize - 1].symbol.to_owned())
+                .atomic_numbers()
+                .map(|index| periodic_table()[index as usize - 1].symbol.to_owned())
                 .collect(),
         }
     }
@@ -68,7 +69,7 @@ impl From<BasisFile> for BasisTableItem {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::basis::{
+    use RustiQ::basis::{
         metadata::{BasisSetDetail, Version},
         BasisId,
     };

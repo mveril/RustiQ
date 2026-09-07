@@ -2,11 +2,9 @@ use std::{collections::BTreeMap, io::stdin};
 
 use miette::IntoDiagnostic;
 
-use crate::{
-    cli::commands::{CommandResult, Runnable},
-    molecules::geometry::Geometry,
-};
+use crate::cli::commands::{CommandResult, Runnable};
 use std::path::PathBuf;
+use RustiQ::molecules::geometry::Geometry;
 
 #[derive(clap::Args, Debug)]
 pub struct InfoCommand {

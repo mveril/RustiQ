@@ -26,7 +26,7 @@ use super::{
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum ScfSetupError<E>
+pub enum ScfSetupError<E>
 where
     E: std::error::Error + 'static,
 {

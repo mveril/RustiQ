@@ -4,7 +4,7 @@ use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
 
 #[derive(Debug, Clone, Copy, Toml)]
 #[toml(Toml, tag = "type")]
-pub(crate) enum DensityGuessConfig {
+pub enum DensityGuessConfig {
     CoreHamiltonian {
         #[toml(default)]
         perturbation: Option<GuessPerturbationConfig>,

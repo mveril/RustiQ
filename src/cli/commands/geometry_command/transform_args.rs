@@ -2,7 +2,7 @@ use clap::Args;
 use miette::IntoDiagnostic;
 use std::{fs::File, io::stdin, path::PathBuf};
 
-use crate::molecules::geometry::Geometry;
+use RustiQ::molecules::geometry::Geometry;
 
 #[derive(Args, Debug, Clone)]
 pub struct TransformArgs {

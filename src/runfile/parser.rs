@@ -5,12 +5,12 @@ use crate::runfile::RunFile;
 use super::diagnostics::FromTomlErrorMietteExt;
 
 #[derive(Debug)]
-pub(crate) struct ParsedRunFile {
-    pub(crate) runfile: RunFile,
-    pub(crate) formatted_toml: String,
+pub struct ParsedRunFile {
+    pub runfile: RunFile,
+    pub formatted_toml: String,
 }
 
-pub(crate) fn parse_runfile(
+pub fn parse_runfile(
     source_name: impl Into<String>,
     toml_content: &str,
 ) -> miette::Result<ParsedRunFile> {

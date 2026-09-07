@@ -8,14 +8,12 @@ use std::{
 use clap::{ArgAction, ValueEnum};
 use miette::{miette, IntoDiagnostic};
 
-use crate::{
+use crate::cli::{
+    self,
+    ux::{bat, json_output::CalculationOutput, mp2_report::Mp2Reporter, scf_report::ScfReporter},
+};
+use RustiQ::{
     basis::{gaussian::basis::Basis, BasisFile, BasisStore},
-    cli::{
-        self,
-        ux::{
-            bat, json_output::CalculationOutput, mp2_report::Mp2Reporter, scf_report::ScfReporter,
-        },
-    },
     hf::{self, scf_result::ScfResult},
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
     mp2 as mp2_calc,
@@ -157,7 +155,7 @@ impl Runnable for RunCommand {
         let step_start = Instant::now();
         let basis_file = self.resolve_basis(&run.global.basis)?;
         if !json_output {
-            println!("{} {:?}", basis_file.name, basis_file.function_types);
+            println!("{} {:?}", basis_file.name(), basis_file.function_types());
             println!(
                 "Basis file loaded in {}",
                 humantime::format_duration(step_start.elapsed())
