@@ -74,7 +74,10 @@ mod tests {
     #[test]
     fn test_sample_runfiles_parse_with_toml_spanner() {
         let mut files = Vec::new();
-        collect_toml_files(Path::new("samples"), &mut files);
+        collect_toml_files(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples"),
+            &mut files,
+        );
         files.retain(|path| {
             path.file_name()
                 .is_none_or(|name| name != "invalid_diagnostics.toml")

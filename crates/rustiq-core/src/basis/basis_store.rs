@@ -150,7 +150,7 @@ impl BasisStore {
     #[cfg(any(test, feature = "bench-support"))]
     #[allow(dead_code)]
     pub fn repository_fixtures() -> BasisStore {
-        BasisStore::new(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data"))
+        BasisStore::new(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data"))
     }
 
     /// Lists all installed basis sets.
@@ -378,7 +378,7 @@ impl BasisStore {
     ///
     /// # Examples
     /// ```rust
-    /// # use RustiQ::basis::BasisStore;
+    /// # use rustiq_core::basis::BasisStore;
     /// # let store = BasisStore::new(&std::env::temp_dir().join("rustiq-doc-basis-store-remove"));
     /// let names = vec!["basis1", "basis2", "basis3"];
     /// store.remove(names).expect("Failed to remove files");
@@ -562,7 +562,7 @@ mod tests {
         temp_env::with_var("RUSTIQ_DATA_HOME", Some("/tmp/rustiq-data-home"), || {
             let store = BasisStore::default();
             let expected = PathBuf::from("/tmp/rustiq-data-home")
-                .join(env!("CARGO_PKG_NAME"))
+                .join("RustiQ")
                 .join("basis_sets");
             assert_eq!(store.path(), expected);
         });
@@ -606,7 +606,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
         let fixture = fs::File::open(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/sto-3g.json"),
         )
         .unwrap();
 
@@ -623,7 +623,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
         let fixture = fs::File::open(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/sto-3g.json"),
         )
         .unwrap();
         store
@@ -658,7 +658,8 @@ mod tests {
     fn test_import_rejects_an_invalid_basis_name() {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
-        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json");
+        let fixture =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/sto-3g.json");
         let mut basis: serde_json::Value =
             serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
         basis["name"] = serde_json::Value::String("..".to_owned());

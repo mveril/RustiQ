@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, io::stdin};
 use miette::IntoDiagnostic;
 
 use crate::cli::commands::{CommandResult, Runnable};
+use rustiq_core::molecules::geometry::Geometry;
 use std::path::PathBuf;
-use RustiQ::molecules::geometry::Geometry;
 
 #[derive(clap::Args, Debug)]
 pub struct InfoCommand {

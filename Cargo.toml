@@ -1,3 +1,30 @@
+[workspace]
+members = ["crates/rustiq-core"]
+default-members = [".", "crates/rustiq-core"]
+resolver = "2"
+
+[workspace.dependencies]
+approx = "0.5.1"
+bat = { version = "0.26", default-features = false, features = ["regex-onig"] }
+delegate = "0.13"
+miette = { version = "7", default-features = false, features = ["derive"] }
+nalgebra = { version = "0.35", default-features = false, features = ["std"] }
+periodic_table = "0.5"
+proptest = "1"
+rand = "0.10"
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.*"
+temp-env = "0.3"
+tempfile = "3.27.0"
+thiserror = "2"
+tokio = { version = "1", default-features = false }
+toml-spanner = { version = "1", default-features = false, features = [
+  "derive",
+  "from-toml",
+  "to-toml",
+] }
+
 [package]
 name = "RustiQ"
 description = "The modern rust quantum chemistry software"
@@ -11,54 +38,36 @@ repository = "https://github.com/mveril/RustiQ"
 
 [features]
 default = ["online"]
-online = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
-bench-support = []
+online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
+bench-support = ["rustiq-core/bench-support"]
 
 [dependencies]
-miette = { version = "7", features = ["fancy"] }
-toml-spanner = { version = "1", features = ["derive", "from-toml", "to-toml"] }
-reqwest = { version = "0.13", default-features = false, optional = true, features = [
-  "json",
-  "blocking",
-  "rustls",
-] }
+rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
+miette = { workspace = true, features = ["fancy"] }
+toml-spanner.workspace = true
 clap = { version = "4.6", features = ["cargo", "derive"] }
-dirs = "7"
 indicatif = { version = "0.18", optional = true }
-nalgebra = { version = "0.35", features = ["rayon"] }
-physical_constants = "0.5"
-periodic_table = "0.5"
-rayon = "1"
-tokio = { version = "1", features = ["fs", "io-util", "rt"], optional = true }
-serde_json = "1.0.*"
-serde = { version = "1", features = ["derive"] }
-delegate = "0.13"
-bounded-vec-deque = "0.1.1"
-thiserror = "2"
-rand = "0.10"
-rand_distr = "0.6"
-special = { version = "0.14", default-features = false, features = ["std"] }
-factorial = "0.4.0"
-approx = "0.5.1"
+nalgebra.workspace = true
+periodic_table.workspace = true
+rayon.workspace = true
+tokio = { workspace = true, features = ["rt"], optional = true }
+serde_json.workspace = true
+serde.workspace = true
+delegate.workspace = true
+thiserror.workspace = true
+rand.workspace = true
 tabled = "0.22"
 humantime = "2"
-which = "8"
 figlet-rs = "1"
-bat = { version = "0.26", default-features = false, features = [
-  "paging",
-  "regex-onig",
-] }
-nutype = { version = "0.7", features = ["serde"] }
+bat = { workspace = true, features = ["paging"] }
 cfg-if = "1"
-const_format = "0.2"
-smallvec = "1"
-tempfile = "3.27.0"
+tempfile.workspace = true
 
 [dev-dependencies]
+approx.workspace = true
 rstest = "0.27"
-ndarray = "0.17"
-proptest = "1"
-temp-env = "0.3"
+proptest.workspace = true
+temp-env.workspace = true
 
 [[bench]]
 name = "eri_timings"
@@ -66,10 +75,7 @@ harness = false
 required-features = ["bench-support"]
 
 [build-dependencies]
-bat = { version = "0.26", default-features = false, features = [
-  "build-assets",
-  "regex-onig",
-] }
+bat = { workspace = true, features = ["build-assets"] }
 
 [profile.profiling]
 inherits = "release"

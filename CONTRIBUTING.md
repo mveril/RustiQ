@@ -14,8 +14,8 @@ Alternatively, enter `nix develop` or install stable Rust and Cargo locally.
 Then run:
 
 ```sh
-cargo build
-cargo test
+cargo build --workspace
+cargo test --workspace
 ```
 
 ## Checks Before Opening A Pull Request
@@ -24,9 +24,9 @@ Run:
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo test --all-targets --no-default-features
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo test --workspace --all-targets --no-default-features
 uv lock --check
 ```
 

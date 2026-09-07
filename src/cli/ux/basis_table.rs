@@ -1,6 +1,6 @@
 use periodic_table::periodic_table;
+use rustiq_core::basis::{metadata::BasisSetDetail, BasisFile};
 use tabled::Tabled;
-use RustiQ::basis::{metadata::BasisSetDetail, BasisFile};
 
 #[derive(Tabled)]
 pub(crate) struct BasisTableItem {
@@ -69,7 +69,7 @@ impl From<BasisFile> for BasisTableItem {
 mod tests {
     use std::collections::HashMap;
 
-    use RustiQ::basis::{
+    use rustiq_core::basis::{
         metadata::{BasisSetDetail, Version},
         BasisId,
     };

@@ -67,17 +67,17 @@ validation against established quantum chemistry packages.
 The repository is intentionally split into small domains:
 
 - `src/cli/` handles command dispatch, terminal output, and user-facing reports.
-- `src/runfile/` owns the TOML input schema, validation, typed configuration, and
+- `crates/rustiq-core/src/runfile/` owns the TOML input schema, validation, typed configuration, and
   diagnostics.
-- `src/molecules/` owns atoms, elements, geometry parsing, units, charge,
+- `crates/rustiq-core/src/molecules/` owns atoms, elements, geometry parsing, units, charge,
   multiplicity, electron-count logic, and geometry transforms.
-- `src/basis/` owns basis-set files, cache management, Gaussian shells, and
+- `crates/rustiq-core/src/basis/` owns basis-set files, cache management, Gaussian shells, and
   contractions.
-- `src/eri.rs` and `src/eri/` own electron-repulsion integrals and compact ERI
+- `crates/rustiq-core/src/eri.rs` and `crates/rustiq-core/src/eri/` own electron-repulsion integrals and compact ERI
   indexing/storage.
-- `src/hf/` owns RHF, UHF, DIIS, density guesses, numerical checks, and SCF
+- `crates/rustiq-core/src/hf/` owns RHF, UHF, DIIS, density guesses, numerical checks, and SCF
   results.
-- `src/mp2.rs` owns the post-HF MP2 layer for RHF and UHF references.
+- `crates/rustiq-core/src/mp2.rs` owns the post-HF MP2 layer for RHF and UHF references.
 - `tests/cli_samples.rs` checks that real command-line samples run and produce
   expected energies.
 
@@ -635,12 +635,22 @@ cargo run -- basis remove sto-3g
 
 ## Development
 
+The Cargo workspace contains the `RustiQ` CLI at the repository root and the
+reusable `rustiq-core` library in `crates/rustiq-core/` (Rust import name:
+`rustiq_core`). The CLI and the ERI benchmark both depend on this library.
+Runfile configuration and parsing are part of the core; command handling,
+working-directory changes, and terminal presentation remain in `src/cli/`.
+The optional `online` feature currently retains its existing Tokio dependency;
+runtime independence is a later step of issue #54.
+
 Useful checks before submitting a change:
 
 ```sh
-cargo fmt
-cargo clippy --all-targets --all-features
-cargo test
+cargo fmt --all
+cargo build --workspace
+cargo clippy --workspace --all-targets --all-features
+cargo test --workspace
+cargo test --workspace --no-default-features
 ```
 
 These commands are identical in the Dev Container, a `nix develop` shell, and a
@@ -648,9 +658,21 @@ native Rust installation. The pinned Nix environment additionally provides
 tools such as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`,
 `bacon`, `hyperfine`, `nixd`, `nixfmt`, and Ruff.
 
-Most unit tests are colocated with implementation modules in `src/`. Shared
+Most unit tests are colocated with implementation modules in `src/` and
+`crates/rustiq-core/src/`. Shared
 fixtures live in `tests/data/`, and sample calculation inputs live in
 `samples/`.
+
+The core can be checked independently with
+`cargo test -p rustiq-core --no-default-features`. Existing `cargo run -- ...` and
+`cargo bench --features bench-support --bench eri_timings` commands still work
+from the repository root. CLI features forward to the corresponding core features.
+
+Shared dependency versions live in `[workspace.dependencies]`, with features
+enabled where they are needed: `miette/fancy` belongs to the CLI, `tokio/rt`
+to its online orchestration, and `nalgebra/macros` to core tests. The core uses
+Rayon directly without `nalgebra/rayon`, and its validated types do not require
+`nutype/serde`. `reqwest` keeps only JSON, blocking requests, and Rustls enabled.
 
 See also:
 

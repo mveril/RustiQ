@@ -2,7 +2,7 @@ use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use RustiQ::bench_support::{BasisStore, EriBenchInput};
+use rustiq_core::bench_support::{BasisStore, EriBenchInput};
 
 #[derive(Debug, Clone, Copy)]
 struct BenchCase {
@@ -79,7 +79,7 @@ fn main() {
     }
 }
 
-fn print_cache_stats(result: &RustiQ::bench_support::EriBenchResult) {
+fn print_cache_stats(result: &rustiq_core::bench_support::EriBenchResult) {
     let stats = &result.coulomb_cache_sizes;
     println!("  coulomb caches: {}", stats.count);
     println!("  cache len mean: {:.1}", stats.mean_len());

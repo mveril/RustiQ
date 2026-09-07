@@ -8,39 +8,28 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "approx",
  "bat",
- "bounded-vec-deque",
  "cfg-if",
  "clap",
- "const_format",
  "delegate",
- "dirs",
- "factorial",
  "figlet-rs",
  "humantime",
  "indicatif",
  "miette",
  "nalgebra",
- "ndarray",
- "nutype",
  "periodic_table",
- "physical_constants",
  "proptest",
  "rand 0.10.2",
- "rand_distr",
  "rayon",
- "reqwest",
  "rstest",
+ "rustiq-core",
  "serde",
  "serde_json",
- "smallvec",
- "special",
  "tabled",
  "temp-env",
  "tempfile",
  "thiserror",
  "tokio",
  "toml-spanner",
- "which",
 ]
 
 [[package]]
@@ -1681,7 +1670,6 @@ dependencies = [
  "num-complex",
  "num-rational",
  "num-traits",
- "rayon",
  "simba",
  "typenum",
 ]
@@ -2451,6 +2439,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
+]
+
+[[package]]
+name = "rustiq-core"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "approx",
+ "bounded-vec-deque",
+ "const_format",
+ "delegate",
+ "dirs",
+ "factorial",
+ "miette",
+ "nalgebra",
+ "ndarray",
+ "nutype",
+ "periodic_table",
+ "physical_constants",
+ "proptest",
+ "rand 0.10.2",
+ "rand_distr",
+ "rayon",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "special",
+ "temp-env",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml-spanner",
 ]
 
 [[package]]
@@ -3525,15 +3545,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
 dependencies = [
  "rustls-pki-types",
-]
-
-[[package]]
-name = "which"
-version = "8.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bae2f2b2b816647a1cab1acc91f5bd20812d53cb344382635ec2181940c8034f"
-dependencies = [
- "libc",
 ]
 
 [[package]]

@@ -118,7 +118,7 @@
             version = cargoToml.package.version;
             src = cargoSource;
             strictDeps = true;
-            cargoExtraArgs = "--locked --all-features";
+            cargoExtraArgs = "--locked --workspace --all-features";
           };
 
           cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
