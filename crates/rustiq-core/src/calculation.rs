@@ -20,7 +20,7 @@ pub use prepared_calculation::PreparedCalculation;
 
 use crate::{
     basis::gaussian::basis::{Basis, BasisError},
-    config::{HfConfig, HfMethodResolutionError, Mp2Config, ResolvedHfMethod},
+    config::{HfConfig, HfMethodResolutionError, MoleculeConfigError, Mp2Config, ResolvedHfMethod},
     hf::{
         density_guess::DensityGuessError,
         diis::DiisError,
@@ -86,6 +86,16 @@ pub enum CalculationError {
         "MP2 requires converged HF orbitals, but HF did not converge after {iterations} iterations"
     )]
     HfNotConverged { iterations: usize },
+}
+
+impl From<MoleculeConfigError> for CalculationError {
+    fn from(error: MoleculeConfigError) -> Self {
+        Self::Molecule {
+            error: error.error,
+            charge_span: error.charge_span,
+            multiplicity_span: error.multiplicity_span,
+        }
+    }
 }
 
 enum HfState<'a> {

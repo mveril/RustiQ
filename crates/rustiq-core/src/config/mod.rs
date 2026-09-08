@@ -3,7 +3,7 @@ pub mod hf;
 mod molecule;
 pub mod random_config;
 pub mod validated;
-pub use molecule::MoleculeConfig;
+pub use molecule::{MoleculeConfig, MoleculeConfigError};
 
 /// A value with an optional byte range in a source owned by its frontend.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

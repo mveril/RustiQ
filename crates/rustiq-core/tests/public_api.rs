@@ -333,7 +333,7 @@ fn molecular_state_errors_can_label_both_related_values() {
         },
         ..Default::default()
     };
-    let error = config.build(geometry()).err().unwrap();
+    let error: CalculationError = config.build(geometry()).err().unwrap().into();
     assert!(matches!(error, CalculationError::Molecule { .. }));
     assert_eq!(labels(&error), vec![(3, 1).into(), (20, 1).into()]);
     assert!(error.source_code().is_none());
