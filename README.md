@@ -660,10 +660,12 @@ tools such as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`,
 
 Most unit tests are colocated with implementation modules in `src/` and
 `crates/rustiq-core/src/`. Shared
-fixtures live in `tests/data/`, and sample calculation inputs live in
+fixtures live in each package's `tests/data/` directory, and sample calculation inputs live in
 `samples/`.
 
 The core can be checked independently with
+`cargo test -p rustiq-core`; its fixtures are included in the package and do not
+depend on the repository's root tests or samples. To check without online support, use
 `cargo test -p rustiq-core --no-default-features`. Existing `cargo run -- ...` and
 `cargo bench --features bench-support --bench eri_timings` commands still work
 from the repository root. CLI features forward to the corresponding core features.

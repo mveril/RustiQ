@@ -146,11 +146,11 @@ impl BasisStore {
         Ok(())
     }
 
-    /// Returns the repository fixture basis store used by tests and benches.
+    /// Returns the package-local fixture basis store used by tests and benches.
     #[cfg(any(test, feature = "bench-support"))]
     #[allow(dead_code)]
     pub fn repository_fixtures() -> BasisStore {
-        BasisStore::new(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data"))
+        BasisStore::new(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data"))
     }
 
     /// Lists all installed basis sets.
@@ -606,7 +606,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
         let fixture = fs::File::open(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/sto-3g.json"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json"),
         )
         .unwrap();
 
@@ -623,7 +623,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
         let fixture = fs::File::open(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/sto-3g.json"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json"),
         )
         .unwrap();
         store
@@ -658,8 +658,7 @@ mod tests {
     fn test_import_rejects_an_invalid_basis_name() {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
-        let fixture =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/sto-3g.json");
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/sto-3g.json");
         let mut basis: serde_json::Value =
             serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
         basis["name"] = serde_json::Value::String("..".to_owned());

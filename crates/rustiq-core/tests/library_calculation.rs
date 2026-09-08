@@ -14,11 +14,10 @@ use rustiq_core::{
 #[test]
 fn library_runs_hf_and_mp2_with_public_types() {
     let geometry =
-        Geometry::from_reader(&include_bytes!("../../../samples/h2/molecule.xyz")[..]).unwrap();
+        Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let mut molecule = Molecule::try_new(geometry, Units::Angstrom, 0, NonZeroU8::MIN).unwrap();
     molecule.convert_to(Units::Bohr);
-    let file =
-        BasisFile::from_reader(&include_bytes!("../../../tests/data/sto-3g.json")[..]).unwrap();
+    let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let basis = Basis::try_load(&file, &molecule).unwrap();
 
     let mut rhf = ScfCalculation::new(

@@ -110,7 +110,8 @@
               craneLib.filterCargoSources path type
               || inProjectTree "assets"
               || inProjectTree "samples"
-              || inProjectTree "tests/data";
+              || inProjectTree "tests/data"
+              || inProjectTree "crates/rustiq-core/tests/data";
           };
 
           commonCargoArgs = {

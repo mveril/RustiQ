@@ -16,7 +16,7 @@ pub(crate) fn load_minimal_basis_file() -> BasisFile {
 pub(crate) fn load_sample_geometry(path: &str) -> Geometry {
     let file = File::open(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
+            .join("tests/data")
             .join(path),
     )
     .unwrap();
