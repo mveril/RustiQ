@@ -565,14 +565,14 @@ fn scf_residual_norm(
 mod tests {
     use super::*;
     use crate::{
-        hf::density_guess::{core_hamiltonian::CoreHamiltonian, one_electron::OneElectron},
-        runfile::{
+        config::{
             hf::GuessPerturbationConfig,
             random_config::{
                 distribution_config::NormalDistributionConfig, DistributionConfig, RandomConfig,
             },
             validated::PositiveFiniteF64,
         },
+        hf::density_guess::{core_hamiltonian::CoreHamiltonian, one_electron::OneElectron},
         test_utils,
     };
     use approx::assert_abs_diff_eq;

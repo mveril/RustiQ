@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use toml_spanner::Toml;
 
 use crate::{
@@ -63,53 +62,14 @@ pub enum HfMethod {
     Uhf,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolvedHfMethod {
-    Rhf,
-    Uhf,
-}
-
-impl std::fmt::Display for ResolvedHfMethod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Rhf => write!(f, "RHF"),
-            Self::Uhf => write!(f, "UHF"),
-        }
-    }
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum HfMethodResolutionError {
-    #[error(
-        "RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}"
-    )]
-    RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
-}
+pub use crate::config::{HfMethodResolutionError, ResolvedHfMethod};
 
 impl HfMethod {
     pub fn resolve(
         &self,
         molecule: &Molecule,
     ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
-        Ok(match self {
-            Self::Rhf => {
-                if !is_closed_shell_singlet(molecule) {
-                    return Err(HfMethodResolutionError::RhfRequiresClosedShellSinglet {
-                        electrons: molecule.total_electrons(),
-                        multiplicity: molecule.multiplicity().get(),
-                    });
-                }
-                ResolvedHfMethod::Rhf
-            }
-            Self::Uhf => ResolvedHfMethod::Uhf,
-            Self::Auto => {
-                if is_closed_shell_singlet(molecule) {
-                    ResolvedHfMethod::Rhf
-                } else {
-                    ResolvedHfMethod::Uhf
-                }
-            }
-        })
+        crate::config::HfMethod::from(self).resolve(molecule)
     }
 }
 
@@ -136,10 +96,6 @@ fn default_max_iter() -> NonZeroUsize {
 
 fn default_diis_size() -> DiisSize {
     DiisSize::try_new(6).expect("default DIIS history size is at least 2")
-}
-
-fn is_closed_shell_singlet(molecule: &Molecule) -> bool {
-    molecule.multiplicity().get() == 1 && molecule.total_electrons().is_multiple_of(2)
 }
 
 #[cfg(test)]

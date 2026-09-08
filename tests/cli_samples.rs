@@ -322,6 +322,66 @@ fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
 }
 
 #[test]
+fn test_cli_scientific_errors_label_the_original_runfile() {
+    let directory = tempfile::tempdir().unwrap();
+    prepare_basis_store(directory.path());
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let path = directory.path().join("scientific-input.toml");
+    for (fields, expected, label, source_line) in [
+        (
+            "[global.molecule]\ncharge = 1\nmultiplicity = 2\n[hf]\nmethod = 'Rhf'\n",
+            "RHF requires a closed-shell singlet",
+            "requested HF method",
+            "method = 'Rhf'",
+        ),
+        (
+            "[hf]\nlinear_dependency_threshold = 1.0\n",
+            "effective overlap rank",
+            "SCF configuration",
+            "linear_dependency_threshold = 1.0",
+        ),
+        (
+            "[hf]\n[mp2]\nfrozen_orbitals = 2\n",
+            "frozen orbitals (2)",
+            "frozen orbital count",
+            "frozen_orbitals = 2",
+        ),
+        (
+            "[global.molecule]\ncharge = 1\nmultiplicity = 1\n[hf]\n",
+            "invalid electron configuration",
+            "spin multiplicity",
+            "multiplicity = 1",
+        ),
+    ] {
+        fs::write(
+            &path,
+            format!("# user source\n[global]\nbasis = 'sto-3g'\n{fields}"),
+        )
+        .unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+            .args(["run", path.to_str().unwrap(), "--format", "json"])
+            .env("RUSTIQ_DATA_HOME", directory.path())
+            .env("RUSTIQ_AUTO_DOWNLOAD", "0")
+            .env("NO_COLOR", "1")
+            .output()
+            .unwrap();
+        assert_failure(&output);
+        assert!(output.stdout.is_empty());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        for text in [expected, label, source_line, "scientific-input.toml"] {
+            assert!(
+                stderr.contains(text),
+                "missing {text:?} in diagnostic:\n{stderr}"
+            );
+        }
+    }
+}
+
+#[test]
 fn test_cli_run_reports_grouped_geometry_diagnostics() {
     let temp_root = temp_root("invalid-geometry-diagnostics");
     fs::create_dir_all(&temp_root).unwrap();

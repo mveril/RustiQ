@@ -3,9 +3,9 @@ use std::io::Write;
 use serde::Serialize;
 
 use rustiq_core::{
+    config::ResolvedHfMethod,
     hf::{orthogonalization::OrthogonalizationInfo, scf_result::ScfResult},
     mp2::Mp2Result,
-    runfile::hf::ResolvedHfMethod,
 };
 
 /// Version 1 of RustiQ's stable, machine-readable calculation-output contract.

@@ -3,7 +3,7 @@ use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
 use thiserror::Error;
 
-use crate::runfile::validated::DiisSize;
+use crate::config::validated::DiisSize;
 
 #[derive(Debug, Error)]
 pub enum DiisError {

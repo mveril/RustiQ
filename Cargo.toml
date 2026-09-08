@@ -42,7 +42,7 @@ online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
 bench-support = ["rustiq-core/bench-support"]
 
 [dependencies]
-rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
+rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false, features = ["runfile"] }
 miette = { workspace = true, features = ["fancy"] }
 toml-spanner.workspace = true
 clap = { version = "4.6", features = ["cargo", "derive"] }

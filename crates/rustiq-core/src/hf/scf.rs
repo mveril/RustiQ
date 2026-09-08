@@ -3,9 +3,9 @@
 use std::time::Instant;
 
 use crate::{
+    config::validated::DiisSize,
     eri::{electron_repulsion_ints, index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
-    runfile::validated::DiisSize,
 };
 use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;

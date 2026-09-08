@@ -1,3 +1,6 @@
+//! Optional TOML frontend. Convert these representations to `crate::config`
+//! before invoking scientific code; parsing is never needed for direct Rust use.
+mod adapter;
 mod diagnostics;
 pub mod global;
 pub mod hf;

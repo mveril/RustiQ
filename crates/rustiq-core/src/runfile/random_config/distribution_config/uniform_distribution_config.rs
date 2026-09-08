@@ -1,4 +1,4 @@
-use rand::distr::uniform::{Error, Uniform};
+use rand::distr::uniform::Uniform;
 use toml_spanner::{Context, Failed, FromToml, Item, Toml};
 
 #[derive(Debug, Clone, Copy, Toml)]
@@ -47,13 +47,5 @@ impl<'de> FromToml<'de> for UniformDistributionConfig {
         table.require_empty()?;
 
         Self::new(ctx, min_item, max_item, min, max)
-    }
-}
-
-impl TryFrom<UniformDistributionConfig> for Uniform<f64> {
-    type Error = Error;
-
-    fn try_from(value: UniformDistributionConfig) -> Result<Self, Self::Error> {
-        Uniform::new(value.min, value.max)
     }
 }

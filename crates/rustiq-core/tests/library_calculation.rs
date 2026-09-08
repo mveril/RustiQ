@@ -3,10 +3,10 @@ use std::num::NonZeroU8;
 use approx::assert_abs_diff_eq;
 use rustiq_core::{
     basis::{gaussian::basis::Basis, BasisFile},
+    config::hf::DensityGuessConfig,
     hf::{scf::ScfCalculation, uhf::UhfCalculation},
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
     mp2,
-    runfile::hf::DensityGuessConfig,
 };
 
 // Exercise the same calculation types as an external consumer, without access

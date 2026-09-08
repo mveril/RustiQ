@@ -1,7 +1,4 @@
-use toml_spanner::Toml;
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, Toml)]
-#[toml(Toml)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum Units {
     Bohr,
     Angstrom,

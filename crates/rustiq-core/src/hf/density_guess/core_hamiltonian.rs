@@ -2,7 +2,7 @@ use super::{
     unrestricted_perturb_fock_like_matrices, DensityGuess, DensityGuessError, OrbitalGuess,
 };
 use crate::basis::gaussian::basis::Basis;
-use crate::runfile::hf::GuessPerturbationConfig;
+use crate::config::hf::GuessPerturbationConfig;
 use nalgebra::DMatrix;
 
 #[derive(Default)]

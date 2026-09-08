@@ -8,13 +8,14 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/mveril/RustiQ"
 
 [features]
-default = ["online"]
+default = ["online", "runfile"]
+runfile = ["dep:toml-spanner"]
 online = ["dep:reqwest", "dep:tokio"]
 bench-support = []
 
 [dependencies]
 miette.workspace = true
-toml-spanner.workspace = true
+toml-spanner = { workspace = true, optional = true }
 reqwest = { version = "0.13", default-features = false, optional = true, features = [
   "json",
   "blocking",

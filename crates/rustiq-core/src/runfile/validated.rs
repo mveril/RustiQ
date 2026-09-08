@@ -1,27 +1,9 @@
-use nutype::nutype;
+pub use crate::config::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
 use std::{
     num::{NonZeroU8, NonZeroUsize},
     path::PathBuf,
 };
 use toml_spanner::{Arena, Context, Failed, FromToml, Item, ToToml, ToTomlError};
-
-#[nutype(
-    validate(finite, greater = 0.0),
-    derive(Debug, Clone, Copy, PartialEq, PartialOrd, TryFrom, Into)
-)]
-pub struct PositiveFiniteF64(f64);
-
-#[nutype(
-    validate(finite, greater_or_equal = 0.0),
-    derive(Debug, Clone, Copy, PartialEq, PartialOrd, TryFrom, Into)
-)]
-pub struct NonNegativeFiniteF64(f64);
-
-#[nutype(
-    validate(greater = 1),
-    derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFrom, Into)
-)]
-pub struct DiisSize(usize);
 
 fn from_toml_via_try_from<'de, T, Raw>(
     ctx: &mut Context<'de>,
