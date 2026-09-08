@@ -26,6 +26,10 @@ where
         self.write_error.take()
     }
 
+    pub(crate) fn writer_mut(&mut self) -> &mut W {
+        &mut self.writer
+    }
+
     pub(crate) fn write_summary(&mut self, result: &ScfResult) -> io::Result<()> {
         if result.converged {
             writeln!(

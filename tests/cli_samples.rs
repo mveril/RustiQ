@@ -382,6 +382,26 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
 }
 
 #[test]
+fn test_cli_preserves_absent_hf_when_requesting_mp2() {
+    let directory = tempfile::tempdir().unwrap();
+    prepare_basis_store(directory.path());
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let path = directory.path().join("mp2-without-hf.toml");
+    fs::write(&path, "[global]\nbasis = 'sto-3g'\n[mp2]\n").unwrap();
+    let output = run_rustiq_with_data_home(
+        &["run", path.to_str().unwrap(), "--format", "json"],
+        directory.path(),
+    );
+    assert_failure(&output);
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("MP2 requires an HF calculation"));
+}
+
+#[test]
 fn test_cli_run_reports_grouped_geometry_diagnostics() {
     let temp_root = temp_root("invalid-geometry-diagnostics");
     fs::create_dir_all(&temp_root).unwrap();

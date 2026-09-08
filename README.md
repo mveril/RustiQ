@@ -68,7 +68,7 @@ The repository is intentionally split into small domains:
 
 - `src/cli/` handles command dispatch, terminal output, and user-facing reports.
 - `crates/rustiq-core/src/config/` owns scientific options and optional source locations;
-  `calculation.rs` exposes common HF execution and MP2 on converged orbitals.
+  `calculation/` prepares the molecule/basis and orchestrates HF and optional MP2.
 - `src/runfile/` is the CLI TOML adapter: input schema,
   parsing diagnostics, and explicit conversion to scientific configuration.
 - `crates/rustiq-core/src/molecules/` owns atoms, elements, geometry parsing, units, charge,
@@ -641,11 +641,18 @@ The Cargo workspace contains the `RustiQ` CLI at the repository root and the
 reusable `rustiq-core` library in `crates/rustiq-core/` (Rust import name:
 `rustiq_core`). The CLI and the ERI benchmark both depend on this library.
 Scientific configuration lives in `rustiq_core::config`, without TOML types or
-environment-derived defaults. `rustiq_core::calculation::HfCalculation` resolves
-RHF/UHF, executes SCF with optional observers, and returns typed results/errors.
-Its `mp2` method requires a converged HF result. `Atom::new`, `Geometry::new`,
-`MoleculeConfig::build` and `Basis::try_load` support direct Rust construction.
-Convert the molecule to Bohr before building the basis and running HF.
+environment-derived defaults. `rustiq_core::calculation::CalculationBuilder`
+validates scientific options, converts geometry to Bohr, constructs the basis,
+resolves RHF/UHF and executes HF followed by optional MP2. MP2 requires HF and
+converged orbitals. Results and progress notifications are structured Rust data;
+the CLI only loads inputs and presents them.
+
+The builder follows the `WSLCommand` conventions from WSLPlugins-rs: mutable
+setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
+`PreparedCalculation` retains the validated molecule and basis and can be
+executed repeatedly through the shared `CalculationExecution` trait.
+The lower-level `HfCalculation` remains available for callers supplying an
+already constructed molecule in Bohr and its corresponding basis.
 
 TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
 `toml-spanner` dependency or runfile feature, even with all its features enabled.
@@ -658,15 +665,20 @@ Ordinary Rust consumers can disable online support with `default-features = fals
 rustiq-core = { path = "crates/rustiq-core", default-features = false }
 ```
 
-Given a molecule in Bohr and its basis, the calculation API is:
+Given a loaded geometry and basis-set file, the calculation API is:
 
 ```rust
-use rustiq_core::{calculation::HfCalculation, config::{HfConfig, Mp2Config}};
+use rustiq_core::{
+    calculation::{CalculationBuilder, CalculationExecution},
+    config::{HfConfig, MoleculeConfig, Mp2Config},
+    molecules::units::Units,
+};
 
-let config = HfConfig { diis: true, ..Default::default() };
-let mut calculation = HfCalculation::new(&molecule, &basis, &config)?;
-let hf_result = calculation.run()?;
-let mp2_result = calculation.mp2(&Mp2Config::default())?;
+let calculation = CalculationBuilder::new(&geometry, &basis_file)
+    .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
+    .with_hf(HfConfig { diis: true, ..Default::default() })
+    .with_mp2(Mp2Config::default());
+let result = calculation.execute()?;
 ```
 
 The CLI's `parse_runfile` returns both the frontend representation (including output

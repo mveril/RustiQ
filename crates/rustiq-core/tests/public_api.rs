@@ -6,7 +6,10 @@ use miette::{Diagnostic, SourceSpan};
 use nalgebra::Point3;
 use rustiq_core::{
     basis::{gaussian::basis::Basis, BasisFile},
-    calculation::{CalculationError, HfCalculation},
+    calculation::{
+        CalculationBuilder, CalculationError, CalculationExecution, CalculationObserver,
+        HfCalculation, HfCalculationResult,
+    },
     config::{
         random_config::{
             distribution_config::UniformDistributionConfig, DistributionConfig, RandomConfig,
@@ -29,6 +32,159 @@ fn geometry() -> Geometry {
             Atom::new(hydrogen, Point3::new(0.0, 0.0, 0.37)),
         ],
     )
+}
+
+#[derive(Default)]
+struct WorkflowObserver(Vec<&'static str>);
+
+impl rustiq_core::hf::scf_observer::ScfObserver for WorkflowObserver {
+    fn on_iteration(&mut self, _: &rustiq_core::hf::scf_iteration::ScfIteration) {
+        self.0.push("iteration");
+    }
+}
+
+impl CalculationObserver for WorkflowObserver {
+    fn on_basis_start(&mut self) {
+        self.0.push("basis_start");
+    }
+    fn on_basis_ready(&mut self, _: &Basis, _: std::time::Duration) {
+        self.0.push("basis_ready");
+    }
+    fn on_hf_start(&mut self, _: ResolvedHfMethod, _: &HfConfig) {
+        self.0.push("hf_start");
+    }
+    fn on_hf_complete(&mut self, _: &HfCalculationResult) {
+        self.0.push("hf_complete");
+    }
+    fn on_mp2_complete(&mut self, _: &HfCalculationResult, _: &rustiq_core::mp2::Mp2Result) {
+        self.0.push("mp2_complete");
+    }
+}
+
+#[test]
+fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2() {
+    let geometry = geometry();
+    let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        let builder = CalculationBuilder::new(&geometry, &file)
+            .with_molecule_config(MoleculeConfig {
+                units: Units::Angstrom,
+                ..Default::default()
+            })
+            .with_hf(HfConfig {
+                method: method.into(),
+                ..Default::default()
+            })
+            .with_mp2(Mp2Config::default());
+        let mut observer = WorkflowObserver::default();
+        let result = builder.execute_with_observer(&mut observer).unwrap();
+        assert_abs_diff_eq!(
+            result.hf.as_ref().unwrap().scf.total_energy,
+            -1.116_759_307_506_361_3,
+            epsilon = 1e-10
+        );
+        assert_abs_diff_eq!(
+            result.mp2.unwrap().correlation_energy,
+            -0.013_138_073_589_533,
+            epsilon = 1e-10
+        );
+        assert_eq!(
+            &observer.0[..3],
+            &["basis_start", "basis_ready", "hf_start"]
+        );
+        assert!(observer.0.contains(&"iteration"));
+        assert_eq!(
+            &observer.0[observer.0.len() - 2..],
+            &["hf_complete", "mp2_complete"]
+        );
+
+        let prepared = builder.prepare().unwrap();
+        assert_eq!(prepared.get_molecule().unit(), Units::Bohr);
+        assert_eq!(prepared.get_basis().nbasis(), 2);
+        // Preparation leaves the caller's Angstrom geometry intact and can be reused.
+        assert_eq!(geometry.atoms[0].position.z, -0.37);
+        let repeated = prepared.execute().unwrap();
+        assert_abs_diff_eq!(
+            repeated.hf.unwrap().scf.total_energy,
+            result.hf.unwrap().scf.total_energy,
+            epsilon = 1e-10
+        );
+    }
+}
+
+#[test]
+fn builder_mutable_setters_enforce_mp2_dependency_and_support_preparation_only() {
+    let geometry = geometry();
+    let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let mut builder = CalculationBuilder::new(&geometry, &file);
+    builder.hf(None).mp2(Mp2Config::default());
+    let mut observer = WorkflowObserver::default();
+    assert!(matches!(
+        builder.execute_with_observer(&mut observer),
+        Err(CalculationError::Mp2RequiresHf)
+    ));
+    assert!(observer.0.is_empty());
+    builder.mp2(None).molecule_config(MoleculeConfig {
+        units: Units::Angstrom,
+        ..Default::default()
+    });
+    assert!(builder.get_hf().is_none());
+    assert!(builder.get_mp2().is_none());
+    let result = builder.execute_with_observer(&mut observer).unwrap();
+    assert!(result.hf.is_none());
+    assert!(result.mp2.is_none());
+    assert_eq!(observer.0, vec!["basis_start", "basis_ready"]);
+}
+
+#[test]
+fn builder_never_runs_mp2_after_unconverged_hf() {
+    let geometry = geometry();
+    let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let builder = CalculationBuilder::new(&geometry, &file)
+        .with_hf(HfConfig {
+            max_iterations: NonZeroUsize::MIN,
+            ..Default::default()
+        })
+        .with_mp2(Mp2Config::default());
+    let mut observer = WorkflowObserver::default();
+    assert!(matches!(
+        builder.execute_with_observer(&mut observer),
+        Err(CalculationError::HfNotConverged { iterations: 1 })
+    ));
+    assert_eq!(observer.0.last(), Some(&"hf_complete"));
+    assert!(!observer.0.contains(&"mp2_complete"));
+}
+
+#[test]
+fn builder_retains_typed_method_and_basis_errors() {
+    let geometry = geometry();
+    let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let builder = CalculationBuilder::new(&geometry, &file)
+        .with_molecule_config(MoleculeConfig {
+            charge: 1.into(),
+            multiplicity: NonZeroU8::new(2).unwrap().into(),
+            ..Default::default()
+        })
+        .with_hf(HfConfig {
+            method: Located {
+                value: HfMethod::Rhf,
+                span: Some((8, 5).into()),
+            },
+            ..Default::default()
+        });
+    let error = builder.execute().unwrap_err();
+    assert!(matches!(error, CalculationError::Method { .. }));
+    assert_eq!(labels(&error), vec![(8, 5).into()]);
+
+    let mut data: serde_json::Value =
+        serde_json::from_slice(include_bytes!("data/sto-3g.json")).unwrap();
+    data["elements"]["1"]["electron_shells"][0]["exponents"][0] = "0.0".into();
+    let bytes = serde_json::to_vec(&data).unwrap();
+    let invalid = BasisFile::from_reader(&bytes[..]).unwrap();
+    assert!(matches!(
+        CalculationBuilder::new(&geometry, &invalid).execute(),
+        Err(CalculationError::Basis(_))
+    ));
 }
 
 #[test]
