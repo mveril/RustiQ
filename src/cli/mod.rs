@@ -2,7 +2,6 @@ pub mod commands;
 pub mod ux;
 use clap::Parser;
 use commands::Commands;
-#[cfg(feature = "online")]
 pub(crate) mod env;
 
 #[derive(Parser, Debug)]

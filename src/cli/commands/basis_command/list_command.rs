@@ -7,7 +7,7 @@ use crate::cli::{
     commands::{CommandResult, Runnable},
     ux::BasisTableItem,
 };
-use rustiq_core::basis::{BasisEntry, BasisStore};
+use rustiq_core::basis::BasisEntry;
 
 fn pagin_print(content: &str) {
     if PrettyPrinter::new()
@@ -35,7 +35,7 @@ pub struct ListCommand {
 
 impl Runnable for ListCommand {
     fn run(&self) -> CommandResult {
-        let store = BasisStore::default();
+        let store = crate::cli::env::basis_store();
         #[cfg(feature = "online")]
         if self.online {
             let list = store.list_online_sync().into_diagnostic()?;

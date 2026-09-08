@@ -1,4 +1,4 @@
-pub use crate::config::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
+pub use rustiq_core::config::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
 use std::{
     num::{NonZeroU8, NonZeroUsize},
     path::PathBuf,
@@ -18,42 +18,51 @@ where
     T::try_from(value).map_err(|error| ctx.report_custom_error(error, item))
 }
 
-impl<'de> FromToml<'de> for PositiveFiniteF64 {
-    fn from_toml(ctx: &mut Context<'de>, item: &Item<'de>) -> Result<Self, Failed> {
-        from_toml_via_try_from::<Self, f64>(ctx, item)
+pub(crate) mod positive_finite_f64 {
+    use super::*;
+    pub(crate) fn from_toml<'de>(
+        ctx: &mut Context<'de>,
+        item: &Item<'de>,
+    ) -> Result<PositiveFiniteF64, Failed> {
+        from_toml_via_try_from::<PositiveFiniteF64, f64>(ctx, item)
+    }
+    pub(crate) fn to_toml<'a>(
+        value: &'a PositiveFiniteF64,
+        _arena: &'a Arena,
+    ) -> Result<Item<'a>, ToTomlError> {
+        Ok(Item::from(value.into_inner()))
     }
 }
 
-impl ToToml for PositiveFiniteF64 {
-    fn to_toml<'a>(&'a self, _arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
-        let value: f64 = (*self).into();
-        Ok(Item::from(value))
+pub(crate) mod non_negative_finite_f64 {
+    use super::*;
+    pub(crate) fn from_toml<'de>(
+        ctx: &mut Context<'de>,
+        item: &Item<'de>,
+    ) -> Result<NonNegativeFiniteF64, Failed> {
+        from_toml_via_try_from::<NonNegativeFiniteF64, f64>(ctx, item)
+    }
+    pub(crate) fn to_toml<'a>(
+        value: &'a NonNegativeFiniteF64,
+        _arena: &'a Arena,
+    ) -> Result<Item<'a>, ToTomlError> {
+        Ok(Item::from(value.into_inner()))
     }
 }
 
-impl<'de> FromToml<'de> for NonNegativeFiniteF64 {
-    fn from_toml(ctx: &mut Context<'de>, item: &Item<'de>) -> Result<Self, Failed> {
-        from_toml_via_try_from::<Self, f64>(ctx, item)
+pub(crate) mod diis_size {
+    use super::*;
+    pub(crate) fn from_toml<'de>(
+        ctx: &mut Context<'de>,
+        item: &Item<'de>,
+    ) -> Result<DiisSize, Failed> {
+        from_toml_via_try_from::<DiisSize, usize>(ctx, item)
     }
-}
-
-impl ToToml for NonNegativeFiniteF64 {
-    fn to_toml<'a>(&'a self, _arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
-        let value: f64 = (*self).into();
-        Ok(Item::from(value))
-    }
-}
-
-impl<'de> FromToml<'de> for DiisSize {
-    fn from_toml(ctx: &mut Context<'de>, item: &Item<'de>) -> Result<Self, Failed> {
-        from_toml_via_try_from::<Self, usize>(ctx, item)
-    }
-}
-
-impl ToToml for DiisSize {
-    fn to_toml<'a>(&'a self, _arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
-        let value: usize = (*self).into();
-        Ok(Item::from(value as i128))
+    pub(crate) fn to_toml<'a>(
+        value: &'a DiisSize,
+        _arena: &'a Arena,
+    ) -> Result<Item<'a>, ToTomlError> {
+        Ok(Item::from(value.into_inner() as i128))
     }
 }
 

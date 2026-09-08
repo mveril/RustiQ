@@ -12,12 +12,12 @@ use crate::cli::{
     self,
     ux::{bat, json_output::CalculationOutput, mp2_report::Mp2Reporter, scf_report::ScfReporter},
 };
+use crate::runfile::{hf::HfOutputFormat, parser::parse_runfile};
 use rustiq_core::{
     basis::{gaussian::basis::Basis, BasisFile, BasisStore},
     calculation::HfCalculation,
     config::ResolvedHfMethod,
     molecules::{geometry::Geometry, units::Units},
-    runfile::{hf::HfOutputFormat, parser::parse_runfile},
 };
 
 use super::{CommandResult, Runnable};
@@ -67,7 +67,7 @@ impl RunCommand {
     }
 
     fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
-        let basis_store = BasisStore::default();
+        let basis_store = crate::cli::env::basis_store();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "online")] {

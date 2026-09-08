@@ -9,16 +9,14 @@ use clap::{Args, ValueEnum};
 use miette::{miette, IntoDiagnostic, WrapErr};
 
 use super::{CommandResult, Runnable};
-use rustiq_core::{
-    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
-    runfile::{
-        global::{molecule_config::MoleculeConfig, Global},
-        hf::{HfConfig, HfMethod},
-        mp2::Mp2Config,
-        output::Defaults,
-        RunFile,
-    },
+use crate::runfile::{
+    global::{molecule_config::MoleculeConfig, Global},
+    hf::{HfConfig, HfMethod},
+    mp2::Mp2Config,
+    output::Defaults,
+    RunFile,
 };
+use rustiq_core::molecules::{geometry::Geometry, molecule::Molecule, units::Units};
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
 enum Method {
@@ -198,8 +196,8 @@ impl Runnable for InitCommand {
 mod tests {
     use super::*;
     use crate::cli::{commands::Commands, Cli};
+    use crate::runfile::parser::parse_runfile;
     use clap::Parser;
-    use rustiq_core::runfile::parser::parse_runfile;
 
     fn command(input: &Path, output: &Path, extra: &[&str]) -> InitCommand {
         let mut args = vec![

@@ -2,21 +2,18 @@
 
 //! Reusable domain and scientific implementation used by the CLI and benchmarks.
 //!
-//! Use [`config`] and [`calculation`] for direct Rust calculations. The optional
-//! `runfile` feature provides a TOML adapter. Filesystem policy, source text for
-//! scientific diagnostics and terminal presentation belong to the caller.
+//! Use [`config`] and [`calculation`] for direct Rust calculations. Runfile parsing,
+//! user environment and filesystem policy belong to the application, as do source
+//! text for scientific diagnostics and terminal presentation.
 
 pub mod basis;
 pub mod calculation;
 pub mod config;
-pub mod env;
 pub mod eri;
 pub mod hf;
 pub mod math_utils;
 pub mod molecules;
 pub mod mp2;
-#[cfg(feature = "runfile")]
-pub mod runfile;
 
 #[cfg(test)]
 pub(crate) mod test_utils;

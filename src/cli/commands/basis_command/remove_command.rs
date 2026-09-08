@@ -1,7 +1,6 @@
 use crate::cli::commands::{CommandResult, Runnable};
 use clap::{ArgAction, ArgGroup};
 use miette::IntoDiagnostic;
-use rustiq_core::basis::BasisStore;
 #[derive(clap::Args, Debug)]
 #[command(group(
     ArgGroup::new("target")
@@ -24,7 +23,7 @@ pub struct RemoveCommand {
 
 impl Runnable for RemoveCommand {
     fn run(&self) -> CommandResult {
-        let store = BasisStore::default();
+        let store = crate::cli::env::basis_store();
         if self.all {
             store.remove_all()
         } else {

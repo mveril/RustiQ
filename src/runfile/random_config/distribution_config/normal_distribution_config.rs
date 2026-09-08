@@ -6,5 +6,6 @@ use crate::runfile::validated::PositiveFiniteF64;
 #[toml(Toml)]
 pub(crate) struct NormalDistributionConfig {
     pub(crate) mean: f64,
+    #[toml(with = crate::runfile::validated::positive_finite_f64)]
     pub(crate) std_dev: PositiveFiniteF64,
 }

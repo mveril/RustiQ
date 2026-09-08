@@ -8,20 +8,17 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/mveril/RustiQ"
 
 [features]
-default = ["online", "runfile"]
-runfile = ["dep:toml-spanner"]
+default = ["online"]
 online = ["dep:reqwest", "dep:tokio"]
 bench-support = []
 
 [dependencies]
 miette.workspace = true
-toml-spanner = { workspace = true, optional = true }
 reqwest = { version = "0.13", default-features = false, optional = true, features = [
   "json",
   "blocking",
   "rustls",
 ] }
-dirs = "7"
 nalgebra.workspace = true
 physical_constants = "0.5"
 periodic_table.workspace = true
@@ -46,4 +43,3 @@ approx.workspace = true
 nalgebra = { workspace = true, features = ["macros"] }
 ndarray = "0.17"
 proptest.workspace = true
-temp-env.workspace = true

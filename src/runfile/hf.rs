@@ -3,10 +3,8 @@ use std::num::NonZeroUsize;
 use serde::{Deserialize, Serialize};
 use toml_spanner::Toml;
 
-use crate::{
-    molecules::molecule::Molecule,
-    runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
-};
+use crate::runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
+use rustiq_core::molecules::molecule::Molecule;
 
 mod density_guess_config;
 mod guess_perturbation_config;
@@ -25,14 +23,17 @@ pub struct HfConfig {
     #[toml(with = crate::runfile::validated::non_zero_usize)]
     pub max_iterations: NonZeroUsize,
     #[toml(default = default_conv_threshold())]
+    #[toml(with = crate::runfile::validated::positive_finite_f64)]
     pub convergence_threshold: PositiveFiniteF64,
     #[toml(default = default_linear_dependency_threshold())]
+    #[toml(with = crate::runfile::validated::non_negative_finite_f64)]
     pub linear_dependency_threshold: NonNegativeFiniteF64,
     #[toml(default)]
     pub guess: DensityGuessConfig,
     #[toml(default)]
     pub diis: bool,
     #[toml(default = default_diis_size())]
+    #[toml(with = crate::runfile::validated::diis_size)]
     pub diis_size: DiisSize,
     #[toml(default)]
     pub format: HfOutputFormat,
@@ -62,14 +63,14 @@ pub enum HfMethod {
     Uhf,
 }
 
-pub use crate::config::{HfMethodResolutionError, ResolvedHfMethod};
+pub use rustiq_core::config::{HfMethodResolutionError, ResolvedHfMethod};
 
 impl HfMethod {
     pub fn resolve(
         &self,
         molecule: &Molecule,
     ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
-        crate::config::HfMethod::from(self).resolve(molecule)
+        rustiq_core::config::HfMethod::from(self).resolve(molecule)
     }
 }
 
@@ -101,9 +102,11 @@ fn default_diis_size() -> DiisSize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units};
     use crate::runfile::random_config::DistributionConfig;
-    use nalgebra::point;
+    use nalgebra::Point3;
+    use rustiq_core::molecules::{
+        atom::Atom, geometry::Geometry, molecule::Molecule, units::Units,
+    };
     use std::mem::discriminant;
     use std::num::NonZeroU8;
 
@@ -117,15 +120,16 @@ mod tests {
                     .iter()
                     .find(|element| element.symbol == *symbol)
                     .unwrap();
-                Atom::new(element, point![0.0, 0.0, index as f64])
+                Atom::new(element, Point3::new(0.0, 0.0, index as f64))
             })
             .collect();
-        Molecule::new_unchecked(
+        Molecule::try_new(
             Geometry::new("test molecule".to_string(), atoms),
             Units::Bohr,
             charge,
             NonZeroU8::new(multiplicity).unwrap(),
         )
+        .unwrap()
     }
 
     #[test]

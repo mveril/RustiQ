@@ -2,7 +2,7 @@ use std::{num::NonZeroU8, path::PathBuf};
 
 use toml_spanner::Toml;
 
-use crate::molecules::units::Units;
+use rustiq_core::molecules::units::Units;
 
 #[derive(Debug, Toml)]
 #[toml(Toml)]
@@ -18,6 +18,7 @@ pub struct MoleculeConfig {
     #[toml(with = crate::runfile::validated::non_zero_u8)]
     pub multiplicity: NonZeroU8,
     #[toml(default = default_molecule_unit())]
+    #[toml(with = crate::runfile::units)]
     pub molecule_unit: Units,
 }
 

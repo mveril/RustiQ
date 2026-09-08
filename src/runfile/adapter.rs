@@ -1,38 +1,6 @@
 //! Explicit conversion from the TOML schema to scientific options.
 use super::{hf, mp2, random_config};
-use crate::config as core;
-
-// Serialization belongs to the optional frontend, including for domain enums.
-#[derive(toml_spanner::Toml)]
-#[toml(Toml)]
-enum UnitsRepr {
-    Bohr,
-    Angstrom,
-}
-
-impl<'de> toml_spanner::FromToml<'de> for crate::molecules::units::Units {
-    fn from_toml(
-        ctx: &mut toml_spanner::Context<'de>,
-        item: &toml_spanner::Item<'de>,
-    ) -> Result<Self, toml_spanner::Failed> {
-        Ok(match UnitsRepr::from_toml(ctx, item)? {
-            UnitsRepr::Bohr => Self::Bohr,
-            UnitsRepr::Angstrom => Self::Angstrom,
-        })
-    }
-}
-
-impl toml_spanner::ToToml for crate::molecules::units::Units {
-    fn to_toml<'a>(
-        &'a self,
-        arena: &'a toml_spanner::Arena,
-    ) -> Result<toml_spanner::Item<'a>, toml_spanner::ToTomlError> {
-        match self {
-            Self::Bohr => UnitsRepr::Bohr.to_toml(arena),
-            Self::Angstrom => UnitsRepr::Angstrom.to_toml(arena),
-        }
-    }
-}
+use rustiq_core::config as core;
 
 impl From<&super::global::molecule_config::MoleculeConfig> for core::MoleculeConfig {
     fn from(value: &super::global::molecule_config::MoleculeConfig) -> Self {
@@ -138,7 +106,7 @@ impl From<random_config::RandomConfig> for core::random_config::RandomConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{DensityGuessConfig, RandomGuessConfig};
+    use rustiq_core::config::{DensityGuessConfig, RandomGuessConfig};
     use std::mem::discriminant;
     use toml_spanner::Toml;
     #[test]
@@ -186,7 +154,7 @@ mod tests {
         ] {
             let config: GuessConfig = toml_spanner::from_str(toml).unwrap();
             assert_eq!(
-                discriminant(&crate::config::DensityGuessConfig::from(config.guess)),
+                discriminant(&rustiq_core::config::DensityGuessConfig::from(config.guess)),
                 discriminant(&expected)
             );
             let _density_guess = config.guess;

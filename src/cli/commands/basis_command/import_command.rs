@@ -56,7 +56,7 @@ impl ImportCommand {
 
 impl Runnable for ImportCommand {
     fn run(&self) -> CommandResult {
-        let store = BasisStore::default();
+        let store = crate::cli::env::basis_store();
 
         let mut succeeded = 0;
         let mut failures = Vec::new();

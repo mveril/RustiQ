@@ -69,7 +69,7 @@ The repository is intentionally split into small domains:
 - `src/cli/` handles command dispatch, terminal output, and user-facing reports.
 - `crates/rustiq-core/src/config/` owns scientific options and optional source locations;
   `calculation.rs` exposes common HF execution and MP2 on converged orbitals.
-- `crates/rustiq-core/src/runfile/` is the optional TOML adapter: input schema,
+- `src/runfile/` is the CLI TOML adapter: input schema,
   parsing diagnostics, and explicit conversion to scientific configuration.
 - `crates/rustiq-core/src/molecules/` owns atoms, elements, geometry parsing, units, charge,
   multiplicity, electron-count logic, and geometry transforms.
@@ -647,10 +647,12 @@ Its `mp2` method requires a converged HF result. `Atom::new`, `Geometry::new`,
 `MoleculeConfig::build` and `Basis::try_load` support direct Rust construction.
 Convert the molecule to Bohr before building the basis and running HF.
 
-TOML parsing remains available through the optional `runfile` feature (enabled
-by default for compatibility). The CLI enables it explicitly. Ordinary Rust
-consumers can use `rustiq-core` with `default-features = false` to exclude both
-the runfile parser and online support:
+TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
+`toml-spanner` dependency or runfile feature, even with all its features enabled.
+User directories and `RUSTIQ_DATA_HOME` / `RUSTIQ_DATA_BASIS` are resolved by
+`src/cli/env.rs`; core consumers provide their own path to `BasisStore::new`.
+There is no environment-dependent `BasisStore::default()` in the core.
+Ordinary Rust consumers can disable online support with `default-features = false`:
 
 ```toml
 rustiq-core = { path = "crates/rustiq-core", default-features = false }
@@ -667,7 +669,7 @@ let hf_result = calculation.run()?;
 let mp2_result = calculation.mp2(&Mp2Config::default())?;
 ```
 
-`parse_runfile` returns both the frontend representation (including output
+The CLI's `parse_runfile` returns both the frontend representation (including output
 preferences) and converted scientific options with spans in the original text.
 Direct `From` conversions are also available and leave spans empty. Other
 frontends can supply Miette spans via `Located<T>`, which keeps each relevant value together with its optional
@@ -703,8 +705,8 @@ fixtures live in each package's `tests/data/` directory, and sample calculation 
 The core can be checked independently with
 `cargo test -p rustiq-core`; its fixtures are included in the package and do not
 depend on the repository's root tests or samples. To check without online support
-or the TOML adapter, use `cargo test -p rustiq-core --no-default-features`.
-Add `--features runfile` to test the offline TOML adapter. Existing `cargo run -- ...` and
+use `cargo test -p rustiq-core --no-default-features`. Runfile tests live in the
+CLI package and run with `cargo test -p RustiQ`. Existing `cargo run -- ...` and
 `cargo bench --features bench-support --bench eri_timings` commands still work
 from the repository root. CLI features forward to the corresponding core features.
 
