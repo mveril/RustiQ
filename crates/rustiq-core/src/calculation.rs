@@ -106,8 +106,8 @@ impl<'a> HfCalculation<'a> {
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
-                    config.linear_dependency_threshold.into_inner(),
-                    config.guess,
+                    config.linear_dependency_threshold.value.into_inner(),
+                    config.guess.into_inner(),
                     progress,
                 )
                 .map_err(|error| CalculationError::RhfSetup {
@@ -125,8 +125,8 @@ impl<'a> HfCalculation<'a> {
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
-                    config.linear_dependency_threshold.into_inner(),
-                    config.guess,
+                    config.linear_dependency_threshold.value.into_inner(),
+                    config.guess.into_inner(),
                     progress,
                 )
                 .map_err(|error| CalculationError::UhfSetup {
@@ -180,12 +180,12 @@ impl<'a> HfCalculation<'a> {
             });
         }
         match &self.state {
-            HfState::Rhf(scf) => mp2::rhf_closed_shell(scf, config.frozen_orbitals),
-            HfState::Uhf(scf) => mp2::uhf_unrestricted(scf, config.frozen_orbitals),
+            HfState::Rhf(scf) => mp2::rhf_closed_shell(scf, config.frozen_orbitals.into_inner()),
+            HfState::Uhf(scf) => mp2::uhf_unrestricted(scf, config.frozen_orbitals.into_inner()),
         }
         .map_err(|error| CalculationError::Mp2 {
             span: matches!(error, Mp2Error::InvalidFrozenOrbitalCount { .. })
-                .then_some(config.frozen_orbitals_span)
+                .then_some(config.frozen_orbitals.span)
                 .flatten(),
             error,
         })
@@ -198,10 +198,11 @@ impl HfConfig {
         molecule: &Molecule,
     ) -> Result<ResolvedHfMethod, CalculationError> {
         self.method
+            .value
             .resolve(molecule)
             .map_err(|error| CalculationError::Method {
                 error,
-                span: self.source_spans.method,
+                span: self.method.span,
             })
     }
 }
@@ -209,12 +210,12 @@ impl HfConfig {
 fn setup_span(error: &ScfSetupError<DensityGuessError>, config: &HfConfig) -> Option<SourceSpan> {
     match error {
         ScfSetupError::DensityGuess(DensityGuessError::DistributionCreation(_)) => {
-            config.source_spans.guess
+            config.guess.span
         }
         ScfSetupError::Numerical(
             NumericalError::InsufficientOverlapRank { .. }
             | NumericalError::InvalidLinearDependencyThreshold { .. },
-        ) => config.source_spans.linear_dependency_threshold,
+        ) => config.linear_dependency_threshold.span,
         _ => None,
     }
 }

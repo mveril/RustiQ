@@ -41,12 +41,12 @@ pub fn parse_runfile(
         })
     };
     if let Some(config) = &mut hf_config {
-        config.source_spans.method = span("hf", "method");
-        config.source_spans.linear_dependency_threshold = span("hf", "linear_dependency_threshold");
-        config.source_spans.guess = span("hf", "guess");
+        config.method.span = span("hf", "method");
+        config.linear_dependency_threshold.span = span("hf", "linear_dependency_threshold");
+        config.guess.span = span("hf", "guess");
     }
     if let Some(config) = &mut mp2_config {
-        config.frozen_orbitals_span = span("mp2", "frozen_orbitals");
+        config.frozen_orbitals.span = span("mp2", "frozen_orbitals");
     }
     let molecule_span = |field: &str| {
         root["global"]["molecule"][field].item().map(|item| {

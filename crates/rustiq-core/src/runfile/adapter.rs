@@ -57,14 +57,13 @@ impl From<&hf::HfMethod> for core::HfMethod {
 impl From<&hf::HfConfig> for core::HfConfig {
     fn from(value: &hf::HfConfig) -> Self {
         Self {
-            method: (&value.method).into(),
+            method: core::HfMethod::from(&value.method).into(),
             max_iterations: value.max_iterations,
             convergence_threshold: value.convergence_threshold,
-            linear_dependency_threshold: value.linear_dependency_threshold,
-            guess: value.guess.into(),
+            linear_dependency_threshold: value.linear_dependency_threshold.into(),
+            guess: core::DensityGuessConfig::from(value.guess).into(),
             diis: value.diis,
             diis_size: value.diis_size,
-            source_spans: Default::default(),
         }
     }
 }
@@ -72,8 +71,7 @@ impl From<&hf::HfConfig> for core::HfConfig {
 impl From<&mp2::Mp2Config> for core::Mp2Config {
     fn from(value: &mp2::Mp2Config) -> Self {
         Self {
-            frozen_orbitals: value.frozen_orbitals,
-            frozen_orbitals_span: None,
+            frozen_orbitals: value.frozen_orbitals.into(),
         }
     }
 }

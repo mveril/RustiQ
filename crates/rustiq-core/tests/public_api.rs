@@ -31,6 +31,21 @@ fn geometry() -> Geometry {
     )
 }
 
+#[test]
+fn located_values_support_owned_extraction_with_or_without_provenance() {
+    let plain = Located::from(String::from("direct Rust input"));
+    assert!(plain.span.is_none());
+    assert_eq!(plain.into_inner(), "direct Rust input");
+    let sourced = Located {
+        value: String::from("frontend input"),
+        span: Some((4, 14).into()),
+    };
+    assert_eq!(sourced.into_inner(), "frontend input");
+    let defaults = Mp2Config::default();
+    assert_eq!(defaults.frozen_orbitals.into_inner(), 0);
+    assert!(defaults.frozen_orbitals.span.is_none());
+}
+
 fn input() -> (Molecule, Basis) {
     let mut molecule = MoleculeConfig {
         units: Units::Angstrom,
@@ -61,7 +76,7 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
         (HfMethod::Uhf, ResolvedHfMethod::Uhf),
     ] {
         let config = HfConfig {
-            method,
+            method: method.into(),
             diis: true,
             convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
             ..Default::default()
@@ -89,8 +104,7 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
         for span in [None, Some((12, 1).into())] {
             let error = calculation
                 .mp2(&Mp2Config {
-                    frozen_orbitals: 2,
-                    frozen_orbitals_span: span,
+                    frozen_orbitals: Located { value: 2, span },
                 })
                 .unwrap_err();
             assert!(matches!(
@@ -111,7 +125,7 @@ fn public_api_rejects_mp2_after_unconverged_hf() {
     let (molecule, basis) = input();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let config = HfConfig {
-            method,
+            method: method.into(),
             max_iterations: NonZeroUsize::MIN,
             ..Default::default()
         };
@@ -139,10 +153,10 @@ fn scientific_method_errors_preserve_optional_frontend_spans() {
     );
     for span in [None, Some((7, 5).into())] {
         let mut config = HfConfig {
-            method: HfMethod::Rhf,
+            method: HfMethod::Rhf.into(),
             ..Default::default()
         };
-        config.source_spans.method = span;
+        config.method.span = span;
         let error = config.resolve_method(&molecule).unwrap_err();
         assert!(matches!(error, CalculationError::Method { .. }));
         assert_eq!(labels(&error), span.into_iter().collect::<Vec<_>>());
@@ -175,11 +189,11 @@ fn setup_errors_retain_threshold_and_guess_locations() {
     let span: SourceSpan = (30, 4).into();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let mut config = HfConfig {
-            method,
-            linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap(),
+            method: method.into(),
+            linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
             ..Default::default()
         };
-        config.source_spans.linear_dependency_threshold = Some(span);
+        config.linear_dependency_threshold.span = Some(span);
         let error = HfCalculation::new(&molecule, &basis, &config)
             .err()
             .unwrap();
@@ -194,7 +208,7 @@ fn setup_errors_retain_threshold_and_guess_locations() {
             ));
         }
         config.linear_dependency_threshold = HfConfig::default().linear_dependency_threshold;
-        config.guess = DensityGuessConfig::Random {
+        config.guess.value = DensityGuessConfig::Random {
             config: RandomGuessConfig {
                 random: RandomConfig {
                     seed: Some(42),
@@ -207,7 +221,7 @@ fn setup_errors_retain_threshold_and_guess_locations() {
                 },
             },
         };
-        config.source_spans.guess = Some(span);
+        config.guess.span = Some(span);
         let error = HfCalculation::new(&molecule, &basis, &config)
             .err()
             .unwrap();
@@ -256,9 +270,9 @@ fn toml_adapter_preserves_original_spans_and_numerical_behavior() {
 
     let parsed = parse_runfile("defaults.toml", "[global]\nbasis = 'sto-3g'\n[hf]\n").unwrap();
     let from_toml = parsed.hf_config.unwrap();
-    assert!(from_toml.source_spans.method.is_none());
-    assert!(from_toml.source_spans.guess.is_none());
-    assert!(from_toml.source_spans.linear_dependency_threshold.is_none());
+    assert!(from_toml.method.span.is_none());
+    assert!(from_toml.guess.span.is_none());
+    assert!(from_toml.linear_dependency_threshold.span.is_none());
     let mut adapted = HfCalculation::new(&molecule, &basis, &from_toml).unwrap();
     let adapted_result = adapted.run().unwrap();
     let direct_result = calculation.run().unwrap();

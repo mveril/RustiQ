@@ -1,3 +1,4 @@
+use super::Located;
 use std::num::NonZeroUsize;
 
 use serde::{Deserialize, Serialize};
@@ -18,27 +19,25 @@ pub use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Clone)]
 pub struct HfConfig {
-    pub method: HfMethod,
+    pub method: Located<HfMethod>,
     pub max_iterations: NonZeroUsize,
     pub convergence_threshold: PositiveFiniteF64,
-    pub linear_dependency_threshold: NonNegativeFiniteF64,
-    pub guess: DensityGuessConfig,
+    pub linear_dependency_threshold: Located<NonNegativeFiniteF64>,
+    pub guess: Located<DensityGuessConfig>,
     pub diis: bool,
     pub diis_size: DiisSize,
-    pub source_spans: HfSourceSpans,
 }
 
 impl Default for HfConfig {
     fn default() -> Self {
         Self {
-            method: HfMethod::default(),
+            method: HfMethod::default().into(),
             max_iterations: default_max_iter(),
             convergence_threshold: default_conv_threshold(),
-            linear_dependency_threshold: default_linear_dependency_threshold(),
-            guess: DensityGuessConfig::default(),
+            linear_dependency_threshold: default_linear_dependency_threshold().into(),
+            guess: DensityGuessConfig::default().into(),
             diis: false,
             diis_size: default_diis_size(),
-            source_spans: HfSourceSpans::default(),
         }
     }
 }
@@ -120,12 +119,4 @@ fn default_diis_size() -> DiisSize {
 
 fn is_closed_shell_singlet(molecule: &Molecule) -> bool {
     molecule.multiplicity().get() == 1 && molecule.total_electrons().is_multiple_of(2)
-}
-
-/// Optional locations supplied by a frontend. The frontend owns the source text.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct HfSourceSpans {
-    pub method: Option<miette::SourceSpan>,
-    pub linear_dependency_threshold: Option<miette::SourceSpan>,
-    pub guess: Option<miette::SourceSpan>,
 }

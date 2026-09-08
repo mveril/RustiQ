@@ -670,8 +670,8 @@ let mp2_result = calculation.mp2(&Mp2Config::default())?;
 `parse_runfile` returns both the frontend representation (including output
 preferences) and converted scientific options with spans in the original text.
 Direct `From` conversions are also available and leave spans empty. Other
-frontends can supply Miette spans via `Located<T>`, `HfSourceSpans`, and the MP2
-frozen-orbital span. Scientific errors own neither source text nor a renderer;
+frontends can supply Miette spans via `Located<T>`, which keeps each relevant value together with its optional
+source span. `Located::into_inner()` extracts the value and discards provenance. Scientific errors own neither source text nor a renderer;
 the CLI attaches its `NamedSource` to the returned report. Numerical failures
 that cannot identify a configuration value have no artificial location.
 Command handling, working-directory changes, and terminal presentation remain
