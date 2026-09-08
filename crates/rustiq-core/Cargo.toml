@@ -1,0 +1,48 @@
+[package]
+name = "rustiq-core"
+description = "Reusable domain model and quantum chemistry implementation for RustiQ"
+authors = ["Mickaël Véril"]
+version = "0.1.0-alpha.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/mveril/RustiQ"
+
+[features]
+default = ["online"]
+online = ["dep:reqwest", "dep:tokio"]
+bench-support = []
+
+[dependencies]
+miette.workspace = true
+toml-spanner.workspace = true
+reqwest = { version = "0.13", default-features = false, optional = true, features = [
+  "json",
+  "blocking",
+  "rustls",
+] }
+dirs = "7"
+nalgebra.workspace = true
+physical_constants = "0.5"
+periodic_table.workspace = true
+rayon.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util"], optional = true }
+serde_json.workspace = true
+serde.workspace = true
+delegate.workspace = true
+bounded-vec-deque = "0.1.1"
+thiserror.workspace = true
+rand.workspace = true
+rand_distr = "0.6"
+special = { version = "0.14", default-features = false, features = ["std"] }
+factorial = "0.4.0"
+nutype = "0.7"
+const_format = "0.2"
+smallvec = "1"
+tempfile.workspace = true
+
+[dev-dependencies]
+approx.workspace = true
+nalgebra = { workspace = true, features = ["macros"] }
+ndarray = "0.17"
+proptest.workspace = true
+temp-env.workspace = true

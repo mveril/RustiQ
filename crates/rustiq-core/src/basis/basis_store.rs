@@ -146,7 +146,7 @@ impl BasisStore {
         Ok(())
     }
 
-    /// Returns the repository fixture basis store used by tests and benches.
+    /// Returns the package-local fixture basis store used by tests and benches.
     #[cfg(any(test, feature = "bench-support"))]
     #[allow(dead_code)]
     pub fn repository_fixtures() -> BasisStore {
@@ -378,7 +378,7 @@ impl BasisStore {
     ///
     /// # Examples
     /// ```rust
-    /// # use RustiQ::basis::BasisStore;
+    /// # use rustiq_core::basis::BasisStore;
     /// # let store = BasisStore::new(&std::env::temp_dir().join("rustiq-doc-basis-store-remove"));
     /// let names = vec!["basis1", "basis2", "basis3"];
     /// store.remove(names).expect("Failed to remove files");
@@ -562,7 +562,7 @@ mod tests {
         temp_env::with_var("RUSTIQ_DATA_HOME", Some("/tmp/rustiq-data-home"), || {
             let store = BasisStore::default();
             let expected = PathBuf::from("/tmp/rustiq-data-home")
-                .join(env!("CARGO_PKG_NAME"))
+                .join("RustiQ")
                 .join("basis_sets");
             assert_eq!(store.path(), expected);
         });

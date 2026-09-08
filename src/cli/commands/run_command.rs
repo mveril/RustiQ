@@ -12,7 +12,7 @@ use crate::cli::{
     self,
     ux::{bat, json_output::CalculationOutput, mp2_report::Mp2Reporter, scf_report::ScfReporter},
 };
-use RustiQ::{
+use rustiq_core::{
     basis::{gaussian::basis::Basis, BasisFile, BasisStore},
     hf::{self, scf_result::ScfResult},
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},

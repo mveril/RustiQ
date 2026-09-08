@@ -194,7 +194,10 @@ mod tests {
         let result = parse_runfile("calculation.toml", "hf = \"not a table\"");
 
         let err = result.unwrap_err();
-        assert!(format!("{err:?}").contains("rustiq::runfile::toml_deserialize"));
+        assert_eq!(
+            err.code().unwrap().to_string(),
+            "rustiq::runfile::toml_deserialize"
+        );
     }
 
     #[test]
@@ -215,8 +218,13 @@ mod tests {
         );
 
         let err = result.unwrap_err();
-        let rendered = format!("{err:?}");
-        assert!(rendered.contains("runfile contains 4 configuration error(s)"));
+        assert_eq!(err.to_string(), "runfile contains 4 configuration error(s)");
+        let rendered = err
+            .related()
+            .unwrap()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(rendered.contains("The basis set must be written as a string."));
         assert!(rendered.contains("The HF iteration limit must be an integer greater than zero."));
         assert!(rendered.contains("The HF convergence threshold must be a positive finite number."));
@@ -238,9 +246,17 @@ mod tests {
         );
 
         let err = result.unwrap_err();
-        let rendered = format!("{err:?}");
-        assert!(rendered.contains("basis = 4"));
-        assert!(rendered.contains("max_iterations = 0"));
-        assert!(rendered.contains("convergence_threshold = 0.0"));
+        let fields = err.related().unwrap().collect::<Vec<_>>();
+        assert_eq!(fields.len(), 3);
+        for (field, expected) in fields.iter().zip(["4", "0", "0.0"]) {
+            let labels = field.labels().unwrap().collect::<Vec<_>>();
+            assert_eq!(labels.len(), 1);
+            let source = field.source_code().unwrap();
+            let contents = source.read_span(labels[0].inner(), 0, 0).unwrap();
+            assert!(std::str::from_utf8(contents.data())
+                .unwrap()
+                .contains(expected));
+            assert_eq!(contents.name(), Some("calculation.toml"));
+        }
     }
 }

@@ -1,9 +1,9 @@
 #![allow(dead_code, non_snake_case)]
 
-//! Shared domain and scientific implementation used by the CLI and benchmarks.
+//! Reusable domain and scientific implementation used by the CLI and benchmarks.
 //!
-//! The existing module layout is retained while establishing the library boundary.
-//! Runfile configuration remains here because the calculation APIs depend on it.
+//! Runfile types and parsing are reusable configuration APIs; filesystem orchestration
+//! and terminal presentation belong to the calling application.
 
 pub mod basis;
 pub mod env;

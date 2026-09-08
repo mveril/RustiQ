@@ -1,6 +1,8 @@
 use std::io::{self, Write};
 
-use RustiQ::hf::{scf_iteration::ScfIteration, scf_observer::ScfObserver, scf_result::ScfResult};
+use rustiq_core::hf::{
+    scf_iteration::ScfIteration, scf_observer::ScfObserver, scf_result::ScfResult,
+};
 
 pub(crate) struct ScfReporter<W> {
     writer: W,
@@ -207,14 +209,14 @@ mod tests {
                     total_energy: -0.8,
                     delta_energy: 1.0,
                     residual_norm: 0.1,
-                    energy_details: RustiQ::hf::scf_energy_details::ScfEnergyDetails {
+                    energy_details: rustiq_core::hf::scf_energy_details::ScfEnergyDetails {
                         kinetic_energy: 0.3,
                         nuclear_attraction_energy: -1.5,
                         electron_repulsion_energy: 0.2,
                     },
                     orthogonalization:
-                        RustiQ::hf::orthogonalization::OrthogonalizationInfo::default(),
-                    timings: RustiQ::hf::scf_result::ScfTimings::default(),
+                        rustiq_core::hf::orthogonalization::OrthogonalizationInfo::default(),
+                    timings: rustiq_core::hf::scf_result::ScfTimings::default(),
                 })
                 .unwrap();
         }

@@ -1,5 +1,5 @@
+use rustiq_core::basis::BasisStore;
 use std::{fs, io::Cursor, process::Command};
-use RustiQ::basis::BasisStore;
 
 #[test]
 fn init_generates_runnable_hf_and_mp2_calculations() {

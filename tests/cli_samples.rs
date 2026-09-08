@@ -6,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use RustiQ::basis::BasisStore;
+use rustiq_core::basis::BasisStore;
 
 fn temp_root(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()

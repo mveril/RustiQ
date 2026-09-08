@@ -7,7 +7,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use thiserror::Error;
 
 use crate::cli::commands::{CommandResult, Runnable};
-use RustiQ::basis::BasisStore;
+use rustiq_core::basis::BasisStore;
 
 #[derive(clap::Args, Debug)]
 pub struct ImportCommand {

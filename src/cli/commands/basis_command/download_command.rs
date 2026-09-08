@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use miette::IntoDiagnostic;
 
 use crate::cli::commands::{AsyncRunnable, CommandResult};
-use RustiQ::basis::BasisStore;
+use rustiq_core::basis::BasisStore;
 
 #[derive(clap::Args, Debug)]
 pub struct DownloadCommand {
