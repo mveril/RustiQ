@@ -19,7 +19,7 @@ use super::{
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_observer::{NoopScfObserver, ScfObserver},
+    scf_observer::{NoopScfObserver, ScfObserver, ScfSetupStep},
     scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
 };
 
@@ -126,24 +126,24 @@ impl<'a> UhfCalculation<'a> {
     where
         G: DensityGuess,
         G::Error: 'static,
-        F: FnMut(&str),
+        F: FnMut(ScfSetupStep),
     {
         let occupied_orbitals = alpha_beta_occupied_orbitals(molecule);
         let setup_start = Instant::now();
         let mut setup_timings = ScfSetupTimings::default();
 
-        progress("Building one-electron core Hamiltonian");
+        progress(ScfSetupStep::CoreHamiltonian);
         let step_start = Instant::now();
         let (t_matrix, v_matrix) = core_hamiltonian_ints(molecule, basis);
         setup_timings.core_hamiltonian = step_start.elapsed();
         let h_core = &t_matrix + &v_matrix;
 
-        progress("Building overlap matrix");
+        progress(ScfSetupStep::OverlapMatrix);
         let step_start = Instant::now();
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
-        progress("Building overlap orthogonalizer");
+        progress(ScfSetupStep::OverlapOrthogonalizer);
         let step_start = Instant::now();
         let orthogonalization_result =
             orthogonalizer(&overlap_matrix, "overlap", linear_dependency_threshold)
@@ -154,23 +154,14 @@ impl<'a> UhfCalculation<'a> {
         ensure_sufficient_rank(orthogonalization, required_occupied_orbitals)
             .map_err(ScfSetupError::Numerical)?;
         setup_timings.orthogonalizer = step_start.elapsed();
-        progress(
-            format!(
-                "Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})",
-                orthogonalization.effective_rank,
-                orthogonalization.basis_dimension,
-                orthogonalization.discarded_directions,
-                orthogonalization.relative_threshold,
-            )
-            .as_str(),
-        );
+        progress(ScfSetupStep::OverlapOrthogonalized(orthogonalization));
 
-        progress("Building electron repulsion integrals");
+        progress(ScfSetupStep::ElectronRepulsionIntegrals);
         let step_start = Instant::now();
         let two_electron_integrals = electron_repulsion_ints(basis)?;
         setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
-        progress("Building initial density guess");
+        progress(ScfSetupStep::InitialDensityGuess);
         let step_start = Instant::now();
         let orbital_guess = density_guess_builder
             .build_orbital_guess(&h_core, basis)

@@ -40,7 +40,7 @@ impl CalculationExecution for PreparedCalculation {
         observer.on_hf_start(*method, config);
         let mut calculation =
             HfCalculation::new_with_progress(&self.molecule, &self.basis, config, |step| {
-                observer.on_scf_step(step)
+                observer.on_scf_setup_step(step)
             })?;
         let hf = HfCalculationResult {
             method: *method,

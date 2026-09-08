@@ -11,6 +11,7 @@ use thiserror::Error;
 mod builder;
 mod execution;
 mod prepared_calculation;
+pub use crate::hf::scf_observer::ScfSetupStep;
 pub use builder::CalculationBuilder;
 pub use execution::{
     CalculationExecution, CalculationObserver, CalculationResult, HfCalculationResult,
@@ -122,7 +123,7 @@ impl<'a> HfCalculation<'a> {
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
-        progress: impl FnMut(&str),
+        progress: impl FnMut(ScfSetupStep),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
         let state = match method {

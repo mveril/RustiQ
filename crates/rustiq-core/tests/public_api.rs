@@ -8,7 +8,7 @@ use rustiq_core::{
     basis::{gaussian::basis::Basis, BasisFile},
     calculation::{
         CalculationBuilder, CalculationError, CalculationExecution, CalculationObserver,
-        HfCalculation, HfCalculationResult,
+        HfCalculation, HfCalculationResult, ScfSetupStep,
     },
     config::{
         random_config::{
@@ -35,29 +35,35 @@ fn geometry() -> Geometry {
 }
 
 #[derive(Default)]
-struct WorkflowObserver(Vec<&'static str>);
+struct WorkflowObserver {
+    events: Vec<&'static str>,
+    setup_steps: Vec<ScfSetupStep>,
+}
 
 impl rustiq_core::hf::scf_observer::ScfObserver for WorkflowObserver {
     fn on_iteration(&mut self, _: &rustiq_core::hf::scf_iteration::ScfIteration) {
-        self.0.push("iteration");
+        self.events.push("iteration");
     }
 }
 
 impl CalculationObserver for WorkflowObserver {
     fn on_basis_start(&mut self) {
-        self.0.push("basis_start");
+        self.events.push("basis_start");
     }
     fn on_basis_ready(&mut self, _: &Basis, _: std::time::Duration) {
-        self.0.push("basis_ready");
+        self.events.push("basis_ready");
     }
     fn on_hf_start(&mut self, _: ResolvedHfMethod, _: &HfConfig) {
-        self.0.push("hf_start");
+        self.events.push("hf_start");
+    }
+    fn on_scf_setup_step(&mut self, step: ScfSetupStep) {
+        self.setup_steps.push(step);
     }
     fn on_hf_complete(&mut self, _: &HfCalculationResult) {
-        self.0.push("hf_complete");
+        self.events.push("hf_complete");
     }
     fn on_mp2_complete(&mut self, _: &HfCalculationResult, _: &rustiq_core::mp2::Mp2Result) {
-        self.0.push("mp2_complete");
+        self.events.push("mp2_complete");
     }
 }
 
@@ -89,13 +95,32 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
             epsilon = 1e-10
         );
         assert_eq!(
-            &observer.0[..3],
+            &observer.events[..3],
             &["basis_start", "basis_ready", "hf_start"]
         );
-        assert!(observer.0.contains(&"iteration"));
+        assert!(observer.events.contains(&"iteration"));
         assert_eq!(
-            &observer.0[observer.0.len() - 2..],
+            &observer.events[observer.events.len() - 2..],
             &["hf_complete", "mp2_complete"]
+        );
+        assert_eq!(
+            &observer.setup_steps[..3],
+            &[
+                ScfSetupStep::CoreHamiltonian,
+                ScfSetupStep::OverlapMatrix,
+                ScfSetupStep::OverlapOrthogonalizer,
+            ]
+        );
+        assert!(matches!(
+            observer.setup_steps[3],
+            ScfSetupStep::OverlapOrthogonalized(_)
+        ));
+        assert_eq!(
+            &observer.setup_steps[4..],
+            &[
+                ScfSetupStep::ElectronRepulsionIntegrals,
+                ScfSetupStep::InitialDensityGuess,
+            ]
         );
 
         let prepared = builder.prepare().unwrap();
@@ -123,7 +148,7 @@ fn builder_mutable_setters_enforce_mp2_dependency_and_support_preparation_only()
         builder.execute_with_observer(&mut observer),
         Err(CalculationError::Mp2RequiresHf)
     ));
-    assert!(observer.0.is_empty());
+    assert!(observer.events.is_empty());
     builder.mp2(None).molecule_config(MoleculeConfig {
         units: Units::Angstrom,
         ..Default::default()
@@ -133,7 +158,7 @@ fn builder_mutable_setters_enforce_mp2_dependency_and_support_preparation_only()
     let result = builder.execute_with_observer(&mut observer).unwrap();
     assert!(result.hf.is_none());
     assert!(result.mp2.is_none());
-    assert_eq!(observer.0, vec!["basis_start", "basis_ready"]);
+    assert_eq!(observer.events, vec!["basis_start", "basis_ready"]);
 }
 
 #[test]
@@ -151,8 +176,8 @@ fn builder_never_runs_mp2_after_unconverged_hf() {
         builder.execute_with_observer(&mut observer),
         Err(CalculationError::HfNotConverged { iterations: 1 })
     ));
-    assert_eq!(observer.0.last(), Some(&"hf_complete"));
-    assert!(!observer.0.contains(&"mp2_complete"));
+    assert_eq!(observer.events.last(), Some(&"hf_complete"));
+    assert!(!observer.events.contains(&"mp2_complete"));
 }
 
 #[test]

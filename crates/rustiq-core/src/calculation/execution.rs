@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::CalculationError;
+use super::{CalculationError, ScfSetupStep};
 use crate::{
     basis::gaussian::basis::Basis,
     config::{HfConfig, ResolvedHfMethod},
@@ -29,7 +29,7 @@ pub trait CalculationObserver: ScfObserver {
     fn on_basis_start(&mut self) {}
     fn on_basis_ready(&mut self, _basis: &Basis, _elapsed: Duration) {}
     fn on_hf_start(&mut self, _method: ResolvedHfMethod, _config: &HfConfig) {}
-    fn on_scf_step(&mut self, _step: &str) {}
+    fn on_scf_setup_step(&mut self, _step: ScfSetupStep) {}
     fn on_hf_complete(&mut self, _result: &HfCalculationResult) {}
     fn on_mp2_complete(&mut self, _hf: &HfCalculationResult, _result: &Mp2Result) {}
 }

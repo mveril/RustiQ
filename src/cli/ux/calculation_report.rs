@@ -8,7 +8,10 @@ use rustiq_core::{
     basis::gaussian::basis::Basis,
     calculation::{CalculationObserver, HfCalculationResult},
     config::{HfConfig, ResolvedHfMethod},
-    hf::{scf_iteration::ScfIteration, scf_observer::ScfObserver},
+    hf::{
+        scf_iteration::ScfIteration,
+        scf_observer::{ScfObserver, ScfSetupStep},
+    },
     mp2::Mp2Result,
 };
 
@@ -75,8 +78,33 @@ impl<W: Write> CalculationObserver for CalculationReporter<W> {
         });
     }
 
-    fn on_scf_step(&mut self, step: &str) {
-        self.report(|scf| writeln!(scf.writer_mut(), "  {step}..."));
+    fn on_scf_setup_step(&mut self, step: ScfSetupStep) {
+        self.report(|scf| {
+            let writer = scf.writer_mut();
+            match step {
+                ScfSetupStep::CoreHamiltonian => {
+                    writeln!(writer, "  Building one-electron core Hamiltonian...")
+                }
+                ScfSetupStep::OverlapMatrix => writeln!(writer, "  Building overlap matrix..."),
+                ScfSetupStep::OverlapOrthogonalizer => {
+                    writeln!(writer, "  Building overlap orthogonalizer...")
+                }
+                ScfSetupStep::OverlapOrthogonalized(info) => writeln!(
+                    writer,
+                    "  Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})...",
+                    info.effective_rank,
+                    info.basis_dimension,
+                    info.discarded_directions,
+                    info.relative_threshold,
+                ),
+                ScfSetupStep::ElectronRepulsionIntegrals => {
+                    writeln!(writer, "  Building electron repulsion integrals...")
+                }
+                ScfSetupStep::InitialDensityGuess => {
+                    writeln!(writer, "  Building initial density guess...")
+                }
+            }
+        });
     }
 
     fn on_hf_complete(&mut self, result: &HfCalculationResult) {
@@ -125,7 +153,7 @@ mod tests {
         let mut reporter = CalculationReporter::new(FailingWriter, false, true);
         reporter.on_basis_start();
         reporter.on_hf_start(ResolvedHfMethod::Rhf, &HfConfig::default());
-        reporter.on_scf_step("overlap");
+        reporter.on_scf_setup_step(ScfSetupStep::OverlapMatrix);
         assert!(reporter.take_error().is_none());
     }
 }
