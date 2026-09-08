@@ -1,7 +1,7 @@
 //! Frontend-independent HF execution and optional MP2 correlation.
 //!
 //! [`CalculationBuilder`] validates options, converts coordinates to Bohr, builds
-//! the basis and orchestrates HF/MP2.
+//! the basis and orchestrates HF/MP2. Its prepared inputs can be reused.
 //! The lower-level [`HfCalculation`] expects a molecule already in Bohr and a
 //! basis built from that same geometry. File loading remains with the caller.
 
@@ -10,11 +10,13 @@ use thiserror::Error;
 
 mod builder;
 mod execution;
+mod prepared_calculation;
 pub use builder::CalculationBuilder;
 pub use execution::{
     CalculationExecution, CalculationObserver, CalculationResult, HfCalculationResult,
     NoopCalculationObserver,
 };
+pub use prepared_calculation::PreparedCalculation;
 
 use crate::{
     basis::gaussian::basis::{Basis, BasisError},

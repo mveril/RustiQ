@@ -647,9 +647,10 @@ resolves RHF/UHF and executes HF followed by optional MP2. MP2 requires HF and
 converged orbitals. Results and progress notifications are structured Rust data;
 the CLI only loads inputs and presents them.
 
-The builder follows the useful `WSLCommand` conventions from WSLPlugins-rs:
-mutable setters, consuming `with_*` variants, getters, and `execute()`.
-Preparation is an implementation detail because this API has no FFI boundary.
+The builder follows the `WSLCommand` conventions from WSLPlugins-rs: mutable
+setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
+`PreparedCalculation` retains the validated molecule and basis and can be
+executed repeatedly through the shared `CalculationExecution` trait.
 The lower-level `HfCalculation` remains available for callers supplying an
 already constructed molecule in Bohr and its corresponding basis.
 

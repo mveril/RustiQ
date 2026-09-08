@@ -98,9 +98,12 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
             &["hf_complete", "mp2_complete"]
         );
 
-        // Execution leaves the caller's Angstrom geometry intact.
+        let prepared = builder.prepare().unwrap();
+        assert_eq!(prepared.get_molecule().unit(), Units::Bohr);
+        assert_eq!(prepared.get_basis().nbasis(), 2);
+        // Preparation leaves the caller's Angstrom geometry intact and can be reused.
         assert_eq!(geometry.atoms[0].position.z, -0.37);
-        let repeated = builder.execute().unwrap();
+        let repeated = prepared.execute().unwrap();
         assert_abs_diff_eq!(
             repeated.hf.unwrap().scf.total_energy,
             result.hf.unwrap().scf.total_energy,
@@ -110,7 +113,7 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
 }
 
 #[test]
-fn builder_mutable_setters_enforce_mp2_dependency_and_support_no_hf_execution() {
+fn builder_mutable_setters_enforce_mp2_dependency_and_support_preparation_only() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let mut builder = CalculationBuilder::new(&geometry, &file);

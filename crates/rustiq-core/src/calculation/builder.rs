@@ -6,14 +6,14 @@ use crate::{
 use std::time::Instant;
 
 use super::{
-    CalculationError, CalculationExecution, CalculationObserver, CalculationResult, HfCalculation,
-    HfCalculationResult,
+    CalculationError, CalculationExecution, CalculationObserver, CalculationResult,
+    NoopCalculationObserver, PreparedCalculation,
 };
 
 /// Configure a calculation from explicitly loaded inputs.
 ///
 /// Setters return `&mut Self`; `with_*` variants consume and return the builder.
-/// Execution validates the molecular state and HF/MP2 combination, converts
+/// Preparation validates the molecular state and HF/MP2 combination, converts
 /// coordinates to Bohr, and builds the basis at those coordinates. Neither the
 /// input geometry nor the basis file is modified. Defaults describe a neutral
 /// singlet in Bohr with automatic HF selection and no MP2.
@@ -30,7 +30,8 @@ use super::{
 ///     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
 ///     .with_hf(HfConfig { diis: true, ..Default::default() })
 ///     .with_mp2(Mp2Config::default());
-/// let result = calculation.execute()?;
+/// let prepared = calculation.prepare()?;
+/// let result = prepared.execute()?;
 /// # Ok(())
 /// # }
 /// ```
@@ -81,7 +82,7 @@ impl<'a> CalculationBuilder<'a> {
         self
     }
 
-    /// Configure HF, or pass `None` to validate the molecule and build its basis only.
+    /// Configure HF, or pass `None` to only prepare the molecule and basis.
     pub fn hf(&mut self, config: impl Into<Option<HfConfig>>) -> &mut Self {
         self.hf = config.into();
         self
@@ -106,11 +107,16 @@ impl<'a> CalculationBuilder<'a> {
     }
 }
 
-impl CalculationExecution for CalculationBuilder<'_> {
-    fn execute_with_observer(
+impl<'a> CalculationBuilder<'a> {
+    /// Prepare reusable scientific inputs without executing HF or MP2.
+    pub fn prepare(&self) -> Result<PreparedCalculation, CalculationError> {
+        self.prepare_with_observer(&mut NoopCalculationObserver)
+    }
+
+    pub fn prepare_with_observer(
         &self,
         observer: &mut impl CalculationObserver,
-    ) -> Result<CalculationResult, CalculationError> {
+    ) -> Result<PreparedCalculation, CalculationError> {
         if self.mp2.is_some() && self.hf.is_none() {
             return Err(CalculationError::Mp2RequiresHf);
         }
@@ -129,28 +135,21 @@ impl CalculationExecution for CalculationBuilder<'_> {
         let start = Instant::now();
         let basis = Basis::try_load(self.basis_file, &molecule)?;
         observer.on_basis_ready(&basis, start.elapsed());
-        let Some((config, method)) = hf else {
-            return Ok(CalculationResult::default());
-        };
-        observer.on_hf_start(method, &config);
-        let mut calculation =
-            HfCalculation::new_with_progress(&molecule, &basis, &config, |step| {
-                observer.on_scf_step(step)
-            })?;
-        let hf = HfCalculationResult {
-            method,
-            scf: calculation.run_with_observer(observer)?,
-        };
-        observer.on_hf_complete(&hf);
-        let mp2 = self
-            .mp2
-            .as_ref()
-            .map(|config| {
-                let result = calculation.mp2(config)?;
-                observer.on_mp2_complete(&hf, &result);
-                Ok::<_, CalculationError>(result)
-            })
-            .transpose()?;
-        Ok(CalculationResult { hf: Some(hf), mp2 })
+        Ok(PreparedCalculation {
+            molecule,
+            basis,
+            hf,
+            mp2: self.mp2,
+        })
+    }
+}
+
+impl CalculationExecution for CalculationBuilder<'_> {
+    fn execute_with_observer(
+        &self,
+        observer: &mut impl CalculationObserver,
+    ) -> Result<CalculationResult, CalculationError> {
+        self.prepare_with_observer(observer)?
+            .execute_with_observer(observer)
     }
 }
