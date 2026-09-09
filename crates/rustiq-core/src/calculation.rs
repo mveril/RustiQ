@@ -20,7 +20,10 @@ pub use prepared_calculation::PreparedCalculation;
 
 use crate::{
     basis::gaussian::basis::{Basis, BasisError},
-    config::{HfConfig, HfMethodResolutionError, MoleculeConfigError, Mp2Config, ResolvedHfMethod},
+    config::{
+        HfConfig, HfConfigError, HfMethodResolutionError, MoleculeConfigError, Mp2Config,
+        ResolvedHfMethod,
+    },
     hf::{
         density_guess::DensityGuessError,
         diis::DiisError,
@@ -92,6 +95,15 @@ impl From<MoleculeConfigError> for CalculationError {
             error: error.error,
             charge_span: error.charge_span,
             multiplicity_span: error.multiplicity_span,
+        }
+    }
+}
+
+impl From<HfConfigError> for CalculationError {
+    fn from(error: HfConfigError) -> Self {
+        Self::Method {
+            error: error.error,
+            span: error.method_span,
         }
     }
 }
@@ -213,21 +225,6 @@ impl<'a> HfCalculation<'a> {
                 .flatten(),
             error,
         })
-    }
-}
-
-impl HfConfig {
-    pub fn resolve_method(
-        &self,
-        molecule: &Molecule,
-    ) -> Result<ResolvedHfMethod, CalculationError> {
-        self.method
-            .value
-            .resolve(molecule)
-            .map_err(|error| CalculationError::Method {
-                error,
-                span: self.method.span,
-            })
     }
 }
 

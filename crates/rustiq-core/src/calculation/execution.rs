@@ -28,6 +28,8 @@ pub struct CalculationResult {
 /// Completed HF is reported before optional MP2, even if MP2 subsequently fails.
 /// Scientific errors are returned by execution, not emitted as events. Frontends
 /// retain their own rendering errors; callbacks do not control execution.
+#[non_exhaustive]
+#[derive(Debug, Clone)]
 pub enum CalculationEvent<'a> {
     BasisStarted,
     BasisReady {

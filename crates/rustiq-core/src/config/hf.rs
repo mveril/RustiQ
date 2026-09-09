@@ -1,6 +1,7 @@
 use super::Located;
 use std::num::NonZeroUsize;
 
+use miette::{Diagnostic, SourceSpan};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -71,6 +72,28 @@ pub enum HfMethodResolutionError {
         "RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}"
     )]
     RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
+}
+
+/// Failure while resolving the HF method from its configuration.
+#[derive(Debug, Error, Diagnostic)]
+#[error("{error}")]
+pub struct HfConfigError {
+    #[source]
+    pub error: HfMethodResolutionError,
+    #[label("requested HF method")]
+    pub method_span: Option<SourceSpan>,
+}
+
+impl HfConfig {
+    pub fn resolve_method(&self, molecule: &Molecule) -> Result<ResolvedHfMethod, HfConfigError> {
+        self.method
+            .value
+            .resolve(molecule)
+            .map_err(|error| HfConfigError {
+                error,
+                method_span: self.method.span,
+            })
+    }
 }
 
 impl HfMethod {

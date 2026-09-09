@@ -15,7 +15,7 @@ use rustiq_core::{
             distribution_config::UniformDistributionConfig, DistributionConfig, RandomConfig,
         },
         validated::{NonNegativeFiniteF64, PositiveFiniteF64},
-        DensityGuessConfig, HfConfig, HfMethod, Located, MoleculeConfig, Mp2Config,
+        DensityGuessConfig, HfConfig, HfConfigError, HfMethod, Located, MoleculeConfig, Mp2Config,
         RandomGuessConfig, ResolvedHfMethod,
     },
     hf::{numerical_error::NumericalError, scf::ScfSetupError},
@@ -50,6 +50,7 @@ impl WorkflowObserver {
             CalculationEvent::ScfIteration(_) => self.events.push("iteration"),
             CalculationEvent::HfCompleted(_) => self.events.push("hf_complete"),
             CalculationEvent::Mp2Completed { .. } => self.events.push("mp2_complete"),
+            _ => {}
         }
     }
 }
@@ -148,7 +149,7 @@ fn builder_mutable_setters_keep_hf_mandatory_and_allow_disabling_mp2() {
         })
         .mp2(Mp2Config::default());
     let mut observer = WorkflowObserver::default();
-    builder.mp2(None).molecule_config(MoleculeConfig {
+    builder.clear_mp2().molecule_config(MoleculeConfig {
         units: Units::Angstrom,
         ..Default::default()
     });
@@ -344,7 +345,7 @@ fn scientific_method_errors_preserve_optional_frontend_spans() {
         };
         config.method.span = span;
         let error = config.resolve_method(&molecule).unwrap_err();
-        assert!(matches!(error, CalculationError::Method { .. }));
+        assert!(matches!(error, HfConfigError { .. }));
         assert_eq!(labels(&error), span.into_iter().collect::<Vec<_>>());
         assert!(error.source_code().is_none());
     }

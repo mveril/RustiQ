@@ -100,6 +100,12 @@ impl<'a> CalculationBuilder<'a> {
         self
     }
 
+    /// Disable MP2 by clearing its configuration.
+    pub fn clear_mp2(&mut self) -> &mut Self {
+        self.mp2 = None;
+        self
+    }
+
     #[must_use]
     pub fn with_mp2(mut self, config: impl Into<Option<Mp2Config>>) -> Self {
         self.mp2(config);

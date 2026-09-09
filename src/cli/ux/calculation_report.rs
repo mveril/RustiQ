@@ -54,6 +54,7 @@ impl<W: Write> CalculationReporter<W> {
             }
             CalculationEvent::HfCompleted(result) => self.on_hf_complete(result),
             CalculationEvent::Mp2Completed { hf, result } => self.on_mp2_complete(hf, result),
+            _ => {}
         }
     }
 

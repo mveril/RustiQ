@@ -25,8 +25,8 @@ impl<T> Located<T> {
     }
 }
 pub use hf::{
-    DensityGuessConfig, GuessPerturbationConfig, HfConfig, HfMethod, HfMethodResolutionError,
-    RandomGuessConfig, ResolvedHfMethod,
+    DensityGuessConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
+    HfMethodResolutionError, RandomGuessConfig, ResolvedHfMethod,
 };
 
 /// MP2 options shared by restricted and unrestricted calculations.
