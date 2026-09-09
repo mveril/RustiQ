@@ -19,8 +19,8 @@ use super::{
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_observer::{NoopScfObserver, ScfObserver, ScfSetupStep},
     scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
+    scf_setup::ScfSetupStep,
 };
 
 #[derive(Debug, Error)]
@@ -249,13 +249,12 @@ impl<'a> UhfCalculation<'a> {
 
     #[allow(dead_code)]
     pub fn run(&mut self) -> Result<ScfResult, NumericalError> {
-        let mut observer = NoopScfObserver;
-        self.run_with_observer(&mut observer)
+        self.run_with_iterations(|_| {})
     }
 
-    pub fn run_with_observer<O>(&mut self, observer: &mut O) -> Result<ScfResult, NumericalError>
+    pub fn run_with_iterations<O>(&mut self, mut observer: O) -> Result<ScfResult, NumericalError>
     where
-        O: ScfObserver,
+        O: FnMut(&ScfIteration),
     {
         let mut energy_last = 0.0;
         let mut converged = false;
@@ -281,7 +280,7 @@ impl<'a> UhfCalculation<'a> {
             delta_energy = (self.energy - energy_last).abs();
             ensure_finite_value(delta_energy, "UHF delta energy")?;
 
-            observer.on_iteration(&ScfIteration {
+            observer(&ScfIteration {
                 iteration: iterations,
                 electronic_energy: self.energy,
                 delta_energy,
@@ -298,7 +297,8 @@ impl<'a> UhfCalculation<'a> {
             energy_last = self.energy;
         }
         if converged {
-            delta_energy = self.canonicalize_final_fock(delta_energy, &mut iterations, observer)?;
+            delta_energy =
+                self.canonicalize_final_fock(delta_energy, &mut iterations, &mut observer)?;
         }
         self.timings.iterations = iterations_start.elapsed();
 
@@ -372,7 +372,7 @@ impl<'a> UhfCalculation<'a> {
         Ok(())
     }
 
-    fn canonicalize_final_fock<O: ScfObserver>(
+    fn canonicalize_final_fock<O: FnMut(&ScfIteration)>(
         &mut self,
         mut delta_energy: f64,
         iterations: &mut usize,
@@ -415,7 +415,7 @@ impl<'a> UhfCalculation<'a> {
             delta_energy = (self.energy - previous_energy).abs();
             ensure_finite_value(delta_energy, "UHF delta energy")?;
             *iterations += 1;
-            observer.on_iteration(&ScfIteration {
+            observer(&ScfIteration {
                 iteration: *iterations,
                 electronic_energy: self.energy,
                 delta_energy,
@@ -849,12 +849,14 @@ mod tests {
         .unwrap();
         uhf.enable_diis(6).unwrap();
 
-        let mut run_observer = crate::hf::scf_observer::RecordingScfObserver::default();
-        let result = uhf.run_with_observer(&mut run_observer).unwrap();
+        let mut run_observer = Vec::new();
+        let result = uhf
+            .run_with_iterations(|iteration| run_observer.push(iteration.clone()))
+            .unwrap();
 
         assert!(result.converged);
-        assert_eq!(result.iterations, run_observer.0.len());
-        let last = run_observer.0.last().unwrap();
+        assert_eq!(result.iterations, run_observer.len());
+        let last = run_observer.last().unwrap();
         assert_eq!(last.iteration, result.iterations);
         assert_eq!(last.electronic_energy, result.electronic_energy);
         assert_eq!(last.delta_energy, result.delta_energy);
@@ -874,32 +876,40 @@ mod tests {
             assert_abs_diff_eq!(residual, 0.0, epsilon = 1e-8);
         }
 
-        let mut observer = crate::hf::scf_observer::RecordingScfObserver::default();
+        let mut observer = Vec::new();
         let mut iterations = result.iterations;
         // Force a refinement even though the preceding calculation converged.
         let delta = uhf
-            .canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer)
+            .canonicalize_final_fock(
+                f64::INFINITY,
+                &mut iterations,
+                &mut |iteration: &ScfIteration| observer.push(iteration.clone()),
+            )
             .unwrap();
-        assert!(!observer.0.is_empty());
-        assert_eq!(iterations, result.iterations + observer.0.len());
+        assert!(!observer.is_empty());
+        assert_eq!(iterations, result.iterations + observer.len());
         assert!(iterations <= uhf.max_iterations);
-        for (offset, step) in observer.0.iter().enumerate() {
+        for (offset, step) in observer.iter().enumerate() {
             assert_eq!(step.iteration, result.iterations + offset + 1);
         }
-        let last = observer.0.last().unwrap();
+        let last = observer.last().unwrap();
         assert_eq!(last.electronic_energy, uhf.energy);
         assert_eq!(last.delta_energy, delta);
         assert_eq!(last.residual_norm, uhf.residual_norm);
 
         // An exhausted budget may verify orbitals, but cannot update density.
         uhf.max_iterations = iterations;
-        let count = observer.0.len();
+        let count = observer.len();
         assert!(matches!(
-            uhf.canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer),
+            uhf.canonicalize_final_fock(
+                f64::INFINITY,
+                &mut iterations,
+                &mut |iteration: &ScfIteration| observer.push(iteration.clone())
+            ),
             Err(NumericalError::FinalizationNotConverged { .. })
         ));
         assert_eq!(iterations, uhf.max_iterations);
-        assert_eq!(observer.0.len(), count);
+        assert_eq!(observer.len(), count);
     }
 
     #[test]

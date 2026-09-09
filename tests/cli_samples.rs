@@ -382,7 +382,7 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
 }
 
 #[test]
-fn test_cli_preserves_absent_hf_when_requesting_mp2() {
+fn test_cli_uses_default_hf_when_requesting_mp2_without_hf_section() {
     let directory = tempfile::tempdir().unwrap();
     prepare_basis_store(directory.path());
     fs::copy(
@@ -396,9 +396,11 @@ fn test_cli_preserves_absent_hf_when_requesting_mp2() {
         &["run", path.to_str().unwrap(), "--format", "json"],
         directory.path(),
     );
-    assert_failure(&output);
-    assert!(output.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("MP2 requires an HF calculation"));
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"method\":\"RHF\""));
+    assert!(stdout.contains("\"method\":\"RHF-MP2\""));
 }
 
 #[test]

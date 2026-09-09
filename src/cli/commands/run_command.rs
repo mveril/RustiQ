@@ -147,25 +147,27 @@ impl Runnable for RunCommand {
             .is_none_or(|hf| hf.format != HfOutputFormat::Nope);
         let calculation = CalculationBuilder::new(&geom, &basis_file)
             .with_molecule_config(parsed.molecule_config)
-            .with_hf(parsed.hf_config)
             .with_mp2(parsed.mp2_config);
+        let calculation = if let Some(hf_config) = parsed.hf_config {
+            calculation.with_hf(hf_config)
+        } else {
+            calculation
+        };
         let result = {
             let stdout = io::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
-            let outcome = calculation.execute_with_observer(&mut reporter);
+            let outcome = calculation.execute_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
                 return Err(miette!("failed to write calculation report: {error}"));
             }
             outcome.map_err(&scientific_error)?
         };
         if json_output {
-            if let Some(hf) = &result.hf {
-                let stdout = io::stdout();
-                CalculationOutput::new(hf.method, &hf.scf, result.mp2.as_ref())
-                    .write_json(stdout.lock())
-                    .into_diagnostic()?;
-                println!();
-            }
+            let stdout = io::stdout();
+            CalculationOutput::new(result.hf.method, &result.hf.scf, result.mp2.as_ref())
+                .write_json(stdout.lock())
+                .into_diagnostic()?;
+            println!();
         }
 
         Ok(())

@@ -6,8 +6,8 @@ use crate::{
 use std::time::Instant;
 
 use super::{
-    CalculationError, CalculationExecution, CalculationObserver, CalculationResult,
-    NoopCalculationObserver, PreparedCalculation,
+    CalculationError, CalculationEvent, CalculationExecution, CalculationResult,
+    PreparedCalculation,
 };
 
 /// Configure a calculation from explicitly loaded inputs.
@@ -40,7 +40,7 @@ pub struct CalculationBuilder<'a> {
     geometry: &'a Geometry,
     basis_file: &'a BasisFile,
     molecule_config: MoleculeConfig,
-    hf: Option<HfConfig>,
+    hf: HfConfig,
     mp2: Option<Mp2Config>,
 }
 
@@ -50,7 +50,7 @@ impl<'a> CalculationBuilder<'a> {
             geometry,
             basis_file,
             molecule_config: MoleculeConfig::default(),
-            hf: Some(HfConfig::default()),
+            hf: HfConfig::default(),
             mp2: None,
         }
     }
@@ -64,8 +64,8 @@ impl<'a> CalculationBuilder<'a> {
     pub fn get_molecule_config(&self) -> &MoleculeConfig {
         &self.molecule_config
     }
-    pub fn get_hf(&self) -> Option<&HfConfig> {
-        self.hf.as_ref()
+    pub fn get_hf(&self) -> &HfConfig {
+        &self.hf
     }
     pub fn get_mp2(&self) -> Option<&Mp2Config> {
         self.mp2.as_ref()
@@ -82,19 +82,19 @@ impl<'a> CalculationBuilder<'a> {
         self
     }
 
-    /// Configure HF, or pass `None` to only prepare the molecule and basis.
-    pub fn hf(&mut self, config: impl Into<Option<HfConfig>>) -> &mut Self {
-        self.hf = config.into();
+    /// Configure the mandatory HF stage.
+    pub fn hf(&mut self, config: HfConfig) -> &mut Self {
+        self.hf = config;
         self
     }
 
     #[must_use]
-    pub fn with_hf(mut self, config: impl Into<Option<HfConfig>>) -> Self {
+    pub fn with_hf(mut self, config: HfConfig) -> Self {
         self.hf(config);
         self
     }
 
-    /// Configure MP2, or pass `None` to disable it. MP2 requires HF.
+    /// Configure MP2, or pass `None` to disable it.
     pub fn mp2(&mut self, config: impl Into<Option<Mp2Config>>) -> &mut Self {
         self.mp2 = config.into();
         self
@@ -110,31 +110,23 @@ impl<'a> CalculationBuilder<'a> {
 impl<'a> CalculationBuilder<'a> {
     /// Prepare reusable scientific inputs without executing HF or MP2.
     pub fn prepare(&self) -> Result<PreparedCalculation, CalculationError> {
-        self.prepare_with_observer(&mut NoopCalculationObserver)
+        self.prepare_with_events(|_| {})
     }
 
-    pub fn prepare_with_observer(
+    pub fn prepare_with_events(
         &self,
-        observer: &mut impl CalculationObserver,
+        mut events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<PreparedCalculation, CalculationError> {
-        if self.mp2.is_some() && self.hf.is_none() {
-            return Err(CalculationError::Mp2RequiresHf);
-        }
         let mut molecule = self.molecule_config.build(self.geometry.clone())?;
         molecule.convert_to(Units::Bohr);
-        let hf = self
-            .hf
-            .as_ref()
-            .map(|config| {
-                config
-                    .resolve_method(&molecule)
-                    .map(|method| (config.clone(), method))
-            })
-            .transpose()?;
-        observer.on_basis_start();
+        let hf = (self.hf.clone(), self.hf.resolve_method(&molecule)?);
+        events(CalculationEvent::BasisStarted);
         let start = Instant::now();
         let basis = Basis::try_load(self.basis_file, &molecule)?;
-        observer.on_basis_ready(&basis, start.elapsed());
+        events(CalculationEvent::BasisReady {
+            basis: &basis,
+            elapsed: start.elapsed(),
+        });
         Ok(PreparedCalculation {
             molecule,
             basis,
@@ -145,11 +137,11 @@ impl<'a> CalculationBuilder<'a> {
 }
 
 impl CalculationExecution for CalculationBuilder<'_> {
-    fn execute_with_observer(
+    fn execute_with_events(
         &self,
-        observer: &mut impl CalculationObserver,
+        mut events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<CalculationResult, CalculationError> {
-        self.prepare_with_observer(observer)?
-            .execute_with_observer(observer)
+        self.prepare_with_events(&mut events)?
+            .execute_with_events(events)
     }
 }

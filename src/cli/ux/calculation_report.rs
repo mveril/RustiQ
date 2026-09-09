@@ -6,12 +6,8 @@ use std::{
 use super::{mp2_report::Mp2Reporter, scf_report::ScfReporter};
 use rustiq_core::{
     basis::gaussian::basis::Basis,
-    calculation::{CalculationObserver, HfCalculationResult},
+    calculation::{CalculationEvent, HfCalculationResult, ScfSetupStep},
     config::{HfConfig, ResolvedHfMethod},
-    hf::{
-        scf_iteration::ScfIteration,
-        scf_observer::{ScfObserver, ScfSetupStep},
-    },
     mp2::Mp2Result,
 };
 
@@ -34,7 +30,7 @@ impl<W: Write> CalculationReporter<W> {
     }
 
     pub(crate) fn take_error(&mut self) -> Option<io::Error> {
-        self.error.take().or_else(|| self.scf.take_error())
+        self.error.take()
     }
 
     fn report(&mut self, write: impl FnOnce(&mut ScfReporter<W>) -> io::Result<()>) {
@@ -44,15 +40,23 @@ impl<W: Write> CalculationReporter<W> {
     }
 }
 
-impl<W: Write> ScfObserver for CalculationReporter<W> {
-    fn on_iteration(&mut self, iteration: &ScfIteration) {
-        if self.enabled && self.show_scf && self.error.is_none() {
-            self.scf.on_iteration(iteration);
+impl<W: Write> CalculationReporter<W> {
+    pub(crate) fn on_event(&mut self, event: CalculationEvent<'_>) {
+        match event {
+            CalculationEvent::BasisStarted => self.on_basis_start(),
+            CalculationEvent::BasisReady { basis, elapsed } => self.on_basis_ready(basis, elapsed),
+            CalculationEvent::HfStarted { method, config } => self.on_hf_start(method, config),
+            CalculationEvent::ScfSetup(step) => self.on_scf_setup_step(step),
+            CalculationEvent::ScfIteration(iteration) => {
+                if self.show_scf {
+                    self.report(|scf| scf.write_iteration(iteration));
+                }
+            }
+            CalculationEvent::HfCompleted(result) => self.on_hf_complete(result),
+            CalculationEvent::Mp2Completed { hf, result } => self.on_mp2_complete(hf, result),
         }
     }
-}
 
-impl<W: Write> CalculationObserver for CalculationReporter<W> {
     fn on_basis_start(&mut self) {
         self.report(|scf| writeln!(scf.writer_mut(), "Constructing basis functions..."));
     }
@@ -141,7 +145,7 @@ mod tests {
     #[test]
     fn reporter_retains_output_errors_for_the_cli() {
         let mut reporter = CalculationReporter::new(FailingWriter, true, true);
-        reporter.on_basis_start();
+        reporter.on_event(CalculationEvent::BasisStarted);
         assert_eq!(
             reporter.take_error().unwrap().kind(),
             io::ErrorKind::BrokenPipe
@@ -149,11 +153,63 @@ mod tests {
     }
 
     #[test]
+    fn iteration_write_failure_stops_output_but_not_calculation() {
+        use rustiq_core::{
+            basis::BasisFile,
+            calculation::{CalculationBuilder, CalculationExecution},
+            molecules::geometry::Geometry,
+        };
+        struct CountingFailure(usize);
+        impl Write for CountingFailure {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                self.0 += 1;
+                Err(io::Error::new(
+                    io::ErrorKind::BrokenPipe,
+                    "first write failed",
+                ))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let geometry =
+            Geometry::from_reader(&include_bytes!("../../../samples/h2/molecule.xyz")[..]).unwrap();
+        let basis = BasisFile::from_reader(
+            &include_bytes!("../../../crates/rustiq-core/tests/data/sto-3g.json")[..],
+        )
+        .unwrap();
+        let mut reporter = CalculationReporter::new(CountingFailure(0), true, true);
+        let mut completed = false;
+        let result = CalculationBuilder::new(&geometry, &basis)
+            .execute_with_events(|event| {
+                // Exercise the error path formerly owned by ScfReporter first.
+                if matches!(
+                    event,
+                    CalculationEvent::ScfIteration(_) | CalculationEvent::HfCompleted(_)
+                ) {
+                    completed |= matches!(event, CalculationEvent::HfCompleted(_));
+                    reporter.on_event(event);
+                }
+            })
+            .unwrap();
+        assert!(result.hf.scf.converged);
+        assert!(completed);
+        assert_eq!(reporter.scf.writer_mut().0, 1);
+        assert_eq!(
+            reporter.take_error().unwrap().to_string(),
+            "first write failed"
+        );
+    }
+
+    #[test]
     fn json_mode_disables_all_progress_writes() {
         let mut reporter = CalculationReporter::new(FailingWriter, false, true);
-        reporter.on_basis_start();
-        reporter.on_hf_start(ResolvedHfMethod::Rhf, &HfConfig::default());
-        reporter.on_scf_setup_step(ScfSetupStep::OverlapMatrix);
+        reporter.on_event(CalculationEvent::BasisStarted);
+        reporter.on_event(CalculationEvent::HfStarted {
+            method: ResolvedHfMethod::Rhf,
+            config: &HfConfig::default(),
+        });
+        reporter.on_event(CalculationEvent::ScfSetup(ScfSetupStep::OverlapMatrix));
         assert!(reporter.take_error().is_none());
     }
 }

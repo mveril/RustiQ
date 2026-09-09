@@ -7,8 +7,8 @@ use nalgebra::Point3;
 use rustiq_core::{
     basis::{gaussian::basis::Basis, BasisFile},
     calculation::{
-        CalculationBuilder, CalculationError, CalculationExecution, CalculationObserver,
-        HfCalculation, HfCalculationResult, ScfSetupStep,
+        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution,
+        HfCalculation, ScfSetupStep,
     },
     config::{
         random_config::{
@@ -40,30 +40,17 @@ struct WorkflowObserver {
     setup_steps: Vec<ScfSetupStep>,
 }
 
-impl rustiq_core::hf::scf_observer::ScfObserver for WorkflowObserver {
-    fn on_iteration(&mut self, _: &rustiq_core::hf::scf_iteration::ScfIteration) {
-        self.events.push("iteration");
-    }
-}
-
-impl CalculationObserver for WorkflowObserver {
-    fn on_basis_start(&mut self) {
-        self.events.push("basis_start");
-    }
-    fn on_basis_ready(&mut self, _: &Basis, _: std::time::Duration) {
-        self.events.push("basis_ready");
-    }
-    fn on_hf_start(&mut self, _: ResolvedHfMethod, _: &HfConfig) {
-        self.events.push("hf_start");
-    }
-    fn on_scf_setup_step(&mut self, step: ScfSetupStep) {
-        self.setup_steps.push(step);
-    }
-    fn on_hf_complete(&mut self, _: &HfCalculationResult) {
-        self.events.push("hf_complete");
-    }
-    fn on_mp2_complete(&mut self, _: &HfCalculationResult, _: &rustiq_core::mp2::Mp2Result) {
-        self.events.push("mp2_complete");
+impl WorkflowObserver {
+    fn on_event(&mut self, event: CalculationEvent<'_>) {
+        match event {
+            CalculationEvent::BasisStarted => self.events.push("basis_start"),
+            CalculationEvent::BasisReady { .. } => self.events.push("basis_ready"),
+            CalculationEvent::HfStarted { .. } => self.events.push("hf_start"),
+            CalculationEvent::ScfSetup(step) => self.setup_steps.push(step),
+            CalculationEvent::ScfIteration(_) => self.events.push("iteration"),
+            CalculationEvent::HfCompleted(_) => self.events.push("hf_complete"),
+            CalculationEvent::Mp2Completed { .. } => self.events.push("mp2_complete"),
+        }
     }
 }
 
@@ -83,9 +70,11 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
             })
             .with_mp2(Mp2Config::default());
         let mut observer = WorkflowObserver::default();
-        let result = builder.execute_with_observer(&mut observer).unwrap();
+        let result = builder
+            .execute_with_events(|event| observer.on_event(event))
+            .unwrap();
         assert_abs_diff_eq!(
-            result.hf.as_ref().unwrap().scf.total_energy,
+            result.hf.scf.total_energy,
             -1.116_759_307_506_361_3,
             epsilon = 1e-10
         );
@@ -123,42 +112,58 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
             ]
         );
 
-        let prepared = builder.prepare().unwrap();
+        observer.events.clear();
+        let prepared = builder
+            .prepare_with_events(|event| observer.on_event(event))
+            .unwrap();
+        assert_eq!(observer.events, ["basis_start", "basis_ready"]);
         assert_eq!(prepared.get_molecule().unit(), Units::Bohr);
         assert_eq!(prepared.get_basis().nbasis(), 2);
         // Preparation leaves the caller's Angstrom geometry intact and can be reused.
         assert_eq!(geometry.atoms[0].position.z, -0.37);
-        let repeated = prepared.execute().unwrap();
+        observer.events.clear();
+        let repeated = prepared
+            .execute_with_events(|event| observer.on_event(event))
+            .unwrap();
+        assert_eq!(observer.events.first(), Some(&"hf_start"));
+        assert!(!observer.events.contains(&"basis_start"));
+        assert_eq!(observer.events.last(), Some(&"mp2_complete"));
         assert_abs_diff_eq!(
-            repeated.hf.unwrap().scf.total_energy,
-            result.hf.unwrap().scf.total_energy,
+            repeated.hf.scf.total_energy,
+            result.hf.scf.total_energy,
             epsilon = 1e-10
         );
     }
 }
 
 #[test]
-fn builder_mutable_setters_enforce_mp2_dependency_and_support_preparation_only() {
+fn builder_mutable_setters_keep_hf_mandatory_and_allow_disabling_mp2() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let mut builder = CalculationBuilder::new(&geometry, &file);
-    builder.hf(None).mp2(Mp2Config::default());
+    builder
+        .hf(HfConfig {
+            method: HfMethod::Uhf.into(),
+            ..Default::default()
+        })
+        .mp2(Mp2Config::default());
     let mut observer = WorkflowObserver::default();
-    assert!(matches!(
-        builder.execute_with_observer(&mut observer),
-        Err(CalculationError::Mp2RequiresHf)
-    ));
-    assert!(observer.events.is_empty());
     builder.mp2(None).molecule_config(MoleculeConfig {
         units: Units::Angstrom,
         ..Default::default()
     });
-    assert!(builder.get_hf().is_none());
+    assert_eq!(builder.get_hf().method.value, HfMethod::Uhf);
     assert!(builder.get_mp2().is_none());
-    let result = builder.execute_with_observer(&mut observer).unwrap();
-    assert!(result.hf.is_none());
+    let result = builder
+        .execute_with_events(|event| observer.on_event(event))
+        .unwrap();
+    assert_eq!(result.hf.method, ResolvedHfMethod::Uhf);
     assert!(result.mp2.is_none());
-    assert_eq!(observer.events, vec!["basis_start", "basis_ready"]);
+    assert_eq!(
+        &observer.events[..3],
+        &["basis_start", "basis_ready", "hf_start"]
+    );
+    assert!(observer.events.contains(&"hf_complete"));
 }
 
 #[test]
@@ -173,7 +178,7 @@ fn builder_never_runs_mp2_after_unconverged_hf() {
         .with_mp2(Mp2Config::default());
     let mut observer = WorkflowObserver::default();
     assert!(matches!(
-        builder.execute_with_observer(&mut observer),
+        builder.execute_with_events(|event| observer.on_event(event)),
         Err(CalculationError::HfNotConverged { iterations: 1 })
     ));
     assert_eq!(observer.events.last(), Some(&"hf_complete"));

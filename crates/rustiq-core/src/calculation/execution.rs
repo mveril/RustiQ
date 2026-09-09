@@ -4,7 +4,7 @@ use super::{CalculationError, ScfSetupStep};
 use crate::{
     basis::gaussian::basis::Basis,
     config::{HfConfig, ResolvedHfMethod},
-    hf::{scf_iteration::ScfIteration, scf_observer::ScfObserver, scf_result::ScfResult},
+    hf::{scf_iteration::ScfIteration, scf_result::ScfResult},
     mp2::Mp2Result,
 };
 
@@ -15,40 +15,46 @@ pub struct HfCalculationResult {
 }
 
 /// Results of the requested scientific stages, without presentation choices.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct CalculationResult {
-    pub hf: Option<HfCalculationResult>,
+    pub hf: HfCalculationResult,
     pub mp2: Option<Mp2Result>,
 }
 
-/// Notifications for frontends. Observation does not control scientific stages.
+/// Synchronous notifications in scientific execution order.
 ///
-/// Frontends own rendering and may retain/report their own output errors, as
-/// with `ScfObserver`. Completed HF is reported before attempting optional MP2.
-pub trait CalculationObserver: ScfObserver {
-    fn on_basis_start(&mut self) {}
-    fn on_basis_ready(&mut self, _basis: &Basis, _elapsed: Duration) {}
-    fn on_hf_start(&mut self, _method: ResolvedHfMethod, _config: &HfConfig) {}
-    fn on_scf_setup_step(&mut self, _step: ScfSetupStep) {}
-    fn on_hf_complete(&mut self, _result: &HfCalculationResult) {}
-    fn on_mp2_complete(&mut self, _hf: &HfCalculationResult, _result: &Mp2Result) {}
+/// References are valid during the callback; retaining data requires copying it.
+/// Basis preparation precedes HF setup and iterations (including finalization).
+/// Completed HF is reported before optional MP2, even if MP2 subsequently fails.
+/// Scientific errors are returned by execution, not emitted as events. Frontends
+/// retain their own rendering errors; callbacks do not control execution.
+pub enum CalculationEvent<'a> {
+    BasisStarted,
+    BasisReady {
+        basis: &'a Basis,
+        elapsed: Duration,
+    },
+    HfStarted {
+        method: ResolvedHfMethod,
+        config: &'a HfConfig,
+    },
+    ScfSetup(ScfSetupStep),
+    ScfIteration(&'a ScfIteration),
+    HfCompleted(&'a HfCalculationResult),
+    Mp2Completed {
+        hf: &'a HfCalculationResult,
+        result: &'a Mp2Result,
+    },
 }
-
-pub struct NoopCalculationObserver;
-
-impl ScfObserver for NoopCalculationObserver {
-    fn on_iteration(&mut self, _iteration: &ScfIteration) {}
-}
-impl CalculationObserver for NoopCalculationObserver {}
 
 /// Shared execution interface for builders and prepared calculations.
 pub trait CalculationExecution {
     fn execute(&self) -> Result<CalculationResult, CalculationError> {
-        self.execute_with_observer(&mut NoopCalculationObserver)
+        self.execute_with_events(|_| {})
     }
 
-    fn execute_with_observer(
+    fn execute_with_events(
         &self,
-        observer: &mut impl CalculationObserver,
+        events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<CalculationResult, CalculationError>;
 }

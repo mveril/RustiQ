@@ -11,11 +11,10 @@ use thiserror::Error;
 mod builder;
 mod execution;
 mod prepared_calculation;
-pub use crate::hf::scf_observer::ScfSetupStep;
+pub use crate::hf::scf_setup::ScfSetupStep;
 pub use builder::CalculationBuilder;
 pub use execution::{
-    CalculationExecution, CalculationObserver, CalculationResult, HfCalculationResult,
-    NoopCalculationObserver,
+    CalculationEvent, CalculationExecution, CalculationResult, HfCalculationResult,
 };
 pub use prepared_calculation::PreparedCalculation;
 
@@ -27,7 +26,7 @@ use crate::{
         diis::DiisError,
         numerical_error::NumericalError,
         scf::{ScfCalculation, ScfSetupError},
-        scf_observer::{NoopScfObserver, ScfObserver},
+        scf_iteration::ScfIteration,
         scf_result::ScfResult,
         uhf::{UhfCalculation, UhfSetupError},
     },
@@ -38,8 +37,6 @@ use crate::{
 /// Typed failures with optional input locations, but no source text or renderer.
 #[derive(Debug, Error, Diagnostic)]
 pub enum CalculationError {
-    #[error("MP2 requires an HF calculation")]
-    Mp2RequiresHf,
     #[error(transparent)]
     Basis(#[from] BasisError),
     #[error("{error}")]
@@ -183,17 +180,17 @@ impl<'a> HfCalculation<'a> {
     }
 
     pub fn run(&mut self) -> Result<ScfResult, CalculationError> {
-        self.run_with_observer(&mut NoopScfObserver)
+        self.run_with_iterations(|_| {})
     }
 
-    pub fn run_with_observer(
+    pub fn run_with_iterations(
         &mut self,
-        observer: &mut impl ScfObserver,
+        mut observer: impl FnMut(&ScfIteration),
     ) -> Result<ScfResult, CalculationError> {
         self.result = None;
         let result = match &mut self.state {
-            HfState::Rhf(scf) => scf.run_with_observer(observer)?,
-            HfState::Uhf(scf) => scf.run_with_observer(observer)?,
+            HfState::Rhf(scf) => scf.run_with_iterations(&mut observer)?,
+            HfState::Uhf(scf) => scf.run_with_iterations(&mut observer)?,
         };
         self.result = Some(result.clone());
         Ok(result)

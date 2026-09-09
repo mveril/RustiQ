@@ -6,6 +6,6 @@ pub mod orthogonalization;
 pub mod scf;
 pub mod scf_energy_details;
 pub mod scf_iteration;
-pub mod scf_observer;
 pub mod scf_result;
+pub mod scf_setup;
 pub mod uhf;
