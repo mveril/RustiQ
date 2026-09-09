@@ -192,7 +192,7 @@ mod tests {
                 }
             })
             .unwrap();
-        assert!(result.hf.scf.converged);
+        assert!(result.hf.summary().scf.converged);
         assert!(completed);
         assert_eq!(reporter.scf.writer_mut().0, 1);
         assert_eq!(

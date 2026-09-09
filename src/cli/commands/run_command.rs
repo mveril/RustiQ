@@ -164,9 +164,13 @@ impl Runnable for RunCommand {
         };
         if json_output {
             let stdout = io::stdout();
-            CalculationOutput::new(result.hf.method, &result.hf.scf, result.mp2.as_ref())
-                .write_json(stdout.lock())
-                .into_diagnostic()?;
+            CalculationOutput::new(
+                result.hf.summary().method,
+                &result.hf.summary().scf,
+                result.mp2.as_ref(),
+            )
+            .write_json(stdout.lock())
+            .into_diagnostic()?;
             println!();
         }
 

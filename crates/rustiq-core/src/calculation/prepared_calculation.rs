@@ -1,6 +1,6 @@
 use super::{
-    CalculationError, CalculationEvent, CalculationExecution, CalculationResult, HfCalculation,
-    HfCalculationResult,
+    CalculationEvent, CalculationExecution, CalculationFailure, CalculationResult, HfCalculation,
+    HfCalculationResult, HfSolution,
 };
 use crate::{
     basis::Basis,
@@ -29,11 +29,16 @@ impl PreparedCalculation {
     }
 }
 
-impl CalculationExecution for PreparedCalculation {
-    fn execute_with_events(
+impl PreparedCalculation {
+    /// Run only HF, retaining orbitals and integrals for subsequent MP2.
+    pub fn run_hf(&self) -> Result<HfSolution, CalculationFailure> {
+        self.run_hf_with_events(|_| {})
+    }
+
+    pub fn run_hf_with_events(
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
-    ) -> Result<CalculationResult, CalculationError> {
+    ) -> Result<HfSolution, CalculationFailure> {
         let (config, method) = &self.hf;
         events(CalculationEvent::HfStarted {
             method: *method,
@@ -50,16 +55,26 @@ impl CalculationExecution for PreparedCalculation {
             })?,
         };
         events(CalculationEvent::HfCompleted(&hf));
+        Ok(HfSolution::from_state(hf, calculation.state))
+    }
+}
+
+impl CalculationExecution for PreparedCalculation {
+    fn execute_with_events(
+        &self,
+        mut events: impl FnMut(CalculationEvent<'_>),
+    ) -> Result<CalculationResult, CalculationFailure> {
+        let hf = self.run_hf_with_events(&mut events)?;
         let mp2 = self
             .mp2
             .as_ref()
             .map(|config| {
-                let result = calculation.mp2(config)?;
+                let result = hf.mp2(*config)?;
                 events(CalculationEvent::Mp2Completed {
-                    hf: &hf,
+                    hf: hf.summary(),
                     result: &result,
                 });
-                Ok::<_, CalculationError>(result)
+                Ok::<_, CalculationFailure>(result)
             })
             .transpose()?;
         Ok(CalculationResult { hf, mp2 })

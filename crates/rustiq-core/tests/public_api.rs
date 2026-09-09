@@ -73,7 +73,7 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
             .execute_with_events(|event| observer.on_event(event))
             .unwrap();
         assert_abs_diff_eq!(
-            result.hf.scf.total_energy,
+            result.hf.summary().scf.total_energy,
             -1.116_759_307_506_361_3,
             epsilon = 1e-10
         );
@@ -128,8 +128,8 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
         assert!(!observer.events.contains(&"basis_start"));
         assert_eq!(observer.events.last(), Some(&"mp2_complete"));
         assert_abs_diff_eq!(
-            repeated.hf.scf.total_energy,
-            result.hf.scf.total_energy,
+            repeated.hf.summary().scf.total_energy,
+            result.hf.summary().scf.total_energy,
             epsilon = 1e-10
         );
     }
@@ -156,7 +156,7 @@ fn builder_mutable_setters_keep_hf_mandatory_and_allow_disabling_mp2() {
     let result = builder
         .execute_with_events(|event| observer.on_event(event))
         .unwrap();
-    assert_eq!(result.hf.method, ResolvedHfMethod::Uhf);
+    assert_eq!(result.hf.summary().method, ResolvedHfMethod::Uhf);
     assert!(result.mp2.is_none());
     assert_eq!(
         &observer.events[..3],
@@ -177,8 +177,11 @@ fn builder_never_runs_mp2_after_unconverged_hf() {
         .with_mp2(Mp2Config::default());
     let mut observer = WorkflowObserver::default();
     assert!(matches!(
-        builder.execute_with_events(|event| observer.on_event(event)),
-        Err(CalculationError::HfNotConverged { iterations: 1 })
+        builder
+            .execute_with_events(|event| observer.on_event(event))
+            .unwrap_err()
+            .cause(),
+        CalculationError::HfNotConverged { iterations: 1 }
     ));
     assert_eq!(observer.events.last(), Some(&"hf_complete"));
     assert!(!observer.events.contains(&"mp2_complete"));
@@ -202,7 +205,7 @@ fn builder_retains_typed_method_and_basis_errors() {
             ..Default::default()
         });
     let error = builder.execute().unwrap_err();
-    assert!(matches!(error, CalculationError::Method { .. }));
+    assert!(matches!(error.cause(), CalculationError::Method { .. }));
     assert_eq!(labels(&error), vec![(8, 5).into()]);
 
     let mut data: serde_json::Value =
@@ -211,8 +214,11 @@ fn builder_retains_typed_method_and_basis_errors() {
     let bytes = serde_json::to_vec(&data).unwrap();
     let invalid = BasisFile::from_reader(&bytes[..]).unwrap();
     assert!(matches!(
-        CalculationBuilder::new(&geometry, &invalid).execute(),
-        Err(CalculationError::Basis(_))
+        CalculationBuilder::new(&geometry, &invalid)
+            .execute()
+            .unwrap_err()
+            .cause(),
+        CalculationError::Basis(_)
     ));
 }
 
@@ -267,10 +273,10 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
             .with_mp2(Mp2Config::default())
             .execute()
             .unwrap();
-        assert_eq!(result.hf.method, resolved);
-        assert!(result.hf.scf.converged);
+        assert_eq!(result.hf.summary().method, resolved);
+        assert!(result.hf.summary().scf.converged);
         assert_abs_diff_eq!(
-            result.hf.scf.electronic_energy,
+            result.hf.summary().scf.electronic_energy,
             -1.831_863_646_477_507,
             epsilon = 1e-10
         );
@@ -294,8 +300,9 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
                 })
                 .execute()
                 .unwrap_err();
+            assert!(error.hf().unwrap().summary().scf.converged);
             assert!(matches!(
-                error,
+                error.cause(),
                 CalculationError::Mp2 {
                     error: Mp2Error::InvalidFrozenOrbitalCount { .. },
                     ..
@@ -323,7 +330,7 @@ fn public_api_rejects_mp2_after_unconverged_hf() {
             .execute()
             .unwrap_err();
         assert!(matches!(
-            error,
+            error.cause(),
             CalculationError::HfNotConverged { iterations: 1 }
         ));
     }
@@ -394,7 +401,7 @@ fn setup_errors_retain_threshold_and_guess_locations() {
         assert_eq!(labels(&error), vec![span]);
         if method == HfMethod::Rhf {
             assert!(matches!(
-                error,
+                error.cause(),
                 CalculationError::RhfSetup {
                     error: ScfSetupError::Numerical(NumericalError::InsufficientOverlapRank { .. }),
                     ..

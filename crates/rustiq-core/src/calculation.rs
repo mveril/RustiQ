@@ -8,6 +8,8 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
+mod solution;
+pub use solution::{CalculationFailure, HfSolution};
 mod builder;
 mod execution;
 mod prepared_calculation;

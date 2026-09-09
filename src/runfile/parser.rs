@@ -144,14 +144,18 @@ mod tests {
                 .execute()
                 .unwrap()
                 .hf
-                .scf;
+                .summary()
+                .scf
+                .clone();
         let direct_result =
             rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
                 .with_hf(HfConfig::default())
                 .execute()
                 .unwrap()
                 .hf
-                .scf;
+                .summary()
+                .scf
+                .clone();
         assert_abs_diff_eq!(
             adapted_result.total_energy,
             direct_result.total_energy,
