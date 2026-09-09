@@ -8,6 +8,7 @@ pub use basis_id::{BasisId, InvalidBasisId};
 pub use basis_store::{BasisEntry, BasisStore, FileError};
 #[allow(unused_imports)]
 pub use function_type::FunctionType;
-pub mod gaussian;
+pub use gaussian::basis::{Basis, BasisError};
+pub(crate) mod gaussian;
 pub mod metadata;
 mod utils;

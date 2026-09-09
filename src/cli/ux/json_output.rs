@@ -3,9 +3,8 @@ use std::io::Write;
 use serde::Serialize;
 
 use rustiq_core::{
+    calculation::{Mp2Result, OrthogonalizationInfo, ScfResult},
     config::ResolvedHfMethod,
-    hf::{orthogonalization::OrthogonalizationInfo, scf_result::ScfResult},
-    mp2::Mp2Result,
 };
 
 /// Version 1 of RustiQ's stable, machine-readable calculation-output contract.
@@ -140,10 +139,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     use super::*;
-    use rustiq_core::hf::{
-        orthogonalization::OrthogonalizationInfo, scf_energy_details::ScfEnergyDetails,
-        scf_result::ScfTimings,
-    };
+    use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
 
     fn scf_result() -> ScfResult {
         ScfResult {

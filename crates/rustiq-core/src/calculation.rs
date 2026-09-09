@@ -11,7 +11,22 @@ use thiserror::Error;
 mod builder;
 mod execution;
 mod prepared_calculation;
-pub use crate::hf::scf_setup::ScfSetupStep;
+pub use crate::basis::{Basis, BasisError};
+pub use crate::hf::scf::ScfSetupError;
+pub use crate::{
+    hf::{
+        density_guess::DensityGuessError,
+        diis::DiisError,
+        numerical_error::NumericalError,
+        orthogonalization::OrthogonalizationInfo,
+        scf_energy_details::ScfEnergyDetails,
+        scf_iteration::ScfIteration,
+        scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
+        scf_setup::ScfSetupStep,
+        uhf::UhfSetupError,
+    },
+    mp2::{Mp2Error, Mp2Result},
+};
 pub use builder::CalculationBuilder;
 pub use execution::{
     CalculationEvent, CalculationExecution, CalculationResult, HfCalculationResult,
@@ -19,22 +34,13 @@ pub use execution::{
 pub use prepared_calculation::PreparedCalculation;
 
 use crate::{
-    basis::gaussian::basis::{Basis, BasisError},
     config::{
         HfConfig, HfConfigError, HfMethodResolutionError, MoleculeConfigError, Mp2Config,
         ResolvedHfMethod,
     },
-    hf::{
-        density_guess::DensityGuessError,
-        diis::DiisError,
-        numerical_error::NumericalError,
-        scf::{ScfCalculation, ScfSetupError},
-        scf_iteration::ScfIteration,
-        scf_result::ScfResult,
-        uhf::{UhfCalculation, UhfSetupError},
-    },
+    hf::{scf::ScfCalculation, uhf::UhfCalculation},
     molecules::molecule::{Molecule, MoleculeError},
-    mp2::{self, Mp2Error, Mp2Result},
+    mp2::{self},
 };
 
 /// Typed failures with optional input locations, but no source text or renderer.
@@ -114,13 +120,13 @@ enum HfState<'a> {
 }
 
 /// A configured RHF or UHF calculation using the canonical scientific engine.
-pub struct HfCalculation<'a> {
+pub(crate) struct HfCalculation<'a> {
     state: HfState<'a>,
     result: Option<ScfResult>,
 }
 
 impl<'a> HfCalculation<'a> {
-    pub fn new(
+    pub(crate) fn new(
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
@@ -128,7 +134,7 @@ impl<'a> HfCalculation<'a> {
         Self::new_with_progress(molecule, basis, config, |_| {})
     }
 
-    pub fn new_with_progress(
+    pub(crate) fn new_with_progress(
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
@@ -184,18 +190,18 @@ impl<'a> HfCalculation<'a> {
         })
     }
 
-    pub fn method(&self) -> ResolvedHfMethod {
+    pub(crate) fn method(&self) -> ResolvedHfMethod {
         match &self.state {
             HfState::Rhf(_) => ResolvedHfMethod::Rhf,
             HfState::Uhf(_) => ResolvedHfMethod::Uhf,
         }
     }
 
-    pub fn run(&mut self) -> Result<ScfResult, CalculationError> {
+    pub(crate) fn run(&mut self) -> Result<ScfResult, CalculationError> {
         self.run_with_iterations(|_| {})
     }
 
-    pub fn run_with_iterations(
+    pub(crate) fn run_with_iterations(
         &mut self,
         mut observer: impl FnMut(&ScfIteration),
     ) -> Result<ScfResult, CalculationError> {
@@ -209,7 +215,7 @@ impl<'a> HfCalculation<'a> {
     }
 
     /// Evaluate MP2 only after this calculation has produced converged orbitals.
-    pub fn mp2(&self, config: &Mp2Config) -> Result<Mp2Result, CalculationError> {
+    pub(crate) fn mp2(&self, config: &Mp2Config) -> Result<Mp2Result, CalculationError> {
         if !self.result.as_ref().is_some_and(|result| result.converged) {
             return Err(CalculationError::HfNotConverged {
                 iterations: self.result.as_ref().map_or(0, |result| result.iterations),

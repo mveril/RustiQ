@@ -1,5 +1,5 @@
 use crate::{
-    basis::{gaussian::basis::Basis, BasisFile},
+    basis::{Basis, BasisFile},
     config::{HfConfig, MoleculeConfig, Mp2Config},
     molecules::{geometry::Geometry, units::Units},
 };

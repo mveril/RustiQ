@@ -3,7 +3,7 @@ use super::{
     HfCalculationResult,
 };
 use crate::{
-    basis::gaussian::basis::Basis,
+    basis::Basis,
     config::{HfConfig, Mp2Config, ResolvedHfMethod},
     molecules::molecule::Molecule,
 };

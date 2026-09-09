@@ -5,10 +5,10 @@ use approx::assert_abs_diff_eq;
 use miette::{Diagnostic, SourceSpan};
 use nalgebra::Point3;
 use rustiq_core::{
-    basis::{gaussian::basis::Basis, BasisFile},
+    basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution,
-        HfCalculation, ScfSetupStep,
+        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, Mp2Error,
+        NumericalError, ScfSetupError, ScfSetupStep,
     },
     config::{
         random_config::{
@@ -18,9 +18,7 @@ use rustiq_core::{
         DensityGuessConfig, HfConfig, HfConfigError, HfMethod, Located, MoleculeConfig, Mp2Config,
         RandomGuessConfig, ResolvedHfMethod,
     },
-    hf::{numerical_error::NumericalError, scf::ScfSetupError},
-    molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units},
-    mp2::Mp2Error,
+    molecules::{atom::Atom, geometry::Geometry, units::Units},
 };
 
 fn geometry() -> Geometry {
@@ -233,17 +231,8 @@ fn located_values_support_owned_extraction_with_or_without_provenance() {
     assert!(defaults.frozen_orbitals.span.is_none());
 }
 
-fn input() -> (Molecule, Basis) {
-    let mut molecule = MoleculeConfig {
-        units: Units::Angstrom,
-        ..Default::default()
-    }
-    .build(geometry())
-    .unwrap();
-    molecule.convert_to(Units::Bohr);
-    let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
-    let basis = Basis::try_load(&file, &molecule).unwrap();
-    (molecule, basis)
+fn basis_file() -> BasisFile {
+    BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap()
 }
 
 fn labels(error: &impl Diagnostic) -> Vec<SourceSpan> {
@@ -257,7 +246,8 @@ fn labels(error: &impl Diagnostic) -> Vec<SourceSpan> {
 
 #[test]
 fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
-    let (molecule, basis) = input();
+    let geometry = geometry();
+    let file = basis_file();
     for (method, resolved) in [
         (HfMethod::Auto, ResolvedHfMethod::Rhf),
         (HfMethod::Uhf, ResolvedHfMethod::Uhf),
@@ -268,20 +258,23 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
             convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
             ..Default::default()
         };
-        let mut calculation = HfCalculation::new(&molecule, &basis, &config).unwrap();
-        assert_eq!(calculation.method(), resolved);
-        assert!(matches!(
-            calculation.mp2(&Mp2Config::default()),
-            Err(CalculationError::HfNotConverged { iterations: 0 })
-        ));
-        let result = calculation.run().unwrap();
-        assert!(result.converged);
+        let result = CalculationBuilder::new(&geometry, &file)
+            .with_molecule_config(MoleculeConfig {
+                units: Units::Angstrom,
+                ..Default::default()
+            })
+            .with_hf(config)
+            .with_mp2(Mp2Config::default())
+            .execute()
+            .unwrap();
+        assert_eq!(result.hf.method, resolved);
+        assert!(result.hf.scf.converged);
         assert_abs_diff_eq!(
-            result.electronic_energy,
+            result.hf.scf.electronic_energy,
             -1.831_863_646_477_507,
             epsilon = 1e-10
         );
-        let mp2 = calculation.mp2(&Mp2Config::default()).unwrap();
+        let mp2 = result.mp2.unwrap();
         assert_abs_diff_eq!(
             mp2.correlation_energy,
             -0.013_138_073_589_533,
@@ -289,10 +282,17 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
         );
 
         for span in [None, Some((12, 1).into())] {
-            let error = calculation
-                .mp2(&Mp2Config {
+            let error = CalculationBuilder::new(&geometry, &file)
+                .with_hf(HfConfig {
+                    method: method.into(),
+                    diis: true,
+                    convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
+                    ..Default::default()
+                })
+                .with_mp2(Mp2Config {
                     frozen_orbitals: Located { value: 2, span },
                 })
+                .execute()
                 .unwrap_err();
             assert!(matches!(
                 error,
@@ -309,18 +309,22 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
 
 #[test]
 fn public_api_rejects_mp2_after_unconverged_hf() {
-    let (molecule, basis) = input();
+    let geometry = geometry();
+    let file = basis_file();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let config = HfConfig {
             method: method.into(),
             max_iterations: NonZeroUsize::MIN,
             ..Default::default()
         };
-        let mut calculation = HfCalculation::new(&molecule, &basis, &config).unwrap();
-        assert!(!calculation.run().unwrap().converged);
+        let error = CalculationBuilder::new(&geometry, &file)
+            .with_hf(config)
+            .with_mp2(Mp2Config::default())
+            .execute()
+            .unwrap_err();
         assert!(matches!(
-            calculation.mp2(&Mp2Config::default()),
-            Err(CalculationError::HfNotConverged { iterations: 1 })
+            error,
+            CalculationError::HfNotConverged { iterations: 1 }
         ));
     }
 }
@@ -372,7 +376,8 @@ fn molecular_state_errors_can_label_both_related_values() {
 
 #[test]
 fn setup_errors_retain_threshold_and_guess_locations() {
-    let (molecule, basis) = input();
+    let geometry = geometry();
+    let file = basis_file();
     let span: SourceSpan = (30, 4).into();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let mut config = HfConfig {
@@ -381,7 +386,9 @@ fn setup_errors_retain_threshold_and_guess_locations() {
             ..Default::default()
         };
         config.linear_dependency_threshold.span = Some(span);
-        let error = HfCalculation::new(&molecule, &basis, &config)
+        let error = CalculationBuilder::new(&geometry, &file)
+            .with_hf(config.clone())
+            .execute()
             .err()
             .unwrap();
         assert_eq!(labels(&error), vec![span]);
@@ -409,7 +416,9 @@ fn setup_errors_retain_threshold_and_guess_locations() {
             },
         };
         config.guess.span = Some(span);
-        let error = HfCalculation::new(&molecule, &basis, &config)
+        let error = CalculationBuilder::new(&geometry, &file)
+            .with_hf(config)
+            .execute()
             .err()
             .unwrap();
         assert_eq!(labels(&error), vec![span]);

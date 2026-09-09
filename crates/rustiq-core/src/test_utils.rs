@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use crate::{
-    basis::{gaussian::basis::Basis, BasisFile, BasisStore},
+    basis::{Basis, BasisFile, BasisStore},
     hf::{density_guess::one_electron::OneElectron, scf::ScfCalculation},
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
 };

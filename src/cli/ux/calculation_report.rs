@@ -5,10 +5,9 @@ use std::{
 
 use super::{mp2_report::Mp2Reporter, scf_report::ScfReporter};
 use rustiq_core::{
-    basis::gaussian::basis::Basis,
-    calculation::{CalculationEvent, HfCalculationResult, ScfSetupStep},
+    basis::Basis,
+    calculation::{CalculationEvent, HfCalculationResult, Mp2Result, ScfSetupStep},
     config::{HfConfig, ResolvedHfMethod},
-    mp2::Mp2Result,
 };
 
 /// Render scientific notifications; calculation ordering belongs to the core.

@@ -1,12 +1,9 @@
-use std::num::NonZeroU8;
-
 use approx::assert_abs_diff_eq;
 use rustiq_core::{
-    basis::{gaussian::basis::Basis, BasisFile},
-    config::hf::DensityGuessConfig,
-    hf::{scf::ScfCalculation, uhf::UhfCalculation},
-    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
-    mp2,
+    basis::BasisFile,
+    calculation::{CalculationBuilder, CalculationExecution},
+    config::{HfConfig, HfMethod, Mp2Config},
+    molecules::{geometry::Geometry, units::Units},
 };
 
 // Exercise the same calculation types as an external consumer, without access
@@ -15,53 +12,52 @@ use rustiq_core::{
 fn library_runs_hf_and_mp2_with_public_types() {
     let geometry =
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
-    let mut molecule = Molecule::try_new(geometry, Units::Angstrom, 0, NonZeroU8::MIN).unwrap();
-    molecule.convert_to(Units::Bohr);
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
-    let basis = Basis::try_load(&file, &molecule).unwrap();
-
-    let mut rhf = ScfCalculation::new(
-        &molecule,
-        &basis,
-        100,
-        1e-12,
-        1e-8,
-        DensityGuessConfig::default(),
-    )
-    .unwrap();
-    let rhf_result = rhf.run().unwrap();
-    assert!(rhf_result.converged);
+    let rhf_result = CalculationBuilder::new(&geometry, &file)
+        .with_molecule_config(rustiq_core::config::MoleculeConfig {
+            units: Units::Angstrom,
+            ..Default::default()
+        })
+        .with_hf(HfConfig {
+            method: HfMethod::Rhf.into(),
+            ..Default::default()
+        })
+        .with_mp2(Mp2Config::default())
+        .execute()
+        .unwrap();
+    assert!(rhf_result.hf.scf.converged);
     assert_abs_diff_eq!(
-        rhf_result.electronic_energy,
+        rhf_result.hf.scf.electronic_energy,
         -1.831_863_646_477_507,
         epsilon = 1e-10
     );
-    let rhf_mp2 = mp2::rhf_closed_shell(&rhf, 0).unwrap();
     assert_abs_diff_eq!(
-        rhf_mp2.correlation_energy,
+        rhf_result.mp2.unwrap().correlation_energy,
         -0.013_138_073_589_533,
         epsilon = 1e-11
     );
 
-    let mut uhf = UhfCalculation::new(
-        &molecule,
-        &basis,
-        100,
-        1e-12,
-        1e-8,
-        DensityGuessConfig::default(),
-    )
-    .unwrap();
-    let uhf_result = uhf.run().unwrap();
-    assert!(uhf_result.converged);
+    let uhf_result = CalculationBuilder::new(&geometry, &file)
+        .with_molecule_config(rustiq_core::config::MoleculeConfig {
+            units: Units::Angstrom,
+            ..Default::default()
+        })
+        .with_hf(HfConfig {
+            method: HfMethod::Uhf.into(),
+            ..Default::default()
+        })
+        .with_mp2(Mp2Config::default())
+        .execute()
+        .unwrap();
+    assert!(uhf_result.hf.scf.converged);
     assert_abs_diff_eq!(
-        uhf_result.electronic_energy,
-        rhf_result.electronic_energy,
+        uhf_result.hf.scf.electronic_energy,
+        rhf_result.hf.scf.electronic_energy,
         epsilon = 1e-10
     );
     assert_abs_diff_eq!(
-        mp2::uhf_unrestricted(&uhf, 0).unwrap().correlation_energy,
-        rhf_mp2.correlation_energy,
+        uhf_result.mp2.unwrap().correlation_energy,
+        -0.013_138_073_589_533,
         epsilon = 1e-11
     );
 }

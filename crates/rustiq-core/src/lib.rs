@@ -9,11 +9,11 @@
 pub mod basis;
 pub mod calculation;
 pub mod config;
-pub mod eri;
-pub mod hf;
-pub mod math_utils;
+pub(crate) mod eri;
+pub(crate) mod hf;
+pub(crate) mod math_utils;
 pub mod molecules;
-pub mod mp2;
+pub(crate) mod mp2;
 
 #[cfg(test)]
 pub(crate) mod test_utils;
@@ -25,7 +25,7 @@ pub mod bench_support {
     use std::path::Path;
     use std::time::Duration;
 
-    use crate::basis::{gaussian::basis::Basis, BasisFile};
+    use crate::basis::{Basis, BasisFile};
     use crate::eri::electron_repulsion_ints_timed_with_observer;
     use crate::molecules::geometry::Geometry;
 
@@ -51,7 +51,7 @@ pub mod bench_support {
             name: impl Into<String>,
             geometry_path: impl AsRef<Path>,
             basis: BasisFile,
-        ) -> Result<Self, crate::basis::gaussian::basis::BasisError> {
+        ) -> Result<Self, crate::basis::BasisError> {
             let geometry = Geometry::from_path(geometry_path.as_ref())
                 .unwrap_or_else(|err| panic!("failed to read geometry: {err:?}"));
             let basis = Basis::try_load(&basis, &geometry)?;

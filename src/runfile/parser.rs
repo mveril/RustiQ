@@ -74,28 +74,12 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use miette::{Diagnostic, SourceSpan};
     use rustiq_core::{
-        basis::{gaussian::basis::Basis, BasisFile},
-        calculation::HfCalculation,
-        config::HfConfig,
-        molecules::{geometry::Geometry, molecule::Molecule, units::Units},
+        basis::BasisFile, calculation::CalculationExecution, config::HfConfig,
+        molecules::geometry::Geometry,
     };
 
     fn geometry() -> Geometry {
         Geometry::from_reader(&include_bytes!("../../samples/h2/molecule.xyz")[..]).unwrap()
-    }
-
-    fn input() -> (Molecule, Basis) {
-        let mut molecule = rustiq_core::config::MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
-        }
-        .build(geometry())
-        .unwrap();
-        molecule.convert_to(Units::Bohr);
-        let file =
-            BasisFile::from_reader(&include_bytes!("../../tests/data/sto-3g.json")[..]).unwrap();
-        let basis = Basis::try_load(&file, &molecule).unwrap();
-        (molecule, basis)
     }
 
     fn labels(error: &impl Diagnostic) -> Vec<SourceSpan> {
@@ -132,15 +116,19 @@ mod tests {
             Some("calculation.toml")
         );
 
-        let (molecule, basis) = input();
-        let error = HfCalculation::new(&molecule, &basis, &config)
+        let basis_file =
+            BasisFile::from_reader(&include_bytes!("../../tests/data/sto-3g.json")[..]).unwrap();
+        let error = rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
+            .with_hf(config)
+            .execute()
             .err()
             .unwrap();
         let span = labels(&error)[0];
         assert_eq!(&source[span.offset()..span.offset() + span.len()], "1.0");
-        let mut calculation = HfCalculation::new(&molecule, &basis, &HfConfig::default()).unwrap();
-        calculation.run().unwrap();
-        let error = calculation.mp2(&parsed.mp2_config.unwrap()).unwrap_err();
+        let error = rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
+            .with_mp2(parsed.mp2_config.unwrap())
+            .execute()
+            .unwrap_err();
         let span = labels(&error)[0];
         assert_eq!(span.offset(), source.rfind('1').unwrap());
         assert_eq!(span.len(), 1);
@@ -150,9 +138,20 @@ mod tests {
         assert!(from_toml.method.span.is_none());
         assert!(from_toml.guess.span.is_none());
         assert!(from_toml.linear_dependency_threshold.span.is_none());
-        let mut adapted = HfCalculation::new(&molecule, &basis, &from_toml).unwrap();
-        let adapted_result = adapted.run().unwrap();
-        let direct_result = calculation.run().unwrap();
+        let adapted_result =
+            rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
+                .with_hf(from_toml)
+                .execute()
+                .unwrap()
+                .hf
+                .scf;
+        let direct_result =
+            rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
+                .with_hf(HfConfig::default())
+                .execute()
+                .unwrap()
+                .hf
+                .scf;
         assert_abs_diff_eq!(
             adapted_result.total_energy,
             direct_result.total_energy,

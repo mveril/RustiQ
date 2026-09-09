@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use rustiq_core::hf::{scf_iteration::ScfIteration, scf_result::ScfResult};
+use rustiq_core::calculation::{ScfIteration, ScfResult};
 
 pub(crate) struct ScfReporter<W> {
     writer: W,
@@ -172,6 +172,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
 
     #[test]
     fn test_scf_reporter_writes_iteration_and_summary() {
@@ -195,14 +196,13 @@ mod tests {
                     total_energy: -0.8,
                     delta_energy: 1.0,
                     residual_norm: 0.1,
-                    energy_details: rustiq_core::hf::scf_energy_details::ScfEnergyDetails {
+                    energy_details: ScfEnergyDetails {
                         kinetic_energy: 0.3,
                         nuclear_attraction_energy: -1.5,
                         electron_repulsion_energy: 0.2,
                     },
-                    orthogonalization:
-                        rustiq_core::hf::orthogonalization::OrthogonalizationInfo::default(),
-                    timings: rustiq_core::hf::scf_result::ScfTimings::default(),
+                    orthogonalization: OrthogonalizationInfo::default(),
+                    timings: ScfTimings::default(),
                 })
                 .unwrap();
         }

@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use super::{CalculationError, ScfSetupStep};
 use crate::{
-    basis::gaussian::basis::Basis,
+    basis::Basis,
+    calculation::{ScfIteration, ScfResult},
     config::{HfConfig, ResolvedHfMethod},
-    hf::{scf_iteration::ScfIteration, scf_result::ScfResult},
     mp2::Mp2Result,
 };
 
