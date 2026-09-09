@@ -21,7 +21,7 @@ pub(crate) mod test_utils;
 #[cfg(feature = "bench-support")]
 pub mod bench_support {
     pub use crate::basis::BasisStore;
-    pub use crate::eri::EriError;
+    pub use crate::eri::{CacheSizeStats, EriError};
     use std::path::Path;
     use std::time::Duration;
 
@@ -43,7 +43,7 @@ pub mod bench_support {
         pub schwarz_bounds: Duration,
         pub compact_fill: Duration,
         pub elapsed: Duration,
-        pub coulomb_cache_sizes: crate::eri::CacheSizeStats,
+        pub coulomb_cache_sizes: CacheSizeStats,
     }
 
     impl EriBenchInput {

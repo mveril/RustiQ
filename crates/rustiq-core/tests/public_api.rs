@@ -7,8 +7,8 @@ use nalgebra::Point3;
 use rustiq_core::{
     basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, Mp2Error,
-        NumericalError, ScfSetupError, ScfSetupStep,
+        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfSetupError,
+        Mp2Error, NumericalError, ScfSetupStep,
     },
     config::{
         random_config::{
@@ -402,8 +402,9 @@ fn setup_errors_retain_threshold_and_guess_locations() {
         if method == HfMethod::Rhf {
             assert!(matches!(
                 error.cause(),
-                CalculationError::RhfSetup {
-                    error: ScfSetupError::Numerical(NumericalError::InsufficientOverlapRank { .. }),
+                CalculationError::HfSetup {
+                    method: ResolvedHfMethod::Rhf,
+                    error: HfSetupError::Numerical(NumericalError::InsufficientOverlapRank { .. }),
                     ..
                 }
             ));

@@ -382,7 +382,7 @@ impl BasisStore {
     /// Missing files are ignored so repeated removals are idempotent.
     ///
     /// # Errors
-    /// This function returns an [`io::Result<()>`]. If any file cannot be removed for a reason other than not existing, the function will return an [`IO::Error`].
+    /// This function returns an [`io::Result<()>`]. If any file cannot be removed for a reason other than not existing, the function will return an [`io::Error`].
     /// It stops at the first error encountered and doesn't attempt to remove further files.
     ///
     /// # Examples

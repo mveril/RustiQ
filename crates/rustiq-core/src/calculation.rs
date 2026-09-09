@@ -2,19 +2,22 @@
 //!
 //! [`CalculationBuilder`] validates options, converts coordinates to Bohr, builds
 //! the basis and orchestrates HF/MP2. Its prepared inputs can be reused.
-//! The lower-level [`HfCalculation`] expects a molecule already in Bohr and a
-//! basis built from that same geometry. File loading remains with the caller.
+//! [`PreparedCalculation::run_hf`] produces an owned [`HfSolution`] reusable for MP2.
+//! Execution failures retain completed HF output. File loading remains with the caller.
 
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
+mod setup_error;
+pub use setup_error::HfSetupError;
 mod solution;
 pub use solution::{CalculationFailure, HfSolution};
 mod builder;
 mod execution;
 mod prepared_calculation;
 pub use crate::basis::{Basis, BasisError};
-pub use crate::hf::scf::ScfSetupError;
+pub use crate::eri::EriError;
+use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
 pub use crate::{
     hf::{
         density_guess::DensityGuessError,
@@ -25,7 +28,6 @@ pub use crate::{
         scf_iteration::ScfIteration,
         scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
         scf_setup::ScfSetupStep,
-        uhf::UhfSetupError,
     },
     mp2::{Mp2Error, Mp2Result},
 };
@@ -42,7 +44,7 @@ use crate::{
     },
     hf::{scf::ScfCalculation, uhf::UhfCalculation},
     molecules::molecule::{Molecule, MoleculeError},
-    mp2::{self},
+    mp2,
 };
 
 /// Typed failures with optional input locations, but no source text or renderer.
@@ -67,16 +69,10 @@ pub enum CalculationError {
         span: Option<SourceSpan>,
     },
     #[error("{error}")]
-    RhfSetup {
+    HfSetup {
+        method: ResolvedHfMethod,
         #[source]
-        error: ScfSetupError<DensityGuessError>,
-        #[label("SCF configuration")]
-        span: Option<SourceSpan>,
-    },
-    #[error("{error}")]
-    UhfSetup {
-        #[source]
-        error: UhfSetupError<DensityGuessError>,
+        error: HfSetupError,
         #[label("SCF configuration")]
         span: Option<SourceSpan>,
     },
@@ -154,9 +150,10 @@ impl<'a> HfCalculation<'a> {
                     config.guess.into_inner(),
                     progress,
                 )
-                .map_err(|error| CalculationError::RhfSetup {
+                .map_err(|error| CalculationError::HfSetup {
+                    method,
                     span: setup_span(&error, config),
-                    error,
+                    error: error.into(),
                 })?;
                 if config.diis {
                     scf.enable_diis(config.diis_size);
@@ -173,12 +170,13 @@ impl<'a> HfCalculation<'a> {
                     config.guess.into_inner(),
                     progress,
                 )
-                .map_err(|error| CalculationError::UhfSetup {
+                .map_err(|error| CalculationError::HfSetup {
+                    method,
                     span: match &error {
                         UhfSetupError::Scf(error) => setup_span(error, config),
                         _ => None,
                     },
-                    error,
+                    error: error.into(),
                 })?;
                 if config.diis {
                     scf.enable_diis(config.diis_size.into_inner())?;

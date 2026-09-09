@@ -7,3 +7,5 @@ pub mod geometry_parse_error;
 pub mod molecule;
 pub mod units;
 pub(crate) mod xyz_parser;
+
+pub use element_ext::AtomicMassParseError;
