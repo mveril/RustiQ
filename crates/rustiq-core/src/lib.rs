@@ -14,6 +14,7 @@ pub(crate) mod hf;
 pub(crate) mod math_utils;
 pub mod molecules;
 pub(crate) mod mp2;
+pub mod prelude;
 
 #[cfg(test)]
 pub(crate) mod test_utils;
