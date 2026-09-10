@@ -9,21 +9,19 @@ repository = "https://github.com/mveril/RustiQ"
 
 [features]
 default = ["online"]
-online = ["dep:reqwest", "dep:tokio"]
+online = ["dep:isahc", "dep:futures-lite", "dep:blocking", "dep:url"]
 bench-support = []
 
 [dependencies]
 miette.workspace = true
-reqwest = { version = "0.13", default-features = false, optional = true, features = [
-  "json",
-  "blocking",
-  "rustls",
-] }
+isahc = { version = "2", default-features = false, optional = true, features = ["native-tls"] }
+futures-lite = { version = "2", optional = true }
+blocking = { version = "1", optional = true }
+url = { version = "2", optional = true }
 nalgebra.workspace = true
 physical_constants = "0.5"
 periodic_table.workspace = true
 rayon.workspace = true
-tokio = { workspace = true, features = ["fs", "io-util"], optional = true }
 serde_json.workspace = true
 serde.workspace = true
 delegate.workspace = true

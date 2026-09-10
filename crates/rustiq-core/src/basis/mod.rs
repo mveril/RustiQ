@@ -7,7 +7,7 @@ pub use basis_id::{BasisId, InvalidBasisId};
 #[allow(unused_imports)]
 pub use basis_store::{BasisEntry, BasisStore, FileError, ImportError, SaveError};
 #[cfg(feature = "online")]
-pub use basis_store::{DownloadParseError, DownloadParseSaveError, DownloadSaveError};
+pub use basis_store::{DownloadParseError, DownloadParseSaveError, DownloadSaveError, HttpError};
 #[allow(unused_imports)]
 pub use function_type::FunctionType;
 pub use gaussian::basis::{Basis, BasisError};

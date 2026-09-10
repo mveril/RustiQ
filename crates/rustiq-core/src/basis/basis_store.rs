@@ -8,11 +8,16 @@ use tempfile::NamedTempFile;
 use thiserror::Error;
 
 #[cfg(feature = "online")]
-use reqwest::{blocking::ClientBuilder as BlockingClientBuilder, ClientBuilder, Url};
+use futures_lite::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(feature = "online")]
+use isahc::{
+    config::{Configurable, RedirectPolicy},
+    HttpClient,
+};
 #[cfg(feature = "online")]
 use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "online")]
-use tokio::io::AsyncWriteExt;
+use url::Url;
 
 use super::{basis_file::BasisFile, BasisId, InvalidBasisId};
 #[cfg(feature = "online")]
@@ -206,62 +211,54 @@ impl BasisStore {
         Ok(result)
     }
 
-    /// Lists all basis set metadata available online (synchronous).
-    ///
-    /// # Errors
-    /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
-    /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
+    #[cfg(feature = "online")]
+    fn online_client() -> Result<HttpClient, HttpError> {
+        Ok(HttpClient::builder()
+            .default_header("User-Agent", USER_AGENT)
+            .redirect_policy(RedirectPolicy::Limit(10))
+            .build()?)
+    }
+
+    /// Lists all basis set metadata synchronously.
     #[cfg(feature = "online")]
     pub fn list_online_sync(
         &self,
     ) -> Result<HashMap<BasisId<'static>, BasisSetDetail>, DownloadParseError> {
-        let url = format!("{}{}", self.url, "api/metadata");
-        let client = BlockingClientBuilder::new()
-            .user_agent(USER_AGENT)
-            .build()?;
+        let mut response = Self::online_client()?
+            .get(format!("{}api/metadata", self.url))
+            .map_err(HttpError::from)?;
+        check_status(response.status())?;
         let basis_sets: HashMap<OwnedBasisId, BasisSetDetail> =
-            client.get(url).send()?.error_for_status()?.json()?;
+            serde_json::from_reader(response.body_mut())?;
         Ok(basis_sets
             .into_iter()
             .map(|(id, detail)| (id.0, detail))
             .collect())
     }
 
-    /// Lists all basis set metadata available online (asynchronous).
-    ///
-    /// # Errors
-    /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
-    /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
+    /// Lists online metadata using runtime-independent futures.
     #[cfg(feature = "online")]
-    #[allow(dead_code)]
     pub async fn list_online(
         &self,
     ) -> Result<HashMap<BasisId<'static>, BasisSetDetail>, DownloadParseError> {
-        let url = format!("{}{}", self.url, "api/metadata");
-        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
-        let basis_sets: HashMap<OwnedBasisId, BasisSetDetail> = client
-            .get(url)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let mut response = Self::online_client()?
+            .get_async(format!("{}api/metadata", self.url))
+            .await
+            .map_err(HttpError::from)?;
+        check_status(response.status())?;
+        let mut bytes = Vec::new();
+        response
+            .body_mut()
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(HttpError::Io)?;
+        let basis_sets: HashMap<OwnedBasisId, BasisSetDetail> = serde_json::from_slice(&bytes)?;
         Ok(basis_sets
             .into_iter()
             .map(|(id, detail)| (id.0, detail))
             .collect())
     }
 
-    /// Downloads a basis set file asynchronously from a remote URL and saves it locally.
-    /// Reports download progress through a `progress_callback` function.
-    ///
-    /// # Arguments
-    /// * `name` - The name of the basis set to download.
-    /// * `progress_callback` - A mutable reference to a function that receives progress updates (bytes downloaded, optional total size).
-    ///
-    /// # Errors
-    /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
-    /// or a [`DownloadSaveError::Save`] if the file cannot be saved.
     #[cfg(feature = "online")]
     fn basis_url(&self, name: &str) -> io::Result<Url> {
         BasisId::new(name).map_err(io::Error::from)?;
@@ -272,6 +269,11 @@ impl BasisStore {
         Ok(url)
     }
 
+    /// Downloads a basis set asynchronously without requiring a specific runtime.
+    ///
+    /// Reports bytes downloaded and the optional total size. The destination is
+    /// replaced atomically only after the complete response has been saved.
+    /// Filesystem operations run on the runtime-independent blocking I/O pool.
     #[cfg(feature = "online")]
     pub async fn download(
         &self,
@@ -279,10 +281,12 @@ impl BasisStore {
         progress_callback: &mut impl FnMut(u64, Option<u64>),
     ) -> Result<(), DownloadSaveError> {
         let url = self.basis_url(name).map_err(SaveError::from)?;
-        // Start downloading the file
-        let client = ClientBuilder::new().user_agent(USER_AGENT).build()?;
-        let mut response = client.get(url).send().await?.error_for_status()?;
-        let total_size = response.content_length();
+        let mut response = Self::online_client()?
+            .get_async(url.as_str())
+            .await
+            .map_err(HttpError::from)?;
+        check_status(response.status())?;
+        let total_size = response.body().len();
         let id = BasisId::new(name)
             .map_err(io::Error::from)
             .map_err(SaveError::from)?;
@@ -290,49 +294,60 @@ impl BasisStore {
         let parent = path
             .parent()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid file path"))
-            .map_err(SaveError::from)?;
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(SaveError::from)?;
-        let temp_file = NamedTempFile::new_in(parent).map_err(SaveError::from)?;
-        let (file, temp_path) = temp_file.into_parts();
-        let mut file = tokio::fs::File::from_std(file);
-        let mut downloaded: u64 = 0;
-        while let Some(chunk) = response.chunk().await? {
-            file.write_all(&chunk).await.map_err(SaveError::from)?;
-            downloaded += chunk.len() as u64;
-
-            // Update the progress
-            progress_callback(downloaded, total_size);
+            .map_err(SaveError::from)?
+            .to_owned();
+        let temporary = blocking::unblock(move || {
+            fs::create_dir_all(&parent)?;
+            NamedTempFile::new_in(parent)
+        })
+        .await
+        .map_err(SaveError::from)?;
+        let mut file = blocking::Unblock::with_capacity(64 * 1024, temporary);
+        let mut buffer = [0; 16 * 1024];
+        let mut downloaded = 0;
+        let transfer: Result<(), DownloadSaveError> = async {
+            loop {
+                let count = response
+                    .body_mut()
+                    .read(&mut buffer)
+                    .await
+                    .map_err(HttpError::Io)?;
+                if count == 0 {
+                    break;
+                }
+                file.write_all(&buffer[..count])
+                    .await
+                    .map_err(SaveError::from)?;
+                downloaded += count as u64;
+                progress_callback(downloaded, total_size);
+            }
+            file.flush().await.map_err(SaveError::from)?;
+            Ok(())
         }
-        file.flush().await.map_err(SaveError::from)?;
-        file.sync_all().await.map_err(SaveError::from)?;
-        let file = file.into_std().await;
-        NamedTempFile::from_parts(file, temp_path)
-            .persist(path)
-            .map_err(SaveError::from)?;
+        .await;
+        let temporary = file.into_inner().await;
+        if let Err(error) = transfer {
+            blocking::unblock(move || drop(temporary)).await;
+            return Err(error);
+        }
+        blocking::unblock(move || -> Result<(), SaveError> {
+            temporary.as_file().sync_all()?;
+            temporary.persist(path)?;
+            Ok(())
+        })
+        .await?;
         Ok(())
     }
 
-    /// Downloads a basis set file synchronously from a remote URL and saves it locally.
-    ///
-    /// # Arguments
-    /// * `name` - The name of the basis set to download.
-    /// * `progress_callback` - A mutable reference to a function that receives progress updates (bytes downloaded, optional total size).
-    ///
-    /// # Errors
-    /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
-    /// or a [`DownloadSaveError::Save`] if the file cannot be saved.
+    /// Downloads a basis set synchronously and saves it atomically.
     #[cfg(feature = "online")]
-    #[allow(dead_code)]
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
         let url = self.basis_url(name).map_err(SaveError::from)?;
-        // Start downloading the file
-        let client = BlockingClientBuilder::new()
-            .user_agent(USER_AGENT)
-            .build()?;
-        let mut response = client.get(url).send()?.error_for_status()?;
-        self.save(name, &mut response)?;
+        let mut response = Self::online_client()?
+            .get(url.as_str())
+            .map_err(HttpError::from)?;
+        check_status(response.status())?;
+        self.save(name, response.body_mut())?;
         Ok(())
     }
 
@@ -478,7 +493,7 @@ pub enum SaveError {
 pub enum DownloadParseError {
     /// HTTP error occurred during the download.
     #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(#[from] HttpError),
 
     /// Serde JSON deserialization error.
     #[error("Serialization error: {0}")]
@@ -495,7 +510,7 @@ pub enum DownloadSaveError {
 
     /// HTTP error occurred during the download.
     #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(#[from] HttpError),
 }
 
 /// Custom error type for downloading and saving basis set files in `BasisStore`.
@@ -516,7 +531,7 @@ pub enum DownloadParseSaveError {
 
     /// HTTP error occurred during the download.
     #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(#[from] HttpError),
 }
 #[cfg(feature = "online")]
 impl From<DownloadParseError> for DownloadParseSaveError {
@@ -535,6 +550,27 @@ impl From<DownloadSaveError> for DownloadParseSaveError {
             DownloadSaveError::Http(e) => DownloadParseSaveError::Http(e),
             DownloadSaveError::Save(e) => DownloadParseSaveError::Save(e),
         }
+    }
+}
+
+/// HTTP transport, response status, or response body failure.
+#[cfg(feature = "online")]
+#[derive(Error, Debug)]
+pub enum HttpError {
+    #[error(transparent)]
+    Transport(#[from] isahc::Error),
+    #[error("HTTP status: {0}")]
+    Status(u16),
+    #[error("HTTP response body: {0}")]
+    Io(#[from] io::Error),
+}
+
+#[cfg(feature = "online")]
+fn check_status(status: isahc::http::StatusCode) -> Result<(), HttpError> {
+    if status.is_client_error() || status.is_server_error() {
+        Err(HttpError::Status(status.as_u16()))
+    } else {
+        Ok(())
     }
 }
 
@@ -665,3 +701,6 @@ mod tests {
         assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 0);
     }
 }
+
+#[cfg(all(test, feature = "online"))]
+mod online_tests;

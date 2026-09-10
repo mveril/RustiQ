@@ -127,7 +127,7 @@ RustiQ deliberately uses community crates where they make the code clearer:
 - `miette` for diagnostics that point at invalid TOML fields and XYZ geometry
   lines;
 - `thiserror` for explicit error handling;
-- `reqwest`, `tokio`, `dirs`, and `indicatif` for optional online basis-set download
+- `isahc` for optional sync and async HTTP; `tokio`, `dirs`, and `indicatif` for CLI integration
   and cache behavior;
 - `periodic_table` and `physical_constants` rather than hand-maintained
   chemistry constants;
@@ -691,8 +691,18 @@ that cannot identify a configuration value have no artificial location.
 Command handling, working-directory changes, and terminal presentation remain
 in `src/cli/`. See `crates/rustiq-core/tests/public_api.rs` for complete direct
 construction, calculation, and diagnostic examples.
-The optional `online` feature currently retains its existing Tokio dependency;
-runtime independence is a later step of issue #54.
+The optional `online` feature provides both synchronous and asynchronous
+basis-set operations through Isahc, without an async runtime dependency in the
+core. Existing `list_online` and `download` methods remain async, and their
+`_sync` counterparts remain synchronous. Futures can be driven by the caller's
+executor; Tokio is used only by the CLI. HTTP and filesystem work use internal
+worker threads, with `blocking` adapting atomic file writes to async I/O.
+HTTP errors now use `basis::HttpError`, distinguishing transport, HTTP status,
+and response-body failures.
+
+Online builds use libcurl and native TLS. Linux source builds require a C
+toolchain, pkg-config, and the libcurl/OpenSSL development packages; the Nix
+shells and package provide these dependencies.
 
 Useful checks before submitting a change:
 
@@ -726,7 +736,8 @@ Shared dependency versions live in `[workspace.dependencies]`, with features
 enabled where they are needed: `miette/fancy` belongs to the CLI, `tokio/rt`
 to its online orchestration, and `nalgebra/macros` to core tests. The core uses
 Rayon directly without `nalgebra/rayon`, and its validated types do not require
-`nutype/serde`. `reqwest` keeps only JSON, blocking requests, and Rustls enabled.
+`nutype/serde`. Isahc enables only `native-tls`, and JSON is decoded with
+`serde_json`. AWS-LC is not required.
 
 See also:
 

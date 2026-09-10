@@ -40,6 +40,10 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      - name: Install native HTTP dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libcurl4-openssl-dev libssl-dev
+
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
@@ -53,6 +57,15 @@ jobs:
         run: |
           cargo check -p rustiq-core --no-default-features
           cargo test -p rustiq-core --no-default-features
+
+      - name: Check core runtime independence
+        shell: bash
+        run: |
+          cargo tree -p rustiq-core --all-features --edges normal,build --prefix none --format '{p}' > core-dependencies.txt
+          if grep -E '^(tokio|async-std|async-executor|smol|glommio) v' core-dependencies.txt; then
+            echo "rustiq-core must not depend on an async runtime"
+            exit 1
+          fi
 
   nix:
     name: Nix flake (${{ matrix.system }})

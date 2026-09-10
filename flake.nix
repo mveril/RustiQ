@@ -119,6 +119,11 @@
             version = cargoToml.package.version;
             src = cargoSource;
             strictDeps = true;
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            buildInputs = [
+              pkgs.curl
+              pkgs.openssl
+            ];
             cargoExtraArgs = "--locked --workspace --all-features";
           };
 
@@ -209,9 +214,6 @@
 
           commonRustEnv = {
             RUST_BACKTRACE = "1";
-            # aws-lc-sys compiles feature probes with -O0 -Werror in debug
-            # builds, which conflicts with the Nix clang wrapper's fortify define.
-            AWS_LC_SYS_CFLAGS = "-U_FORTIFY_SOURCE";
             # Keep symbols in release-like profiling builds. This matches
             # the [profile.profiling] section in Cargo.toml.
             CARGO_PROFILE_PROFILING_DEBUG = "true";
@@ -232,6 +234,7 @@
             }:
             pkgs.mkShell {
               strictDeps = true;
+              inherit (commonCargoArgs) buildInputs;
               inherit packages;
               env = commonRustEnv // extraEnv;
             };
