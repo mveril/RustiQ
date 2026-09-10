@@ -107,6 +107,7 @@ impl<W: Write> CalculationReporter<W> {
                 ScfSetupStep::InitialDensityGuess => {
                     writeln!(writer, "  Building initial density guess...")
                 }
+                _ => Ok(()),
             }
         });
     }
@@ -153,14 +154,14 @@ mod tests {
     }
 
     #[test]
-    fn iteration_write_failure_stops_output_but_not_calculation() {
+    fn iteration_write_error_stops_output_but_not_calculation() {
         use rustiq_core::{
             basis::BasisFile,
             calculation::{CalculationBuilder, CalculationExecution},
             molecules::geometry::Geometry,
         };
-        struct CountingFailure(usize);
-        impl Write for CountingFailure {
+        struct FailingWriter(usize);
+        impl Write for FailingWriter {
             fn write(&mut self, _: &[u8]) -> io::Result<usize> {
                 self.0 += 1;
                 Err(io::Error::new(
@@ -178,7 +179,7 @@ mod tests {
             &include_bytes!("../../../crates/rustiq-core/tests/data/sto-3g.json")[..],
         )
         .unwrap();
-        let mut reporter = CalculationReporter::new(CountingFailure(0), true, true);
+        let mut reporter = CalculationReporter::new(FailingWriter(0), true, true);
         let mut completed = false;
         let result = CalculationBuilder::new(&geometry, &basis)
             .execute_with_events(|event| {

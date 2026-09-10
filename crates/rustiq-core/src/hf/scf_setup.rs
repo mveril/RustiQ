@@ -4,6 +4,7 @@ use super::orthogonalization::OrthogonalizationInfo;
 ///
 /// This deliberately carries no presentation text: frontends choose how to
 /// describe these stages to their users.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ScfSetupStep {
     CoreHamiltonian,
