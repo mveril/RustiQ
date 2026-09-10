@@ -1,13 +1,10 @@
 use std::num::NonZeroUsize;
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use toml_spanner::Toml;
 
-use crate::{
-    molecules::molecule::Molecule,
-    runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
-};
+use crate::runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
+use rustiq_core::molecules::molecule::Molecule;
 
 mod density_guess_config;
 mod guess_perturbation_config;
@@ -26,14 +23,17 @@ pub struct HfConfig {
     #[toml(with = crate::runfile::validated::non_zero_usize)]
     pub max_iterations: NonZeroUsize,
     #[toml(default = default_conv_threshold())]
+    #[toml(with = crate::runfile::validated::positive_finite_f64)]
     pub convergence_threshold: PositiveFiniteF64,
     #[toml(default = default_linear_dependency_threshold())]
+    #[toml(with = crate::runfile::validated::non_negative_finite_f64)]
     pub linear_dependency_threshold: NonNegativeFiniteF64,
     #[toml(default)]
     pub guess: DensityGuessConfig,
     #[toml(default)]
     pub diis: bool,
     #[toml(default = default_diis_size())]
+    #[toml(with = crate::runfile::validated::diis_size)]
     pub diis_size: DiisSize,
     #[toml(default)]
     pub format: HfOutputFormat,
@@ -63,53 +63,14 @@ pub enum HfMethod {
     Uhf,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolvedHfMethod {
-    Rhf,
-    Uhf,
-}
-
-impl std::fmt::Display for ResolvedHfMethod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Rhf => write!(f, "RHF"),
-            Self::Uhf => write!(f, "UHF"),
-        }
-    }
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum HfMethodResolutionError {
-    #[error(
-        "RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}"
-    )]
-    RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
-}
+pub use rustiq_core::config::{HfMethodResolutionError, ResolvedHfMethod};
 
 impl HfMethod {
     pub fn resolve(
         &self,
         molecule: &Molecule,
     ) -> Result<ResolvedHfMethod, HfMethodResolutionError> {
-        Ok(match self {
-            Self::Rhf => {
-                if !is_closed_shell_singlet(molecule) {
-                    return Err(HfMethodResolutionError::RhfRequiresClosedShellSinglet {
-                        electrons: molecule.total_electrons(),
-                        multiplicity: molecule.multiplicity().get(),
-                    });
-                }
-                ResolvedHfMethod::Rhf
-            }
-            Self::Uhf => ResolvedHfMethod::Uhf,
-            Self::Auto => {
-                if is_closed_shell_singlet(molecule) {
-                    ResolvedHfMethod::Rhf
-                } else {
-                    ResolvedHfMethod::Uhf
-                }
-            }
-        })
+        rustiq_core::config::HfMethod::from(self).resolve(molecule)
     }
 }
 
@@ -138,16 +99,14 @@ fn default_diis_size() -> DiisSize {
     DiisSize::try_new(6).expect("default DIIS history size is at least 2")
 }
 
-fn is_closed_shell_singlet(molecule: &Molecule) -> bool {
-    molecule.multiplicity().get() == 1 && molecule.total_electrons().is_multiple_of(2)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units};
     use crate::runfile::random_config::DistributionConfig;
-    use nalgebra::point;
+    use nalgebra::Point3;
+    use rustiq_core::molecules::{
+        atom::Atom, geometry::Geometry, molecule::Molecule, units::Units,
+    };
     use std::mem::discriminant;
     use std::num::NonZeroU8;
 
@@ -161,15 +120,16 @@ mod tests {
                     .iter()
                     .find(|element| element.symbol == *symbol)
                     .unwrap();
-                Atom::new(element, point![0.0, 0.0, index as f64])
+                Atom::new(element, Point3::new(0.0, 0.0, index as f64))
             })
             .collect();
-        Molecule::new_unchecked(
+        Molecule::try_new(
             Geometry::new("test molecule".to_string(), atoms),
             Units::Bohr,
             charge,
             NonZeroU8::new(multiplicity).unwrap(),
         )
+        .unwrap()
     }
 
     #[test]

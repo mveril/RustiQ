@@ -67,8 +67,10 @@ validation against established quantum chemistry packages.
 The repository is intentionally split into small domains:
 
 - `src/cli/` handles command dispatch, terminal output, and user-facing reports.
-- `crates/rustiq-core/src/runfile/` owns the TOML input schema, validation, typed configuration, and
-  diagnostics.
+- `crates/rustiq-core/src/config/` owns scientific options and optional source locations;
+  `calculation/` prepares the molecule/basis and orchestrates HF and optional MP2.
+- `src/runfile/` is the CLI TOML adapter: input schema,
+  parsing diagnostics, and explicit conversion to scientific configuration.
 - `crates/rustiq-core/src/molecules/` owns atoms, elements, geometry parsing, units, charge,
   multiplicity, electron-count logic, and geometry transforms.
 - `crates/rustiq-core/src/basis/` owns basis-set files, cache management, Gaussian shells, and
@@ -97,7 +99,7 @@ The interesting argument for Rust is different:
 
 - Rust makes ownership and mutation explicit, which helps when large tensors,
   matrices, caches, and temporary workspaces start interacting.
-- Typed errors with `thiserror` and `miette` make failure modes part
+- Typed errors with `thiserror` and `miette` make error cases part
   of the design instead of an afterthought.
 - Cargo makes dependency management, testing, feature flags, formatting, and
   reproducible builds standard rather than project-specific infrastructure.
@@ -157,7 +159,7 @@ large legacy interface:
 - MP2 is implemented as a post-HF layer that depends on converged HF orbitals;
 - the code checks that MP2 is not run on an unconverged HF result;
 - open-shell examples resolve to UHF and are tested through the CLI;
-- numerical failure modes are not only strings; finite values, dimensions,
+- numerical errors are not only strings; finite values, dimensions,
   orbital partitions, and overlap positive-definiteness are checked explicitly;
 - sample outputs can be compared to reference packages such as PySCF;
 - the codebase is small enough that SCF, UHF, ERIs, and MP2 can be located
@@ -638,8 +640,57 @@ cargo run -- basis remove sto-3g
 The Cargo workspace contains the `RustiQ` CLI at the repository root and the
 reusable `rustiq-core` library in `crates/rustiq-core/` (Rust import name:
 `rustiq_core`). The CLI and the ERI benchmark both depend on this library.
-Runfile configuration and parsing are part of the core; command handling,
-working-directory changes, and terminal presentation remain in `src/cli/`.
+Scientific configuration lives in `rustiq_core::config`, without TOML types or
+environment-derived defaults. `rustiq_core::calculation::CalculationBuilder`
+validates scientific options, converts geometry to Bohr, constructs the basis,
+resolves RHF/UHF and executes HF followed by optional MP2. MP2 requires HF and
+converged orbitals. Results and progress notifications are structured Rust data;
+the CLI only loads inputs and presents them.
+
+The builder follows the `WSLCommand` conventions from WSLPlugins-rs: mutable
+setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
+`PreparedCalculation` retains the validated molecule and basis and can be
+executed repeatedly through the shared `CalculationExecution` trait.
+The lower-level `HfCalculation` remains available for callers supplying an
+already constructed molecule in Bohr and its corresponding basis.
+
+TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
+`toml-spanner` dependency or runfile feature, even with all its features enabled.
+User directories and `RUSTIQ_DATA_HOME` / `RUSTIQ_DATA_BASIS` are resolved by
+`src/cli/env.rs`; core consumers provide their own path to `BasisStore::new`.
+There is no environment-dependent `BasisStore::default()` in the core.
+Ordinary Rust consumers can disable online support with `default-features = false`:
+
+```toml
+rustiq-core = { path = "crates/rustiq-core", default-features = false }
+```
+
+Given a loaded geometry and basis-set file, the calculation API is:
+
+```rust
+use rustiq_core::{
+    calculation::{CalculationBuilder, CalculationExecution},
+    config::{HfConfig, MoleculeConfig, Mp2Config},
+    molecules::units::Units,
+};
+
+let calculation = CalculationBuilder::new(&geometry, &basis_file)
+    .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
+    .with_hf(HfConfig { diis: true, ..Default::default() })
+    .with_mp2(Mp2Config::default());
+let result = calculation.execute()?;
+```
+
+The CLI's `parse_runfile` returns both the frontend representation (including output
+preferences) and converted scientific options with spans in the original text.
+Direct `From` conversions are also available and leave spans empty. Other
+frontends can supply Miette spans via `Located<T>`, which keeps each relevant value together with its optional
+source span. `Located::into_inner()` extracts the value and discards provenance. Scientific errors own neither source text nor a renderer;
+the CLI attaches its `NamedSource` to the returned report. Numerical errors
+that cannot identify a configuration value have no artificial location.
+Command handling, working-directory changes, and terminal presentation remain
+in `src/cli/`. See `crates/rustiq-core/tests/public_api.rs` for complete direct
+construction, calculation, and diagnostic examples.
 The optional `online` feature currently retains its existing Tokio dependency;
 runtime independence is a later step of issue #54.
 
@@ -665,8 +716,9 @@ fixtures live in each package's `tests/data/` directory, and sample calculation 
 
 The core can be checked independently with
 `cargo test -p rustiq-core`; its fixtures are included in the package and do not
-depend on the repository's root tests or samples. To check without online support, use
-`cargo test -p rustiq-core --no-default-features`. Existing `cargo run -- ...` and
+depend on the repository's root tests or samples. To check without online support
+use `cargo test -p rustiq-core --no-default-features`. Runfile tests live in the
+CLI package and run with `cargo test -p RustiQ`. Existing `cargo run -- ...` and
 `cargo bench --features bench-support --bench eri_timings` commands still work
 from the repository root. CLI features forward to the corresponding core features.
 

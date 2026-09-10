@@ -2,17 +2,19 @@
 
 //! Reusable domain and scientific implementation used by the CLI and benchmarks.
 //!
-//! Runfile types and parsing are reusable configuration APIs; filesystem orchestration
-//! and terminal presentation belong to the calling application.
+//! Use [`config`] and [`calculation`] for direct Rust calculations. Runfile parsing,
+//! user environment and filesystem policy belong to the application, as do source
+//! text for scientific diagnostics and terminal presentation.
 
 pub mod basis;
-pub mod env;
-pub mod eri;
-pub mod hf;
-pub mod math_utils;
+pub mod calculation;
+pub mod config;
+pub(crate) mod eri;
+pub(crate) mod hf;
+pub(crate) mod math_utils;
 pub mod molecules;
-pub mod mp2;
-pub mod runfile;
+pub(crate) mod mp2;
+pub mod prelude;
 
 #[cfg(test)]
 pub(crate) mod test_utils;
@@ -20,11 +22,11 @@ pub(crate) mod test_utils;
 #[cfg(feature = "bench-support")]
 pub mod bench_support {
     pub use crate::basis::BasisStore;
-    pub use crate::eri::EriError;
+    pub use crate::eri::{CacheSizeStats, EriError};
     use std::path::Path;
     use std::time::Duration;
 
-    use crate::basis::{gaussian::basis::Basis, BasisFile};
+    use crate::basis::{Basis, BasisFile};
     use crate::eri::electron_repulsion_ints_timed_with_observer;
     use crate::molecules::geometry::Geometry;
 
@@ -42,7 +44,7 @@ pub mod bench_support {
         pub schwarz_bounds: Duration,
         pub compact_fill: Duration,
         pub elapsed: Duration,
-        pub coulomb_cache_sizes: crate::eri::CacheSizeStats,
+        pub coulomb_cache_sizes: CacheSizeStats,
     }
 
     impl EriBenchInput {
@@ -50,7 +52,7 @@ pub mod bench_support {
             name: impl Into<String>,
             geometry_path: impl AsRef<Path>,
             basis: BasisFile,
-        ) -> Result<Self, crate::basis::gaussian::basis::BasisError> {
+        ) -> Result<Self, crate::basis::BasisError> {
             let geometry = Geometry::from_path(geometry_path.as_ref())
                 .unwrap_or_else(|err| panic!("failed to read geometry: {err:?}"));
             let basis = Basis::try_load(&basis, &geometry)?;

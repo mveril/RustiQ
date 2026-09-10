@@ -1,6 +1,6 @@
 use super::{symmetric_random_matrix, DensityGuess, DensityGuessError, OrbitalGuess};
+use crate::config::hf::RandomGuessConfig;
 use crate::hf::uhf::Spin;
-use crate::runfile::hf::RandomGuessConfig;
 use nalgebra::DMatrix;
 
 #[derive(Debug, Clone, Copy, Default)]

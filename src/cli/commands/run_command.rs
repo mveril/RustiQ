@@ -6,35 +6,20 @@ use std::{
 };
 
 use clap::{ArgAction, ValueEnum};
-use miette::{miette, IntoDiagnostic};
+use miette::{miette, IntoDiagnostic, NamedSource};
 
 use crate::cli::{
     self,
-    ux::{bat, json_output::CalculationOutput, mp2_report::Mp2Reporter, scf_report::ScfReporter},
+    ux::{bat, calculation_report::CalculationReporter, json_output::CalculationOutput},
 };
+use crate::runfile::{hf::HfOutputFormat, parser::parse_runfile};
 use rustiq_core::{
-    basis::{gaussian::basis::Basis, BasisFile, BasisStore},
-    hf::{self, scf_result::ScfResult},
-    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
-    mp2 as mp2_calc,
-    runfile::{
-        hf::{HfOutputFormat, ResolvedHfMethod},
-        parser::parse_runfile,
-    },
+    basis::{BasisFile, BasisStore},
+    calculation::{CalculationBuilder, CalculationExecution},
+    molecules::geometry::Geometry,
 };
 
 use super::{CommandResult, Runnable};
-
-fn ensure_hf_converged_for_mp2(result: &ScfResult) -> miette::Result<()> {
-    if result.converged {
-        Ok(())
-    } else {
-        Err(miette::miette!(
-            "MP2 requires converged HF orbitals, but HF did not converge after {} iterations",
-            result.iterations
-        ))
-    }
-}
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
@@ -81,7 +66,7 @@ impl RunCommand {
     }
 
     fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
-        let basis_store = BasisStore::default();
+        let basis_store = crate::cli::env::basis_store();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "online")] {
@@ -131,24 +116,19 @@ impl Runnable for RunCommand {
             io::stdin().read_to_string(&mut content).into_diagnostic()?;
             ("<stdin>".to_string(), content)
         };
-        let parsed = parse_runfile(source_name, &toml_content)?;
+        let parsed = parse_runfile(source_name.clone(), &toml_content)?;
+        let source_code = NamedSource::new(source_name, toml_content);
+        let scientific_error =
+            |error| miette::Report::new(error).with_source_code(source_code.clone());
         let run = parsed.runfile;
         if !json_output {
             bat::print_toml(&parsed.formatted_toml);
         }
         let molecule_path = &run.global.molecule.geometry;
         let geom = Geometry::from_path(molecule_path).into_diagnostic()?;
-        let mut molecule = Molecule::try_new(
-            geom,
-            run.global.molecule.molecule_unit,
-            run.global.molecule.charge,
-            run.global.molecule.multiplicity,
-        )
-        .into_diagnostic()?;
         if !json_output {
-            bat::print_xyz(&molecule.geometry().to_string());
+            bat::print_xyz(&geom.to_string());
         }
-        molecule.convert_to(Units::Bohr);
         if !json_output {
             println!("Loading basis set...");
         }
@@ -160,157 +140,40 @@ impl Runnable for RunCommand {
                 "Basis file loaded in {}",
                 humantime::format_duration(step_start.elapsed())
             );
-            println!("Constructing basis functions...");
         }
-        let step_start = Instant::now();
-        let basis = Basis::try_load(&basis_file, &molecule).into_diagnostic()?;
-        if !json_output {
-            println!(
-                "Constructed {} basis functions in {}",
-                basis.nbasis(),
-                humantime::format_duration(step_start.elapsed())
-            );
+        let show_scf = run
+            .hf
+            .as_ref()
+            .is_none_or(|hf| hf.format != HfOutputFormat::Nope);
+        let calculation = CalculationBuilder::new(&geom, &basis_file)
+            .with_molecule_config(parsed.molecule_config)
+            .with_mp2(parsed.mp2_config);
+        let calculation = if let Some(hf_config) = parsed.hf_config {
+            calculation.with_hf(hf_config)
+        } else {
+            calculation
+        };
+        let result = {
+            let stdout = io::stdout();
+            let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
+            let outcome = calculation.execute_with_events(|event| reporter.on_event(event));
+            if let Some(error) = reporter.take_error() {
+                return Err(miette!("failed to write calculation report: {error}"));
+            }
+            outcome.map_err(&scientific_error)?
+        };
+        if json_output {
+            let stdout = io::stdout();
+            CalculationOutput::new(
+                result.hf.summary().method,
+                &result.hf.summary().scf,
+                result.mp2.as_ref(),
+            )
+            .write_json(stdout.lock())
+            .into_diagnostic()?;
+            println!();
         }
-        if let Some(hf) = run.hf {
-            if !json_output {
-                println!("Conv {}", hf.convergence_threshold.into_inner());
-                println!("Max iter: {}", hf.max_iterations.get());
-                println!("Preparing SCF calculation...");
-            }
-            let resolved_method = hf.method.resolve(&molecule).into_diagnostic()?;
-            if !json_output {
-                println!("Resolved HF method: {resolved_method}");
-            }
-            match resolved_method {
-                ResolvedHfMethod::Rhf => {
-                    let mut scf = hf::scf::ScfCalculation::new_with_progress(
-                        &molecule,
-                        &basis,
-                        hf.max_iterations.get(),
-                        hf.convergence_threshold.into_inner(),
-                        hf.linear_dependency_threshold.into_inner(),
-                        hf.guess,
-                        |step| {
-                            if !json_output {
-                                println!("  {step}...")
-                            }
-                        },
-                    )
-                    .into_diagnostic()?;
-                    if hf.diis {
-                        scf.enable_diis(hf.diis_size);
-                    }
-                    let result = if json_output {
-                        scf.run().into_diagnostic()?
-                    } else {
-                        match hf.format {
-                            HfOutputFormat::Normal => {
-                                let stdout = io::stdout();
-                                let mut reporter = ScfReporter::new(stdout.lock());
-                                let result =
-                                    scf.run_with_observer(&mut reporter).into_diagnostic()?;
-                                if let Some(err) = reporter.take_error() {
-                                    return Err(miette::miette!(
-                                        "failed to write SCF report: {err}"
-                                    ));
-                                }
-                                reporter.write_summary(&result).into_diagnostic()?;
-                                result
-                            }
-                            HfOutputFormat::Nope => scf.run().into_diagnostic()?,
-                        }
-                    };
 
-                    let mp2_result = if let Some(mp2) = run.mp2.as_ref() {
-                        ensure_hf_converged_for_mp2(&result)?;
-                        let mp2_result = mp2_calc::rhf_closed_shell(&scf, mp2.frozen_orbitals)
-                            .into_diagnostic()?;
-                        if !json_output {
-                            let stdout = io::stdout();
-                            let mut reporter = Mp2Reporter::new(stdout.lock(), "RHF MP2");
-                            reporter
-                                .write_summary(&mp2_result, &result)
-                                .into_diagnostic()?;
-                        }
-                        Some(mp2_result)
-                    } else {
-                        None
-                    };
-                    if json_output {
-                        let stdout = io::stdout();
-                        CalculationOutput::new(resolved_method, &result, mp2_result.as_ref())
-                            .write_json(stdout.lock())
-                            .into_diagnostic()?;
-                        println!();
-                    }
-                }
-                ResolvedHfMethod::Uhf => {
-                    let mut scf = hf::uhf::UhfCalculation::new_with_progress(
-                        &molecule,
-                        &basis,
-                        hf.max_iterations.get(),
-                        hf.convergence_threshold.into_inner(),
-                        hf.linear_dependency_threshold.into_inner(),
-                        hf.guess,
-                        |step| {
-                            if !json_output {
-                                println!("  {step}...")
-                            }
-                        },
-                    )
-                    .into_diagnostic()?;
-                    if hf.diis {
-                        scf.enable_diis(hf.diis_size.into_inner())
-                            .into_diagnostic()?;
-                    }
-                    let result = if json_output {
-                        scf.run().into_diagnostic()?
-                    } else {
-                        match hf.format {
-                            HfOutputFormat::Normal => {
-                                let stdout = io::stdout();
-                                let mut reporter = ScfReporter::new(stdout.lock());
-                                let result =
-                                    scf.run_with_observer(&mut reporter).into_diagnostic()?;
-                                if let Some(err) = reporter.take_error() {
-                                    return Err(miette::miette!(
-                                        "failed to write SCF report: {err}"
-                                    ));
-                                }
-                                reporter.write_summary(&result).into_diagnostic()?;
-                                result
-                            }
-                            HfOutputFormat::Nope => scf.run().into_diagnostic()?,
-                        }
-                    };
-
-                    let mp2_result = if let Some(mp2) = run.mp2.as_ref() {
-                        ensure_hf_converged_for_mp2(&result)?;
-                        let mp2_result = mp2_calc::uhf_unrestricted(&scf, mp2.frozen_orbitals)
-                            .into_diagnostic()?;
-                        if !json_output {
-                            let stdout = io::stdout();
-                            let mut reporter = Mp2Reporter::new(stdout.lock(), "UHF MP2");
-                            reporter
-                                .write_summary(&mp2_result, &result)
-                                .into_diagnostic()?;
-                        }
-                        Some(mp2_result)
-                    } else {
-                        None
-                    };
-                    if json_output {
-                        let stdout = io::stdout();
-                        CalculationOutput::new(resolved_method, &result, mp2_result.as_ref())
-                            .write_json(stdout.lock())
-                            .into_diagnostic()?;
-                        println!();
-                    }
-                }
-            }
-        } else if run.mp2.is_some() {
-            return Err(miette::miette!("MP2 requires an [hf] section"));
-        }
         Ok(())
     }
 }

@@ -3,9 +3,9 @@
 use std::time::Instant;
 
 use crate::{
+    config::validated::DiisSize,
     eri::{electron_repulsion_ints, index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
-    runfile::validated::DiisSize,
 };
 use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
@@ -20,8 +20,8 @@ use super::{
     diis::DiisAccelerator,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_observer::{NoopScfObserver, ScfObserver},
     scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
+    scf_setup::ScfSetupStep,
 };
 use thiserror::Error;
 
@@ -115,13 +115,13 @@ impl<'a> ScfCalculation<'a> {
     where
         G: DensityGuess,
         G::Error: 'static,
-        F: FnMut(&str),
+        F: FnMut(ScfSetupStep),
     {
         let setup_start = Instant::now();
         let mut setup_timings = ScfSetupTimings::default();
 
         // Calculate the T and V matrices
-        progress("Building one-electron core Hamiltonian");
+        progress(ScfSetupStep::CoreHamiltonian);
         let step_start = Instant::now();
         let (t_matrix, v_matrix) = core_hamiltonian_ints(molecule, basis);
         setup_timings.core_hamiltonian = step_start.elapsed();
@@ -129,12 +129,12 @@ impl<'a> ScfCalculation<'a> {
         // H_core = T + V
         let h_core = &t_matrix + &v_matrix;
 
-        progress("Building overlap matrix");
+        progress(ScfSetupStep::OverlapMatrix);
         let step_start = Instant::now();
         let overlap_matrix = basis.overlap_ints();
         setup_timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
-        progress("Building overlap orthogonalizer");
+        progress(ScfSetupStep::OverlapOrthogonalizer);
         let step_start = Instant::now();
         let orthogonalization_result =
             orthogonalizer(&overlap_matrix, "overlap", linear_dependency_threshold)?;
@@ -143,25 +143,16 @@ impl<'a> ScfCalculation<'a> {
         let occupied_orbitals = molecule.occupied_orbitals();
         ensure_sufficient_rank(orthogonalization, occupied_orbitals)?;
         setup_timings.orthogonalizer = step_start.elapsed();
-        progress(
-            format!(
-                "Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})",
-                orthogonalization.effective_rank,
-                orthogonalization.basis_dimension,
-                orthogonalization.discarded_directions,
-                orthogonalization.relative_threshold,
-            )
-            .as_str(),
-        );
+        progress(ScfSetupStep::OverlapOrthogonalized(orthogonalization));
 
         // Calculate the two-electron integrals
-        progress("Building electron repulsion integrals");
+        progress(ScfSetupStep::ElectronRepulsionIntegrals);
         let step_start = Instant::now();
         let two_electron_integrals: CompactEri = electron_repulsion_ints(basis)?;
         setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
         // Initialize density matrix using a density guess builder
-        progress("Building initial density guess");
+        progress(ScfSetupStep::InitialDensityGuess);
         let step_start = Instant::now();
         let orbital_guess = density_guess_builder
             .build_orbital_guess(&h_core, basis)
@@ -242,13 +233,12 @@ impl<'a> ScfCalculation<'a> {
     /// Execute the SCF calculation loop
     #[allow(dead_code)]
     pub fn run(&mut self) -> Result<ScfResult, NumericalError> {
-        let mut observer = NoopScfObserver;
-        self.run_with_observer(&mut observer)
+        self.run_with_iterations(|_| {})
     }
 
-    pub fn run_with_observer<O>(&mut self, observer: &mut O) -> Result<ScfResult, NumericalError>
+    pub fn run_with_iterations<O>(&mut self, mut observer: O) -> Result<ScfResult, NumericalError>
     where
-        O: ScfObserver,
+        O: FnMut(&ScfIteration),
     {
         let mut energy_last = 0.0;
         let mut converged = false;
@@ -288,7 +278,7 @@ impl<'a> ScfCalculation<'a> {
                 delta_energy,
                 residual_norm: self.residual_norm,
             };
-            observer.on_iteration(&iteration);
+            observer(&iteration);
 
             if delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
@@ -300,7 +290,8 @@ impl<'a> ScfCalculation<'a> {
             energy_last = self.energy;
         }
         if converged {
-            delta_energy = self.canonicalize_final_fock(delta_energy, &mut iterations, observer)?;
+            delta_energy =
+                self.canonicalize_final_fock(delta_energy, &mut iterations, &mut observer)?;
         }
         self.timings.iterations = iterations_start.elapsed();
 
@@ -349,7 +340,7 @@ impl<'a> ScfCalculation<'a> {
         Ok(())
     }
 
-    fn canonicalize_final_fock<O: ScfObserver>(
+    fn canonicalize_final_fock<O: FnMut(&ScfIteration)>(
         &mut self,
         mut delta_energy: f64,
         iterations: &mut usize,
@@ -387,7 +378,7 @@ impl<'a> ScfCalculation<'a> {
             delta_energy = (self.energy - previous_energy).abs();
             ensure_finite_value(delta_energy, "SCF delta energy")?;
             *iterations += 1;
-            observer.on_iteration(&ScfIteration {
+            observer(&ScfIteration {
                 iteration: *iterations,
                 electronic_energy: self.energy,
                 delta_energy,
@@ -868,12 +859,14 @@ mod tests {
         let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 100, 1e-8);
         scf.enable_diis(DiisSize::try_new(6).unwrap());
 
-        let mut run_observer = crate::hf::scf_observer::RecordingScfObserver::default();
-        let result = scf.run_with_observer(&mut run_observer).unwrap();
+        let mut run_observer = Vec::new();
+        let result = scf
+            .run_with_iterations(|iteration| run_observer.push(iteration.clone()))
+            .unwrap();
 
         assert!(result.converged);
-        assert_eq!(result.iterations, run_observer.0.len());
-        let last = run_observer.0.last().unwrap();
+        assert_eq!(result.iterations, run_observer.len());
+        let last = run_observer.last().unwrap();
         assert_eq!(last.iteration, result.iterations);
         assert_eq!(last.electronic_energy, result.electronic_energy);
         assert_eq!(last.delta_energy, result.delta_energy);
@@ -885,32 +878,40 @@ mod tests {
             * DMatrix::from_diagonal(&scf.orbital_energies);
         assert_abs_diff_eq!((&lhs - &rhs).norm(), 0.0, epsilon = 1e-8);
 
-        let mut observer = crate::hf::scf_observer::RecordingScfObserver::default();
+        let mut observer = Vec::new();
         let mut iterations = result.iterations;
         // Force a refinement even though the preceding calculation converged.
         let delta = scf
-            .canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer)
+            .canonicalize_final_fock(
+                f64::INFINITY,
+                &mut iterations,
+                &mut |iteration: &ScfIteration| observer.push(iteration.clone()),
+            )
             .unwrap();
-        assert!(!observer.0.is_empty());
-        assert_eq!(iterations, result.iterations + observer.0.len());
+        assert!(!observer.is_empty());
+        assert_eq!(iterations, result.iterations + observer.len());
         assert!(iterations <= scf.max_iterations);
-        for (offset, step) in observer.0.iter().enumerate() {
+        for (offset, step) in observer.iter().enumerate() {
             assert_eq!(step.iteration, result.iterations + offset + 1);
         }
-        let last = observer.0.last().unwrap();
+        let last = observer.last().unwrap();
         assert_eq!(last.electronic_energy, scf.energy);
         assert_eq!(last.delta_energy, delta);
         assert_eq!(last.residual_norm, scf.residual_norm);
 
         // An exhausted budget may verify orbitals, but cannot update density.
         scf.max_iterations = iterations;
-        let count = observer.0.len();
+        let count = observer.len();
         assert!(matches!(
-            scf.canonicalize_final_fock(f64::INFINITY, &mut iterations, &mut observer),
+            scf.canonicalize_final_fock(
+                f64::INFINITY,
+                &mut iterations,
+                &mut |iteration: &ScfIteration| observer.push(iteration.clone())
+            ),
             Err(NumericalError::FinalizationNotConverged { .. })
         ));
         assert_eq!(iterations, scf.max_iterations);
-        assert_eq!(observer.0.len(), count);
+        assert_eq!(observer.len(), count);
     }
 
     #[test]

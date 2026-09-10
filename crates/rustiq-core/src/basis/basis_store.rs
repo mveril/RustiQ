@@ -17,9 +17,18 @@ use tokio::io::AsyncWriteExt;
 use super::{basis_file::BasisFile, BasisId, InvalidBasisId};
 #[cfg(feature = "online")]
 use super::{basis_id::OwnedBasisId, metadata::BasisSetDetail};
-use crate::env::DATA_BASIS_PATH;
 #[cfg(feature = "online")]
-use crate::env::USER_AGENT;
+use const_format::formatcp;
+
+#[cfg(feature = "online")]
+const USER_AGENT: &str = formatcp!(
+    "{}/{} ({}; {}; +{})",
+    "RustiQ",
+    env!("CARGO_PKG_VERSION"),
+    std::env::consts::OS,
+    std::env::consts::ARCH,
+    env!("CARGO_PKG_REPOSITORY"),
+);
 
 #[cfg(feature = "online")]
 const BASE_URL: &str = "https://www.basissetexchange.org/";
@@ -373,13 +382,14 @@ impl BasisStore {
     /// Missing files are ignored so repeated removals are idempotent.
     ///
     /// # Errors
-    /// This function returns an [`io::Result<()>`]. If any file cannot be removed for a reason other than not existing, the function will return an [`IO::Error`].
+    /// This function returns an [`io::Result<()>`]. If any file cannot be removed for a reason other than not existing, the function will return an [`io::Error`].
     /// It stops at the first error encountered and doesn't attempt to remove further files.
     ///
     /// # Examples
     /// ```rust
     /// # use rustiq_core::basis::BasisStore;
-    /// # let store = BasisStore::new(&std::env::temp_dir().join("rustiq-doc-basis-store-remove"));
+    /// # let directory = tempfile::tempdir().expect("temporary basis directory");
+    /// # let store = BasisStore::new(&directory);
     /// let names = vec!["basis1", "basis2", "basis3"];
     /// store.remove(names).expect("Failed to remove files");
     /// ```
@@ -410,12 +420,6 @@ impl BasisStore {
             fs::remove_dir_all(&self.path)?;
         }
         Ok(())
-    }
-}
-
-impl Default for BasisStore {
-    fn default() -> Self {
-        Self::new(&*DATA_BASIS_PATH)
     }
 }
 
@@ -537,7 +541,7 @@ impl From<DownloadSaveError> for DownloadParseSaveError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, path::PathBuf};
+    use std::path::PathBuf;
 
     struct FailingReader(bool);
 
@@ -546,7 +550,7 @@ mod tests {
             if self.0 {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
-                    "simulated read failure",
+                    "simulated read error",
                 ));
             }
 
@@ -558,19 +562,8 @@ mod tests {
     }
 
     #[test]
-    fn test_default_uses_rustiq_data_home() {
-        temp_env::with_var("RUSTIQ_DATA_HOME", Some("/tmp/rustiq-data-home"), || {
-            let store = BasisStore::default();
-            let expected = PathBuf::from("/tmp/rustiq-data-home")
-                .join("RustiQ")
-                .join("basis_sets");
-            assert_eq!(store.path(), expected);
-        });
-    }
-
-    #[test]
     fn test_get_returns_none_for_missing_basis_file() {
-        let temp_dir = env::temp_dir().join("rustiq-basis-store-missing");
+        let temp_dir = tempfile::tempdir().unwrap();
         let store = BasisStore::new(&temp_dir);
 
         let basis = store.get("missing").unwrap();
@@ -580,7 +573,8 @@ mod tests {
 
     #[test]
     fn test_rejects_invalid_basis_names() {
-        let store = BasisStore::new(&env::temp_dir().join("rustiq-basis-store-validation"));
+        let directory = tempfile::tempdir().unwrap();
+        let store = BasisStore::new(&directory);
 
         for name in ["", ".", "..", "..\\escape", "C:\\escape"] {
             let error = store.get(name).unwrap_err();

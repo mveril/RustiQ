@@ -51,7 +51,7 @@ fn assert_success(output: &Output) {
     );
 }
 
-fn assert_failure(output: &Output) {
+fn assert_error(output: &Output) {
     assert!(
         !output.status.success(),
         "CLI succeeded unexpectedly with stdout:\n{}",
@@ -178,7 +178,7 @@ type = "CoreHamiltonian"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -261,7 +261,7 @@ type = "CoreHamiltonian"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -311,7 +311,7 @@ format = "Nope"
 fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
     let output = run_rustiq(&["run", "samples/invalid_diagnostics.toml"]);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("runfile contains 4 configuration error(s)"));
@@ -319,6 +319,88 @@ fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
     assert!(stderr.contains("The HF iteration limit must be an integer greater than zero."));
     assert!(stderr.contains("The HF convergence threshold must be a positive finite number."));
     assert!(stderr.contains("The MP2 frozen orbital count must be a non-negative integer."));
+}
+
+#[test]
+fn test_cli_scientific_errors_label_the_original_runfile() {
+    let directory = tempfile::tempdir().unwrap();
+    prepare_basis_store(directory.path());
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let path = directory.path().join("scientific-input.toml");
+    for (fields, expected, label, source_line) in [
+        (
+            "[global.molecule]\ncharge = 1\nmultiplicity = 2\n[hf]\nmethod = 'Rhf'\n",
+            "RHF requires a closed-shell singlet",
+            "requested HF method",
+            "method = 'Rhf'",
+        ),
+        (
+            "[hf]\nlinear_dependency_threshold = 1.0\n",
+            "effective overlap rank",
+            "SCF configuration",
+            "linear_dependency_threshold = 1.0",
+        ),
+        (
+            "[hf]\n[mp2]\nfrozen_orbitals = 2\n",
+            "frozen orbitals (2)",
+            "frozen orbital count",
+            "frozen_orbitals = 2",
+        ),
+        (
+            "[global.molecule]\ncharge = 1\nmultiplicity = 1\n[hf]\n",
+            "invalid electron configuration",
+            "spin multiplicity",
+            "multiplicity = 1",
+        ),
+    ] {
+        fs::write(
+            &path,
+            format!("# user source\n[global]\nbasis = 'sto-3g'\n{fields}"),
+        )
+        .unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+            .args(["run", path.to_str().unwrap(), "--format", "json"])
+            .env("RUSTIQ_DATA_HOME", directory.path())
+            .env("RUSTIQ_AUTO_DOWNLOAD", "0")
+            .env("NO_COLOR", "1")
+            .output()
+            .unwrap();
+        assert_error(&output);
+        assert!(output.stdout.is_empty());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        for text in [expected, label, source_line, "scientific-input.toml"] {
+            assert!(
+                stderr.contains(text),
+                "missing {text:?} in diagnostic:\n{stderr}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_cli_uses_default_hf_when_requesting_mp2_without_hf_section() {
+    let directory = tempfile::tempdir().unwrap();
+    prepare_basis_store(directory.path());
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let path = directory.path().join("mp2-without-hf.toml");
+    fs::write(&path, "[global]\nbasis = 'sto-3g'\n[mp2]\n").unwrap();
+    let output = run_rustiq_with_data_home(
+        &["run", path.to_str().unwrap(), "--format", "json"],
+        directory.path(),
+    );
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"method\":\"RHF\""));
+    assert!(stdout.contains("\"method\":\"RHF-MP2\""));
 }
 
 #[test]
@@ -349,7 +431,7 @@ geometry = "{geometry_path}"
 
     let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("geometry contains 3 atom line error(s)"));
@@ -379,7 +461,7 @@ geometry = "{geometry_path}"
 
     let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("invalid XYZ atom count"));

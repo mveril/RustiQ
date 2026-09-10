@@ -127,7 +127,7 @@ pub struct NormalizedPrimitive {
 }
 
 impl Basis {
-    pub fn new(shells: Vec<Shell>) -> Self {
+    pub(crate) fn new(shells: Vec<Shell>) -> Self {
         let mut shell_ids = Vec::new();
         let mut angular_momenta = Vec::new();
         let mut angular_components = Vec::new();

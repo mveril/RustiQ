@@ -1,14 +1,12 @@
 use self::one_electron::OneElectron;
 use self::random::Random;
 use crate::basis::gaussian::basis::Basis;
+use crate::config::hf::{DensityGuessConfig, GuessPerturbationConfig};
+use crate::config::random_config::distribution_config::{DistributionCreationError, RandomSampler};
 use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::zero::Zero;
 use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
 use crate::hf::uhf::Spin;
-use crate::runfile::hf::{DensityGuessConfig, GuessPerturbationConfig};
-use crate::runfile::random_config::distribution_config::{
-    DistributionCreationError, RandomSampler,
-};
 use nalgebra::{DMatrix, DVector};
 use std::error::Error;
 use thiserror::Error;
@@ -126,16 +124,14 @@ fn sort_orbitals(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::hf::{GuessPerturbationConfig, RandomGuessConfig};
+    use crate::config::random_config::distribution_config::NormalDistributionConfig;
+    use crate::config::random_config::DistributionConfig;
+    use crate::config::validated::PositiveFiniteF64;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::orthogonalization::orthogonalizer as build_orthogonalizer;
     use crate::molecules::molecule::Molecule;
-    use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
-    use crate::runfile::random_config::distribution_config::NormalDistributionConfig;
-    use crate::runfile::random_config::DistributionConfig;
-    use crate::runfile::validated::PositiveFiniteF64;
     use crate::test_utils;
-    use std::mem::discriminant;
-    use toml_spanner::Toml;
 
     trait DensityGuessTestExt: DensityGuess
     where
@@ -190,7 +186,7 @@ mod tests {
 
     fn perturbation(seed: u64) -> GuessPerturbationConfig {
         GuessPerturbationConfig {
-            random: crate::runfile::random_config::RandomConfig {
+            random: crate::config::random_config::RandomConfig {
                 distribution: DistributionConfig::Normal {
                     config: NormalDistributionConfig {
                         mean: 0.0,
@@ -391,54 +387,5 @@ mod tests {
         assert_eq!(first, second);
         assert_symmetric(&first);
         assert_finite(&first);
-    }
-
-    #[test]
-    fn test_density_guess_type_deserialization() {
-        #[derive(Toml)]
-        #[toml(FromToml)]
-        struct GuessConfig {
-            guess: crate::runfile::hf::DensityGuessConfig,
-        }
-
-        for (toml, expected) in [
-            (
-                r#"
-                [guess]
-                type = "OneElectron"
-                "#,
-                DensityGuessConfig::OneElectron { perturbation: None },
-            ),
-            (
-                r#"
-                [guess]
-                type = "Random"
-                distribution = "Uniform"
-                min = -1.0
-                max = 1.0
-                "#,
-                DensityGuessConfig::Random {
-                    config: RandomGuessConfig::default(),
-                },
-            ),
-            (
-                r#"
-                [guess]
-                type = "Zero"
-                "#,
-                DensityGuessConfig::Zero,
-            ),
-            (
-                r#"
-                [guess]
-                type = "CoreHamiltonian"
-                "#,
-                DensityGuessConfig::CoreHamiltonian { perturbation: None },
-            ),
-        ] {
-            let config: GuessConfig = toml_spanner::from_str(toml).unwrap();
-            assert_eq!(discriminant(&config.guess), discriminant(&expected));
-            let _density_guess = config.guess;
-        }
     }
 }

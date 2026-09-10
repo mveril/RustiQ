@@ -14,13 +14,11 @@ bench-support = []
 
 [dependencies]
 miette.workspace = true
-toml-spanner.workspace = true
 reqwest = { version = "0.13", default-features = false, optional = true, features = [
   "json",
   "blocking",
   "rustls",
 ] }
-dirs = "7"
 nalgebra.workspace = true
 physical_constants = "0.5"
 periodic_table.workspace = true
@@ -45,4 +43,3 @@ approx.workspace = true
 nalgebra = { workspace = true, features = ["macros"] }
 ndarray = "0.17"
 proptest.workspace = true
-temp-env.workspace = true

@@ -11,6 +11,7 @@ dependencies = [
  "cfg-if",
  "clap",
  "delegate",
+ "dirs",
  "figlet-rs",
  "humantime",
  "indicatif",
@@ -2449,7 +2450,6 @@ dependencies = [
  "bounded-vec-deque",
  "const_format",
  "delegate",
- "dirs",
  "factorial",
  "miette",
  "nalgebra",
@@ -2466,11 +2466,9 @@ dependencies = [
  "serde_json",
  "smallvec",
  "special",
- "temp-env",
  "tempfile",
  "thiserror",
  "tokio",
- "toml-spanner",
 ]
 
 [[package]]

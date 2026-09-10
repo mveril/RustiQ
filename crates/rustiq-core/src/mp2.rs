@@ -211,7 +211,7 @@ fn build_ovov_integrals(input: &Mp2Input<'_>) -> DMatrix<f64> {
     orbital_pair_transform.transpose() * ao_pair_matrix * orbital_pair_transform
 }
 
-fn uhf_correlation_energy(
+pub(crate) fn uhf_correlation_energy(
     alpha: Mp2SpinInput<'_>,
     beta: Mp2SpinInput<'_>,
     two_electron_integrals: &CompactEri,
@@ -461,11 +461,11 @@ fn opposite_spin_correlation_energy(
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Mp2SpinInput<'a> {
-    mo_coefficients: &'a DMatrix<f64>,
-    orbital_energies: &'a DVector<f64>,
-    occupied_orbitals: usize,
-    frozen_orbitals: usize,
+pub(crate) struct Mp2SpinInput<'a> {
+    pub(crate) mo_coefficients: &'a DMatrix<f64>,
+    pub(crate) orbital_energies: &'a DVector<f64>,
+    pub(crate) occupied_orbitals: usize,
+    pub(crate) frozen_orbitals: usize,
 }
 
 fn pair_transform_coefficient(

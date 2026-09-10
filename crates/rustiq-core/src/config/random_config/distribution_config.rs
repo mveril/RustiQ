@@ -1,7 +1,7 @@
 mod normal_distribution_config;
 mod uniform_distribution_config;
-pub(crate) use normal_distribution_config::NormalDistributionConfig;
-pub(crate) use uniform_distribution_config::UniformDistributionConfig;
+pub use normal_distribution_config::NormalDistributionConfig;
+pub use uniform_distribution_config::UniformDistributionConfig;
 
 use delegate::delegate;
 use rand::distr::{
@@ -11,19 +11,11 @@ use rand::distr::{
 use rand::rngs::StdRng;
 use rand_distr::{Normal, NormalError};
 use thiserror::Error;
-use toml_spanner::{helper::flatten_any, Toml};
 
-#[derive(Debug, Clone, Copy, Toml)]
-#[toml(Toml, tag = "distribution")]
-pub(crate) enum DistributionConfig {
-    Uniform {
-        #[toml(flatten, with = flatten_any)]
-        config: UniformDistributionConfig,
-    },
-    Normal {
-        #[toml(flatten, with = flatten_any)]
-        config: NormalDistributionConfig,
-    },
+#[derive(Debug, Clone, Copy)]
+pub enum DistributionConfig {
+    Uniform { config: UniformDistributionConfig },
+    Normal { config: NormalDistributionConfig },
 }
 #[derive(Debug, Error)]
 #[error("Random distribution creation error: {0}")]
@@ -122,52 +114,5 @@ impl From<RandomSampleIter<Uniform<f64>>> for SelectedSampleIter {
 impl From<RandomSampleIter<Normal<f64>>> for SelectedSampleIter {
     fn from(value: RandomSampleIter<Normal<f64>>) -> Self {
         SelectedSampleIter::NormalSampleIter(value)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_normal_distribution_rejects_non_positive_std_dev() {
-        let zero = toml_spanner::from_str::<DistributionConfig>(
-            r#"
-            distribution = "Normal"
-            mean = 0.0
-            std_dev = 0.0
-            "#,
-        );
-        let negative = toml_spanner::from_str::<DistributionConfig>(
-            r#"
-            distribution = "Normal"
-            mean = 0.0
-            std_dev = -0.1
-            "#,
-        );
-
-        assert!(zero.is_err());
-        assert!(negative.is_err());
-    }
-
-    #[test]
-    fn test_uniform_distribution_rejects_invalid_range() {
-        let equal = toml_spanner::from_str::<DistributionConfig>(
-            r#"
-            distribution = "Uniform"
-            min = 1.0
-            max = 1.0
-            "#,
-        );
-        let reversed = toml_spanner::from_str::<DistributionConfig>(
-            r#"
-            distribution = "Uniform"
-            min = 1.0
-            max = -1.0
-            "#,
-        );
-
-        assert!(equal.is_err());
-        assert!(reversed.is_err());
     }
 }

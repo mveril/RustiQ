@@ -1,13 +1,10 @@
 use std::io::{self, Write};
 
-use rustiq_core::hf::{
-    scf_iteration::ScfIteration, scf_observer::ScfObserver, scf_result::ScfResult,
-};
+use rustiq_core::calculation::{ScfIteration, ScfResult};
 
 pub(crate) struct ScfReporter<W> {
     writer: W,
     header_written: bool,
-    write_error: Option<io::Error>,
 }
 
 impl<W> ScfReporter<W>
@@ -18,12 +15,11 @@ where
         Self {
             writer,
             header_written: false,
-            write_error: None,
         }
     }
 
-    pub(crate) fn take_error(&mut self) -> Option<io::Error> {
-        self.write_error.take()
+    pub(crate) fn writer_mut(&mut self) -> &mut W {
+        &mut self.writer
     }
 
     pub(crate) fn write_summary(&mut self, result: &ScfResult) -> io::Result<()> {
@@ -159,17 +155,8 @@ where
         }
         Ok(())
     }
-}
-
-impl<W> ScfObserver for ScfReporter<W>
-where
-    W: Write,
-{
-    fn on_iteration(&mut self, iteration: &ScfIteration) {
-        if self.write_error.is_some() {
-            return;
-        }
-        let result = self.write_header().and_then(|()| {
+    pub(crate) fn write_iteration(&mut self, iteration: &ScfIteration) -> io::Result<()> {
+        self.write_header().and_then(|()| {
             writeln!(
                 self.writer,
                 "{:>4} {:>18.10} {:>14.6e} {:>14.6e}",
@@ -178,28 +165,28 @@ where
                 iteration.delta_energy,
                 iteration.residual_norm
             )
-        });
-        if let Err(err) = result {
-            self.write_error = Some(err);
-        }
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
 
     #[test]
     fn test_scf_reporter_writes_iteration_and_summary() {
         let mut output = Vec::new();
         {
             let mut reporter = ScfReporter::new(&mut output);
-            reporter.on_iteration(&ScfIteration {
-                iteration: 1,
-                electronic_energy: -1.0,
-                delta_energy: 1.0,
-                residual_norm: 0.1,
-            });
+            reporter
+                .write_iteration(&ScfIteration {
+                    iteration: 1,
+                    electronic_energy: -1.0,
+                    delta_energy: 1.0,
+                    residual_norm: 0.1,
+                })
+                .unwrap();
             reporter
                 .write_summary(&ScfResult {
                     converged: true,
@@ -209,14 +196,13 @@ mod tests {
                     total_energy: -0.8,
                     delta_energy: 1.0,
                     residual_norm: 0.1,
-                    energy_details: rustiq_core::hf::scf_energy_details::ScfEnergyDetails {
+                    energy_details: ScfEnergyDetails {
                         kinetic_energy: 0.3,
                         nuclear_attraction_energy: -1.5,
                         electron_repulsion_energy: 0.2,
                     },
-                    orthogonalization:
-                        rustiq_core::hf::orthogonalization::OrthogonalizationInfo::default(),
-                    timings: rustiq_core::hf::scf_result::ScfTimings::default(),
+                    orthogonalization: OrthogonalizationInfo::default(),
+                    timings: ScfTimings::default(),
                 })
                 .unwrap();
         }
