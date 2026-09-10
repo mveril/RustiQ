@@ -51,7 +51,7 @@ fn assert_success(output: &Output) {
     );
 }
 
-fn assert_failure(output: &Output) {
+fn assert_error(output: &Output) {
     assert!(
         !output.status.success(),
         "CLI succeeded unexpectedly with stdout:\n{}",
@@ -178,7 +178,7 @@ type = "CoreHamiltonian"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -261,7 +261,7 @@ type = "CoreHamiltonian"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -311,7 +311,7 @@ format = "Nope"
 fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
     let output = run_rustiq(&["run", "samples/invalid_diagnostics.toml"]);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("runfile contains 4 configuration error(s)"));
@@ -369,7 +369,7 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
             .env("NO_COLOR", "1")
             .output()
             .unwrap();
-        assert_failure(&output);
+        assert_error(&output);
         assert!(output.stdout.is_empty());
         let stderr = String::from_utf8_lossy(&output.stderr);
         for text in [expected, label, source_line, "scientific-input.toml"] {
@@ -431,7 +431,7 @@ geometry = "{geometry_path}"
 
     let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("geometry contains 3 atom line error(s)"));
@@ -461,7 +461,7 @@ geometry = "{geometry_path}"
 
     let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
 
-    assert_failure(&output);
+    assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("invalid XYZ atom count"));

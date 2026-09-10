@@ -99,7 +99,7 @@ The interesting argument for Rust is different:
 
 - Rust makes ownership and mutation explicit, which helps when large tensors,
   matrices, caches, and temporary workspaces start interacting.
-- Typed errors with `thiserror` and `miette` make failure modes part
+- Typed errors with `thiserror` and `miette` make error cases part
   of the design instead of an afterthought.
 - Cargo makes dependency management, testing, feature flags, formatting, and
   reproducible builds standard rather than project-specific infrastructure.
@@ -159,7 +159,7 @@ large legacy interface:
 - MP2 is implemented as a post-HF layer that depends on converged HF orbitals;
 - the code checks that MP2 is not run on an unconverged HF result;
 - open-shell examples resolve to UHF and are tested through the CLI;
-- numerical failure modes are not only strings; finite values, dimensions,
+- numerical errors are not only strings; finite values, dimensions,
   orbital partitions, and overlap positive-definiteness are checked explicitly;
 - sample outputs can be compared to reference packages such as PySCF;
 - the codebase is small enough that SCF, UHF, ERIs, and MP2 can be located
@@ -686,7 +686,7 @@ preferences) and converted scientific options with spans in the original text.
 Direct `From` conversions are also available and leave spans empty. Other
 frontends can supply Miette spans via `Located<T>`, which keeps each relevant value together with its optional
 source span. `Located::into_inner()` extracts the value and discards provenance. Scientific errors own neither source text nor a renderer;
-the CLI attaches its `NamedSource` to the returned report. Numerical failures
+the CLI attaches its `NamedSource` to the returned report. Numerical errors
 that cannot identify a configuration value have no artificial location.
 Command handling, working-directory changes, and terminal presentation remain
 in `src/cli/`. See `crates/rustiq-core/tests/public_api.rs` for complete direct

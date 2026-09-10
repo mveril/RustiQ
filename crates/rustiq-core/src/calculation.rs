@@ -3,7 +3,7 @@
 //! [`CalculationBuilder`] validates options, converts coordinates to Bohr, builds
 //! the basis and orchestrates HF/MP2. Its prepared inputs can be reused.
 //! [`PreparedCalculation::run_hf`] produces an owned [`HfSolution`] reusable for MP2.
-//! Execution failures retain completed HF output. File loading remains with the caller.
+//! Execution errors retain completed HF output. File loading remains with the caller.
 
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
@@ -11,7 +11,7 @@ use thiserror::Error;
 mod setup_error;
 pub use setup_error::HfSetupError;
 mod solution;
-pub use solution::{CalculationFailure, HfSolution};
+pub use solution::{CalculationExecutionError, HfSolution};
 mod builder;
 mod execution;
 mod prepared_calculation;
@@ -47,7 +47,7 @@ use crate::{
     mp2,
 };
 
-/// Typed failures with optional input locations, but no source text or renderer.
+/// Typed errors with optional input locations, but no source text or renderer.
 #[derive(Debug, Error, Diagnostic)]
 pub enum CalculationError {
     #[error(transparent)]

@@ -38,7 +38,7 @@ struct ImportBatchError {
     failed: usize,
 
     #[related]
-    failures: Vec<ImportFileError>,
+    errors: Vec<ImportFileError>,
 }
 
 impl ImportCommand {
@@ -59,7 +59,7 @@ impl Runnable for ImportCommand {
         let store = crate::cli::env::basis_store();
 
         let mut succeeded = 0;
-        let mut failures = Vec::new();
+        let mut errors = Vec::new();
 
         for path in &self.paths {
             match Self::import_one(&store, path) {
@@ -68,7 +68,7 @@ impl Runnable for ImportCommand {
                     println!("Basis {name} imported.");
                 }
                 Err(error) => {
-                    failures.push(ImportFileError {
+                    errors.push(ImportFileError {
                         path: path.clone(),
                         source: error.into(),
                     });
@@ -76,16 +76,16 @@ impl Runnable for ImportCommand {
             }
         }
 
-        if failures.is_empty() {
+        if errors.is_empty() {
             return Ok(());
         }
 
-        let failed = failures.len();
+        let failed = errors.len();
 
         Err(ImportBatchError {
             succeeded,
             failed,
-            failures,
+            errors,
         }
         .into())
     }

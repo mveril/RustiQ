@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::{CalculationFailure, HfSolution, ScfSetupStep};
+use super::{CalculationExecutionError, HfSolution, ScfSetupStep};
 use crate::{
     basis::Basis,
     calculation::{ScfIteration, ScfResult},
@@ -51,12 +51,12 @@ pub enum CalculationEvent<'a> {
 
 /// Shared execution interface for builders and prepared calculations.
 pub trait CalculationExecution {
-    fn execute(&self) -> Result<CalculationResult, CalculationFailure> {
+    fn execute(&self) -> Result<CalculationResult, CalculationExecutionError> {
         self.execute_with_events(|_| {})
     }
 
     fn execute_with_events(
         &self,
         events: impl FnMut(CalculationEvent<'_>),
-    ) -> Result<CalculationResult, CalculationFailure>;
+    ) -> Result<CalculationResult, CalculationExecutionError>;
 }

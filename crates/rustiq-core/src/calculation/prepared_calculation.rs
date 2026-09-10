@@ -1,6 +1,6 @@
 use super::{
-    CalculationEvent, CalculationExecution, CalculationFailure, CalculationResult, HfCalculation,
-    HfCalculationResult, HfSolution,
+    CalculationEvent, CalculationExecution, CalculationExecutionError, CalculationResult,
+    HfCalculation, HfCalculationResult, HfSolution,
 };
 use crate::{
     basis::Basis,
@@ -31,14 +31,14 @@ impl PreparedCalculation {
 
 impl PreparedCalculation {
     /// Run only HF, retaining orbitals and integrals for subsequent MP2.
-    pub fn run_hf(&self) -> Result<HfSolution, CalculationFailure> {
+    pub fn run_hf(&self) -> Result<HfSolution, CalculationExecutionError> {
         self.run_hf_with_events(|_| {})
     }
 
     pub fn run_hf_with_events(
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
-    ) -> Result<HfSolution, CalculationFailure> {
+    ) -> Result<HfSolution, CalculationExecutionError> {
         let (config, method) = &self.hf;
         events(CalculationEvent::HfStarted {
             method: *method,
@@ -63,7 +63,7 @@ impl CalculationExecution for PreparedCalculation {
     fn execute_with_events(
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
-    ) -> Result<CalculationResult, CalculationFailure> {
+    ) -> Result<CalculationResult, CalculationExecutionError> {
         let hf = self.run_hf_with_events(&mut events)?;
         let mp2 = self
             .mp2
@@ -74,7 +74,7 @@ impl CalculationExecution for PreparedCalculation {
                     hf: hf.summary(),
                     result: &result,
                 });
-                Ok::<_, CalculationFailure>(result)
+                Ok::<_, CalculationExecutionError>(result)
             })
             .transpose()?;
         Ok(CalculationResult { hf, mp2 })

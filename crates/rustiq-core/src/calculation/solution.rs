@@ -69,10 +69,10 @@ impl HfSolution {
         &self.0.summary
     }
 
-    /// Evaluate MP2 without rerunning HF. A failure retains this HF solution.
-    pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationFailure> {
+    /// Evaluate MP2 without rerunning HF. An error retains this HF solution.
+    pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         if !self.summary().scf.converged {
-            return Err(self.failure(CalculationError::HfNotConverged {
+            return Err(self.execution_error(CalculationError::HfNotConverged {
                 iterations: self.summary().scf.iterations,
             }));
         }
@@ -101,7 +101,7 @@ impl HfSolution {
             let span = matches!(error, mp2::Mp2Error::InvalidFrozenOrbitalCount { .. })
                 .then_some(config.frozen_orbitals.span)
                 .flatten();
-            self.failure(CalculationError::Mp2 { error, span })
+            self.execution_error(CalculationError::Mp2 { error, span })
         })?;
         Ok(Mp2Result {
             correlation_energy,
@@ -109,25 +109,25 @@ impl HfSolution {
         })
     }
 
-    fn failure(&self, cause: CalculationError) -> CalculationFailure {
-        CalculationFailure {
+    fn execution_error(&self, cause: CalculationError) -> CalculationExecutionError {
+        CalculationExecutionError {
             cause,
             hf: Some(self.clone()),
         }
     }
 }
 
-/// Execution failure with the completed HF stage, if one was produced.
+/// Execution error with the completed HF stage, if one was produced.
 #[derive(Debug, Error, Diagnostic)]
 #[error("{cause}")]
 #[diagnostic(forward(cause))]
-pub struct CalculationFailure {
+pub struct CalculationExecutionError {
     #[source]
     cause: CalculationError,
     hf: Option<HfSolution>,
 }
 
-impl CalculationFailure {
+impl CalculationExecutionError {
     pub fn cause(&self) -> &CalculationError {
         &self.cause
     }
@@ -139,7 +139,7 @@ impl CalculationFailure {
     }
 }
 
-impl From<CalculationError> for CalculationFailure {
+impl From<CalculationError> for CalculationExecutionError {
     fn from(cause: CalculationError) -> Self {
         Self { cause, hf: None }
     }

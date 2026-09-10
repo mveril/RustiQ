@@ -2,7 +2,7 @@ use super::{DensityGuessError, EriError, NumericalError};
 use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
 use thiserror::Error;
 
-/// Scientific setup failure shared by RHF and UHF.
+/// Scientific setup error shared by RHF and UHF.
 #[derive(Debug, Error)]
 pub enum HfSetupError {
     #[error(transparent)]

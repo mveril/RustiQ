@@ -40,19 +40,19 @@ fn solution(method: HfMethod, iterations: usize) -> HfSolution {
 }
 
 #[test]
-fn hf_outlives_inputs_and_can_retry_mp2_after_failure() {
+fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let hf = solution(method, 100);
         let first = hf.mp2(Mp2Config::default()).unwrap();
-        let failure = hf
+        let error = hf
             .mp2(Mp2Config {
                 frozen_orbitals: 99.into(),
             })
             .unwrap_err();
-        assert!(matches!(failure.cause(), CalculationError::Mp2 { .. }));
-        assert!(failure.hf().unwrap().summary().scf.converged);
+        assert!(matches!(error.cause(), CalculationError::Mp2 { .. }));
+        assert!(error.hf().unwrap().summary().scf.converged);
         drop(hf);
-        let recovered = failure.into_hf().unwrap();
+        let recovered = error.into_hf().unwrap();
         assert_eq!(first, recovered.mp2(Mp2Config::default()).unwrap());
         assert_eq!(first, recovered.clone().mp2(Mp2Config::default()).unwrap());
     }
@@ -63,27 +63,27 @@ fn unconverged_hf_is_retained_but_cannot_run_mp2() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let hf = solution(method, 1);
         assert!(!hf.summary().scf.converged);
-        let failure = hf.mp2(Mp2Config::default()).unwrap_err();
+        let error = hf.mp2(Mp2Config::default()).unwrap_err();
         assert!(matches!(
-            failure.cause(),
+            error.cause(),
             CalculationError::HfNotConverged { iterations: 1 }
         ));
-        assert!(!failure.into_hf().unwrap().summary().scf.converged);
+        assert!(!error.into_hf().unwrap().summary().scf.converged);
     }
 }
 
 #[test]
-fn preparation_failure_has_no_hf() {
+fn preparation_error_has_no_hf() {
     let geometry =
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
-    let failure = CalculationBuilder::new(&geometry, &file)
+    let error = CalculationBuilder::new(&geometry, &file)
         .with_molecule_config(MoleculeConfig {
             charge: 99.into(),
             ..Default::default()
         })
         .execute()
         .unwrap_err();
-    assert!(failure.hf().is_none());
-    assert!(matches!(failure.cause(), CalculationError::Molecule { .. }));
+    assert!(error.hf().is_none());
+    assert!(matches!(error.cause(), CalculationError::Molecule { .. }));
 }

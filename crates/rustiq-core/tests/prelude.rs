@@ -15,7 +15,7 @@ fn prelude_supports_builder_and_prepared_execution() {
             ..Default::default()
         })
         .with_mp2(Mp2Config::default());
-    let direct: Result<CalculationResult, CalculationFailure> = builder.execute();
+    let direct: Result<CalculationResult, CalculationExecutionError> = builder.execute();
     let direct = direct.unwrap();
     let prepared: PreparedCalculation = builder.prepare().unwrap();
     let result = prepared.execute().unwrap();

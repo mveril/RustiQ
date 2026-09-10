@@ -74,7 +74,7 @@ pub enum HfMethodResolutionError {
     RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
 }
 
-/// Failure while resolving the HF method from its configuration.
+/// Error while resolving the HF method from its configuration.
 #[derive(Debug, Error, Diagnostic)]
 #[error("{error}")]
 pub struct HfConfigError {

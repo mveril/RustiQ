@@ -550,7 +550,7 @@ mod tests {
             if self.0 {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
-                    "simulated read failure",
+                    "simulated read error",
                 ));
             }
 

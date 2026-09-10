@@ -10,7 +10,7 @@ use crate::molecules::{
     units::Units,
 };
 
-/// Failure while applying molecular configuration to a geometry.
+/// Error while applying molecular configuration to a geometry.
 ///
 /// The optional spans identify values in an input frontend, without retaining
 /// its source text or depending on calculation orchestration.

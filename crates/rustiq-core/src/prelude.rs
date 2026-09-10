@@ -25,7 +25,7 @@
 pub use crate::{
     basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationExecution, CalculationFailure, CalculationResult,
+        CalculationBuilder, CalculationExecution, CalculationExecutionError, CalculationResult,
         HfSolution, PreparedCalculation,
     },
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},

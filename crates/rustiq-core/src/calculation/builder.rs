@@ -6,7 +6,7 @@ use crate::{
 use std::time::Instant;
 
 use super::{
-    CalculationError, CalculationEvent, CalculationExecution, CalculationFailure,
+    CalculationError, CalculationEvent, CalculationExecution, CalculationExecutionError,
     CalculationResult, PreparedCalculation,
 };
 
@@ -146,7 +146,7 @@ impl CalculationExecution for CalculationBuilder<'_> {
     fn execute_with_events(
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
-    ) -> Result<CalculationResult, CalculationFailure> {
+    ) -> Result<CalculationResult, CalculationExecutionError> {
         self.prepare_with_events(&mut events)?
             .execute_with_events(events)
     }
