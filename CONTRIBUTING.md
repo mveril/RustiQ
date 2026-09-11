@@ -18,6 +18,18 @@ cargo build --workspace
 cargo test --workspace
 ```
 
+## Branch Naming
+
+Name every task branch using the `type/name` format, with a lowercase type and
+a lowercase, hyphen-separated English description. Choose a type that describes
+the work, such as `feature/*`, `fix/*`, `chore/*`, `docs/*`, `test/*`,
+`refactor/*`, `perf/*`, or `ci/*`. These are examples, not an exhaustive list;
+other appropriate types are allowed.
+
+Examples include `feature/add-xyz-parser`, `fix/scf-convergence`, and
+`chore/add-mp2-pyscf-reference-cases`. Do not create task branches without a type
+prefix.
+
 ## Checks Before Opening A Pull Request
 
 Run:

@@ -1,0 +1,18 @@
+[global]
+basis = "cc-pvdz"
+
+[global.molecule]
+geometry = "../molecule.xyz"
+
+[hf]
+method = "Rhf"
+convergence_threshold = 1e-12
+max_iterations = 80
+diis = true
+diis_size = 8
+
+[hf.guess]
+type = "CoreHamiltonian"
+
+[mp2]
+frozen_orbitals = 0
