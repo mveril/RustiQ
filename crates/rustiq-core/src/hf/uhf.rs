@@ -36,8 +36,8 @@ where
 
 #[derive(Debug, Clone, Copy)]
 pub struct Spin<T> {
-    pub alpha: T,
-    pub beta: T,
+    pub(crate) alpha: T,
+    pub(crate) beta: T,
 }
 
 impl<T> Spin<T> {
@@ -65,7 +65,7 @@ impl<T: Clone> Spin<T> {
 }
 
 pub(crate) type SpinDiisAccelerators = Spin<DiisAccelerator>;
-pub type SpinMatrices = Spin<DMatrix<f64>>;
+pub(crate) type SpinMatrices = Spin<DMatrix<f64>>;
 pub struct UhfCalculation<'a> {
     pub molecule: &'a Molecule,
     pub basis: &'a Basis,
