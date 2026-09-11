@@ -56,7 +56,6 @@ mod tests {
                         electronic_energy: -1.2,
                     },
                     &ScfResult {
-                        converged: true,
                         iterations: 1,
                         electronic_energy: -1.1,
                         nuclear_repulsion_energy: 0.3,

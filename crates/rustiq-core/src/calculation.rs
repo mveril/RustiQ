@@ -2,7 +2,8 @@
 //!
 //! [`CalculationBuilder`] validates options, converts coordinates to Bohr, builds
 //! the basis and orchestrates HF/MP2. Its prepared inputs can be reused.
-//! [`PreparedCalculation::run_hf`] produces an owned [`HfSolution`] reusable for MP2.
+//! [`PreparedCalculation::run_hf`] produces an owned [`HfOutcome`]. Its converged
+//! variant contains an [`HfSolution<Converged>`] reusable for MP2.
 //! Execution errors retain completed HF output. File loading remains with the caller.
 
 use miette::{Diagnostic, SourceSpan};
@@ -11,7 +12,8 @@ use thiserror::Error;
 mod setup_error;
 pub use setup_error::HfSetupError;
 mod solution;
-pub use solution::{CalculationExecutionError, HfSolution};
+use crate::hf::scf_result::ScfOutcome;
+pub use solution::{CalculationExecutionError, Converged, HfOutcome, HfSolution, Unconverged};
 mod builder;
 mod execution;
 mod prepared_calculation;
@@ -120,7 +122,7 @@ enum HfState<'a> {
 /// A configured RHF or UHF calculation using the canonical scientific engine.
 pub(crate) struct HfCalculation<'a> {
     state: HfState<'a>,
-    result: Option<ScfResult>,
+    result: Option<ScfOutcome>,
 }
 
 impl<'a> HfCalculation<'a> {
@@ -197,14 +199,14 @@ impl<'a> HfCalculation<'a> {
         }
     }
 
-    pub(crate) fn run(&mut self) -> Result<ScfResult, CalculationError> {
+    pub(crate) fn run(&mut self) -> Result<ScfOutcome, CalculationError> {
         self.run_with_iterations(|_| {})
     }
 
     pub(crate) fn run_with_iterations(
         &mut self,
         mut observer: impl FnMut(&ScfIteration),
-    ) -> Result<ScfResult, CalculationError> {
+    ) -> Result<ScfOutcome, CalculationError> {
         self.result = None;
         let result = match &mut self.state {
             HfState::Rhf(scf) => scf.run_with_iterations(&mut observer)?,
@@ -216,9 +218,12 @@ impl<'a> HfCalculation<'a> {
 
     /// Evaluate MP2 only after this calculation has produced converged orbitals.
     pub(crate) fn mp2(&self, config: &Mp2Config) -> Result<Mp2Result, CalculationError> {
-        if !self.result.as_ref().is_some_and(|result| result.converged) {
+        if !matches!(self.result, Some(ScfOutcome::Converged(_))) {
             return Err(CalculationError::HfNotConverged {
-                iterations: self.result.as_ref().map_or(0, |result| result.iterations),
+                iterations: self
+                    .result
+                    .as_ref()
+                    .map_or(0, |result| result.summary().iterations),
             });
         }
         match &self.state {

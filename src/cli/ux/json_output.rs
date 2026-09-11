@@ -51,7 +51,12 @@ pub(crate) struct Mp2ResultOutput {
 }
 
 impl CalculationOutput {
-    pub(crate) fn new(method: ResolvedHfMethod, hf: &ScfResult, mp2: Option<&Mp2Result>) -> Self {
+    pub(crate) fn new(
+        method: ResolvedHfMethod,
+        hf: &ScfResult,
+        converged: bool,
+        mp2: Option<&Mp2Result>,
+    ) -> Self {
         let mp2_method = match method {
             ResolvedHfMethod::Rhf => "RHF-MP2",
             ResolvedHfMethod::Uhf => "UHF-MP2",
@@ -59,7 +64,7 @@ impl CalculationOutput {
         Self {
             schema_version: 1,
             calculation: CalculationResultOutput {
-                hf: HfResultOutput::from((method, hf)),
+                hf: HfResultOutput::from((method, hf, converged)),
                 mp2: mp2.map(|result| Mp2ResultOutput {
                     method: mp2_method,
                     correlation_energy: result.correlation_energy,
@@ -104,14 +109,14 @@ impl CalculationOutput {
     }
 }
 
-impl From<(ResolvedHfMethod, &ScfResult)> for HfResultOutput {
-    fn from((method, result): (ResolvedHfMethod, &ScfResult)) -> Self {
+impl From<(ResolvedHfMethod, &ScfResult, bool)> for HfResultOutput {
+    fn from((method, result, converged): (ResolvedHfMethod, &ScfResult, bool)) -> Self {
         Self {
             method: match method {
                 ResolvedHfMethod::Rhf => "RHF",
                 ResolvedHfMethod::Uhf => "UHF",
             },
-            converged: result.converged,
+            converged,
             iterations: result.iterations,
             electronic_energy: result.electronic_energy,
             nuclear_repulsion_energy: result.nuclear_repulsion_energy,
@@ -143,7 +148,6 @@ mod tests {
 
     fn scf_result() -> ScfResult {
         ScfResult {
-            converged: true,
             iterations: 2,
             electronic_energy: -1.831_863_646_477_507,
             nuclear_repulsion_energy: 0.715_104_339_081_081,
@@ -167,7 +171,7 @@ mod tests {
 
     #[test]
     fn json_output_is_valid_and_preserves_hf_values() {
-        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &scf_result(), None);
+        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &scf_result(), true, None);
         let mut bytes = Vec::new();
         output.write_json(&mut bytes).unwrap();
         let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -192,7 +196,7 @@ mod tests {
             correlation_energy: -0.013_138_073_589_533,
             electronic_energy: -1.845_001_720_067_04,
         };
-        let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &scf_result(), Some(&mp2));
+        let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &scf_result(), true, Some(&mp2));
         let value = serde_json::to_value(&output).unwrap();
 
         assert_eq!(value["calculation"]["hf"]["method"], "UHF");
@@ -210,7 +214,7 @@ mod tests {
     fn json_output_rejects_non_finite_values() {
         let mut result = scf_result();
         result.total_energy = f64::NAN;
-        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, None);
+        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, true, None);
         assert!(output.write_json(Vec::new()).is_err());
     }
 }

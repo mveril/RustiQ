@@ -651,8 +651,11 @@ The builder follows the `WSLCommand` conventions from WSLPlugins-rs: mutable
 setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
 `PreparedCalculation` retains the validated molecule and basis and can be
 executed repeatedly through the shared `CalculationExecution` trait.
-The lower-level `HfCalculation` remains available for callers supplying an
-already constructed molecule in Bohr and its corresponding basis.
+`run_hf()` returns `HfOutcome::Converged(HfSolution<Converged>)` or
+`HfOutcome::Unconverged(HfSolution<Unconverged>)`. Both retain the HF summary,
+orbitals and integrals; only the converged type exposes `mp2()`. Cloning a
+solution shares its immutable scientific data. Execution errors retain the
+completed `HfOutcome`, when available, including after an MP2 failure.
 
 TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
 `toml-spanner` dependency or runfile feature, even with all its features enabled.
@@ -679,6 +682,23 @@ let calculation = CalculationBuilder::new(&geometry, &basis_file)
     .with_hf(HfConfig { diis: true, ..Default::default() })
     .with_mp2(Mp2Config::default());
 let result = calculation.execute()?;
+```
+
+To run HF once and reuse converged orbitals for MP2:
+
+```rust
+use rustiq_core::calculation::HfOutcome;
+
+let prepared = calculation.prepare()?;
+match prepared.run_hf()? {
+    HfOutcome::Converged(hf) => {
+        let mp2 = hf.mp2(Mp2Config::default())?;
+        println!("MP2 correlation: {}", mp2.correlation_energy);
+    }
+    HfOutcome::Unconverged(hf) => {
+        println!("HF did not converge after {} iterations", hf.summary().scf.iterations);
+    }
+}
 ```
 
 The CLI's `parse_runfile` returns both the frontend representation (including output

@@ -187,6 +187,61 @@ type = "CoreHamiltonian"
 }
 
 #[test]
+fn test_cli_hf_outcomes_preserve_text_and_json_output() {
+    let directory = tempfile::tempdir().unwrap();
+    prepare_basis_store(directory.path());
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let path = directory.path().join("calculation.toml");
+    for method in ["Rhf", "Uhf"] {
+        for (iterations, converged) in [(1, false), (100, true)] {
+            fs::write(
+                &path,
+                format!(
+                    r#"
+[global]
+basis = "sto-3g"
+[global.molecule]
+geometry = "molecule.xyz"
+[hf]
+method = "{method}"
+max_iterations = {iterations}
+[hf.guess]
+type = "CoreHamiltonian"
+"#
+                ),
+            )
+            .unwrap();
+            let output =
+                run_rustiq_with_data_home(&["run", path.to_str().unwrap()], directory.path());
+            assert_success(&output);
+            let text = String::from_utf8_lossy(&output.stdout);
+            assert!(text.contains(if converged {
+                "SCF converged after"
+            } else {
+                "SCF did not converge after 1 iterations."
+            }));
+            let output = run_rustiq_with_data_home(
+                &["run", path.to_str().unwrap(), "--format", "json"],
+                directory.path(),
+            );
+            assert_success(&output);
+            let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(value["schema_version"], 1);
+            assert_eq!(value["calculation"]["hf"]["converged"], converged);
+            assert_eq!(value["calculation"]["hf"]["method"], method.to_uppercase());
+            assert!(value["calculation"].get("mp2").is_none());
+            if !converged {
+                assert_eq!(value["calculation"]["hf"]["iterations"], 1);
+            }
+        }
+    }
+}
+
+#[test]
 fn test_cli_open_shell_uhf_sample_converges() {
     let temp_root = temp_root("cli-open-shell-uhf-sample");
     prepare_basis_store(&temp_root);

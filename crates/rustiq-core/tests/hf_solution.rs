@@ -1,13 +1,13 @@
 use rustiq_core::{
     basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfSolution,
+        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfOutcome,
     },
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},
     molecules::{geometry::Geometry, units::Units},
 };
 
-fn solution(method: HfMethod, iterations: usize) -> HfSolution {
+fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
     let geometry =
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
@@ -42,17 +42,22 @@ fn solution(method: HfMethod, iterations: usize) -> HfSolution {
 #[test]
 fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
-        let hf = solution(method, 100);
+        let HfOutcome::Converged(hf) = solution(method, 100) else {
+            panic!("expected convergence");
+        };
         let first = hf.mp2(Mp2Config::default()).unwrap();
+        assert!(std::ptr::eq(hf.summary(), hf.clone().summary()));
         let error = hf
             .mp2(Mp2Config {
                 frozen_orbitals: 99.into(),
             })
             .unwrap_err();
         assert!(matches!(error.cause(), CalculationError::Mp2 { .. }));
-        assert!(error.hf().unwrap().summary().scf.converged);
+        assert!(matches!(error.hf(), Some(HfOutcome::Converged(_))));
         drop(hf);
-        let recovered = error.into_hf().unwrap();
+        let HfOutcome::Converged(recovered) = error.into_hf().unwrap() else {
+            panic!("expected convergence");
+        };
         assert_eq!(first, recovered.mp2(Mp2Config::default()).unwrap());
         assert_eq!(first, recovered.clone().mp2(Mp2Config::default()).unwrap());
     }
@@ -62,13 +67,15 @@ fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
 fn unconverged_hf_is_retained_but_cannot_run_mp2() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let hf = solution(method, 1);
-        assert!(!hf.summary().scf.converged);
-        let error = hf.mp2(Mp2Config::default()).unwrap_err();
-        assert!(matches!(
-            error.cause(),
-            CalculationError::HfNotConverged { iterations: 1 }
-        ));
-        assert!(!error.into_hf().unwrap().summary().scf.converged);
+        let HfOutcome::Unconverged(hf) = hf else {
+            panic!("expected unconverged HF");
+        };
+        assert_eq!(hf.summary().scf.iterations, 1);
+        assert!(hf.summary().scf.total_energy.is_finite());
+        assert_eq!(
+            hf.clone().summary().scf.total_energy,
+            hf.summary().scf.total_energy
+        );
     }
 }
 
