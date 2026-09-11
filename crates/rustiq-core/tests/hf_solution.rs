@@ -3,7 +3,7 @@ use rustiq_core::{
     calculation::{
         CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfOutcome,
     },
-    config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},
+    config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config, ResolvedHfMethod},
     molecules::{geometry::Geometry, units::Units},
 };
 
@@ -41,10 +41,14 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
 
 #[test]
 fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
-    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+    for (method, resolved_method) in [
+        (HfMethod::Rhf, ResolvedHfMethod::Rhf),
+        (HfMethod::Uhf, ResolvedHfMethod::Uhf),
+    ] {
         let HfOutcome::Converged(hf) = solution(method, 100) else {
             panic!("expected convergence");
         };
+        assert_eq!(hf.method(), resolved_method);
         let first = hf.mp2(Mp2Config::default()).unwrap();
         assert!(std::ptr::eq(hf.summary(), hf.clone().summary()));
         let error = hf

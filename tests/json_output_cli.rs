@@ -44,9 +44,11 @@ fn json_output(sample: &str) -> serde_json::Value {
 }
 
 fn assert_v1_shape(output: &serde_json::Value) {
-    let schema: serde_json::Value =
-        serde_json::from_str(include_str!("../schemas/calculation-output-v1.schema.json"))
-            .expect("valid calculation output schema");
+    let schema: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/schemas/calculation-output-v1.schema.json"
+    )))
+    .expect("valid calculation output schema");
     assert_eq!(
         schema["$schema"],
         "https://json-schema.org/draft/2020-12/schema"
