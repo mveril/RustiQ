@@ -8,21 +8,22 @@ use super::{CalculationError, HfCalculationResult, HfState, Mp2Result};
 use crate::{
     config::{Mp2Config, ResolvedHfMethod},
     eri::CompactEri,
+    hf::{component::HfComponent, uhf::Spin},
     mp2::{self, Mp2Input, Mp2SpinInput},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Orbitals {
     coefficients: DMatrix<f64>,
     energies: DVector<f64>,
+    /// Number of occupied spatial orbitals in this component.
     occupied: usize,
 }
 
 #[derive(Debug)]
 struct HfData {
     summary: HfCalculationResult,
-    alpha: Orbitals,
-    beta: Option<Orbitals>,
+    orbitals: HfComponent<Orbitals>,
     integrals: CompactEri,
 }
 
@@ -73,35 +74,36 @@ impl HfOutcome {
 
 impl<State> HfSolution<State> {
     pub(super) fn from_state(summary: HfCalculationResult, state: HfState<'_>) -> Self {
-        let (alpha, beta, integrals) = match state {
+        let (orbitals, integrals) = match state {
             HfState::Rhf(scf) => (
-                Orbitals {
+                HfComponent::Rhf(Orbitals {
                     coefficients: scf.mo_coefficients,
                     energies: scf.orbital_energies,
                     occupied: scf.occupied_orbitals,
-                },
-                None,
+                }),
                 scf.two_electron_integrals,
             ),
             HfState::Uhf(scf) => (
-                Orbitals {
-                    coefficients: scf.mo_coefficients.alpha,
-                    energies: scf.orbital_energies.alpha,
-                    occupied: scf.occupied_orbitals.alpha,
-                },
-                Some(Orbitals {
-                    coefficients: scf.mo_coefficients.beta,
-                    energies: scf.orbital_energies.beta,
-                    occupied: scf.occupied_orbitals.beta,
+                HfComponent::Uhf(Spin {
+                    alpha: Orbitals {
+                        coefficients: scf.mo_coefficients.alpha,
+                        energies: scf.orbital_energies.alpha,
+                        occupied: scf.occupied_orbitals.alpha,
+                    },
+                    beta: Orbitals {
+                        coefficients: scf.mo_coefficients.beta,
+                        energies: scf.orbital_energies.beta,
+                        occupied: scf.occupied_orbitals.beta,
+                    },
                 }),
                 scf.two_electron_integrals,
             ),
         };
+        debug_assert_eq!(summary.method, orbitals.method());
         Self(
             Arc::new(HfData {
                 summary,
-                alpha,
-                beta,
+                orbitals,
                 integrals,
             }),
             PhantomData,
@@ -129,25 +131,29 @@ impl HfSolution<Converged> {
     /// ```
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         let frozen = config.frozen_orbitals.value;
-        let alpha = &self.0.alpha;
-        let correlation = if let Some(beta) = &self.0.beta {
-            fn spin(o: &Orbitals, frozen: usize) -> Mp2SpinInput<'_> {
-                Mp2SpinInput {
-                    mo_coefficients: &o.coefficients,
-                    orbital_energies: &o.energies,
-                    occupied_orbitals: o.occupied,
-                    frozen_orbitals: frozen,
+        let correlation = match &self.0.orbitals {
+            HfComponent::Uhf(Spin { alpha, beta }) => {
+                fn spin(o: &Orbitals, frozen: usize) -> Mp2SpinInput<'_> {
+                    Mp2SpinInput {
+                        mo_coefficients: &o.coefficients,
+                        orbital_energies: &o.energies,
+                        occupied_orbitals: o.occupied,
+                        frozen_orbitals: frozen,
+                    }
                 }
+                mp2::uhf_correlation_energy(
+                    spin(alpha, frozen),
+                    spin(beta, frozen),
+                    &self.0.integrals,
+                )
             }
-            mp2::uhf_correlation_energy(spin(alpha, frozen), spin(beta, frozen), &self.0.integrals)
-        } else {
-            mp2::correlation_energy(&Mp2Input {
-                mo_coefficients: &alpha.coefficients,
-                orbital_energies: &alpha.energies,
-                occupied_orbitals: alpha.occupied,
+            HfComponent::Rhf(orbitals) => mp2::correlation_energy(&Mp2Input {
+                mo_coefficients: &orbitals.coefficients,
+                orbital_energies: &orbitals.energies,
+                occupied_orbitals: orbitals.occupied,
                 frozen_orbitals: frozen,
                 two_electron_integrals: &self.0.integrals,
-            })
+            }),
         };
         let correlation_energy = correlation.map_err(|error| {
             let span = matches!(error, mp2::Mp2Error::InvalidFrozenOrbitalCount { .. })
