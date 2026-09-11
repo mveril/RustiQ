@@ -6,18 +6,17 @@ use thiserror::Error;
 
 use super::{CalculationError, HfCalculationResult, HfComponent, HfState, Mp2Result, Spin};
 use crate::{
-    config::Mp2Config,
+    config::{Mp2Config, ResolvedHfMethod},
     eri::CompactEri,
     mp2::{self, Mp2Input, Mp2SpinInput},
 };
 
-/// Molecular orbital coefficients (AO rows, MO columns), energies and occupation.
 #[derive(Debug, Clone)]
-pub struct Orbitals {
-    pub coefficients: DMatrix<f64>,
-    pub energies: DVector<f64>,
+struct Orbitals {
+    coefficients: DMatrix<f64>,
+    energies: DVector<f64>,
     /// Number of occupied spatial orbitals in this component.
-    pub occupied: usize,
+    occupied: usize,
 }
 
 #[derive(Debug)]
@@ -70,19 +69,9 @@ impl HfSolution {
         &self.0.summary
     }
 
-    /// Final SCF orbitals; check `summary().scf.converged` before using them.
-    pub fn orbitals(&self) -> &HfComponent<Orbitals> {
-        &self.0.orbitals
-    }
-
-    /// Returns whether this solution was computed with restricted Hartree-Fock.
-    pub fn is_rhf(&self) -> bool {
-        self.0.orbitals.is_rhf()
-    }
-
-    /// Returns whether this solution was computed with unrestricted Hartree-Fock.
-    pub fn is_uhf(&self) -> bool {
-        self.0.orbitals.is_uhf()
+    /// Returns the resolved Hartree-Fock method used for this solution.
+    pub fn method(&self) -> ResolvedHfMethod {
+        self.0.summary.method
     }
 
     /// Evaluate MP2 without rerunning HF. An error retains this HF solution.
@@ -93,7 +82,7 @@ impl HfSolution {
             }));
         }
         let frozen = config.frozen_orbitals.value;
-        let correlation = match self.orbitals() {
+        let correlation = match &self.0.orbitals {
             HfComponent::Uhf(Spin { alpha, beta }) => {
                 fn spin(o: &Orbitals, frozen: usize) -> Mp2SpinInput<'_> {
                     Mp2SpinInput {

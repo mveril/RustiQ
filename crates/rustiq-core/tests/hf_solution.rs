@@ -1,10 +1,9 @@
 use rustiq_core::{
     basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfComponent,
-        HfSolution, Orbitals,
+        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfSolution,
     },
-    config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},
+    config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config, ResolvedHfMethod},
     molecules::{geometry::Geometry, units::Units},
 };
 
@@ -37,33 +36,13 @@ fn solution(method: HfMethod, iterations: usize) -> HfSolution {
         })
         .unwrap();
     assert_eq!(mp2_events, 0);
-    assert_orbitals(&hf, method);
-    hf
-}
-
-fn assert_orbitals(solution: &HfSolution, method: HfMethod) {
-    let component = solution.orbitals();
-    let check = |orbitals: &Orbitals| {
-        assert_eq!(orbitals.coefficients.shape(), (2, 2));
-        assert_eq!(orbitals.energies.len(), 2);
-        assert_eq!(orbitals.occupied, 1);
-        assert!(orbitals.coefficients.iter().all(|x| x.is_finite()));
-        assert!(orbitals.energies[0] <= orbitals.energies[1]);
+    let resolved_method = match method {
+        HfMethod::Rhf => ResolvedHfMethod::Rhf,
+        HfMethod::Uhf => ResolvedHfMethod::Uhf,
+        HfMethod::Auto => unreachable!("test cases use explicit HF methods"),
     };
-    match (method, component) {
-        (HfMethod::Rhf, HfComponent::Rhf(orbitals)) => {
-            assert!(solution.is_rhf());
-            assert!(!solution.is_uhf());
-            check(orbitals)
-        }
-        (HfMethod::Uhf, HfComponent::Uhf(spin)) => {
-            assert!(!solution.is_rhf());
-            assert!(solution.is_uhf());
-            check(&spin.alpha);
-            check(&spin.beta);
-        }
-        _ => panic!("orbital components do not match the requested HF method"),
-    }
+    assert_eq!(hf.method(), resolved_method);
+    hf
 }
 
 #[test]

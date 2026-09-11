@@ -11,16 +11,19 @@ use thiserror::Error;
 mod setup_error;
 pub use setup_error::HfSetupError;
 mod solution;
-pub use solution::{CalculationExecutionError, HfSolution, Orbitals};
+pub use solution::{CalculationExecutionError, HfSolution};
 mod builder;
 mod execution;
 mod prepared_calculation;
 pub use crate::basis::{Basis, BasisError};
 pub use crate::eri::EriError;
-use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
+use crate::hf::{
+    component::HfComponent,
+    scf::ScfSetupError,
+    uhf::{Spin, UhfSetupError},
+};
 pub use crate::{
     hf::{
-        component::HfComponent,
         density_guess::DensityGuessError,
         diis::DiisError,
         numerical_error::NumericalError,
@@ -29,7 +32,6 @@ pub use crate::{
         scf_iteration::ScfIteration,
         scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
         scf_setup::ScfSetupStep,
-        uhf::Spin,
     },
     mp2::{Mp2Error, Mp2Result},
 };
