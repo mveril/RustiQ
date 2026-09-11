@@ -24,6 +24,8 @@ Use Rust’s built-in test framework. Place focused unit tests in the same file 
 
 ## Commit & Pull Request Guidelines
 
+Name every task branch using the `type/name` format, with a lowercase, hyphen-separated English description. Use `feature/*` for new functionality, `fix/*` for bug fixes, and `chore/*` for maintenance, tooling, documentation, or test coverage changes. For example: `feature/add-xyz-parser`, `fix/scf-convergence`, or `chore/add-mp2-pyscf-reference-cases`. Do not create task branches without a type prefix.
+
 The current history only contains an initial commit, so use clear, imperative commit messages going forward, for example `Add XYZ geometry parser` or `Fix SCF convergence threshold`. Pull requests should include a short summary, the commands used for verification, and any relevant input files or numerical output changes. Link related issues when available. For CLI or output formatting changes, include before/after snippets rather than screenshots unless terminal rendering is visually important.
 
 ## Agent-Specific Instructions
