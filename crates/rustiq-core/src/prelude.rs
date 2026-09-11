@@ -26,7 +26,7 @@ pub use crate::{
     basis::BasisFile,
     calculation::{
         CalculationBuilder, CalculationExecution, CalculationExecutionError, CalculationResult,
-        HfSolution, PreparedCalculation,
+        HfComponent, HfSolution, Orbitals, PreparedCalculation, Spin,
     },
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},
     molecules::{atom::Atom, geometry::Geometry, units::Units},
