@@ -40,6 +40,25 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
 }
 
 #[test]
+fn outcome_reports_resolved_method_for_both_convergence_states() {
+    for (method, expected) in [
+        (HfMethod::Auto, ResolvedHfMethod::Rhf),
+        (HfMethod::Rhf, ResolvedHfMethod::Rhf),
+        (HfMethod::Uhf, ResolvedHfMethod::Uhf),
+    ] {
+        for iterations in [1, 100] {
+            let outcome = solution(method, iterations);
+            assert_eq!(outcome.method(), expected);
+            assert_eq!(outcome.is_converged(), iterations == 100);
+            match outcome {
+                HfOutcome::Converged(hf) => assert_eq!(hf.method(), expected),
+                HfOutcome::Unconverged(hf) => assert_eq!(hf.method(), expected),
+            }
+        }
+    }
+}
+
+#[test]
 fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
     for (method, resolved_method) in [
         (HfMethod::Rhf, ResolvedHfMethod::Rhf),

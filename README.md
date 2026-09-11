@@ -656,6 +656,9 @@ executed repeatedly through the shared `CalculationExecution` trait.
 orbitals and integrals; only the converged type exposes `mp2()`. Cloning a
 solution shares its immutable scientific data. Execution errors retain the
 completed `HfOutcome`, when available, including after an MP2 failure.
+Both `HfOutcome::method()` and `HfSolution::method()` return the resolved
+`ResolvedHfMethod` (RHF or UHF), including when the input selected `Auto` or
+the calculation did not converge.
 
 TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
 `toml-spanner` dependency or runfile feature, even with all its features enabled.

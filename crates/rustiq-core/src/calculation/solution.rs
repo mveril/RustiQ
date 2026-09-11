@@ -47,6 +47,11 @@ pub enum HfOutcome {
 }
 
 impl HfOutcome {
+    /// Returns the resolved Hartree-Fock method, even when HF did not converge.
+    pub fn method(&self) -> ResolvedHfMethod {
+        self.summary().method
+    }
+
     pub fn summary(&self) -> &HfCalculationResult {
         match self {
             Self::Converged(hf) => hf.summary(),
