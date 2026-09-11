@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use super::{CalculationError, HfCalculationResult, HfState, Mp2Result};
 use crate::{
-    config::Mp2Config,
+    config::{Mp2Config, ResolvedHfMethod},
     eri::CompactEri,
     mp2::{self, Mp2Input, Mp2SpinInput},
 };
@@ -105,6 +105,11 @@ impl<State> HfSolution<State> {
 
     pub fn summary(&self) -> &HfCalculationResult {
         &self.0.summary
+    }
+
+    /// Returns the Hartree-Fock method used to produce this solution.
+    pub fn method(&self) -> ResolvedHfMethod {
+        self.summary().method
     }
 }
 
