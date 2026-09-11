@@ -1,107 +1,19 @@
-use std::{
-    cell::UnsafeCell,
-    ops::{Index, IndexMut},
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::ops::{Index, IndexMut};
 
 use rayon::prelude::*;
 use thiserror::Error;
 
 use super::index::EriIndex;
 
-#[allow(dead_code)]
-#[derive(Debug)]
-struct AtomicBitmap {
-    words: Box<[AtomicUsize]>,
-}
-
-#[allow(dead_code)]
-impl AtomicBitmap {
-    fn new(len: usize) -> Self {
-        Self {
-            words: (0..len.div_ceil(usize::BITS as usize))
-                .into_par_iter()
-                .map(|_| AtomicUsize::new(0))
-                .collect(),
-        }
-    }
-
-    fn claim(&self, index: usize) -> bool {
-        let (word, mask) = Self::word_and_mask(index);
-        self.words[word].fetch_or(mask, Ordering::Relaxed) & mask == 0
-    }
-
-    fn contains(&self, index: usize) -> bool {
-        let (word, mask) = Self::word_and_mask(index);
-        self.words[word].load(Ordering::Relaxed) & mask != 0
-    }
-
-    fn word_and_mask(index: usize) -> (usize, usize) {
-        let bits_per_word = usize::BITS as usize;
-        (index / bits_per_word, 1usize << (index % bits_per_word))
-    }
-}
-
-#[derive(Debug)]
-struct StorageSlot(UnsafeCell<f64>);
-
-impl StorageSlot {
-    fn initialized(value: f64) -> Self {
-        Self(UnsafeCell::new(value))
-    }
-
-    fn zeroed() -> Self {
-        Self::initialized(0.0)
-    }
-
-    #[allow(dead_code)]
-    unsafe fn write(&self, value: f64) {
-        // The bitmap guarantees that only one thread writes this slot while
-        // `from_par_iter` is building the tensor.
-        unsafe { *self.0.get() = value };
-    }
-
-    unsafe fn get(&self) -> &f64 {
-        // All parallel writes finish before the CompactEri is returned, and
-        // later mutation requires exclusive access to the CompactEri.
-        unsafe { &*self.0.get() }
-    }
-
-    fn get_mut(&mut self) -> &mut f64 {
-        self.0.get_mut()
-    }
-}
-
-// Concurrent access is limited to write-once updates guarded by the bitmap. No reader
-// can observe an update because CompactEri is returned only after all writer tasks join.
-unsafe impl Sync for StorageSlot {}
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum CompactEriBuildError {
     #[error("expected {expected} compact ERI values, received {actual}")]
     InvalidLength { expected: usize, actual: usize },
-    #[error("quartet ({mu}, {nu}, {lambda}, {sigma}) contains an index outside size {size}")]
-    IndexOutOfBounds {
-        mu: usize,
-        nu: usize,
-        lambda: usize,
-        sigma: usize,
-        size: usize,
-    },
-    #[error("quartet ({mu}, {nu}, {lambda}, {sigma}) occurs more than once")]
-    DuplicateQuartet {
-        mu: usize,
-        nu: usize,
-        lambda: usize,
-        sigma: usize,
-    },
-    #[error("compact quartet at storage index {compact_index} is missing")]
-    MissingQuartet { compact_index: usize },
 }
 
 #[derive(Debug)]
 pub struct CompactEri {
-    storage: Box<[StorageSlot]>,
+    storage: Box<[f64]>,
 }
 
 impl CompactEri {
@@ -126,9 +38,7 @@ impl CompactEri {
     #[allow(dead_code)]
     pub fn Zeroed(size: usize) -> Self {
         Self {
-            storage: (0..Self::storage_len(size))
-                .map(|_| StorageSlot::zeroed())
-                .collect(),
+            storage: (0..Self::storage_len(size)).map(|_| 0.0).collect(),
         }
     }
 
@@ -149,63 +59,7 @@ impl CompactEri {
             });
         }
 
-        let storage = par_iter.map(StorageSlot::initialized).collect();
-
-        Ok(Self { storage })
-    }
-
-    /// Builds a compact ERI tensor from quartets yielded in any order.
-    ///
-    /// The iterator must yield each unique compact quartet exactly once.
-    #[allow(dead_code)]
-    pub(crate) fn from_par_iter<I>(par_iter: I, size: usize) -> Result<Self, CompactEriBuildError>
-    where
-        I: IntoParallelIterator<Item = (usize, usize, usize, usize, f64)>,
-    {
-        let storage_len = Self::storage_len(size);
-        let storage = (0..storage_len)
-            .into_par_iter()
-            .map(|_| StorageSlot::zeroed())
-            .collect::<Box<[_]>>();
-        let bitmap = AtomicBitmap::new(storage_len);
-
-        par_iter
-            .into_par_iter()
-            .try_for_each(|(mu, nu, lambda, sigma, value)| {
-                if [mu, nu, lambda, sigma]
-                    .into_iter()
-                    .any(|index| index >= size)
-                {
-                    return Err(CompactEriBuildError::IndexOutOfBounds {
-                        mu,
-                        nu,
-                        lambda,
-                        sigma,
-                        size,
-                    });
-                }
-
-                let index = EriIndex::new(mu, nu, lambda, sigma).0;
-                if !bitmap.claim(index) {
-                    return Err(CompactEriBuildError::DuplicateQuartet {
-                        mu,
-                        nu,
-                        lambda,
-                        sigma,
-                    });
-                }
-
-                // This thread owns the slot after setting its bitmap bit.
-                unsafe { storage[index].write(value) };
-                Ok(())
-            })?;
-
-        if let Some(compact_index) = (0..storage_len)
-            .into_par_iter()
-            .find_any(|&index| !bitmap.contains(index))
-        {
-            return Err(CompactEriBuildError::MissingQuartet { compact_index });
-        }
+        let storage = par_iter.collect();
 
         Ok(Self { storage })
     }
@@ -215,14 +69,13 @@ impl Index<EriIndex> for CompactEri {
     type Output = f64;
 
     fn index(&self, index: EriIndex) -> &Self::Output {
-        // All slots are initialized before CompactEri is returned.
-        unsafe { self.storage[index.0].get() }
+        &self.storage[index.0]
     }
 }
 
 impl IndexMut<EriIndex> for CompactEri {
     fn index_mut(&mut self, index: EriIndex) -> &mut Self::Output {
-        self.storage[index.0].get_mut()
+        &mut self.storage[index.0]
     }
 }
 
@@ -238,7 +91,7 @@ impl Index<(usize, usize, usize, usize)> for CompactEri {
 impl IndexMut<(usize, usize, usize, usize)> for CompactEri {
     fn index_mut(&mut self, index: (usize, usize, usize, usize)) -> &mut Self::Output {
         let (mu, nu, lambda, sigma) = index;
-        self.storage[EriIndex::new(mu, nu, lambda, sigma).0].get_mut()
+        &mut self.storage[EriIndex::new(mu, nu, lambda, sigma).0]
     }
 }
 
@@ -248,18 +101,6 @@ mod tests {
     use crate::eri::index::PairIndex;
     use ndarray::Array4;
     use proptest::prelude::*;
-
-    #[test]
-    fn test_atomic_bitmap_claims_each_bit_once_across_word_boundaries() {
-        let bitmap = AtomicBitmap::new(130);
-
-        for index in [0, 63, 64, 127, 128, 129] {
-            assert!(!bitmap.contains(index));
-            assert!(bitmap.claim(index));
-            assert!(bitmap.contains(index));
-            assert!(!bitmap.claim(index));
-        }
-    }
 
     #[test]
     fn test_compact_eri_allocates_unique_quartets() {
@@ -370,36 +211,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compact_eri_from_par_iter_uses_four_indexes() {
-        let basis_functions = 5;
-        let storage_len = CompactEri::storage_len(basis_functions);
-
-        let eri = CompactEri::from_par_iter(
-            (0..storage_len)
-                .into_par_iter()
-                .rev()
-                .filter(|_| true)
-                .map(|compact_index| {
-                    let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
-                    let (mu, nu) = PairIndex(pair_pq).indices();
-                    let (lambda, sigma) = PairIndex(pair_rs).indices();
-                    (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
-                }),
-            basis_functions,
-        )
-        .unwrap();
-
-        assert_eq!(eri[(0, 0, 0, 0)], 0.25);
-        assert_eq!(eri[(1, 0, 0, 0)], 1.25);
-        assert_eq!(eri[(1, 0, 1, 0)], 2.25);
-        assert_eq!(eri[(1, 1, 1, 1)], 5.25);
-        assert_eq!(
-            eri[(4, 4, 4, 4)],
-            CompactEri::storage_len(basis_functions) as f64 - 0.75
-        );
-    }
-
-    #[test]
     fn test_compact_eri_from_ordered_values_par_iter_uses_compact_order() {
         let basis_functions = 5;
         let storage_len = CompactEri::storage_len(basis_functions);
@@ -442,82 +253,6 @@ mod tests {
                 CompactEriBuildError::InvalidLength { expected, actual }
             );
         }
-    }
-
-    #[test]
-    fn test_compact_eri_from_par_iter_initializes_every_slot() {
-        for basis_functions in 0..=8 {
-            let storage_len = CompactEri::storage_len(basis_functions);
-
-            for _ in 0..20 {
-                let eri =
-                    CompactEri::from_par_iter(
-                        (0..storage_len).into_par_iter().rev().filter(|_| true).map(
-                            |compact_index| {
-                                let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
-                                let (mu, nu) = PairIndex(pair_pq).indices();
-                                let (lambda, sigma) = PairIndex(pair_rs).indices();
-                                (mu, nu, lambda, sigma, compact_index as f64 + 0.25)
-                            },
-                        ),
-                        basis_functions,
-                    )
-                    .unwrap();
-
-                for compact_index in 0..storage_len {
-                    let (pair_pq, pair_rs) = PairIndex(compact_index).indices();
-                    let (mu, nu) = PairIndex(pair_pq).indices();
-                    let (lambda, sigma) = PairIndex(pair_rs).indices();
-                    assert_eq!(eri[(mu, nu, lambda, sigma)], compact_index as f64 + 0.25);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_compact_eri_from_par_iter_rejects_duplicate_quartets() {
-        let error = CompactEri::from_par_iter(
-            vec![(0, 0, 0, 0, 1.0), (0, 0, 0, 0, 2.0)].into_par_iter(),
-            1,
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            error,
-            CompactEriBuildError::DuplicateQuartet {
-                mu: 0,
-                nu: 0,
-                lambda: 0,
-                sigma: 0,
-            }
-        );
-    }
-
-    #[test]
-    fn test_compact_eri_from_par_iter_rejects_missing_quartets() {
-        let error = CompactEri::from_par_iter(Vec::new().into_par_iter(), 1).unwrap_err();
-
-        assert_eq!(
-            error,
-            CompactEriBuildError::MissingQuartet { compact_index: 0 }
-        );
-    }
-
-    #[test]
-    fn test_compact_eri_from_par_iter_rejects_out_of_bounds_indexes() {
-        let error =
-            CompactEri::from_par_iter(vec![(1, 0, 0, 0, 1.0)].into_par_iter(), 1).unwrap_err();
-
-        assert_eq!(
-            error,
-            CompactEriBuildError::IndexOutOfBounds {
-                mu: 1,
-                nu: 0,
-                lambda: 0,
-                sigma: 0,
-                size: 1,
-            }
-        );
     }
 
     #[test]
