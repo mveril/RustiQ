@@ -8,6 +8,7 @@ dependencies = ["pyscf==2.14.0"]
 [dependency-groups]
 test = ["pytest"]
 dev = ["ipykernel", "jupyterlab", "matplotlib", "numpy", "scipy"]
+linting = ["ruff"]
 
 [tool.uv]
 package = false

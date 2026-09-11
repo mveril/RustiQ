@@ -202,10 +202,7 @@
           completeRustPackages =
             minimalRustPackages ++ rustDevelopmentPackages ++ rustDevelopmentPlatformPackages;
 
-          pythonDevelopmentPackages = with pkgs; [
-            ruff
-            uv
-          ];
+          pythonDevelopmentPackages = with pkgs; [ uv ];
 
           commonRustEnv = {
             RUST_BACKTRACE = "1";
