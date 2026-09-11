@@ -88,7 +88,10 @@
             programs = {
               nixfmt.enable = true;
               prettier.enable = true;
-              ruff-format.enable = true;
+              ruff-format = {
+                enable = true;
+                package = pythonSet.ruff;
+              };
               rustfmt = {
                 enable = true;
                 edition = "2021";
@@ -202,10 +205,7 @@
           completeRustPackages =
             minimalRustPackages ++ rustDevelopmentPackages ++ rustDevelopmentPlatformPackages;
 
-          pythonDevelopmentPackages = with pkgs; [
-            ruff
-            uv
-          ];
+          pythonDevelopmentPackages = with pkgs; [ uv ];
 
           commonRustEnv = {
             RUST_BACKTRACE = "1";
