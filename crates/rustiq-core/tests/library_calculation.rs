@@ -25,7 +25,10 @@ fn library_runs_hf_and_mp2_with_public_types() {
         .with_mp2(Mp2Config::default())
         .execute()
         .unwrap();
-    assert!(rhf_result.hf.summary().scf.converged);
+    assert!(matches!(
+        rhf_result.hf,
+        rustiq_core::calculation::HfOutcome::Converged(_)
+    ));
     assert_abs_diff_eq!(
         rhf_result.hf.summary().scf.electronic_energy,
         -1.831_863_646_477_507,
@@ -49,7 +52,10 @@ fn library_runs_hf_and_mp2_with_public_types() {
         .with_mp2(Mp2Config::default())
         .execute()
         .unwrap();
-    assert!(uhf_result.hf.summary().scf.converged);
+    assert!(matches!(
+        uhf_result.hf,
+        rustiq_core::calculation::HfOutcome::Converged(_)
+    ));
     assert_abs_diff_eq!(
         uhf_result.hf.summary().scf.electronic_energy,
         rhf_result.hf.summary().scf.electronic_energy,

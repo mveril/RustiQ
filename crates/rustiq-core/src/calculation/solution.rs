@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use miette::Diagnostic;
 use nalgebra::{DMatrix, DVector};
@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use super::{CalculationError, HfCalculationResult, HfState, Mp2Result};
 use crate::{
-    config::Mp2Config,
+    config::{Mp2Config, ResolvedHfMethod},
     eri::CompactEri,
     mp2::{self, Mp2Input, Mp2SpinInput},
 };
@@ -29,9 +29,49 @@ struct HfData {
 /// Immutable HF output owning the orbitals and integrals needed for subsequent MP2.
 /// Cloning shares scientific data without copying the integral tensor.
 #[derive(Debug, Clone)]
-pub struct HfSolution(Arc<HfData>);
+pub struct HfSolution<State>(Arc<HfData>, PhantomData<State>);
 
-impl HfSolution {
+/// HF orbitals have passed convergence and final canonicalization.
+#[derive(Debug, Clone, Copy)]
+pub struct Converged;
+
+/// HF exhausted its iteration budget without reaching convergence.
+#[derive(Debug, Clone, Copy)]
+pub struct Unconverged;
+
+/// HF may finish without reaching convergence; inspect the variant before MP2.
+#[derive(Debug, Clone)]
+pub enum HfOutcome {
+    Converged(HfSolution<Converged>),
+    Unconverged(HfSolution<Unconverged>),
+}
+
+impl HfOutcome {
+    /// Returns the resolved Hartree-Fock method, even when HF did not converge.
+    pub fn method(&self) -> ResolvedHfMethod {
+        self.summary().method
+    }
+
+    pub fn summary(&self) -> &HfCalculationResult {
+        match self {
+            Self::Converged(hf) => hf.summary(),
+            Self::Unconverged(hf) => hf.summary(),
+        }
+    }
+
+    pub(super) fn execution_error(self, cause: CalculationError) -> CalculationExecutionError {
+        CalculationExecutionError {
+            cause,
+            hf: Some(self),
+        }
+    }
+
+    pub fn is_converged(&self) -> bool {
+        matches!(self, Self::Converged(_))
+    }
+}
+
+impl<State> HfSolution<State> {
     pub(super) fn from_state(summary: HfCalculationResult, state: HfState<'_>) -> Self {
         let (alpha, beta, integrals) = match state {
             HfState::Rhf(scf) => (
@@ -57,25 +97,37 @@ impl HfSolution {
                 scf.two_electron_integrals,
             ),
         };
-        Self(Arc::new(HfData {
-            summary,
-            alpha,
-            beta,
-            integrals,
-        }))
+        Self(
+            Arc::new(HfData {
+                summary,
+                alpha,
+                beta,
+                integrals,
+            }),
+            PhantomData,
+        )
     }
 
     pub fn summary(&self) -> &HfCalculationResult {
         &self.0.summary
     }
 
+    /// Returns the Hartree-Fock method used to produce this solution.
+    pub fn method(&self) -> ResolvedHfMethod {
+        self.summary().method
+    }
+}
+
+impl HfSolution<Converged> {
     /// Evaluate MP2 without rerunning HF. An error retains this HF solution.
+    ///
+    /// ```compile_fail
+    /// use rustiq_core::{calculation::{HfSolution, Unconverged}, config::Mp2Config};
+    /// fn invalid(hf: HfSolution<Unconverged>) {
+    ///     hf.mp2(Mp2Config::default());
+    /// }
+    /// ```
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
-        if !self.summary().scf.converged {
-            return Err(self.execution_error(CalculationError::HfNotConverged {
-                iterations: self.summary().scf.iterations,
-            }));
-        }
         let frozen = config.frozen_orbitals.value;
         let alpha = &self.0.alpha;
         let correlation = if let Some(beta) = &self.0.beta {
@@ -112,7 +164,7 @@ impl HfSolution {
     fn execution_error(&self, cause: CalculationError) -> CalculationExecutionError {
         CalculationExecutionError {
             cause,
-            hf: Some(self.clone()),
+            hf: Some(HfOutcome::Converged(self.clone())),
         }
     }
 }
@@ -124,17 +176,17 @@ impl HfSolution {
 pub struct CalculationExecutionError {
     #[source]
     cause: CalculationError,
-    hf: Option<HfSolution>,
+    hf: Option<HfOutcome>,
 }
 
 impl CalculationExecutionError {
     pub fn cause(&self) -> &CalculationError {
         &self.cause
     }
-    pub fn hf(&self) -> Option<&HfSolution> {
+    pub fn hf(&self) -> Option<&HfOutcome> {
         self.hf.as_ref()
     }
-    pub fn into_hf(self) -> Option<HfSolution> {
+    pub fn into_hf(self) -> Option<HfOutcome> {
         self.hf
     }
 }

@@ -1,7 +1,8 @@
 use super::{
-    CalculationEvent, CalculationExecution, CalculationExecutionError, CalculationResult,
-    HfCalculation, HfCalculationResult, HfSolution,
+    CalculationError, CalculationEvent, CalculationExecution, CalculationExecutionError,
+    CalculationResult, HfCalculation, HfCalculationResult, HfOutcome, HfSolution,
 };
+use crate::hf::scf_result::ScfOutcome;
 use crate::{
     basis::Basis,
     config::{HfConfig, Mp2Config, ResolvedHfMethod},
@@ -31,14 +32,14 @@ impl PreparedCalculation {
 
 impl PreparedCalculation {
     /// Run only HF, retaining orbitals and integrals for subsequent MP2.
-    pub fn run_hf(&self) -> Result<HfSolution, CalculationExecutionError> {
+    pub fn run_hf(&self) -> Result<HfOutcome, CalculationExecutionError> {
         self.run_hf_with_events(|_| {})
     }
 
     pub fn run_hf_with_events(
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
-    ) -> Result<HfSolution, CalculationExecutionError> {
+    ) -> Result<HfOutcome, CalculationExecutionError> {
         let (config, method) = &self.hf;
         events(CalculationEvent::HfStarted {
             method: *method,
@@ -48,14 +49,26 @@ impl PreparedCalculation {
             HfCalculation::new_with_progress(&self.molecule, &self.basis, config, |step| {
                 events(CalculationEvent::ScfSetup(step))
             })?;
-        let hf = HfCalculationResult {
-            method: *method,
-            scf: calculation.run_with_iterations(|iteration| {
-                events(CalculationEvent::ScfIteration(iteration))
-            })?,
+        let outcome = calculation
+            .run_with_iterations(|iteration| events(CalculationEvent::ScfIteration(iteration)))?;
+        let hf = match outcome {
+            ScfOutcome::Converged(scf) => HfOutcome::Converged(HfSolution::from_state(
+                HfCalculationResult {
+                    method: *method,
+                    scf,
+                },
+                calculation.state,
+            )),
+            ScfOutcome::Unconverged(scf) => HfOutcome::Unconverged(HfSolution::from_state(
+                HfCalculationResult {
+                    method: *method,
+                    scf,
+                },
+                calculation.state,
+            )),
         };
         events(CalculationEvent::HfCompleted(&hf));
-        Ok(HfSolution::from_state(hf, calculation.state))
+        Ok(hf)
     }
 }
 
@@ -69,7 +82,17 @@ impl CalculationExecution for PreparedCalculation {
             .mp2
             .as_ref()
             .map(|config| {
-                let result = hf.mp2(*config)?;
+                let converged = match &hf {
+                    HfOutcome::Converged(hf) => hf,
+                    HfOutcome::Unconverged(_) => {
+                        return Err(hf
+                            .clone()
+                            .execution_error(CalculationError::HfNotConverged {
+                                iterations: hf.summary().scf.iterations,
+                            }))
+                    }
+                };
+                let result = converged.mp2(*config)?;
                 events(CalculationEvent::Mp2Completed {
                     hf: hf.summary(),
                     result: &result,

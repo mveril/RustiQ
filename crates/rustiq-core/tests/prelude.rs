@@ -19,8 +19,10 @@ fn prelude_supports_builder_and_prepared_execution() {
     let direct = direct.unwrap();
     let prepared: PreparedCalculation = builder.prepare().unwrap();
     let result = prepared.execute().unwrap();
-    let hf: HfSolution = result.hf;
-    assert!(hf.summary().scf.converged);
+    let HfOutcome::Converged(hf) = result.hf else {
+        panic!("expected converged HF");
+    };
+    let hf: HfSolution<Converged> = hf;
     assert_eq!(direct.mp2, result.mp2);
     assert_eq!(Some(hf.mp2(Mp2Config::default()).unwrap()), result.mp2);
 }

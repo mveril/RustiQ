@@ -6,7 +6,7 @@ use std::{
 use super::{mp2_report::Mp2Reporter, scf_report::ScfReporter};
 use rustiq_core::{
     basis::Basis,
-    calculation::{CalculationEvent, HfCalculationResult, Mp2Result, ScfSetupStep},
+    calculation::{CalculationEvent, HfCalculationResult, HfOutcome, Mp2Result, ScfSetupStep},
     config::{HfConfig, ResolvedHfMethod},
 };
 
@@ -112,9 +112,14 @@ impl<W: Write> CalculationReporter<W> {
         });
     }
 
-    fn on_hf_complete(&mut self, result: &HfCalculationResult) {
+    fn on_hf_complete(&mut self, result: &HfOutcome) {
         if self.show_scf {
-            self.report(|scf| scf.write_summary(&result.scf));
+            self.report(|scf| {
+                scf.write_summary(
+                    &result.summary().scf,
+                    matches!(result, HfOutcome::Converged(_)),
+                )
+            });
         }
     }
 
@@ -193,7 +198,10 @@ mod tests {
                 }
             })
             .unwrap();
-        assert!(result.hf.summary().scf.converged);
+        assert!(matches!(
+            result.hf,
+            rustiq_core::calculation::HfOutcome::Converged(_)
+        ));
         assert!(completed);
         assert_eq!(reporter.scf.writer_mut().0, 1);
         assert_eq!(

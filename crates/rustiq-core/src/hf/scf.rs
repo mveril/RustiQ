@@ -20,7 +20,7 @@ use super::{
     diis::DiisAccelerator,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
+    scf_result::{ScfOutcome, ScfResult, ScfSetupTimings, ScfTermination, ScfTimings},
     scf_setup::ScfSetupStep,
 };
 use thiserror::Error;
@@ -232,16 +232,16 @@ impl<'a> ScfCalculation<'a> {
 
     /// Execute the SCF calculation loop
     #[allow(dead_code)]
-    pub fn run(&mut self) -> Result<ScfResult, NumericalError> {
+    pub fn run(&mut self) -> Result<ScfOutcome, NumericalError> {
         self.run_with_iterations(|_| {})
     }
 
-    pub fn run_with_iterations<O>(&mut self, mut observer: O) -> Result<ScfResult, NumericalError>
+    pub fn run_with_iterations<O>(&mut self, mut observer: O) -> Result<ScfOutcome, NumericalError>
     where
         O: FnMut(&ScfIteration),
     {
         let mut energy_last = 0.0;
-        let mut converged = false;
+        let mut termination = ScfTermination::Unconverged;
         let mut iterations = 0;
         let mut delta_energy = f64::INFINITY;
         let run_start = Instant::now();
@@ -283,13 +283,13 @@ impl<'a> ScfCalculation<'a> {
             if delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
             {
-                converged = true;
+                termination = ScfTermination::Converged;
                 break;
             }
 
             energy_last = self.energy;
         }
-        if converged {
+        if matches!(termination, ScfTermination::Converged) {
             delta_energy =
                 self.canonicalize_final_fock(delta_energy, &mut iterations, &mut observer)?;
         }
@@ -303,8 +303,7 @@ impl<'a> ScfCalculation<'a> {
         self.timings.final_energy_details = final_energy_details_start.elapsed();
         self.timings.total = run_start.elapsed() + self.timings.setup.total;
 
-        Ok(ScfResult {
-            converged,
+        Ok(termination.with_result(ScfResult {
             iterations,
             electronic_energy: self.energy,
             nuclear_repulsion_energy: nuclear_repulsion,
@@ -314,7 +313,7 @@ impl<'a> ScfCalculation<'a> {
             energy_details,
             orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
-        })
+        }))
     }
 
     fn update_fock_matrix(&mut self) {
@@ -621,9 +620,12 @@ mod tests {
 
         let result = scf.run().unwrap();
 
-        assert!(result.converged);
-        assert!(result.total_energy.is_finite());
-        assert_eq!(result.orthogonalization.effective_rank, 1);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert!(result.summary().total_energy.is_finite());
+        assert_eq!(result.summary().orthogonalization.effective_rank, 1);
         assert_eq!(scf.mo_coefficients.shape(), (2, 1));
         assert_final_density_matches_canonical_orbitals(&scf, 1e-8);
     }
@@ -731,10 +733,13 @@ mod tests {
         // Check that the energy has been updated
         // For this minimal test, we expect the energy to be non-zero
         // In practice, comparison with a theoretical or reference value is preferable
-        assert!(result.converged);
-        assert!(result.iterations <= 50);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert!(result.summary().iterations <= 50);
         assert!(
-            result.electronic_energy.abs() > 0.0,
+            result.summary().electronic_energy.abs() > 0.0,
             "L'énergie SCF devrait être non nulle après convergence."
         );
         assert_final_density_matches_canonical_orbitals(&scf, 1e-6);
@@ -805,12 +810,15 @@ mod tests {
         let result = scf.run().unwrap();
 
         assert!(
-            result.residual_norm < 1e-8,
+            result.summary().residual_norm < 1e-8,
             "SCF residual norm is {}, expected < 1e-8",
-            result.residual_norm
+            result.summary().residual_norm
         );
-        assert!(result.converged);
-        assert!(result.delta_energy < 1e-8);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert!(result.summary().delta_energy < 1e-8);
     }
 
     #[test]
@@ -832,16 +840,19 @@ mod tests {
 
         let result = scf.run().unwrap();
 
-        assert!(result.converged);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(
-            result.electronic_energy,
+            result.summary().electronic_energy,
             PYSCF_ELECTRONIC_ENERGY,
             epsilon = ENERGY_TOLERANCE
         );
         assert!(
-            result.residual_norm < 1e-8,
+            result.summary().residual_norm < 1e-8,
             "SCF residual norm is {}, expected < 1e-8",
-            result.residual_norm
+            result.summary().residual_norm
         );
     }
 
@@ -864,13 +875,16 @@ mod tests {
             .run_with_iterations(|iteration| run_observer.push(iteration.clone()))
             .unwrap();
 
-        assert!(result.converged);
-        assert_eq!(result.iterations, run_observer.len());
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert_eq!(result.summary().iterations, run_observer.len());
         let last = run_observer.last().unwrap();
-        assert_eq!(last.iteration, result.iterations);
-        assert_eq!(last.electronic_energy, result.electronic_energy);
-        assert_eq!(last.delta_energy, result.delta_energy);
-        assert_eq!(last.residual_norm, result.residual_norm);
+        assert_eq!(last.iteration, result.summary().iterations);
+        assert_eq!(last.electronic_energy, result.summary().electronic_energy);
+        assert_eq!(last.delta_energy, result.summary().delta_energy);
+        assert_eq!(last.residual_norm, result.summary().residual_norm);
         assert_final_density_matches_canonical_orbitals(&scf, 1e-8);
         let lhs = &scf.fock_matrix * &scf.mo_coefficients;
         let rhs = &scf.overlap_matrix
@@ -879,7 +893,7 @@ mod tests {
         assert_abs_diff_eq!((&lhs - &rhs).norm(), 0.0, epsilon = 1e-8);
 
         let mut observer = Vec::new();
-        let mut iterations = result.iterations;
+        let mut iterations = result.summary().iterations;
         // Force a refinement even though the preceding calculation converged.
         let delta = scf
             .canonicalize_final_fock(
@@ -889,10 +903,10 @@ mod tests {
             )
             .unwrap();
         assert!(!observer.is_empty());
-        assert_eq!(iterations, result.iterations + observer.len());
+        assert_eq!(iterations, result.summary().iterations + observer.len());
         assert!(iterations <= scf.max_iterations);
         for (offset, step) in observer.iter().enumerate() {
-            assert_eq!(step.iteration, result.iterations + offset + 1);
+            assert_eq!(step.iteration, result.summary().iterations + offset + 1);
         }
         let last = observer.last().unwrap();
         assert_eq!(last.electronic_energy, scf.energy);
@@ -929,10 +943,13 @@ mod tests {
 
         let result = scf.run().unwrap();
 
-        assert!(!result.converged);
-        assert_eq!(result.iterations, 1);
-        assert!(result.delta_energy.is_finite());
-        assert!(result.residual_norm.is_finite());
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Unconverged(_)
+        ));
+        assert_eq!(result.summary().iterations, 1);
+        assert!(result.summary().delta_energy.is_finite());
+        assert!(result.summary().residual_norm.is_finite());
     }
 
     fn assert_symmetric_matrix(matrix: &DMatrix<f64>, epsilon: f64, label: &str) {
@@ -981,7 +998,10 @@ mod tests {
 
             let result = scf.run().unwrap();
 
-            assert!(result.converged);
+            assert!(matches!(
+                result,
+                crate::hf::scf_result::ScfOutcome::Converged(_)
+            ));
             assert_symmetric_matrix(&scf.fock_matrix, 1e-8, "F");
             assert_symmetric_matrix(&scf.density_matrix, 1e-8, "density");
         }

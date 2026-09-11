@@ -167,6 +167,7 @@ impl Runnable for RunCommand {
             CalculationOutput::new(
                 result.hf.summary().method,
                 &result.hf.summary().scf,
+                matches!(result.hf, rustiq_core::calculation::HfOutcome::Converged(_)),
                 result.mp2.as_ref(),
             )
             .write_json(stdout.lock())

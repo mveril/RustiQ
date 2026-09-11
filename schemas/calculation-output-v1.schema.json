@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mveril/RustiQ/schemas/calculation-output-v1.schema.json",
+  "title": "RustiQ calculation output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "calculation"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hf"],
+      "properties": {
+        "hf": { "$ref": "#/$defs/hf" },
+        "mp2": { "$ref": "#/$defs/mp2" }
+      }
+    }
+  },
+  "$defs": {
+    "hf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "converged", "iterations", "electronic_energy", "nuclear_repulsion_energy", "total_energy", "delta_energy", "residual_norm", "orthogonalization"],
+      "properties": {
+        "method": { "enum": ["RHF", "UHF"] },
+        "converged": { "type": "boolean" },
+        "iterations": { "type": "integer", "minimum": 0 },
+        "electronic_energy": { "type": "number" },
+        "nuclear_repulsion_energy": { "type": "number" },
+        "total_energy": { "type": "number" },
+        "delta_energy": { "type": "number" },
+        "residual_norm": { "type": "number" },
+        "orthogonalization": { "$ref": "#/$defs/orthogonalization" }
+      }
+    },
+    "orthogonalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ao_basis_dimension", "effective_rank", "discarded_directions", "relative_linear_dependency_threshold"],
+      "properties": {
+        "ao_basis_dimension": { "type": "integer", "minimum": 0 },
+        "effective_rank": { "type": "integer", "minimum": 0 },
+        "discarded_directions": { "type": "integer", "minimum": 0 },
+        "relative_linear_dependency_threshold": { "type": "number" }
+      }
+    },
+    "mp2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "correlation_energy", "electronic_energy", "total_energy"],
+      "properties": {
+        "method": { "enum": ["RHF-MP2", "UHF-MP2"] },
+        "correlation_energy": { "type": "number" },
+        "electronic_energy": { "type": "number" },
+        "total_energy": { "type": "number" }
+      }
+    }
+  }
+}

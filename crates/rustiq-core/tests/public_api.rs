@@ -274,7 +274,10 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
             .execute()
             .unwrap();
         assert_eq!(result.hf.summary().method, resolved);
-        assert!(result.hf.summary().scf.converged);
+        assert!(matches!(
+            result.hf,
+            rustiq_core::calculation::HfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(
             result.hf.summary().scf.electronic_energy,
             -1.831_863_646_477_507,
@@ -300,7 +303,10 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
                 })
                 .execute()
                 .unwrap_err();
-            assert!(error.hf().unwrap().summary().scf.converged);
+            assert!(matches!(
+                error.hf().unwrap(),
+                rustiq_core::calculation::HfOutcome::Converged(_)
+            ));
             assert!(matches!(
                 error.cause(),
                 CalculationError::Mp2 {
@@ -333,6 +339,14 @@ fn public_api_rejects_mp2_after_unconverged_hf() {
             error.cause(),
             CalculationError::HfNotConverged { iterations: 1 }
         ));
+        assert!(matches!(
+            error.hf(),
+            Some(rustiq_core::calculation::HfOutcome::Unconverged(_))
+        ));
+        let rustiq_core::calculation::HfOutcome::Unconverged(hf) = error.into_hf().unwrap() else {
+            panic!("expected the unconverged HF solution");
+        };
+        assert_eq!(hf.summary().scf.iterations, 1);
     }
 }
 
@@ -399,6 +413,7 @@ fn setup_errors_retain_threshold_and_guess_locations() {
             .err()
             .unwrap();
         assert_eq!(labels(&error), vec![span]);
+        assert!(error.hf().is_none());
         if method == HfMethod::Rhf {
             assert!(matches!(
                 error.cause(),

@@ -22,8 +22,8 @@ where
         &mut self.writer
     }
 
-    pub(crate) fn write_summary(&mut self, result: &ScfResult) -> io::Result<()> {
-        if result.converged {
+    pub(crate) fn write_summary(&mut self, result: &ScfResult, converged: bool) -> io::Result<()> {
+        if converged {
             writeln!(
                 self.writer,
                 "SCF converged after {} iterations.",
@@ -188,22 +188,24 @@ mod tests {
                 })
                 .unwrap();
             reporter
-                .write_summary(&ScfResult {
-                    converged: true,
-                    iterations: 1,
-                    electronic_energy: -1.0,
-                    nuclear_repulsion_energy: 0.2,
-                    total_energy: -0.8,
-                    delta_energy: 1.0,
-                    residual_norm: 0.1,
-                    energy_details: ScfEnergyDetails {
-                        kinetic_energy: 0.3,
-                        nuclear_attraction_energy: -1.5,
-                        electron_repulsion_energy: 0.2,
+                .write_summary(
+                    &ScfResult {
+                        iterations: 1,
+                        electronic_energy: -1.0,
+                        nuclear_repulsion_energy: 0.2,
+                        total_energy: -0.8,
+                        delta_energy: 1.0,
+                        residual_norm: 0.1,
+                        energy_details: ScfEnergyDetails {
+                            kinetic_energy: 0.3,
+                            nuclear_attraction_energy: -1.5,
+                            electron_repulsion_energy: 0.2,
+                        },
+                        orthogonalization: OrthogonalizationInfo::default(),
+                        timings: ScfTimings::default(),
                     },
-                    orthogonalization: OrthogonalizationInfo::default(),
-                    timings: ScfTimings::default(),
-                })
+                    true,
+                )
                 .unwrap();
         }
 

@@ -4,7 +4,6 @@ use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct ScfResult {
-    pub converged: bool,
     pub iterations: usize,
     pub electronic_energy: f64,
     pub nuclear_repulsion_energy: f64,
@@ -14,6 +13,36 @@ pub struct ScfResult {
     pub energy_details: ScfEnergyDetails,
     pub orthogonalization: OrthogonalizationInfo,
     pub timings: ScfTimings,
+}
+
+/// The termination of a completed SCF calculation, separate from its metrics.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ScfTermination {
+    Converged,
+    Unconverged,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum ScfOutcome {
+    Converged(ScfResult),
+    Unconverged(ScfResult),
+}
+
+impl ScfOutcome {
+    pub(crate) fn summary(&self) -> &ScfResult {
+        match self {
+            Self::Converged(result) | Self::Unconverged(result) => result,
+        }
+    }
+}
+
+impl ScfTermination {
+    pub(crate) fn with_result(self, result: ScfResult) -> ScfOutcome {
+        match self {
+            Self::Converged => ScfOutcome::Converged(result),
+            Self::Unconverged => ScfOutcome::Unconverged(result),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

@@ -19,7 +19,7 @@ use super::{
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
+    scf_result::{ScfOutcome, ScfResult, ScfSetupTimings, ScfTermination, ScfTimings},
     scf_setup::ScfSetupStep,
 };
 
@@ -248,16 +248,16 @@ impl<'a> UhfCalculation<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn run(&mut self) -> Result<ScfResult, NumericalError> {
+    pub fn run(&mut self) -> Result<ScfOutcome, NumericalError> {
         self.run_with_iterations(|_| {})
     }
 
-    pub fn run_with_iterations<O>(&mut self, mut observer: O) -> Result<ScfResult, NumericalError>
+    pub fn run_with_iterations<O>(&mut self, mut observer: O) -> Result<ScfOutcome, NumericalError>
     where
         O: FnMut(&ScfIteration),
     {
         let mut energy_last = 0.0;
-        let mut converged = false;
+        let mut termination = ScfTermination::Unconverged;
         let mut iterations = 0;
         let mut delta_energy = f64::INFINITY;
         let run_start = Instant::now();
@@ -290,13 +290,13 @@ impl<'a> UhfCalculation<'a> {
             if delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
             {
-                converged = true;
+                termination = ScfTermination::Converged;
                 break;
             }
 
             energy_last = self.energy;
         }
-        if converged {
+        if matches!(termination, ScfTermination::Converged) {
             delta_energy =
                 self.canonicalize_final_fock(delta_energy, &mut iterations, &mut observer)?;
         }
@@ -309,8 +309,7 @@ impl<'a> UhfCalculation<'a> {
         self.timings.final_energy_details = final_energy_details_start.elapsed();
         self.timings.total = run_start.elapsed() + self.timings.setup.total;
 
-        Ok(ScfResult {
-            converged,
+        Ok(termination.with_result(ScfResult {
             iterations,
             electronic_energy: self.energy,
             nuclear_repulsion_energy: nuclear_repulsion,
@@ -320,7 +319,7 @@ impl<'a> UhfCalculation<'a> {
             energy_details,
             orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
-        })
+        }))
     }
 
     fn sort_orbitals(
@@ -695,13 +694,20 @@ mod tests {
 
         let result = uhf.run().unwrap();
 
-        assert!(result.converged);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(
-            result.electronic_energy,
+            result.summary().electronic_energy,
             PYSCF_RHF_ELECTRONIC_ENERGY,
             epsilon = 1e-8
         );
-        assert_abs_diff_eq!(result.total_energy, PYSCF_RHF_TOTAL_ENERGY, epsilon = 1e-8);
+        assert_abs_diff_eq!(
+            result.summary().total_energy,
+            PYSCF_RHF_TOTAL_ENERGY,
+            epsilon = 1e-8
+        );
     }
 
     #[test]
@@ -743,21 +749,27 @@ mod tests {
         .unwrap();
         let broken_result = broken.run().unwrap();
 
-        assert!(common_result.converged);
-        assert!(broken_result.converged);
+        assert!(matches!(
+            common_result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert!(matches!(
+            broken_result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert!(
             (&broken.density.alpha - &broken.density.beta).norm() > 1e-5,
             "stretched H2 must retain a broken-symmetry density"
         );
         assert_final_densities_match_canonical_orbitals(&broken, 1e-10);
         assert!(
-            broken_result.total_energy < common_result.total_energy - 1e-6,
+            broken_result.summary().total_energy < common_result.summary().total_energy - 1e-6,
             "broken-symmetry UHF energy ({}) must be below common-orbital energy ({})",
-            broken_result.total_energy,
-            common_result.total_energy
+            broken_result.summary().total_energy,
+            common_result.summary().total_energy
         );
         assert_abs_diff_eq!(
-            broken_result.total_energy,
+            broken_result.summary().total_energy,
             PYSCF_BROKEN_SYMMETRY_TOTAL_ENERGY,
             epsilon = 1e-8
         );
@@ -787,7 +799,10 @@ mod tests {
         let alpha_electrons = (&uhf.density.alpha * &overlap).trace();
         let beta_electrons = (&uhf.density.beta * &overlap).trace();
 
-        assert!(result.converged);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(alpha_electrons, 1.0, epsilon = 1e-8);
         assert_abs_diff_eq!(beta_electrons, 0.0, epsilon = 1e-8);
         assert_abs_diff_eq!(
@@ -817,13 +832,20 @@ mod tests {
 
         let result = uhf.run().unwrap();
 
-        assert!(result.converged);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(
-            result.electronic_energy,
+            result.summary().electronic_energy,
             PYSCF_UHF_ELECTRONIC_ENERGY,
             epsilon = 1e-8
         );
-        assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 1e-8);
+        assert_abs_diff_eq!(
+            result.summary().total_energy,
+            PYSCF_UHF_TOTAL_ENERGY,
+            epsilon = 1e-8
+        );
         assert_final_densities_match_canonical_orbitals(&uhf, 1e-8);
     }
 
@@ -854,13 +876,16 @@ mod tests {
             .run_with_iterations(|iteration| run_observer.push(iteration.clone()))
             .unwrap();
 
-        assert!(result.converged);
-        assert_eq!(result.iterations, run_observer.len());
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert_eq!(result.summary().iterations, run_observer.len());
         let last = run_observer.last().unwrap();
-        assert_eq!(last.iteration, result.iterations);
-        assert_eq!(last.electronic_energy, result.electronic_energy);
-        assert_eq!(last.delta_energy, result.delta_energy);
-        assert_eq!(last.residual_norm, result.residual_norm);
+        assert_eq!(last.iteration, result.summary().iterations);
+        assert_eq!(last.electronic_energy, result.summary().electronic_energy);
+        assert_eq!(last.delta_energy, result.summary().delta_energy);
+        assert_eq!(last.residual_norm, result.summary().residual_norm);
         assert_final_densities_match_canonical_orbitals(&uhf, 1e-5);
         let residuals = uhf.fock.as_ref().zip_map(
             uhf.mo_coefficients
@@ -877,7 +902,7 @@ mod tests {
         }
 
         let mut observer = Vec::new();
-        let mut iterations = result.iterations;
+        let mut iterations = result.summary().iterations;
         // Force a refinement even though the preceding calculation converged.
         let delta = uhf
             .canonicalize_final_fock(
@@ -887,10 +912,10 @@ mod tests {
             )
             .unwrap();
         assert!(!observer.is_empty());
-        assert_eq!(iterations, result.iterations + observer.len());
+        assert_eq!(iterations, result.summary().iterations + observer.len());
         assert!(iterations <= uhf.max_iterations);
         for (offset, step) in observer.iter().enumerate() {
-            assert_eq!(step.iteration, result.iterations + offset + 1);
+            assert_eq!(step.iteration, result.summary().iterations + offset + 1);
         }
         let last = observer.last().unwrap();
         assert_eq!(last.electronic_energy, uhf.energy);
@@ -958,13 +983,20 @@ mod tests {
 
         // OH has degenerate pi orbitals. Their orientation may vary by linear-algebra
         // backend, but the SCF energy and spin-resolved electron counts are invariant.
-        assert!(result.converged);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(
-            result.electronic_energy,
+            result.summary().electronic_energy,
             PYSCF_UHF_ELECTRONIC_ENERGY,
             epsilon = 5e-7
         );
-        assert_abs_diff_eq!(result.total_energy, PYSCF_UHF_TOTAL_ENERGY, epsilon = 5e-7);
+        assert_abs_diff_eq!(
+            result.summary().total_energy,
+            PYSCF_UHF_TOTAL_ENERGY,
+            epsilon = 5e-7
+        );
         assert_abs_diff_eq!(electrons.alpha, 5.0, epsilon = 1e-8);
         assert_abs_diff_eq!(electrons.beta, 4.0, epsilon = 1e-8);
     }

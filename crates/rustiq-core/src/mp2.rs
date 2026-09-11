@@ -867,7 +867,7 @@ mod tests {
 
         let scf_result = scf.run().unwrap();
         assert_abs_diff_eq!(
-            scf_result.electronic_energy,
+            scf_result.summary().electronic_energy,
             -1.831_863_646_477_507,
             epsilon = 1e-10
         );
@@ -912,13 +912,19 @@ mod tests {
         let scf_result = scf.run().unwrap();
         let mp2_result = rhf_closed_shell(&scf, 0).unwrap();
 
-        assert!(scf_result.converged);
-        assert_eq!(scf_result.orthogonalization.basis_dimension, 3);
-        assert_eq!(scf_result.orthogonalization.effective_rank, 2);
-        assert_eq!(scf_result.orthogonalization.discarded_directions, 1);
+        assert!(matches!(
+            scf_result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
+        assert_eq!(scf_result.summary().orthogonalization.basis_dimension, 3);
+        assert_eq!(scf_result.summary().orthogonalization.effective_rank, 2);
+        assert_eq!(
+            scf_result.summary().orthogonalization.discarded_directions,
+            1
+        );
         assert_eq!(scf.mo_coefficients.shape(), (3, 2));
         assert_abs_diff_eq!(
-            scf_result.electronic_energy,
+            scf_result.summary().electronic_energy,
             -1.831_863_646_477_507,
             epsilon = 1e-10
         );
@@ -955,9 +961,12 @@ mod tests {
         uhf.enable_diis(6).unwrap();
 
         let result = uhf.run().unwrap();
-        assert!(result.converged);
+        assert!(matches!(
+            result,
+            crate::hf::scf_result::ScfOutcome::Converged(_)
+        ));
         assert_abs_diff_eq!(
-            result.electronic_energy,
+            result.summary().electronic_energy,
             -78.727_017_326_066_2,
             epsilon = 5e-7
         );

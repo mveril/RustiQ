@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::{CalculationExecutionError, HfSolution, ScfSetupStep};
+use super::{CalculationExecutionError, HfOutcome, ScfSetupStep};
 use crate::{
     basis::Basis,
     calculation::{ScfIteration, ScfResult},
@@ -17,7 +17,7 @@ pub struct HfCalculationResult {
 /// Results of the requested scientific stages, without presentation choices.
 #[derive(Debug, Clone)]
 pub struct CalculationResult {
-    pub hf: HfSolution,
+    pub hf: HfOutcome,
     pub mp2: Option<Mp2Result>,
 }
 
@@ -42,7 +42,7 @@ pub enum CalculationEvent<'a> {
     },
     ScfSetup(ScfSetupStep),
     ScfIteration(&'a ScfIteration),
-    HfCompleted(&'a HfCalculationResult),
+    HfCompleted(&'a HfOutcome),
     Mp2Completed {
         hf: &'a HfCalculationResult,
         result: &'a Mp2Result,
