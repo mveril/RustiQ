@@ -75,6 +75,16 @@ impl HfSolution {
         &self.0.orbitals
     }
 
+    /// Returns whether this solution was computed with restricted Hartree-Fock.
+    pub fn is_rhf(&self) -> bool {
+        self.0.orbitals.is_rhf()
+    }
+
+    /// Returns whether this solution was computed with unrestricted Hartree-Fock.
+    pub fn is_uhf(&self) -> bool {
+        self.0.orbitals.is_uhf()
+    }
+
     /// Evaluate MP2 without rerunning HF. An error retains this HF solution.
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         if !self.summary().scf.converged {

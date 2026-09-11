@@ -37,11 +37,12 @@ fn solution(method: HfMethod, iterations: usize) -> HfSolution {
         })
         .unwrap();
     assert_eq!(mp2_events, 0);
-    assert_orbitals(hf.orbitals(), method);
+    assert_orbitals(&hf, method);
     hf
 }
 
-fn assert_orbitals(component: &HfComponent<Orbitals>, method: HfMethod) {
+fn assert_orbitals(solution: &HfSolution, method: HfMethod) {
+    let component = solution.orbitals();
     let check = |orbitals: &Orbitals| {
         assert_eq!(orbitals.coefficients.shape(), (2, 2));
         assert_eq!(orbitals.energies.len(), 2);
@@ -51,13 +52,13 @@ fn assert_orbitals(component: &HfComponent<Orbitals>, method: HfMethod) {
     };
     match (method, component) {
         (HfMethod::Rhf, HfComponent::Rhf(orbitals)) => {
-            assert!(component.is_rhf());
-            assert!(!component.is_uhf());
+            assert!(solution.is_rhf());
+            assert!(!solution.is_uhf());
             check(orbitals)
         }
         (HfMethod::Uhf, HfComponent::Uhf(spin)) => {
-            assert!(!component.is_rhf());
-            assert!(component.is_uhf());
+            assert!(!solution.is_rhf());
+            assert!(solution.is_uhf());
             check(&spin.alpha);
             check(&spin.beta);
         }
