@@ -72,6 +72,14 @@ three basis families, plus spherical d polarization functions with cc-pVDZ:
 uv run --locked pytest tools/reference -k h2o
 ```
 
+The RHF-MP2 comparisons cover H₂/STO-3G, H₂/cc-pVDZ, and H₂O/6-31G with
+all occupied orbitals correlated (no frozen core). Each case checks both the HF
+total energy and the MP2 correlation energy:
+
+```sh
+uv run --locked pytest tools/reference -k mp2
+```
+
 The open-shell, non-degenerate H₂⁺ UHF reference used by the Rust UHF test can
 be reproduced with:
 

@@ -165,6 +165,38 @@ CASES = [
         mp2=True,
         mp2_tolerance=1e-10,
     ),
+    ReferenceCase(
+        name="h2-cc-pvdz-rhf-mp2",
+        runfile=REPO_ROOT / "samples/h2/cc-pvdz/mp2_calculation.toml",
+        xyz=REPO_ROOT / "samples/h2/molecule.xyz",
+        basis="cc-pvdz",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-12,
+        max_cycle=80,
+        tolerance=2e-9,
+        ao_dimension=10,
+        mp2=True,
+        mp2_tolerance=1e-9,
+    ),
+    ReferenceCase(
+        name="h2o-6-31g-rhf-mp2",
+        runfile=REPO_ROOT / "samples/h2o/6-31g/mp2_calculation.toml",
+        xyz=REPO_ROOT / "samples/h2o/h2o.xyz",
+        basis="6-31g",
+        charge=0,
+        spin=0,
+        method="rhf",
+        conv_tol=1e-12,
+        max_cycle=80,
+        tolerance=1e-8,
+        ao_dimension=13,
+        mp2=True,
+        # The residual correlation-energy difference is about 5.1e-9 Hartree
+        # with the checked-in BSE basis and a 1e-12 SCF threshold.
+        mp2_tolerance=1e-8,
+    ),
 ]
 
 
