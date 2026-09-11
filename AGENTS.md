@@ -28,4 +28,6 @@ The current history only contains an initial commit, so use clear, imperative co
 
 ## Agent-Specific Instructions
 
+Use English exclusively for all repository and GitHub content, including code comments, documentation, commit messages, branch names, pull request titles and descriptions, and review comments.
+
 Avoid broad refactors while addressing targeted issues. Preserve existing sample and fixture files unless the task explicitly requires updating expected behavior. Do not remove user-created local changes; inspect the working tree before large edits.
