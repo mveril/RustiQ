@@ -88,7 +88,10 @@
             programs = {
               nixfmt.enable = true;
               prettier.enable = true;
-              ruff-format.enable = true;
+              ruff-format = {
+                enable = true;
+                package = pythonSet.ruff;
+              };
               rustfmt = {
                 enable = true;
                 edition = "2021";

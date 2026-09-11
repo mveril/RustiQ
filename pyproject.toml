@@ -14,3 +14,4 @@ linting = ["ruff"]
 package = false
 environments = ["sys_platform == 'darwin'", "sys_platform == 'linux'"]
 no-build = true
+default-groups = ["dev", "test", "linting"]
