@@ -113,6 +113,7 @@
               craneLib.filterCargoSources path type
               || inProjectTree "assets"
               || inProjectTree "samples"
+              || inProjectTree "schemas"
               || inProjectTree "tests/data"
               || inProjectTree "crates/rustiq-core/tests/data";
           };
