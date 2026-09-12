@@ -72,8 +72,8 @@ three basis families, plus spherical d polarization functions with cc-pVDZ:
 uv run --locked pytest tools/reference -k h2o
 ```
 
-The RHF-MP2 comparisons cover H₂/STO-3G, H₂/cc-pVDZ, and H₂O/6-31G with
-all occupied orbitals correlated (no frozen core). Each case checks both the HF
+The MP2 comparisons cover RHF H₂/STO-3G, H₂/cc-pVDZ, H₂O/6-31G, and
+UHF OH/STO-3G with all occupied orbitals correlated (no frozen core). Each case checks both the HF
 total energy and the MP2 correlation energy:
 
 ```sh

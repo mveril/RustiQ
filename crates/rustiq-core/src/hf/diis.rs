@@ -41,6 +41,14 @@ impl DiisAccelerator {
         overlap_matrix: &DMatrix<f64>,
     ) -> Option<DMatrix<f64>> {
         let error_matrix = Self::error_matrix(fock_matrix, density_matrix, overlap_matrix);
+        self.extrapolate_with_error(fock_matrix, error_matrix)
+    }
+
+    pub(crate) fn extrapolate_with_error(
+        &mut self,
+        fock_matrix: &DMatrix<f64>,
+        error_matrix: DMatrix<f64>,
+    ) -> Option<DMatrix<f64>> {
         self.push_history(fock_matrix.clone(), error_matrix);
         self.extrapolated_fock_matrix()
     }
@@ -89,25 +97,45 @@ impl DiisAccelerator {
         rhs[history_size] = -1.0;
 
         let coefficients = b_matrix.lu().solve(&rhs)?;
-        let nbasis = self.history[0].fock_matrix.nrows();
-        let fock_values = (0..nbasis.pow(2))
+        let (nrows, ncols) = self.history[0].fock_matrix.shape();
+        let fock_values = (0..nrows * ncols)
             .into_par_iter()
             .map(|index| {
-                let mu = index % nbasis;
-                let nu = index / nbasis;
+                let mu = index % nrows;
+                let nu = index / nrows;
                 (0..history_size)
                     .map(|i| self.history[i].fock_matrix[(mu, nu)] * coefficients[i])
                     .sum()
             })
             .collect::<Vec<_>>();
 
-        Some(DMatrix::from_column_slice(nbasis, nbasis, &fock_values))
+        Some(DMatrix::from_column_slice(nrows, ncols, &fock_values))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_joint_spin_residuals_use_common_weights() {
+        let mut diis = DiisAccelerator::try_new(6).unwrap();
+        // The spin residuals occupy separate columns: minimizing their squared
+        // norm gives weights 4/5 and 1/5, even though each spin alone can cancel.
+        let first = DMatrix::from_row_slice(1, 2, &[10.0, 100.0]);
+        let second = DMatrix::from_row_slice(1, 2, &[20.0, 200.0]);
+        assert!(diis
+            .extrapolate_with_error(&first, DMatrix::from_row_slice(1, 2, &[1.0, 0.0]))
+            .is_none());
+        let result = diis
+            .extrapolate_with_error(&second, DMatrix::from_row_slice(1, 2, &[0.0, 2.0]))
+            .unwrap();
+        approx::assert_abs_diff_eq!(
+            result,
+            DMatrix::from_row_slice(1, 2, &[12.0, 120.0]),
+            epsilon = 1e-12
+        );
+    }
 
     #[test]
     fn test_error_matrix_is_zero_for_commuting_matrices() {

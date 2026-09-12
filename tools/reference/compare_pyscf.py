@@ -145,10 +145,23 @@ CASES = [
         method="uhf",
         conv_tol=1e-5,
         max_cycle=100,
-        # OH has open-shell orbital near-degeneracies and backend-dependent
-        # convergence behavior, so retain its scientifically justified margin.
-        tolerance=1e-5,
+        tolerance=5e-8,
         ao_dimension=6,
+    ),
+    ReferenceCase(
+        name="oh-sto-3g-uhf-mp2",
+        runfile=REPO_ROOT / "samples/oh/sto-3g/mp2_calculation.toml",
+        xyz=REPO_ROOT / "samples/oh/oh.xyz",
+        basis="sto-3g",
+        charge=0,
+        spin=1,
+        method="uhf",
+        conv_tol=1e-10,
+        max_cycle=100,
+        tolerance=5e-8,
+        ao_dimension=6,
+        mp2=True,
+        mp2_tolerance=5e-9,
     ),
     ReferenceCase(
         name="h2-sto-3g-rhf-mp2",
@@ -294,8 +307,6 @@ def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
         raise RuntimeError(f"PySCF did not converge for {case.name}.")
     mp2_correlation_energy = None
     if case.mp2:
-        if case.method != "rhf":
-            raise ValueError(f"MP2 reference is only configured for RHF: {case.name}")
         mp2_correlation_energy, _ = mp.MP2(mf).kernel()
     return float(energy), (
         float(mp2_correlation_energy) if mp2_correlation_energy is not None else None
