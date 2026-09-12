@@ -64,7 +64,6 @@ impl<T: Clone> Spin<T> {
     }
 }
 
-pub(crate) type SpinDiisAccelerators = Spin<DiisAccelerator>;
 pub(crate) type SpinMatrices = Spin<DMatrix<f64>>;
 pub struct UhfCalculation<'a> {
     pub molecule: &'a Molecule,
@@ -77,7 +76,7 @@ pub struct UhfCalculation<'a> {
     pub density: SpinMatrices,
     pub fock: SpinMatrices,
     pub residual_norm: f64,
-    diis: Option<SpinDiisAccelerators>,
+    diis: Option<DiisAccelerator>,
     pub two_electron_integrals: CompactEri,
     pub h_core: DMatrix<f64>,
     pub t_matrix: DMatrix<f64>,
@@ -241,9 +240,7 @@ impl<'a> UhfCalculation<'a> {
     }
 
     pub fn enable_diis(&mut self, diis_size: usize) -> Result<(), DiisError> {
-        self.diis = Some(SpinDiisAccelerators::duplicate(DiisAccelerator::try_new(
-            diis_size,
-        )?));
+        self.diis = Some(DiisAccelerator::try_new(diis_size)?);
         Ok(())
     }
 
@@ -346,17 +343,30 @@ impl<'a> UhfCalculation<'a> {
 
     fn apply_diis_if_enabled(&mut self) {
         if let Some(diis) = &mut self.diis {
-            if let Some(fock_matrix) =
-                diis.alpha
-                    .extrapolate(&self.fock.alpha, &self.density.alpha, &self.overlap_matrix)
-            {
-                self.fock.alpha = fock_matrix;
-            }
-            if let Some(fock_matrix) =
-                diis.beta
-                    .extrapolate(&self.fock.beta, &self.density.beta, &self.overlap_matrix)
-            {
-                self.fock.beta = fock_matrix;
+            // Both spin channels describe one coupled SCF problem. Concatenate
+            // their residuals so a single set of DIIS weights minimizes both.
+            let n = self.fock.alpha.nrows();
+            let mut fock = DMatrix::zeros(n, 2 * n);
+            fock.columns_mut(0, n).copy_from(&self.fock.alpha);
+            fock.columns_mut(n, n).copy_from(&self.fock.beta);
+            let mut error = DMatrix::zeros(n, 2 * n);
+            error
+                .columns_mut(0, n)
+                .copy_from(&DiisAccelerator::error_matrix(
+                    &self.fock.alpha,
+                    &self.density.alpha,
+                    &self.overlap_matrix,
+                ));
+            error
+                .columns_mut(n, n)
+                .copy_from(&DiisAccelerator::error_matrix(
+                    &self.fock.beta,
+                    &self.density.beta,
+                    &self.overlap_matrix,
+                ));
+            if let Some(extrapolated) = diis.extrapolate_with_error(&fock, error) {
+                self.fock.alpha = extrapolated.columns(0, n).into_owned();
+                self.fock.beta = extrapolated.columns(n, n).into_owned();
             }
         }
     }
@@ -935,6 +945,57 @@ mod tests {
         ));
         assert_eq!(iterations, uhf.max_iterations);
         assert_eq!(observer.len(), count);
+    }
+
+    #[test]
+    fn test_oh_uhf_is_invariant_to_rotation_and_tiny_guess_perturbations() {
+        for direction in [
+            nalgebra::Vector3::z(),
+            nalgebra::Vector3::x(),
+            nalgebra::Vector3::y(),
+            nalgebra::Vector3::new(1.0, 2.0, 3.0).normalize(),
+        ] {
+            let mut geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+            let distance = geometry.atoms[1].position.z;
+            geometry.atoms[1].position = (direction * distance).into();
+            let basis = test_utils::load_sto3g_basis(&geometry);
+            let molecule = Molecule::try_new(
+                geometry,
+                crate::molecules::units::Units::Bohr,
+                0,
+                std::num::NonZeroU8::new(2).unwrap(),
+            )
+            .unwrap();
+            // Tiny spin perturbations exercise different choices within the degenerate
+            // pi subspace, as can occur with platform-dependent rounding.
+            for seed in 0..4 {
+                let guess = if seed == 0 {
+                    CoreHamiltonian::default()
+                } else {
+                    perturbed_core_guess(seed, 1e-12)
+                };
+                let mut uhf =
+                    UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, guess).unwrap();
+                uhf.enable_diis(6).unwrap();
+                let result = uhf.run().unwrap();
+                assert!(
+                    matches!(result, ScfOutcome::Converged(_)),
+                    "direction={direction:?}, seed={seed}"
+                );
+                assert_abs_diff_eq!(
+                    result.summary().total_energy,
+                    -74.362_669_194_767_24,
+                    epsilon = 5e-8
+                );
+                assert_final_densities_match_canonical_orbitals(&uhf, 1e-8);
+                let mp2 = crate::mp2::uhf_unrestricted(&uhf, 0).unwrap();
+                assert_abs_diff_eq!(
+                    mp2.correlation_energy,
+                    -0.015_810_842_704_457_904,
+                    epsilon = 5e-9
+                );
+            }
+        }
     }
 
     #[test]
