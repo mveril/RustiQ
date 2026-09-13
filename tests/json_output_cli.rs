@@ -43,6 +43,37 @@ fn json_output(sample: &str) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("JSON-only stdout")
 }
 
+#[test]
+fn mp2_human_memory_budget_reaches_cli_and_preserves_json() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("memory.toml");
+    let geometry = repo_root().join("samples/h2/molecule.xyz");
+    let prefix = format!(
+        "[global]\nbasis = \"sto-3g\"\n[global.molecule]\ngeometry = {:?}\n[hf]\n[mp2]\n",
+        geometry.to_str().unwrap()
+    );
+    fs::write(&path, format!("{prefix}memory_limit = \"1 KiB\"\n")).unwrap();
+    let sample = path.to_str().unwrap();
+    let output = json_output(sample);
+    assert_v1_shape(&output);
+    let text = run_command(sample, Some("text"));
+    assert!(
+        text.status.success(),
+        "{}",
+        String::from_utf8_lossy(&text.stderr)
+    );
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(text.contains("budget 1.0 KiB"), "{text}");
+    assert!(text.contains("block 1"), "{text}");
+    for value in ["1 B", "0 MiB", "nonsense"] {
+        fs::write(&path, format!("{prefix}memory_limit = {value:?}\n")).unwrap();
+        let output = run_command(sample, Some("json"));
+        assert!(!output.status.success(), "{value}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("memory_limit"), "{stderr}");
+    }
+}
+
 fn assert_v1_shape(output: &serde_json::Value) {
     let schema: serde_json::Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

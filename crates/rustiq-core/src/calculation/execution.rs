@@ -1,3 +1,4 @@
+pub use crate::mp2::Mp2MemoryPlan;
 use std::time::Duration;
 
 use super::{CalculationExecutionError, HfOutcome, ScfSetupStep};
@@ -43,6 +44,7 @@ pub enum CalculationEvent<'a> {
     ScfSetup(ScfSetupStep),
     ScfIteration(&'a ScfIteration),
     HfCompleted(&'a HfOutcome),
+    Mp2Planned(Mp2MemoryPlan),
     Mp2Completed {
         hf: &'a HfCalculationResult,
         result: &'a Mp2Result,

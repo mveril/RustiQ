@@ -24,6 +24,7 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
         // run_hf must ignore MP2 configuration, including invalid configurations.
         .with_mp2(Mp2Config {
             frozen_orbitals: 99.into(),
+            ..Default::default()
         })
         .prepare()
         .unwrap();
@@ -73,6 +74,7 @@ fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
         let error = hf
             .mp2(Mp2Config {
                 frozen_orbitals: 99.into(),
+                ..Default::default()
             })
             .unwrap_err();
         assert!(matches!(error.cause(), CalculationError::Mp2 { .. }));
@@ -99,6 +101,47 @@ fn unconverged_hf_is_retained_but_cannot_run_mp2() {
             hf.clone().summary().scf.total_energy,
             hf.summary().scf.total_energy
         );
+    }
+}
+
+#[test]
+fn mp2_memory_errors_preserve_hf_for_retry() {
+    use rustiq_core::calculation::Mp2Error;
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        let HfOutcome::Converged(hf) = solution(method, 100) else {
+            panic!("convergence");
+        };
+        for budget in [0, 1] {
+            let error = hf
+                .mp2(Mp2Config {
+                    memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(
+                        budget,
+                    ))
+                    .into(),
+                    ..Default::default()
+                })
+                .unwrap_err();
+            assert!(matches!(
+                error.cause(),
+                CalculationError::Mp2 {
+                    error: Mp2Error::InvalidMemoryLimit | Mp2Error::InsufficientMemory { .. },
+                    ..
+                }
+            ));
+            let HfOutcome::Converged(recovered) = error.into_hf().unwrap() else {
+                panic!("retained HF");
+            };
+            let result = recovered
+                .mp2(Mp2Config {
+                    memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(
+                        1024,
+                    ))
+                    .into(),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(result, hf.mp2(Mp2Config::default()).unwrap());
+        }
     }
 }
 
