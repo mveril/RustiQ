@@ -1,3 +1,7 @@
+//! Hartree--Fock self-consistent-field implementation.
+//!
+//! The public scientific conventions are documented in [`crate::calculation`].
+
 pub(crate) mod component;
 pub(crate) mod core;
 pub(crate) mod density_guess;

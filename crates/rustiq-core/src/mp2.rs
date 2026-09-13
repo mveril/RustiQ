@@ -1,3 +1,19 @@
+//! Second-order Møller--Plesset correlation energy.
+//!
+//! For canonical RHF orbitals, this module evaluates
+//!
+//! $$
+//! E_{\mathrm{MP2}} =
+//! \sum_{ij}^{\mathrm{occ}} \sum_{ab}^{\mathrm{virt}}
+//! \frac{(ia\mid jb)\left[2(ia\mid jb) - (ib\mid ja)\right]}
+//! {\varepsilon_i + \varepsilon_j - \varepsilon_a - \varepsilon_b}.
+//! $$
+//!
+//! Here, $(ia\mid jb)$ denotes an AO-to-MO transformed ERI. Frozen orbitals
+//! are excluded from the occupied sums. UHF MP2 is evaluated as separate
+//! same-spin and opposite-spin terms. Non-finite or near-zero denominators are
+//! rejected to prevent numerically singular perturbative contributions.
+
 use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
 use thiserror::Error;
@@ -23,9 +39,13 @@ pub struct Mp2Input<'a> {
     pub two_electron_integrals: &'a CompactEri,
 }
 
+/// MP2 correlation correction and corrected electronic energy, in Hartree.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mp2Result {
+    /// Second-order correction to the HF electronic energy.
     pub correlation_energy: f64,
+    /// HF electronic energy plus the MP2 correlation correction.
+    /// Add nuclear repulsion for the total molecular energy.
     pub electronic_energy: f64,
 }
 
