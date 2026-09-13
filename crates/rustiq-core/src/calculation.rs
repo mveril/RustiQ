@@ -10,6 +10,7 @@
 //!
 //! In the AO basis, restricted HF uses the closed-shell density and Fock matrix
 //!
+//! <div>
 //! $$
 //! P_{\mu\nu}=2\sum_{i\in\mathrm{occ}}C_{\mu i}C_{\nu i},\qquad
 //! F_{\mu\nu}=H^{\mathrm{core}}_{\mu\nu}
@@ -17,9 +18,11 @@
 //! \left[(\mu\nu\mid\lambda\sigma)
 //! -\tfrac12(\mu\sigma\mid\lambda\nu)\right].
 //! $$
+//! </div>
 //!
 //! Unrestricted HF has one density per spin, without the factor of two:
 //!
+//! <div>
 //! $$
 //! P^s_{\mu\nu}=\sum_{i\in\mathrm{occ}(s)}C^s_{\mu i}C^s_{\nu i},\qquad
 //! F^s_{\mu\nu}=H^{\mathrm{core}}_{\mu\nu}
@@ -28,6 +31,7 @@
 //! -\sum_{\lambda\sigma}P^s_{\lambda\sigma}
 //! (\mu\sigma\mid\lambda\nu),\quad s\in\{\alpha,\beta\}.
 //! $$
+//! </div>
 //!
 //! The Roothaan--Hall equations are $FC=SC\varepsilon$ (one per spin for UHF).
 //! Both the change in electronic energy and the norm of the commutator
@@ -44,11 +48,13 @@
 //!
 //! From converged canonical RHF orbitals, the correlation correction is
 //!
+//! <div>
 //! $$
 //! E_\mathrm{MP2}=\sum_{ij\in\mathrm{occ}}\sum_{ab\in\mathrm{virt}}
 //! \frac{(ia\mid jb)\bigl[2(ia\mid jb)-(ib\mid ja)\bigr]}
 //! {\varepsilon_i+\varepsilon_j-\varepsilon_a-\varepsilon_b}.
 //! $$
+//! </div>
 //!
 //! The occupied sums exclude frozen orbitals. UHF MP2 uses separate same-spin
 //! and opposite-spin contributions. [`Mp2Result::correlation_energy`] is the
