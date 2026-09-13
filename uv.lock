@@ -12,6 +12,12 @@ supported-markers = [
     "sys_platform == 'linux'",
 ]
 
+[manifest]
+members = [
+    "rustiq",
+    "rustiq-reference-tools",
+]
+
 [[package]]
 name = "anyio"
 version = "4.15.0"
@@ -1591,6 +1597,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/99/75/78d401106731999a1dd20cc5a6961e37e1eb9397a3b589f73f3a5ce146a3/ruff-0.16.7-py3-none-musllinux_1_2_i686.whl", hash = "sha256:ef140c6eb935fa9a84c9c607dfb2cb1b85843c192e79265b0c54f35f557ea8e5", size = 10286290, upload-time = "2026-09-10T18:03:55.207Z" },
     { url = "https://files.pythonhosted.org/packages/68/49/56f9c3a8b755df93a0ad318b2147bf4ef5dae9a7e5ec61c460109c67957f/ruff-0.16.7-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:53e39506a730fadeee0d998ed5946f30671f0db240c6c7c73bdabbe33604bb6f", size = 10745048, upload-time = "2026-09-10T18:03:57.299Z" },
 ]
+
+[[package]]
+name = "rustiq"
+source = { editable = "crates/rustiq-python" }
+
+[package.dev-dependencies]
+test = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+test = [{ name = "pytest" }]
 
 [[package]]
 name = "rustiq-reference-tools"

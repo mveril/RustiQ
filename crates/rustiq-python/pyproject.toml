@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.15,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "rustiq"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dynamic = ["version"]
+
+[tool.uv]
+no-build = false
+package = true
+
+[dependency-groups]
+test = ["pytest"]
+
+[tool.maturin]
+bindings = "pyo3"

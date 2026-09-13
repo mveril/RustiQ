@@ -76,6 +76,13 @@
           };
 
           rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+          rustiqPythonOverlay = final: prev: {
+            rustiq = prev.rustiq.overrideAttrs (old: {
+              nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
+                rustToolchain
+              ];
+            });
+          };
 
           craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
@@ -143,6 +150,7 @@
             pkgs.lib.composeManyExtensions [
               pyproject-build-systems.overlays.wheel
               pythonOverlay
+              rustiqPythonOverlay
             ]
           );
 
