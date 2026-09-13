@@ -7,7 +7,7 @@ dependencies = ["pyscf==2.14.0"]
 
 [dependency-groups]
 test = ["pytest"]
-dev = ["ipykernel", "jupyterlab", "matplotlib", "numpy", "scipy"]
+dev = ["ipykernel", "jupyterlab", "matplotlib", "maturin>=1.15,<2.0", "numpy", "scipy"]
 linting = ["ruff"]
 
 [tool.uv]
