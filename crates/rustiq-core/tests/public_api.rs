@@ -32,6 +32,54 @@ fn geometry() -> Geometry {
     )
 }
 
+#[test]
+fn builder_propagates_mp2_memory_budget_and_reports_plan() {
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        let geometry = geometry();
+        let file = basis_file();
+        let builder = CalculationBuilder::new(&geometry, &file).with_hf(HfConfig {
+            method: method.into(),
+            ..Default::default()
+        });
+        let span = Some((12, 4).into());
+        let error = builder
+            .clone()
+            .with_mp2(Mp2Config {
+                memory_limit: Located {
+                    value: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1)),
+                    span,
+                },
+                ..Default::default()
+            })
+            .execute()
+            .unwrap_err();
+        assert!(matches!(
+            error.cause(),
+            CalculationError::Mp2 {
+                error: Mp2Error::InsufficientMemory { budget: 1, .. },
+                ..
+            }
+        ));
+        assert_eq!(labels(&error), span.into_iter().collect::<Vec<_>>());
+        let mut planned = false;
+        builder
+            .with_mp2(Mp2Config {
+                memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1024))
+                    .into(),
+                ..Default::default()
+            })
+            .execute_with_events(|event| {
+                if let CalculationEvent::Mp2Planned(plan) = event {
+                    assert_eq!(plan.budget_bytes, 1024);
+                    assert!(plan.workspace_bytes <= 1024);
+                    planned = true;
+                }
+            })
+            .unwrap();
+        assert!(planned);
+    }
+}
+
 #[derive(Default)]
 struct WorkflowObserver {
     events: Vec<&'static str>,
@@ -300,6 +348,7 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
                 })
                 .with_mp2(Mp2Config {
                     frozen_orbitals: Located { value: 2, span },
+                    ..Default::default()
                 })
                 .execute()
                 .unwrap_err();

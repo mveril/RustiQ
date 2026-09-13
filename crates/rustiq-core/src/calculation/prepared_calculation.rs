@@ -92,7 +92,9 @@ impl CalculationExecution for PreparedCalculation {
                             }))
                     }
                 };
-                let result = converged.mp2(*config)?;
+                let result = converged.mp2_with_report(*config, &mut |plan| {
+                    events(CalculationEvent::Mp2Planned(plan));
+                })?;
                 events(CalculationEvent::Mp2Completed {
                     hf: hf.summary(),
                     result: &result,

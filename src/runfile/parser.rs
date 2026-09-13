@@ -50,6 +50,7 @@ pub fn parse_runfile(
     }
     if let Some(config) = &mut mp2_config {
         config.frozen_orbitals.span = span("mp2", "frozen_orbitals");
+        config.memory_limit.span = span("mp2", "memory_limit");
     }
     let molecule_span = |field: &str| {
         root["global"]["molecule"][field].item().map(|item| {

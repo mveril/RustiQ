@@ -14,15 +14,17 @@
 //! same-spin and opposite-spin terms. Non-finite or near-zero denominators are
 //! rejected to prevent numerically singular perturbative contributions.
 
+mod blocked;
+#[cfg(any(test, feature = "bench-support"))]
+use crate::eri::index::{EriIndex, PairIndex};
+pub use blocked::Mp2MemoryPlan;
 use nalgebra::{DMatrix, DVector};
+#[cfg(any(test, feature = "bench-support"))]
 use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
-    eri::{
-        index::{EriIndex, PairIndex},
-        CompactEri,
-    },
+    eri::CompactEri,
     hf::{
         numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
         scf::ScfCalculation,
@@ -76,6 +78,14 @@ pub enum Mp2Error {
     InvalidOrbitalPartition { occupied: usize, total: usize },
     #[error("frozen orbitals ({frozen}) must be less than occupied orbitals ({occupied})")]
     InvalidFrozenOrbitalCount { frozen: usize, occupied: usize },
+    #[error("MP2 workspace size exceeds the addressable range")]
+    SizeOverflow,
+    #[error("MP2 memory budget must be positive")]
+    InvalidMemoryLimit,
+    #[error("MP2 workspace requires at least {}, but the budget is {}",
+        bytesize::ByteSize::b(*required).display().iec(),
+        bytesize::ByteSize::b(*budget).display().iec())]
+    InsufficientMemory { required: u64, budget: u64 },
     #[error(transparent)]
     Numerical(#[from] NumericalError),
 }
@@ -99,6 +109,18 @@ pub fn rhf_closed_shell(
     scf: &ScfCalculation<'_>,
     frozen_orbitals: usize,
 ) -> Result<Mp2Result, Mp2Error> {
+    rhf_closed_shell_with_memory(
+        scf,
+        frozen_orbitals,
+        crate::config::MemoryLimit::Auto.resolve().as_u64(),
+    )
+}
+
+pub(crate) fn rhf_closed_shell_with_memory(
+    scf: &ScfCalculation<'_>,
+    frozen_orbitals: usize,
+    budget: u64,
+) -> Result<Mp2Result, Mp2Error> {
     let input = Mp2Input {
         mo_coefficients: &scf.mo_coefficients,
         orbital_energies: &scf.orbital_energies,
@@ -106,7 +128,7 @@ pub fn rhf_closed_shell(
         frozen_orbitals,
         two_electron_integrals: &scf.two_electron_integrals,
     };
-    let correlation_energy = correlation_energy(&input)?;
+    let correlation_energy = correlation_energy_with_memory(&input, budget, &mut |_| {})?;
     Ok(Mp2Result {
         correlation_energy,
         electronic_energy: scf.energy + correlation_energy,
@@ -116,6 +138,18 @@ pub fn rhf_closed_shell(
 pub fn uhf_unrestricted(
     scf: &UhfCalculation<'_>,
     frozen_orbitals: usize,
+) -> Result<Mp2Result, Mp2Error> {
+    uhf_unrestricted_with_memory(
+        scf,
+        frozen_orbitals,
+        crate::config::MemoryLimit::Auto.resolve().as_u64(),
+    )
+}
+
+pub(crate) fn uhf_unrestricted_with_memory(
+    scf: &UhfCalculation<'_>,
+    frozen_orbitals: usize,
+    budget: u64,
 ) -> Result<Mp2Result, Mp2Error> {
     let alpha = Mp2SpinInput {
         mo_coefficients: &scf.mo_coefficients.alpha,
@@ -130,7 +164,13 @@ pub fn uhf_unrestricted(
         frozen_orbitals,
     };
 
-    let correlation_energy = uhf_correlation_energy(alpha, beta, &scf.two_electron_integrals)?;
+    let correlation_energy = uhf_correlation_energy_with_memory(
+        alpha,
+        beta,
+        &scf.two_electron_integrals,
+        budget,
+        &mut |_| {},
+    )?;
 
     Ok(Mp2Result {
         correlation_energy,
@@ -139,6 +179,18 @@ pub fn uhf_unrestricted(
 }
 
 pub(crate) fn correlation_energy(input: &Mp2Input<'_>) -> Result<f64, Mp2Error> {
+    correlation_energy_with_memory(
+        input,
+        crate::config::MemoryLimit::Auto.resolve().as_u64(),
+        &mut |_| {},
+    )
+}
+
+pub(crate) fn correlation_energy_with_memory(
+    input: &Mp2Input<'_>,
+    budget: u64,
+    report: &mut impl FnMut(Mp2MemoryPlan),
+) -> Result<f64, Mp2Error> {
     let mo_coefficients = input.mo_coefficients;
     let orbital_energies = input.orbital_energies;
 
@@ -170,46 +222,23 @@ pub(crate) fn correlation_energy(input: &Mp2Input<'_>) -> Result<f64, Mp2Error> 
 
     ensure_finite_values(orbital_energies, "orbital energies")?;
 
-    let ovov_integrals = build_ovov_integrals(input);
-    let active_occupied_orbitals = occupied_orbitals - frozen_orbitals;
-    let virtual_orbitals = total_orbitals - occupied_orbitals;
-
-    let correlation_energy: f64 = (0..active_occupied_orbitals)
-        .into_par_iter()
-        .map(|i| -> Result<f64, Mp2Error> {
-            let i_orbital = frozen_orbitals + i;
-            let mut partial_energy = 0.0;
-
-            for j in 0..active_occupied_orbitals {
-                let j_orbital = frozen_orbitals + j;
-                for a in 0..virtual_orbitals {
-                    let a_orbital = occupied_orbitals + a;
-                    let ia = orbital_pair_index(i, a, virtual_orbitals);
-                    let ja = orbital_pair_index(j, a, virtual_orbitals);
-                    for b in 0..virtual_orbitals {
-                        let b_orbital = occupied_orbitals + b;
-                        let ib = orbital_pair_index(i, b, virtual_orbitals);
-                        let jb = orbital_pair_index(j, b, virtual_orbitals);
-                        let iajb = ovov_integrals[(ia, jb)];
-                        let ibja = ovov_integrals[(ib, ja)];
-                        let denominator = orbital_energies[i_orbital] + orbital_energies[j_orbital]
-                            - orbital_energies[a_orbital]
-                            - orbital_energies[b_orbital];
-                        validate_denominator(denominator)?;
-
-                        partial_energy += ((2.0 * iajb) - ibja) * iajb / denominator;
-                    }
-                }
-            }
-
-            Ok(partial_energy)
-        })
-        .try_reduce(|| 0.0, |left, right| Ok(left + right))?;
-
-    ensure_finite_value(correlation_energy, "MP2 correlation energy")?;
-    Ok(correlation_energy)
+    let spin = Mp2SpinInput {
+        mo_coefficients,
+        orbital_energies,
+        occupied_orbitals,
+        frozen_orbitals,
+    };
+    blocked::energy(
+        spin,
+        spin,
+        input.two_electron_integrals,
+        budget,
+        blocked::Term::Rhf,
+        report,
+    )
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn build_ovov_integrals(input: &Mp2Input<'_>) -> DMatrix<f64> {
     let mo_coefficients = input.mo_coefficients;
     let basis_functions = mo_coefficients.nrows();
@@ -236,6 +265,22 @@ pub(crate) fn uhf_correlation_energy(
     beta: Mp2SpinInput<'_>,
     two_electron_integrals: &CompactEri,
 ) -> Result<f64, Mp2Error> {
+    uhf_correlation_energy_with_memory(
+        alpha,
+        beta,
+        two_electron_integrals,
+        crate::config::MemoryLimit::Auto.resolve().as_u64(),
+        &mut |_| {},
+    )
+}
+
+pub(crate) fn uhf_correlation_energy_with_memory(
+    alpha: Mp2SpinInput<'_>,
+    beta: Mp2SpinInput<'_>,
+    two_electron_integrals: &CompactEri,
+    budget: u64,
+    report: &mut impl FnMut(Mp2MemoryPlan),
+) -> Result<f64, Mp2Error> {
     validate_spin_input(&alpha)?;
     validate_spin_input(&beta)?;
     if alpha.frozen_orbitals > alpha.occupied_orbitals
@@ -261,50 +306,43 @@ pub(crate) fn uhf_correlation_energy(
     ensure_finite_values(alpha.orbital_energies, "alpha orbital energies")?;
     ensure_finite_values(beta.orbital_energies, "beta orbital energies")?;
 
-    let ao_pair_matrix =
-        build_ao_pair_matrix(two_electron_integrals, alpha.mo_coefficients.nrows());
-    let alpha_ovov = build_orbital_pair_transform(
-        alpha.mo_coefficients,
-        alpha.frozen_orbitals,
-        alpha.occupied_orbitals,
-    );
-    let beta_ovov = build_orbital_pair_transform(
-        beta.mo_coefficients,
-        beta.frozen_orbitals,
-        beta.occupied_orbitals,
-    );
+    let dense_bytes = blocked::uhf_dense_bytes(alpha, beta)?;
+    let mut sector_report = |mut plan: Mp2MemoryPlan, sector| {
+        plan.sector = sector;
+        plan.dense_workspace_bytes = dense_bytes;
+        report(plan);
+    };
 
-    let alpha_same_spin = alpha_ovov.transpose() * &ao_pair_matrix * &alpha_ovov;
-    let beta_same_spin = beta_ovov.transpose() * &ao_pair_matrix * &beta_ovov;
-    let alpha_beta_direct = alpha_ovov.transpose() * ao_pair_matrix * beta_ovov;
-
-    let alpha_same_spin_energy = same_spin_correlation_energy(
-        &alpha_same_spin,
-        alpha.orbital_energies,
-        alpha.occupied_orbitals,
-        alpha.frozen_orbitals,
+    let aa = blocked::energy(
+        alpha,
+        alpha,
+        two_electron_integrals,
+        budget,
+        blocked::Term::Same,
+        &mut |p| sector_report(p, "UHF alpha-alpha"),
     )?;
-    let beta_same_spin_energy = same_spin_correlation_energy(
-        &beta_same_spin,
-        beta.orbital_energies,
-        beta.occupied_orbitals,
-        beta.frozen_orbitals,
+    let bb = blocked::energy(
+        beta,
+        beta,
+        two_electron_integrals,
+        budget,
+        blocked::Term::Same,
+        &mut |p| sector_report(p, "UHF beta-beta"),
     )?;
-    let opposite_spin_energy = opposite_spin_correlation_energy(
-        &alpha_beta_direct,
-        alpha.orbital_energies,
-        alpha.occupied_orbitals,
-        alpha.frozen_orbitals,
-        beta.orbital_energies,
-        beta.occupied_orbitals,
-        beta.frozen_orbitals,
+    let ab = blocked::energy(
+        alpha,
+        beta,
+        two_electron_integrals,
+        budget,
+        blocked::Term::Opposite,
+        &mut |p| sector_report(p, "UHF alpha-beta"),
     )?;
-
-    let correlation_energy = alpha_same_spin_energy + beta_same_spin_energy + opposite_spin_energy;
-    ensure_finite_value(correlation_energy, "MP2 correlation energy")?;
-    Ok(correlation_energy)
+    let result = aa + bb + ab;
+    ensure_finite_value(result, "MP2 correlation energy")?;
+    Ok(result)
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn build_ao_pair_matrix(
     two_electron_integrals: &CompactEri,
     basis_functions: usize,
@@ -329,6 +367,7 @@ fn build_ao_pair_matrix(
     matrix
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn build_orbital_pair_transform(
     mo_coefficients: &DMatrix<f64>,
     occupied_start: usize,
@@ -383,6 +422,7 @@ fn validate_spin_input(input: &Mp2SpinInput<'_>) -> Result<(), Mp2Error> {
     Ok(())
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn same_spin_correlation_energy(
     ovov_integrals: &DMatrix<f64>,
     orbital_energies: &DVector<f64>,
@@ -432,6 +472,7 @@ fn same_spin_correlation_energy(
     Ok(correlation_energy)
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn opposite_spin_correlation_energy(
     ovov_integrals: &DMatrix<f64>,
     alpha_orbital_energies: &DVector<f64>,
@@ -488,6 +529,7 @@ pub(crate) struct Mp2SpinInput<'a> {
     pub(crate) frozen_orbitals: usize,
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn pair_transform_coefficient(
     mo_coefficients: &DMatrix<f64>,
     mu: usize,
@@ -503,10 +545,12 @@ fn pair_transform_coefficient(
     }
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn orbital_pair_index(left: usize, right: usize, right_count: usize) -> usize {
     left * right_count + right
 }
 
+#[cfg(any(test, feature = "bench-support"))]
 fn basis_function_pair_count(basis_functions: usize) -> usize {
     basis_functions * (basis_functions + 1) / 2
 }
@@ -541,6 +585,73 @@ fn mo_two_electron_integral(
     }
 
     value
+}
+
+#[cfg(feature = "bench-support")]
+pub struct Mp2BenchResult {
+    pub dense_elapsed: std::time::Duration,
+    pub blocked_elapsed: std::time::Duration,
+    pub dense_energy: f64,
+    pub blocked_energy: f64,
+    pub memory: Mp2MemoryPlan,
+}
+
+/// Synthetic, deterministic inputs; timing excludes input/ERI construction and SCF.
+#[cfg(feature = "bench-support")]
+pub fn benchmark_mp2(n: usize, occupied: usize, budget: u64) -> Result<Mp2BenchResult, Mp2Error> {
+    use std::time::Instant;
+    let coefficients = DMatrix::from_fn(n, n, |i, j| ((i * n + j) as f64 + 0.3).sin() / n as f64);
+    let energies = DVector::from_fn(n, |i, _| {
+        if i < occupied {
+            -1.0 - (occupied - i) as f64 / n as f64
+        } else {
+            0.5 + i as f64 / n as f64
+        }
+    });
+    let mut eri = CompactEri::Zeroed(n);
+    for k in 0..eri.len() {
+        eri[EriIndex(k)] = (k as f64 * 0.7).cos() / 3.0;
+    }
+    let input = Mp2Input {
+        mo_coefficients: &coefficients,
+        orbital_energies: &energies,
+        occupied_orbitals: occupied,
+        frozen_orbitals: 0,
+        two_electron_integrals: &eri,
+    };
+    let mut memory = None;
+    let begin = Instant::now();
+    let blocked_energy = correlation_energy_with_memory(&input, budget, &mut |p| memory = Some(p))?;
+    let blocked_elapsed = begin.elapsed();
+    let begin = Instant::now();
+    let dense = build_ovov_integrals(&input);
+    let v = n - occupied;
+    let dense_energy: f64 = (0..occupied)
+        .into_par_iter()
+        .map(|i| {
+            let mut total = 0.0;
+            for j in 0..occupied {
+                for a in 0..v {
+                    for b in 0..v {
+                        let g = dense[(i * v + a, j * v + b)];
+                        let x = dense[(i * v + b, j * v + a)];
+                        total += g * (2.0 * g - x)
+                            / (energies[i] + energies[j]
+                                - energies[occupied + a]
+                                - energies[occupied + b]);
+                    }
+                }
+            }
+            total
+        })
+        .sum();
+    Ok(Mp2BenchResult {
+        dense_elapsed: begin.elapsed(),
+        blocked_elapsed,
+        dense_energy,
+        blocked_energy,
+        memory: memory.unwrap(),
+    })
 }
 
 #[cfg(test)]
