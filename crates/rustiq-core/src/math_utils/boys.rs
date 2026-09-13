@@ -2,7 +2,13 @@ use crate::math_utils::f64_const::SQRT_PI;
 use special::{Gamma, Primitive};
 use std::ops::Index;
 
-/// Calculate the Boys function F_m(x) for a given order m and parameter x.
+/// Calculate the Boys function \(F_m(x)\) for a given order \(m\) and parameter \(x\).
+///
+/// \[
+/// F_m(x) = \int_0^1 t^{2m} \exp(-x t^2)\,dt.
+/// \]
+///
+/// The integral occurs in Gaussian Coulomb and electron-repulsion integrals.
 pub fn boys_function(m: u64, x: f64) -> f64 {
     boys_function_value(m, x)
 }

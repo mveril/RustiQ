@@ -5,6 +5,35 @@
 //! Use [`config`] and [`calculation`] for direct Rust calculations. Runfile parsing,
 //! user environment and filesystem policy belong to the application, as do source
 //! text for scientific diagnostics and terminal presentation.
+//!
+//! # Scientific conventions
+//!
+//! RustiQ uses atomic units throughout the electronic-structure calculation:
+//! \(\hbar = m_e = e = 4\pi\varepsilon_0 = 1\). Input coordinates are converted
+//! to Bohr before basis construction. AO indices are written as
+//! \(\mu, \nu, \lambda, \sigma\), occupied spatial-orbital indices as \(i, j\),
+//! and virtual-orbital indices as \(a, b\).
+//!
+//! The one-electron core Hamiltonian and AO overlap matrix are
+//!
+//! \[
+//! H_{\mu\nu}^{\mathrm{core}} = T_{\mu\nu} + V_{\mu\nu},
+//! \qquad S_{\mu\nu} = \braket{\chi_\mu | \chi_\nu}.
+//! \]
+//!
+//! Electron-repulsion integrals use chemists' notation,
+//!
+//! \[
+//! (\mu\nu\mid\lambda\sigma) =
+//! \iint \chi_\mu(\mathbf r_1)\chi_\nu(\mathbf r_1)
+//! \frac{1}{r_{12}}
+//! \chi_\lambda(\mathbf r_2)\chi_\sigma(\mathbf r_2)
+//! \, d\mathbf r_1\, d\mathbf r_2.
+//! \]
+//!
+//! Restricted and unrestricted Hartree--Fock use an SCF procedure with symmetric
+//! overlap orthogonalization. MP2 is available only from converged, canonical HF
+//! orbitals; its reported correlation energy excludes the nuclear-repulsion term.
 
 pub mod basis;
 pub mod calculation;
