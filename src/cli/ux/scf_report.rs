@@ -61,6 +61,20 @@ where
             "Total Energy (including nuclear repulsion): {:.6} Hartree",
             result.total_energy
         )?;
+        if let Some(spin) = result.spin {
+            let qualifier = if converged {
+                ""
+            } else {
+                " (unconverged orbitals)"
+            };
+            writeln!(self.writer, "Spin <S^2>{qualifier}: {:.6}", spin.s_squared)?;
+            writeln!(self.writer, "Ideal <S^2>: {:.6}", spin.ideal_s_squared)?;
+            writeln!(
+                self.writer,
+                "Spin contamination: {:.6}",
+                spin.spin_contamination
+            )?;
+        }
         writeln!(
             self.writer,
             "Overlap effective rank: {}/{} ({} discarded, relative threshold {:.3e})",
@@ -196,6 +210,7 @@ mod tests {
                         total_energy: -0.8,
                         delta_energy: 1.0,
                         residual_norm: 0.1,
+                        spin: None,
                         energy_details: ScfEnergyDetails {
                             kinetic_energy: 0.3,
                             nuclear_attraction_energy: -1.5,

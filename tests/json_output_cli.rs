@@ -92,6 +92,15 @@ fn assert_v1_shape(output: &serde_json::Value) {
             "missing orthogonalization field {key}"
         );
     }
+    if hf["method"] == "UHF" {
+        let spin = hf["spin"].as_object().expect("UHF spin object");
+        for key in ["s_squared", "ideal_s_squared", "spin_contamination"] {
+            assert!(spin[key].is_number(), "missing spin field {key}");
+            assert!(schema["$defs"]["spin"]["properties"].get(key).is_some());
+        }
+    } else {
+        assert!(hf.get("spin").is_none());
+    }
     if let Some(mp2) = calculation.get("mp2") {
         let mp2 = mp2.as_object().expect("MP2 object");
         assert!(mp2["method"] == "RHF-MP2" || mp2["method"] == "UHF-MP2");
@@ -123,6 +132,18 @@ fn json_uhf_and_mp2_output_expose_structured_results() {
     let uhf = json_output("samples/h2/sto-3g/uhf_h2_plus_calculation.toml");
     assert_v1_shape(&uhf);
     assert_eq!(uhf["calculation"]["hf"]["method"], "UHF");
+    let spin = &uhf["calculation"]["hf"]["spin"];
+    assert_abs_diff_eq!(spin["s_squared"].as_f64().unwrap(), 0.75, epsilon = 1e-10);
+    assert_abs_diff_eq!(
+        spin["ideal_s_squared"].as_f64().unwrap(),
+        0.75,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        spin["spin_contamination"].as_f64().unwrap(),
+        0.0,
+        epsilon = 1e-10
+    );
 
     let mp2 = json_output("samples/h2/sto-3g/mp2_calculation.toml");
     assert_v1_shape(&mp2);

@@ -28,7 +28,7 @@ pub use crate::{
         orthogonalization::OrthogonalizationInfo,
         scf_energy_details::ScfEnergyDetails,
         scf_iteration::ScfIteration,
-        scf_result::{ScfResult, ScfSetupTimings, ScfTimings},
+        scf_result::{ScfResult, ScfSetupTimings, ScfTimings, SpinDiagnostics},
         scf_setup::ScfSetupStep,
     },
     mp2::{Mp2Error, Mp2Result},

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
-import pytest
-
 import compare_pyscf
+import pytest
 
 
 @pytest.fixture(scope="session")
@@ -23,7 +22,7 @@ def test_rustiq_matches_pyscf(
     rustiq_env: dict[str, str],
 ) -> None:
     rustiq = compare_pyscf.rustiq_result(case, rustiq_env)
-    pyscf_hf_energy, pyscf_mp2_energy = compare_pyscf.pyscf_result(case)
+    pyscf_hf_energy, pyscf_mp2_energy, pyscf_s_squared = compare_pyscf.pyscf_result(case)
 
     assert rustiq["schema_version"] == 1
     calculation = rustiq["calculation"]
@@ -36,6 +35,21 @@ def test_rustiq_matches_pyscf(
     assert float(hf["total_energy"]) == pytest.approx(
         pyscf_hf_energy, abs=case.tolerance, rel=0.0
     )
+    if case.method == "uhf":
+        assert pyscf_s_squared is not None
+        spin = hf["spin"]
+        assert isinstance(spin, dict)
+        ideal_s_squared = 0.5 * case.spin * (0.5 * case.spin + 1.0)
+        assert float(spin["ideal_s_squared"]) == pytest.approx(ideal_s_squared, abs=1e-12)
+        assert float(spin["s_squared"]) == pytest.approx(
+            pyscf_s_squared, abs=case.spin_tolerance, rel=0.0
+        )
+        assert float(spin["spin_contamination"]) == pytest.approx(
+            pyscf_s_squared - ideal_s_squared, abs=case.spin_tolerance, rel=0.0
+        )
+    else:
+        assert pyscf_s_squared is None
+        assert "spin" not in hf
 
     mp2 = calculation.get("mp2")
     assert (mp2 is not None) is case.mp2

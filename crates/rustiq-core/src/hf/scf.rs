@@ -310,6 +310,7 @@ impl<'a> ScfCalculation<'a> {
             total_energy,
             delta_energy,
             residual_norm: self.residual_norm,
+            spin: None,
             energy_details,
             orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),

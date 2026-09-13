@@ -3,7 +3,7 @@ use std::io::Write;
 use serde::Serialize;
 
 use rustiq_core::{
-    calculation::{Mp2Result, OrthogonalizationInfo, ScfResult},
+    calculation::{Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics},
     config::ResolvedHfMethod,
 };
 
@@ -31,7 +31,16 @@ pub(crate) struct HfResultOutput {
     pub total_energy: f64,
     pub delta_energy: f64,
     pub residual_norm: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spin: Option<SpinDiagnosticsOutput>,
     pub orthogonalization: OrthogonalizationOutput,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SpinDiagnosticsOutput {
+    pub s_squared: f64,
+    pub ideal_s_squared: f64,
+    pub spin_contamination: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,6 +101,13 @@ impl CalculationOutput {
             hf.residual_norm,
             hf.orthogonalization.relative_linear_dependency_threshold,
         ];
+        if let Some(spin) = &hf.spin {
+            values.extend([
+                spin.s_squared,
+                spin.ideal_s_squared,
+                spin.spin_contamination,
+            ]);
+        }
         if let Some(mp2) = &self.calculation.mp2 {
             values.extend([
                 mp2.correlation_energy,
@@ -123,7 +139,18 @@ impl From<(ResolvedHfMethod, &ScfResult, bool)> for HfResultOutput {
             total_energy: result.total_energy,
             delta_energy: result.delta_energy,
             residual_norm: result.residual_norm,
+            spin: result.spin.map(SpinDiagnosticsOutput::from),
             orthogonalization: OrthogonalizationOutput::from(result.orthogonalization),
+        }
+    }
+}
+
+impl From<SpinDiagnostics> for SpinDiagnosticsOutput {
+    fn from(spin: SpinDiagnostics) -> Self {
+        Self {
+            s_squared: spin.s_squared,
+            ideal_s_squared: spin.ideal_s_squared,
+            spin_contamination: spin.spin_contamination,
         }
     }
 }
@@ -154,6 +181,7 @@ mod tests {
             total_energy: -1.116_759_307_396_426,
             delta_energy: 0.0,
             residual_norm: 0.0,
+            spin: None,
             energy_details: ScfEnergyDetails {
                 kinetic_energy: 0.0,
                 nuclear_attraction_energy: 0.0,
@@ -215,6 +243,18 @@ mod tests {
         let mut result = scf_result();
         result.total_energy = f64::NAN;
         let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, true, None);
+        assert!(output.write_json(Vec::new()).is_err());
+    }
+
+    #[test]
+    fn json_output_rejects_non_finite_spin() {
+        let mut result = scf_result();
+        result.spin = Some(SpinDiagnostics {
+            s_squared: f64::NAN,
+            ideal_s_squared: 0.75,
+            spin_contamination: 0.0,
+        });
+        let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &result, true, None);
         assert!(output.write_json(Vec::new()).is_err());
     }
 }
