@@ -16,12 +16,10 @@ use crate::molecules::geometry::Geometry;
 
 /// Structure representing a contracted Cartesian Gaussian basis set.
 ///
-/// A primitive centered at \(\mathbf A\) has the form
-/// \[
-/// \chi_{lmn}(\mathbf r) =
-/// N (x-A_x)^l(y-A_y)^m(z-A_z)^n
-/// \exp\!\left[-\alpha\lVert\mathbf r-\mathbf A\rVert^2\right],
-/// \]
+/// A primitive centered at A has the form
+/// ```text
+/// χ_lmn(r) = N (x − A_x)ˡ (y − A_y)ᵐ (z − A_z)ⁿ exp[−α |r − A|²]
+/// ```
 /// and a contracted function is a linear combination of primitives sharing the
 /// center and Cartesian angular momentum. Normalization is applied when the
 /// basis is constructed.
