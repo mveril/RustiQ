@@ -10,9 +10,18 @@ pub struct ScfResult {
     pub total_energy: f64,
     pub delta_energy: f64,
     pub residual_norm: f64,
+    pub spin: Option<SpinDiagnostics>,
     pub energy_details: ScfEnergyDetails,
     pub orthogonalization: OrthogonalizationInfo,
     pub timings: ScfTimings,
+}
+
+/// Spin expectation and contamination of an unrestricted HF determinant.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpinDiagnostics {
+    pub s_squared: f64,
+    pub ideal_s_squared: f64,
+    pub spin_contamination: f64,
 }
 
 /// The termination of a completed SCF calculation, separate from its metrics.

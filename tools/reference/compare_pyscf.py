@@ -32,6 +32,7 @@ class ReferenceCase:
     max_cycle: int
     tolerance: float
     ao_dimension: int
+    spin_tolerance: float = 1e-8
     mp2: bool = False
     mp2_tolerance: float | None = None
 
@@ -147,6 +148,7 @@ CASES = [
         max_cycle=100,
         tolerance=5e-8,
         ao_dimension=6,
+        spin_tolerance=2e-5,
     ),
     ReferenceCase(
         name="oh-sto-3g-uhf-mp2",
@@ -160,6 +162,7 @@ CASES = [
         max_cycle=100,
         tolerance=5e-8,
         ao_dimension=6,
+        spin_tolerance=2e-5,
         mp2=True,
         mp2_tolerance=5e-9,
     ),
@@ -219,8 +222,7 @@ def run_command(args: list[str], *, env: dict[str, str] | None = None) -> str:
         cwd=REPO_ROOT,
         env=env,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if completed.returncode != 0:
@@ -282,7 +284,7 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         ) from error
 
 
-def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
+def pyscf_result(case: ReferenceCase) -> tuple[float, float | None, float | None]:
     from pyscf import gto, mp, scf
 
     mol = gto.M(
@@ -305,12 +307,13 @@ def pyscf_result(case: ReferenceCase) -> tuple[float, float | None]:
     energy = mf.kernel()
     if not mf.converged:
         raise RuntimeError(f"PySCF did not converge for {case.name}.")
+    s_squared = float(mf.spin_square()[0]) if case.method == "uhf" else None
     mp2_correlation_energy = None
     if case.mp2:
         mp2_correlation_energy, _ = mp.MP2(mf).kernel()
     return float(energy), (
         float(mp2_correlation_energy) if mp2_correlation_energy is not None else None
-    )
+    ), s_squared
 
 
 def main(pytest_args: list[str] | None = None) -> int:

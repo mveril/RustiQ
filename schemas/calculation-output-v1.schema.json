@@ -31,7 +31,18 @@
         "total_energy": { "type": "number" },
         "delta_energy": { "type": "number" },
         "residual_norm": { "type": "number" },
+        "spin": { "$ref": "#/$defs/spin" },
         "orthogonalization": { "$ref": "#/$defs/orthogonalization" }
+      }
+    },
+    "spin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["s_squared", "ideal_s_squared", "spin_contamination"],
+      "properties": {
+        "s_squared": { "type": "number" },
+        "ideal_s_squared": { "type": "number" },
+        "spin_contamination": { "type": "number" }
       }
     },
     "orthogonalization": {

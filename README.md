@@ -497,6 +497,11 @@ cargo run -- run samples/h2/sto-3g/calculation.toml --format json
 
 Schema version 1 reports the resolved HF method, convergence and final SCF
 energies, orthogonalization rank information, and (when requested) MP2 energies.
+For UHF, `calculation.hf.spin` additionally reports `s_squared` (the expectation
+value of S²), `ideal_s_squared` = S(S+1) for S = (Nα − Nβ)/2, and
+`spin_contamination` = `s_squared` − `ideal_s_squared`. The spin object is absent
+for RHF. When `converged` is false, these values describe the last, unconverged
+UHF orbitals rather than a converged wavefunction.
 Floating-point quantities are JSON numbers serialized directly from RustiQ's
 `f64` results, without display rounding. For example:
 

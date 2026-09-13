@@ -62,6 +62,7 @@ mod tests {
                         total_energy: -0.8,
                         delta_energy: 0.0,
                         residual_norm: 0.0,
+                        spin: None,
                         energy_details: rustiq_core::calculation::ScfEnergyDetails {
                             kinetic_energy: 0.0,
                             nuclear_attraction_energy: 0.0,

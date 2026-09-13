@@ -19,7 +19,9 @@ use super::{
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_result::{ScfOutcome, ScfResult, ScfSetupTimings, ScfTermination, ScfTimings},
+    scf_result::{
+        ScfOutcome, ScfResult, ScfSetupTimings, ScfTermination, ScfTimings, SpinDiagnostics,
+    },
     scf_setup::ScfSetupStep,
 };
 
@@ -303,6 +305,7 @@ impl<'a> UhfCalculation<'a> {
         let total_energy = self.energy + nuclear_repulsion;
         let final_energy_details_start = Instant::now();
         let energy_details = self.calculate_energy_details();
+        let spin = self.spin_diagnostics()?;
         self.timings.final_energy_details = final_energy_details_start.elapsed();
         self.timings.total = run_start.elapsed() + self.timings.setup.total;
 
@@ -313,10 +316,32 @@ impl<'a> UhfCalculation<'a> {
             total_energy,
             delta_energy,
             residual_norm: self.residual_norm,
+            spin: Some(spin),
             energy_details,
             orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
         }))
+    }
+
+    fn spin_diagnostics(&self) -> Result<SpinDiagnostics, NumericalError> {
+        let n_alpha = self.occupied_orbitals.alpha;
+        let n_beta = self.occupied_orbitals.beta;
+        let occupied_overlap = self.mo_coefficients.alpha.columns(0, n_alpha).transpose()
+            * &self.overlap_matrix
+            * self.mo_coefficients.beta.columns(0, n_beta);
+        let spin_z = (n_alpha as f64 - n_beta as f64) * 0.5;
+        let ideal_s_squared = spin_z * (spin_z + 1.0);
+        // The alpha-beta occupied-orbital overlap must include the AO metric.
+        let s_squared =
+            spin_z * spin_z + (n_alpha + n_beta) as f64 * 0.5 - occupied_overlap.norm_squared();
+        let spin_contamination = s_squared - ideal_s_squared;
+        ensure_finite_value(s_squared, "UHF spin expectation")?;
+        ensure_finite_value(spin_contamination, "UHF spin contamination")?;
+        Ok(SpinDiagnostics {
+            s_squared,
+            ideal_s_squared,
+            spin_contamination,
+        })
     }
 
     fn sort_orbitals(
@@ -783,6 +808,11 @@ mod tests {
             PYSCF_BROKEN_SYMMETRY_TOTAL_ENERGY,
             epsilon = 1e-8
         );
+        let common_spin = common_result.summary().spin.unwrap();
+        let broken_spin = broken_result.summary().spin.unwrap();
+        assert_abs_diff_eq!(common_spin.s_squared, 0.0, epsilon = 1e-8);
+        assert_abs_diff_eq!(common_spin.spin_contamination, 0.0, epsilon = 1e-8);
+        assert!(broken_spin.spin_contamination > 0.1);
     }
 
     #[test]
@@ -857,6 +887,9 @@ mod tests {
             epsilon = 1e-8
         );
         assert_final_densities_match_canonical_orbitals(&uhf, 1e-8);
+        let spin = result.summary().spin.unwrap();
+        assert_abs_diff_eq!(spin.s_squared, 0.75, epsilon = 1e-10);
+        assert_abs_diff_eq!(spin.spin_contamination, 0.0, epsilon = 1e-10);
     }
 
     #[test]
@@ -1002,6 +1035,9 @@ mod tests {
     fn test_uhf_oh_doublet_preserves_scf_invariants() {
         const PYSCF_UHF_ELECTRONIC_ENERGY: f64 = -78.727_017_326_066_2;
         const PYSCF_UHF_TOTAL_ENERGY: f64 = -74.362_669_194_767_24;
+        // PySCF 2.14.0 with conv_tol=1e-10 on the same OH/STO-3G geometry.
+        const PYSCF_S_SQUARED: f64 = 0.753_261_943_086_881_7;
+        const PYSCF_SPIN_CONTAMINATION: f64 = 0.003_261_943_086_881_7;
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
@@ -1016,7 +1052,7 @@ mod tests {
             &molecule,
             &basis,
             100,
-            1e-5,
+            1e-10,
             1e-8,
             CoreHamiltonian::default(),
         )
@@ -1060,5 +1096,13 @@ mod tests {
         );
         assert_abs_diff_eq!(electrons.alpha, 5.0, epsilon = 1e-8);
         assert_abs_diff_eq!(electrons.beta, 4.0, epsilon = 1e-8);
+        let spin = result.summary().spin.unwrap();
+        assert_abs_diff_eq!(spin.s_squared, PYSCF_S_SQUARED, epsilon = 1e-7);
+        assert_abs_diff_eq!(spin.ideal_s_squared, 0.75, epsilon = 1e-12);
+        assert_abs_diff_eq!(
+            spin.spin_contamination,
+            PYSCF_SPIN_CONTAMINATION,
+            epsilon = 1e-7
+        );
     }
 }

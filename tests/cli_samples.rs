@@ -224,6 +224,15 @@ type = "CoreHamiltonian"
             } else {
                 "SCF did not converge after 1 iterations."
             }));
+            if method == "Uhf" {
+                assert!(text.contains(if converged {
+                    "Spin <S^2>:"
+                } else {
+                    "Spin <S^2> (unconverged orbitals):"
+                }));
+            } else {
+                assert!(!text.contains("Spin <S^2>"));
+            }
             let output = run_rustiq_with_data_home(
                 &["run", path.to_str().unwrap(), "--format", "json"],
                 directory.path(),
@@ -233,6 +242,14 @@ type = "CoreHamiltonian"
             assert_eq!(value["schema_version"], 1);
             assert_eq!(value["calculation"]["hf"]["converged"], converged);
             assert_eq!(value["calculation"]["hf"]["method"], method.to_uppercase());
+            let spin = value["calculation"]["hf"].get("spin");
+            if method == "Uhf" {
+                let spin = spin.expect("UHF spin diagnostic");
+                assert!(spin["s_squared"].is_number());
+                assert!(spin["spin_contamination"].is_number());
+            } else {
+                assert!(spin.is_none());
+            }
             assert!(value["calculation"].get("mp2").is_none());
             if !converged {
                 assert_eq!(value["calculation"]["hf"]["iterations"], 1);
@@ -255,6 +272,8 @@ fn test_cli_open_shell_uhf_sample_converges() {
     assert!(stdout.contains("Resolved HF method: UHF"));
     assert!(stdout.contains("SCF converged after"));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -74.362669 Hartree"));
+    assert!(stdout.contains("Spin <S^2>:"));
+    assert!(stdout.contains("Spin contamination:"));
 }
 
 #[test]
@@ -319,6 +338,7 @@ type = "CoreHamiltonian"
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stdout.contains("UHF MP2 correlation energy"));
+    assert!(stdout.contains("Spin <S^2> (unconverged orbitals):"));
     assert!(stderr.contains("MP2 requires converged HF orbitals"));
 }
 
