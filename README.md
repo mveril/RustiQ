@@ -736,6 +736,14 @@ Generate the `rustiq-core` API documentation with MathJax-rendered equations:
 
 ```sh
 tools/generate-rustdoc.sh
+tools/generate-rustdoc.sh --open
+```
+
+On Windows, use the equivalent PowerShell script:
+
+```powershell
+.\tools\generate-rustdoc.ps1
+.\tools\generate-rustdoc.ps1 -Open
 ```
 
 These commands are identical in the Dev Container, a `nix develop` shell, and a
