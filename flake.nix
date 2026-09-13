@@ -76,8 +76,18 @@
           };
 
           rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+          rustiqCargoVendor = craneLib.vendorCargoDeps { src = cargoSource; };
           rustiqPythonOverlay = final: prev: {
             rustiq = prev.rustiq.overrideAttrs (old: {
+              src = ./.;
+              postUnpack = (old.postUnpack or "") + ''
+                sourceRoot="$sourceRoot/crates/rustiq-python"
+              '';
+              preBuild = (old.preBuild or "") + ''
+                mkdir -p .cargo
+                cp ${rustiqCargoVendor}/config.toml .cargo/config.toml
+                export CARGO_NET_OFFLINE=true
+              '';
               nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
                 rustToolchain
               ];

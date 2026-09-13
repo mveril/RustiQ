@@ -9,7 +9,7 @@ repository = "https://github.com/mveril/RustiQ"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "_rustiq"
+name = "rustiq"
 crate-type = ["cdylib"]
 
 [dependencies]
