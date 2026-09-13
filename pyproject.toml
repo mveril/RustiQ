@@ -7,11 +7,14 @@ dependencies = ["pyscf==2.14.0"]
 
 [dependency-groups]
 test = ["pytest"]
-dev = ["ipykernel", "jupyterlab", "matplotlib", "numpy", "scipy"]
+dev = ["ipykernel", "jupyterlab", "matplotlib", "maturin>=1.15,<2.0", "numpy", "scipy"]
 linting = ["ruff"]
 
 [tool.uv]
-package = false
+#package = false
 environments = ["sys_platform == 'darwin'", "sys_platform == 'linux'"]
-no-build = true
+#no-build = true
 default-groups = ["dev", "test", "linting"]
+
+[tool.uv.workspace]
+members = ["crates/rustiq-python"]
