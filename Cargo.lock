@@ -2532,6 +2532,8 @@ dependencies = [
 name = "rustiq-python"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "nalgebra",
+ "periodic_table",
  "pyo3",
  "rustiq-core",
 ]

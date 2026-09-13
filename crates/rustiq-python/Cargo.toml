@@ -15,3 +15,5 @@ crate-type = ["cdylib"]
 [dependencies]
 rustiq-core = { path = "../rustiq-core", version = "0.1.0-alpha.1", default-features = false }
 pyo3 = "0.29.0"
+nalgebra = { workspace = true }
+periodic_table.workspace = true

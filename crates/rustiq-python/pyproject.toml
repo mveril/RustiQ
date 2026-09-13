@@ -20,3 +20,4 @@ test = ["pytest"]
 
 [tool.maturin]
 bindings = "pyo3"
+include = ["rustiq.pyi", "py.typed"]
