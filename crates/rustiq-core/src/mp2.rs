@@ -2,14 +2,14 @@
 //!
 //! For canonical RHF orbitals, this module evaluates
 //!
-//! ```text
-//! E_MP2 = Σ_ij∈occ Σ_ab∈virt
-//!         (ia|jb) [2(ia|jb) − (ib|ja)]
-//!         ────────────────────────────
-//!         ε_i + ε_j − ε_a − ε_b
-//! ```
+//! $$
+//! E_{\mathrm{MP2}} =
+//! \sum_{ij}^{\mathrm{occ}} \sum_{ab}^{\mathrm{virt}}
+//! \frac{(ia\mid jb)\left[2(ia\mid jb) - (ib\mid ja)\right]}
+//! {\varepsilon_i + \varepsilon_j - \varepsilon_a - \varepsilon_b}.
+//! $$
 //!
-//! Here, (ia|jb) denotes an AO-to-MO transformed ERI. Frozen orbitals
+//! Here, $(ia\mid jb)$ denotes an AO-to-MO transformed ERI. Frozen orbitals
 //! are excluded from the occupied sums. UHF MP2 is evaluated as separate
 //! same-spin and opposite-spin terms. Non-finite or near-zero denominators are
 //! rejected to prevent numerically singular perturbative contributions.

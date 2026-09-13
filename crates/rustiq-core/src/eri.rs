@@ -44,17 +44,15 @@ static COULOMB_CACHE_SIZE_BUCKETS: [AtomicU64; 8] = [
 
 /// Computes the 1D overlap integral for two primitive Gaussian functions.
 ///
-/// ```text
-/// S = (π / p)¹ᐟ² exp[−(μ / p)(A − B)²]
-/// ```
+/// $$ S = \left( \frac{\pi}{p} \right)^{1/2} \exp\left( -\frac{\mu}{p} (A - B)^2 \right) $$
 ///
-/// where p = αₐ + αᵦ and μ = αₐ αᵦ.
+/// where $p = \alpha_a + \alpha_b$ and $\mu = \alpha_a \alpha_b$.
 ///
 /// # Arguments
 ///
 /// * `PAx` - x coordinate of the PA vector.
 /// * `PBx` - x coordinate of the PB vector.
-/// * `gamma` - p = αₐ + αᵦ.
+/// * `gamma` - $p = \alpha_a + \alpha_b$.
 ///
 /// # Returns
 ///
@@ -67,9 +65,7 @@ pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
 
 /// Computes the 1D kinetic integral for two primitive Gaussian functions.
 ///
-/// ```text
-/// T = (3 αₐ αᵦ / γ) S
-/// ```
+/// $$ T = \frac{\alpha_a \alpha_b}{\gamma} (3) S $$
 ///
 /// for s orbitals.
 ///
@@ -77,7 +73,7 @@ pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
 ///
 /// * `PAx` - x coordinate of the PA vector.
 /// * `PBx` - x coordinate of the PB vector.
-/// * `gamma` - γ = αₐ + αᵦ.
+/// * `gamma` - $\gamma = \alpha_a + \alpha_b$.
 /// * `alpha_a` - Gaussian exponent of the first function.
 /// * `alpha_b` - Gaussian exponent of the second function.
 ///
@@ -92,9 +88,7 @@ pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) ->
 
 /// Computes the ERI integral for Gaussian s primitives.
 ///
-/// ```text
-/// (ss|ss) = [2π⁵ᐟ² / (p q √(p + q))] K_ab K_cd F₀(T)
-/// ```
+/// $$ (ss|ss) = \frac{2 \pi^{5/2}}{p q \sqrt{p + q}} K_{ab} K_{cd} F_0(T) $$
 ///
 /// # Arguments
 ///

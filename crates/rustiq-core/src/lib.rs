@@ -9,22 +9,27 @@
 //! # Scientific conventions
 //!
 //! RustiQ uses atomic units throughout the electronic-structure calculation:
-//! ℏ = mₑ = e = 4πε₀ = 1. Input coordinates are converted to Bohr before basis
-//! construction. AO indices are written as μ, ν, λ, σ; occupied spatial-orbital
-//! indices as i, j; and virtual-orbital indices as a, b.
+//! $\hbar = m_e = e = 4\pi\varepsilon_0 = 1$. Input coordinates are converted
+//! to Bohr before basis construction. AO indices are written as
+//! $\mu, \nu, \lambda, \sigma$, occupied spatial-orbital indices as $i, j$,
+//! and virtual-orbital indices as $a, b$.
 //!
 //! The one-electron core Hamiltonian and AO overlap matrix are
 //!
-//! ```text
-//! H^core_μν = T_μν + V_μν
-//! S_μν      = ⟨χ_μ | χ_ν⟩
-//! ```
+//! $$
+//! H_{\mu\nu}^{\mathrm{core}} = T_{\mu\nu} + V_{\mu\nu},
+//! \qquad S_{\mu\nu} = \braket{\chi_\mu | \chi_\nu}.
+//! $$
 //!
 //! Electron-repulsion integrals use chemists' notation,
 //!
-//! ```text
-//! (μν|λσ) = ∬ χ_μ(r₁)χ_ν(r₁) [1 / r₁₂] χ_λ(r₂)χ_σ(r₂) dr₁ dr₂
-//! ```
+//! $$
+//! (\mu\nu\mid\lambda\sigma) =
+//! \iint \chi_\mu(\mathbf r_1)\chi_\nu(\mathbf r_1)
+//! \frac{1}{r_{12}}
+//! \chi_\lambda(\mathbf r_2)\chi_\sigma(\mathbf r_2)
+//! \, d\mathbf r_1\, d\mathbf r_2.
+//! $$
 //!
 //! Restricted and unrestricted Hartree--Fock use an SCF procedure with symmetric
 //! overlap orthogonalization. MP2 is available only from converged, canonical HF
