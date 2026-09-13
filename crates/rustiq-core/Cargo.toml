@@ -7,6 +7,9 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mveril/RustiQ"
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "docs/rustdoc-mathjax.html"]
+
 [features]
 default = []
 online = ["dep:reqwest", "dep:tokio"]

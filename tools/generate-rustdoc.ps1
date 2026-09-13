@@ -15,7 +15,7 @@ foreach ($argument in $RemainingArguments) {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$headerPath = Join-Path $repoRoot 'docs/rustdoc-mathjax.html'
+$headerPath = Join-Path $repoRoot 'crates/rustiq-core/docs/rustdoc-mathjax.html'
 $cargoArguments = @('rustdoc', '--package', 'rustiq-core')
 
 if ($Open) {

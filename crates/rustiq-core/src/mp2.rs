@@ -39,9 +39,13 @@ pub struct Mp2Input<'a> {
     pub two_electron_integrals: &'a CompactEri,
 }
 
+/// MP2 correlation correction and corrected electronic energy, in Hartree.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mp2Result {
+    /// Second-order correction to the HF electronic energy.
     pub correlation_energy: f64,
+    /// HF electronic energy plus the MP2 correlation correction.
+    /// Add nuclear repulsion for the total molecular energy.
     pub electronic_energy: f64,
 }
 

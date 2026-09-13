@@ -18,4 +18,4 @@ esac
 
 cd "$repo_root"
 cargo rustdoc --package rustiq-core "${open_args[@]}" -- \
-    --html-in-header "$repo_root/docs/rustdoc-mathjax.html"
+    --html-in-header "$repo_root/crates/rustiq-core/docs/rustdoc-mathjax.html"

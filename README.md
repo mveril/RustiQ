@@ -746,6 +746,10 @@ On Windows, use the equivalent PowerShell script:
 .\tools\generate-rustdoc.ps1 -Open
 ```
 
+The `rustiq-core` package also configures docs.rs to inject the same MathJax
+header when the crate is published. The browser must be able to load MathJax
+from jsDelivr to render the equations.
+
 These commands are identical in the Dev Container, a `nix develop` shell, and a
 native Rust installation. The pinned Nix environment additionally provides
 tools such as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`,

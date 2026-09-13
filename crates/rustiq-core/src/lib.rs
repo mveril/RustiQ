@@ -28,12 +28,13 @@
 //! \iint \chi_\mu(\mathbf r_1)\chi_\nu(\mathbf r_1)
 //! \frac{1}{r_{12}}
 //! \chi_\lambda(\mathbf r_2)\chi_\sigma(\mathbf r_2)
-//! \, d\mathbf r_1\, d\mathbf r_2.
+//! \\, d\mathbf r_1\\, d\mathbf r_2.
 //! $$
 //!
-//! Restricted and unrestricted Hartree--Fock use an SCF procedure with symmetric
-//! overlap orthogonalization. MP2 is available only from converged, canonical HF
-//! orbitals; its reported correlation energy excludes the nuclear-repulsion term.
+//! Restricted and unrestricted Hartree--Fock use an SCF procedure with overlap
+//! orthogonalization; near-linear dependencies may be discarded. See
+//! [`calculation`] for the RHF/UHF equations, orthogonalization convention, and
+//! MP2 correction. MP2 is available only from converged, canonical HF orbitals.
 
 pub mod basis;
 pub mod calculation;
