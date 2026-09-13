@@ -1,3 +1,4 @@
+use bytesize::ByteSize;
 use std::{
     io::{self, Write},
     time::Duration,
@@ -52,6 +53,15 @@ impl<W: Write> CalculationReporter<W> {
                 }
             }
             CalculationEvent::HfCompleted(result) => self.on_hf_complete(result),
+            CalculationEvent::Mp2Planned(plan) => self.report(|scf| {
+                let size = |bytes| ByteSize::b(bytes).display().iec().to_string();
+                writeln!(scf.writer_mut(),
+                    "{} AO→MO: {} AO, occupied {}/{}, virtual {}/{}, block {}; workspace {} (budget {}), previous dense upper bound {}, resident inputs {}",
+                    plan.sector, plan.basis_functions, plan.left_occupied, plan.right_occupied,
+                    plan.left_virtual, plan.right_virtual, plan.block_size,
+                    size(plan.workspace_bytes), size(plan.budget_bytes),
+                    size(plan.dense_workspace_bytes), size(plan.resident_input_bytes))
+            }),
             CalculationEvent::Mp2Completed { hf, result } => self.on_mp2_complete(hf, result),
             _ => {}
         }

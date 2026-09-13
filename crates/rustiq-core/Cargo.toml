@@ -40,6 +40,8 @@ nutype = "0.7"
 const_format = "0.2"
 smallvec = "1"
 tempfile.workspace = true
+bytesize.workspace = true
+sys-info = "0.9.1"
 
 [dev-dependencies]
 approx.workspace = true
