@@ -732,6 +732,12 @@ cargo test --workspace
 cargo test --workspace --no-default-features
 ```
 
+Generate the `rustiq-core` API documentation with MathJax-rendered equations:
+
+```sh
+tools/generate-rustdoc.sh
+```
+
 These commands are identical in the Dev Container, a `nix develop` shell, and a
 native Rust installation. The pinned Nix environment additionally provides
 tools such as `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`, `cargo-watch`,
