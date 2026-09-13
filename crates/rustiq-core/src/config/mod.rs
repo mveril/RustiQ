@@ -5,7 +5,9 @@ pub mod random_config;
 pub mod validated;
 use bytesize::ByteSize;
 pub use molecule::{MoleculeConfig, MoleculeConfigError};
-use sys_info::mem_info;
+use sysinfo::{
+    get_current_pid, MemoryRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
+};
 
 /// A value with an optional byte range in a source owned by its frontend.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -56,21 +58,38 @@ impl MemoryLimit {
     }
 
     fn automatic_memory_limit() -> ByteSize {
-        Self::from_available_memory(mem_info().ok().map(|m| (m.avail, m.free)))
+        Self::from_available_memory(Self::available_memory())
     }
 
-    fn from_available_memory(memory_kib: Option<(u64, u64)>) -> ByteSize {
-        // sys-info reports KiB. Available memory includes reclaimable caches;
-        // some platforms only populate the free-memory field.
-        let bytes = memory_kib
-            .and_then(|(available, free)| {
-                let available = if available == 0 { free } else { available };
-                available
-                    .checked_mul(1024)
-                    .map(|bytes| bytes / 2)
-                    .filter(|&bytes| bytes > 0)
-            })
-            .unwrap_or(512 * 1024 * 1024);
+    fn available_memory() -> Option<u64> {
+        if !sysinfo::IS_SUPPORTED_SYSTEM {
+            return None;
+        }
+
+        let mut system = System::new_with_specifics(
+            RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()),
+        );
+        let host_available = system.available_memory();
+
+        let cgroup_available = get_current_pid().ok().and_then(|pid| {
+            system.refresh_processes_specifics(
+                ProcessesToUpdate::Some(&[pid]),
+                false,
+                ProcessRefreshKind::nothing(),
+            );
+            system
+                .process(pid)
+                .and_then(|process| process.cgroup_limits())
+                .map(|limits| limits.free_memory)
+        });
+
+        Some(cgroup_available.map_or(host_available, |available| host_available.min(available)))
+    }
+
+    fn from_available_memory(available: Option<u64>) -> ByteSize {
+        const FALLBACK: u64 = 512 * 1024 * 1024;
+
+        let bytes = available.map(|bytes| bytes / 2).unwrap_or(FALLBACK);
         ByteSize::b(bytes.min(isize::MAX as u64))
     }
 }
@@ -89,13 +108,13 @@ mod memory_tests {
     use super::*;
 
     #[test]
-    fn automatic_memory_uses_available_kib_and_safe_fallback() {
+    fn automatic_memory_uses_half_available_bytes_and_safe_fallback() {
         for (input, expected) in [
-            (Some((4096, 1024)), 2 * 1024 * 1024),
-            (Some((0, 4096)), 2 * 1024 * 1024),
+            (Some(4 * 1024 * 1024), 2 * 1024 * 1024),
+            (Some(1), 0),
+            (Some(0), 0),
             (None, 512 * 1024 * 1024),
-            (Some((0, 0)), 512 * 1024 * 1024),
-            (Some((u64::MAX, 1)), 512 * 1024 * 1024),
+            (Some(u64::MAX), isize::MAX as u64),
         ] {
             assert_eq!(MemoryLimit::from_available_memory(input).as_u64(), expected);
         }
