@@ -14,7 +14,17 @@ use crate::basis::basis_file::BasisFile;
 use crate::basis::function_type::FunctionType;
 use crate::molecules::geometry::Geometry;
 
-/// Structure representing a Gaussian basis set.
+/// Structure representing a contracted Cartesian Gaussian basis set.
+///
+/// A primitive centered at \(\mathbf A\) has the form
+/// \[
+/// \chi_{lmn}(\mathbf r) =
+/// N (x-A_x)^l(y-A_y)^m(z-A_z)^n
+/// \exp\!\left[-\alpha\lVert\mathbf r-\mathbf A\rVert^2\right],
+/// \]
+/// and a contracted function is a linear combination of primitives sharing the
+/// center and Cartesian angular momentum. Normalization is applied when the
+/// basis is constructed.
 #[derive(PartialEq, Debug)]
 pub struct Basis {
     pub(crate) shells: Vec<Shell>,    // Collection of Gaussian shells
