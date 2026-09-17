@@ -17,7 +17,7 @@
 mod blocked;
 #[cfg(any(test, feature = "bench-support"))]
 use crate::eri::index::{EriIndex, PairIndex};
-pub use blocked::{Mp2MemoryPlan, Mp2MemorySector};
+pub use blocked::{Mp2MemoryPlan, Mp2Sector};
 use nalgebra::{DMatrix, DVector};
 #[cfg(any(test, feature = "bench-support"))]
 use rayon::prelude::*;
@@ -233,8 +233,7 @@ pub(crate) fn correlation_energy_with_memory(
         spin,
         input.two_electron_integrals,
         budget,
-        blocked::Term::Rhf,
-        Mp2MemorySector::Rhf,
+        Mp2Sector::Rhf,
         report,
     )
 }
@@ -318,8 +317,7 @@ pub(crate) fn uhf_correlation_energy_with_memory(
         alpha,
         two_electron_integrals,
         budget,
-        blocked::Term::Same,
-        Mp2MemorySector::UhfAlphaAlpha,
+        Mp2Sector::UhfAlphaAlpha,
         &mut dense_report,
     )?;
     let bb = blocked::energy(
@@ -327,8 +325,7 @@ pub(crate) fn uhf_correlation_energy_with_memory(
         beta,
         two_electron_integrals,
         budget,
-        blocked::Term::Same,
-        Mp2MemorySector::UhfBetaBeta,
+        Mp2Sector::UhfBetaBeta,
         &mut dense_report,
     )?;
     let ab = blocked::energy(
@@ -336,8 +333,7 @@ pub(crate) fn uhf_correlation_energy_with_memory(
         beta,
         two_electron_integrals,
         budget,
-        blocked::Term::Opposite,
-        Mp2MemorySector::UhfAlphaBeta,
+        Mp2Sector::UhfAlphaBeta,
         &mut dense_report,
     )?;
     let result = aa + bb + ab;

@@ -7,7 +7,7 @@ use super::{ensure_finite_value, validate_denominator, CompactEri, Mp2Error, Mp2
 /// Estimated matrix payloads, not a bound on process RSS or allocator overhead.
 #[derive(Debug, Clone, Copy)]
 pub struct Mp2MemoryPlan {
-    pub sector: Mp2MemorySector,
+    pub sector: Mp2Sector,
     pub basis_functions: usize,
     pub left_occupied: usize,
     pub right_occupied: usize,
@@ -22,15 +22,15 @@ pub struct Mp2MemoryPlan {
 }
 
 /// Spin sector whose workspace is described by an [`Mp2MemoryPlan`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mp2MemorySector {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Mp2Sector {
     Rhf,
     UhfAlphaAlpha,
     UhfBetaBeta,
     UhfAlphaBeta,
 }
 
-impl std::fmt::Display for Mp2MemorySector {
+impl std::fmt::Display for Mp2Sector {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(match self {
             Self::Rhf => "RHF",
@@ -39,13 +39,6 @@ impl std::fmt::Display for Mp2MemorySector {
             Self::UhfAlphaBeta => "UHF alpha-beta",
         })
     }
-}
-
-#[derive(Clone, Copy)]
-pub(super) enum Term {
-    Rhf,
-    Same,
-    Opposite,
 }
 
 #[derive(Clone, Copy)]
@@ -169,8 +162,7 @@ pub(super) fn energy(
     right: Mp2SpinInput<'_>,
     eri: &CompactEri,
     budget: u64,
-    term: Term,
-    sector: Mp2MemorySector,
+    sector: Mp2Sector,
     report: &mut impl FnMut(Mp2MemoryPlan),
 ) -> Result<f64, Mp2Error> {
     if budget == 0 {
@@ -187,7 +179,8 @@ pub(super) fn energy(
         || d.right == 0
         || d.va == 0
         || d.vb == 0
-        || (matches!(term, Term::Same) && (d.left < 2 || d.va < 2))
+        || (matches!(sector, Mp2Sector::UhfAlphaAlpha | Mp2Sector::UhfBetaBeta)
+            && (d.left < 2 || d.va < 2))
     {
         return Ok(0.0);
     }
@@ -232,7 +225,9 @@ pub(super) fn energy(
                 let jj = right.frozen_orbitals + j;
                 for a in 0..d.va {
                     for v in 0..d.vb {
-                        if matches!(term, Term::Same) && (start + i == j || a == v) {
+                        if matches!(sector, Mp2Sector::UhfAlphaAlpha | Mp2Sector::UhfBetaBeta)
+                            && (start + i == j || a == v)
+                        {
                             continue;
                         }
                         let direct = integrals[(a + d.va * (i + b * j), v)];
@@ -240,11 +235,11 @@ pub(super) fn energy(
                             - left.orbital_energies[left.occupied_orbitals + a]
                             - right.orbital_energies[right.occupied_orbitals + v];
                         validate_denominator(denominator)?;
-                        let numerator = match term {
-                            Term::Opposite => direct * direct,
-                            Term::Rhf | Term::Same => {
+                        let numerator = match sector {
+                            Mp2Sector::UhfAlphaBeta => direct * direct,
+                            Mp2Sector::Rhf | Mp2Sector::UhfAlphaAlpha | Mp2Sector::UhfBetaBeta => {
                                 let exchange = integrals[(v + d.va * (i + b * j), a)];
-                                if matches!(term, Term::Rhf) {
+                                if matches!(sector, Mp2Sector::Rhf) {
                                     direct * (2.0 * direct - exchange)
                                 } else {
                                     0.5 * direct * (direct - exchange)
@@ -478,8 +473,12 @@ mod tests {
                 occupied_orbitals: 3,
                 frozen_orbitals: frozen,
             };
-            for term in [Term::Rhf, Term::Same, Term::Opposite] {
-                let right = if matches!(term, Term::Opposite) {
+            for sector in [
+                Mp2Sector::Rhf,
+                Mp2Sector::UhfAlphaAlpha,
+                Mp2Sector::UhfAlphaBeta,
+            ] {
+                let right = if matches!(sector, Mp2Sector::UhfAlphaBeta) {
                     beta
                 } else {
                     left
@@ -498,15 +497,15 @@ mod tests {
                     right.occupied_orbitals,
                 );
                 let dense = tl.transpose() * super::super::build_ao_pair_matrix(&eri, n) * tr;
-                let expected = match term {
-                    Term::Same => {
+                let expected = match sector {
+                    Mp2Sector::UhfAlphaAlpha | Mp2Sector::UhfBetaBeta => {
                         super::super::same_spin_correlation_energy(&dense, &ea, 4, frozen).unwrap()
                     }
-                    Term::Opposite => super::super::opposite_spin_correlation_energy(
+                    Mp2Sector::UhfAlphaBeta => super::super::opposite_spin_correlation_energy(
                         &dense, &ea, 4, frozen, &eb, 3, frozen,
                     )
                     .unwrap(),
-                    Term::Rhf => {
+                    Mp2Sector::Rhf => {
                         let mut value = 0.0;
                         for i in 0..d.left {
                             for j in 0..d.right {
@@ -534,18 +533,10 @@ mod tests {
                         let budget = d.workspace(b).unwrap();
                         let actual = pool
                             .install(|| {
-                                energy(
-                                    left,
-                                    right,
-                                    &eri,
-                                    budget,
-                                    term,
-                                    Mp2MemorySector::Rhf,
-                                    &mut |p| {
-                                        assert_eq!(p.block_size, b);
-                                        assert!(p.workspace_bytes <= budget);
-                                    },
-                                )
+                                energy(left, right, &eri, budget, sector, &mut |p| {
+                                    assert_eq!(p.block_size, b);
+                                    assert!(p.workspace_bytes <= budget);
+                                })
                             })
                             .unwrap();
                         assert_relative_eq!(
@@ -613,8 +604,7 @@ mod tests {
                 spin,
                 &eri,
                 d.workspace(1).unwrap(),
-                Term::Rhf,
-                Mp2MemorySector::Rhf,
+                Mp2Sector::Rhf,
                 &mut |_| {}
             ),
             Err(Mp2Error::NearZeroDenominator { .. })
