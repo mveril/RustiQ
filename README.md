@@ -402,7 +402,8 @@ the repository and unloads it when you leave. To select a lighter shell for one
 checkout, create an ignored `.envrc.local`, then allow the updated environment:
 
 ```sh
-printf '%s\n' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
+printf '%s\
+' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
 direnv allow
 ```
 
@@ -602,8 +603,31 @@ An MP2 calculation adds:
 
 ```toml
 [mp2]
+memory_limit = "auto"
 frozen_orbitals = 0
 ```
+
+The MP2 memory limit defaults to `"auto"`: it resolves once before MP2 starts to
+half of the memory currently available to the process. On Linux, host-available
+memory is capped by the current process cgroup free-memory limit when available.
+If memory information cannot be obtained, RustiQ falls back to 512 MiB.
+Explicit SI units such as `"500 MB"` and IEC units such as `"1.5 GiB"` are
+accepted. The budget covers additional
+matrix payloads used by the blocked AO-to-MO transformation, including panels
+and coefficient copies. Existing HF data and compact AO integrals are reported
+separately; this is not a limit on process RSS, allocator overhead, or matrix
+kernel scratch storage. A budget too small for one occupied-orbital block
+returns an error before transformation buffers are allocated.
+
+The text report shows the selected block size, workspace estimate and the
+previous dense method's upper bound. JSON energy output retains schema version 1.
+The Rust API uses `MemoryLimit::Auto` or `MemoryLimit::Fixed(ByteSize)`; use
+`..Mp2Config::default()` when constructing a configuration.
+
+Measure MP2 independently of SCF and ERI construction with
+`cargo bench --bench mp2_timings --features bench-support`.
+`RUSTIQ_MP2_MEMORY`, `RUSTIQ_MP2_SIZES` (comma-separated AO dimensions), and
+`RAYON_NUM_THREADS` control the budget, cases and thread count.
 
 The molecule file uses XYZ format:
 

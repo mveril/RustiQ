@@ -130,6 +130,14 @@ impl HfSolution<Converged> {
     /// }
     /// ```
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
+        self.mp2_with_report(config, &mut |_| {})
+    }
+
+    pub(crate) fn mp2_with_report(
+        &self,
+        config: Mp2Config,
+        report: &mut impl FnMut(crate::mp2::Mp2MemoryPlan),
+    ) -> Result<Mp2Result, CalculationExecutionError> {
         let frozen = config.frozen_orbitals.value;
         let correlation = match &self.0.orbitals {
             HfComponent::Uhf(Spin { alpha, beta }) => {
@@ -141,24 +149,34 @@ impl HfSolution<Converged> {
                         frozen_orbitals: frozen,
                     }
                 }
-                mp2::uhf_correlation_energy(
+                mp2::uhf_correlation_energy_with_memory(
                     spin(alpha, frozen),
                     spin(beta, frozen),
                     &self.0.integrals,
+                    config.memory_limit.value.resolve().as_u64(),
+                    report,
                 )
             }
-            HfComponent::Rhf(orbitals) => mp2::correlation_energy(&Mp2Input {
-                mo_coefficients: &orbitals.coefficients,
-                orbital_energies: &orbitals.energies,
-                occupied_orbitals: orbitals.occupied,
-                frozen_orbitals: frozen,
-                two_electron_integrals: &self.0.integrals,
-            }),
+            HfComponent::Rhf(orbitals) => mp2::correlation_energy_with_memory(
+                &Mp2Input {
+                    mo_coefficients: &orbitals.coefficients,
+                    orbital_energies: &orbitals.energies,
+                    occupied_orbitals: orbitals.occupied,
+                    frozen_orbitals: frozen,
+                    two_electron_integrals: &self.0.integrals,
+                },
+                config.memory_limit.value.resolve().as_u64(),
+                report,
+            ),
         };
         let correlation_energy = correlation.map_err(|error| {
-            let span = matches!(error, mp2::Mp2Error::InvalidFrozenOrbitalCount { .. })
-                .then_some(config.frozen_orbitals.span)
-                .flatten();
+            let span = match error {
+                mp2::Mp2Error::InvalidFrozenOrbitalCount { .. } => config.frozen_orbitals.span,
+                mp2::Mp2Error::InvalidMemoryLimit
+                | mp2::Mp2Error::InsufficientMemory { .. }
+                | mp2::Mp2Error::SizeOverflow => config.memory_limit.span,
+                _ => None,
+            };
             self.execution_error(CalculationError::Mp2 { error, span })
         })?;
         Ok(Mp2Result {

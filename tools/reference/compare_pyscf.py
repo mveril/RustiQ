@@ -35,6 +35,7 @@ class ReferenceCase:
     spin_tolerance: float = 1e-8
     mp2: bool = False
     mp2_tolerance: float | None = None
+    frozen_orbitals: int = 0
 
 
 CASES = [
@@ -310,10 +311,12 @@ def pyscf_result(case: ReferenceCase) -> tuple[float, float | None, float | None
     s_squared = float(mf.spin_square()[0]) if case.method == "uhf" else None
     mp2_correlation_energy = None
     if case.mp2:
-        mp2_correlation_energy, _ = mp.MP2(mf).kernel()
-    return float(energy), (
-        float(mp2_correlation_energy) if mp2_correlation_energy is not None else None
-    ), s_squared
+        mp2_correlation_energy, _ = mp.MP2(mf, frozen=case.frozen_orbitals).kernel()
+    return (
+        float(energy),
+        (float(mp2_correlation_energy) if mp2_correlation_energy is not None else None),
+        s_squared,
+    )
 
 
 def main(pytest_args: list[str] | None = None) -> int:

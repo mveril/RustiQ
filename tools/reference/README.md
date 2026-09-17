@@ -76,6 +76,10 @@ The MP2 comparisons cover RHF H₂/STO-3G, H₂/cc-pVDZ, H₂O/6-31G, and
 UHF OH/STO-3G with all occupied orbitals correlated (no frozen core). Each case checks both the HF
 total energy and the MP2 correlation energy:
 
+Additional H₂O/6-31G and OH/STO-3G comparisons freeze one occupied orbital and
+exercise both 32 KiB and 512 MiB MP2 workspace budgets using temporary runfiles.
+The smaller budget forces multiple occupied blocks for water.
+
 ```sh
 uv run --locked pytest tools/reference -k mp2
 ```

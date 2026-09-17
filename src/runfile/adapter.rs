@@ -40,6 +40,11 @@ impl From<&mp2::Mp2Config> for core::Mp2Config {
     fn from(value: &mp2::Mp2Config) -> Self {
         Self {
             frozen_orbitals: value.frozen_orbitals.into(),
+            memory_limit: match value.memory_limit {
+                mp2::MemoryLimit::Auto => core::MemoryLimit::Auto,
+                mp2::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
+            }
+            .into(),
         }
     }
 }

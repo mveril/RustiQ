@@ -76,6 +76,7 @@ mod prepared_calculation;
 pub use crate::basis::{Basis, BasisError};
 pub use crate::eri::EriError;
 use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
+pub use crate::mp2::Mp2Sector;
 pub use crate::{
     hf::{
         density_guess::DensityGuessError,
@@ -91,7 +92,7 @@ pub use crate::{
 };
 pub use builder::CalculationBuilder;
 pub use execution::{
-    CalculationEvent, CalculationExecution, CalculationResult, HfCalculationResult,
+    CalculationEvent, CalculationExecution, CalculationResult, HfCalculationResult, Mp2MemoryPlan,
 };
 pub use prepared_calculation::PreparedCalculation;
 
@@ -283,13 +284,25 @@ impl<'a> HfCalculation<'a> {
             });
         }
         match &self.state {
-            HfState::Rhf(scf) => mp2::rhf_closed_shell(scf, config.frozen_orbitals.into_inner()),
-            HfState::Uhf(scf) => mp2::uhf_unrestricted(scf, config.frozen_orbitals.into_inner()),
+            HfState::Rhf(scf) => mp2::rhf_closed_shell_with_memory(
+                scf,
+                config.frozen_orbitals.into_inner(),
+                config.memory_limit.value.resolve().as_u64(),
+            ),
+            HfState::Uhf(scf) => mp2::uhf_unrestricted_with_memory(
+                scf,
+                config.frozen_orbitals.into_inner(),
+                config.memory_limit.value.resolve().as_u64(),
+            ),
         }
         .map_err(|error| CalculationError::Mp2 {
-            span: matches!(error, Mp2Error::InvalidFrozenOrbitalCount { .. })
-                .then_some(config.frozen_orbitals.span)
-                .flatten(),
+            span: match error {
+                Mp2Error::InvalidFrozenOrbitalCount { .. } => config.frozen_orbitals.span,
+                Mp2Error::InvalidMemoryLimit
+                | Mp2Error::InsufficientMemory { .. }
+                | Mp2Error::SizeOverflow => config.memory_limit.span,
+                _ => None,
+            },
             error,
         })
     }

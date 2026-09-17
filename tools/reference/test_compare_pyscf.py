@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+import re
 import shutil
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +25,9 @@ def test_rustiq_matches_pyscf(
     rustiq_env: dict[str, str],
 ) -> None:
     rustiq = compare_pyscf.rustiq_result(case, rustiq_env)
-    pyscf_hf_energy, pyscf_mp2_energy, pyscf_s_squared = compare_pyscf.pyscf_result(case)
+    pyscf_hf_energy, pyscf_mp2_energy, pyscf_s_squared = compare_pyscf.pyscf_result(
+        case
+    )
 
     assert rustiq["schema_version"] == 1
     calculation = rustiq["calculation"]
@@ -40,7 +45,9 @@ def test_rustiq_matches_pyscf(
         spin = hf["spin"]
         assert isinstance(spin, dict)
         ideal_s_squared = 0.5 * case.spin * (0.5 * case.spin + 1.0)
-        assert float(spin["ideal_s_squared"]) == pytest.approx(ideal_s_squared, abs=1e-12)
+        assert float(spin["ideal_s_squared"]) == pytest.approx(
+            ideal_s_squared, abs=1e-12
+        )
         assert float(spin["s_squared"]) == pytest.approx(
             pyscf_s_squared, abs=case.spin_tolerance, rel=0.0
         )
@@ -73,3 +80,28 @@ def test_rustiq_result_rejects_malformed_json(
 
     with pytest.raises(RuntimeError, match="Could not parse RustiQ JSON output"):
         compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
+
+
+@pytest.mark.parametrize("name", ["h2o-6-31g-rhf-mp2", "oh-sto-3g-uhf-mp2"])
+@pytest.mark.parametrize("budget", ["32 KiB", "512 MiB"])
+def test_frozen_core_mp2_matches_pyscf(
+    name: str,
+    budget: str,
+    tmp_path: Path,
+    rustiq_env: dict[str, str],
+) -> None:
+    original = next(case for case in compare_pyscf.CASES if case.name == name)
+    source = original.runfile.read_text()
+    source = re.sub(
+        r"^geometry = .*$",
+        f"geometry = {json.dumps(str(original.xyz))}",
+        source,
+        flags=re.MULTILINE,
+    )
+    source = source.replace(
+        "frozen_orbitals = 0", f'frozen_orbitals = 1\nmemory_limit = "{budget}"'
+    )
+    runfile = tmp_path / "frozen-mp2.toml"
+    runfile.write_text(source)
+    case = replace(original, runfile=runfile, frozen_orbitals=1)
+    test_rustiq_matches_pyscf(case, rustiq_env)

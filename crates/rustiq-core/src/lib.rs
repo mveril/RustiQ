@@ -4,7 +4,8 @@
 //!
 //! Use [`config`] and [`calculation`] for direct Rust calculations. Runfile parsing,
 //! user environment and filesystem policy belong to the application, as do source
-//! text for scientific diagnostics and terminal presentation.
+//! text for scientific diagnostics and terminal presentation. Machine-resource
+//! discovery used by scientific execution is isolated from scientific configuration.
 //!
 //! # Scientific conventions
 //!
@@ -45,6 +46,7 @@ pub(crate) mod math_utils;
 pub mod molecules;
 pub(crate) mod mp2;
 pub mod prelude;
+pub(crate) mod resources;
 
 #[cfg(test)]
 pub(crate) mod test_utils;
@@ -53,6 +55,7 @@ pub(crate) mod test_utils;
 pub mod bench_support {
     pub use crate::basis::BasisStore;
     pub use crate::eri::{CacheSizeStats, EriError};
+    pub use crate::mp2::{benchmark_mp2, Mp2BenchResult};
     use std::path::Path;
     use std::time::Duration;
 
