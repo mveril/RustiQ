@@ -402,7 +402,8 @@ the repository and unloads it when you leave. To select a lighter shell for one
 checkout, create an ignored `.envrc.local`, then allow the updated environment:
 
 ```sh
-printf '%s\n' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
+printf '%s\
+' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
 direnv allow
 ```
 
@@ -606,8 +607,10 @@ memory_limit = "auto"
 frozen_orbitals = 0
 ```
 
-The MP2 memory limit defaults to `"auto"`: half the available system memory,
-resolved once before MP2 starts (512 MiB fallback if unavailable).
+The MP2 memory limit defaults to `"auto"`: it resolves once before MP2 starts to
+half of the memory currently available to the process. On Linux, host-available
+memory is capped by the current process cgroup free-memory limit when available.
+If memory information cannot be obtained, RustiQ falls back to 512 MiB.
 Explicit SI units such as `"500 MB"` and IEC units such as `"1.5 GiB"` are
 accepted. The budget covers additional
 matrix payloads used by the blocked AO-to-MO transformation, including panels
