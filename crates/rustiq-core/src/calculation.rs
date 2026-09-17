@@ -76,6 +76,7 @@ mod prepared_calculation;
 pub use crate::basis::{Basis, BasisError};
 pub use crate::eri::EriError;
 use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
+pub use crate::mp2::Mp2MemorySector;
 pub use crate::{
     hf::{
         density_guess::DensityGuessError,

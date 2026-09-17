@@ -17,7 +17,7 @@
 mod blocked;
 #[cfg(any(test, feature = "bench-support"))]
 use crate::eri::index::{EriIndex, PairIndex};
-pub use blocked::Mp2MemoryPlan;
+pub use blocked::{Mp2MemoryPlan, Mp2MemorySector};
 use nalgebra::{DMatrix, DVector};
 #[cfg(any(test, feature = "bench-support"))]
 use rayon::prelude::*;
@@ -234,6 +234,7 @@ pub(crate) fn correlation_energy_with_memory(
         input.two_electron_integrals,
         budget,
         blocked::Term::Rhf,
+        Mp2MemorySector::Rhf,
         report,
     )
 }
@@ -307,8 +308,7 @@ pub(crate) fn uhf_correlation_energy_with_memory(
     ensure_finite_values(beta.orbital_energies, "beta orbital energies")?;
 
     let dense_bytes = blocked::uhf_dense_bytes(alpha, beta)?;
-    let mut sector_report = |mut plan: Mp2MemoryPlan, sector| {
-        plan.sector = sector;
+    let mut dense_report = |mut plan: Mp2MemoryPlan| {
         plan.dense_workspace_bytes = dense_bytes;
         report(plan);
     };
@@ -319,7 +319,8 @@ pub(crate) fn uhf_correlation_energy_with_memory(
         two_electron_integrals,
         budget,
         blocked::Term::Same,
-        &mut |p| sector_report(p, "UHF alpha-alpha"),
+        Mp2MemorySector::UhfAlphaAlpha,
+        &mut dense_report,
     )?;
     let bb = blocked::energy(
         beta,
@@ -327,7 +328,8 @@ pub(crate) fn uhf_correlation_energy_with_memory(
         two_electron_integrals,
         budget,
         blocked::Term::Same,
-        &mut |p| sector_report(p, "UHF beta-beta"),
+        Mp2MemorySector::UhfBetaBeta,
+        &mut dense_report,
     )?;
     let ab = blocked::energy(
         alpha,
@@ -335,7 +337,8 @@ pub(crate) fn uhf_correlation_energy_with_memory(
         two_electron_integrals,
         budget,
         blocked::Term::Opposite,
-        &mut |p| sector_report(p, "UHF alpha-beta"),
+        Mp2MemorySector::UhfAlphaBeta,
+        &mut dense_report,
     )?;
     let result = aa + bb + ab;
     ensure_finite_value(result, "MP2 correlation energy")?;

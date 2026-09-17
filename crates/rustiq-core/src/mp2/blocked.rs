@@ -7,7 +7,7 @@ use super::{ensure_finite_value, validate_denominator, CompactEri, Mp2Error, Mp2
 /// Estimated matrix payloads, not a bound on process RSS or allocator overhead.
 #[derive(Debug, Clone, Copy)]
 pub struct Mp2MemoryPlan {
-    pub sector: &'static str,
+    pub sector: Mp2MemorySector,
     pub basis_functions: usize,
     pub left_occupied: usize,
     pub right_occupied: usize,
@@ -19,6 +19,26 @@ pub struct Mp2MemoryPlan {
     pub dense_workspace_bytes: u64,
     /// ERIs, coefficients and orbital energies borrowed by this contraction.
     pub resident_input_bytes: u64,
+}
+
+/// Spin sector whose workspace is described by an [`Mp2MemoryPlan`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mp2MemorySector {
+    Rhf,
+    UhfAlphaAlpha,
+    UhfBetaBeta,
+    UhfAlphaBeta,
+}
+
+impl std::fmt::Display for Mp2MemorySector {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Rhf => "RHF",
+            Self::UhfAlphaAlpha => "UHF alpha-alpha",
+            Self::UhfBetaBeta => "UHF beta-beta",
+            Self::UhfAlphaBeta => "UHF alpha-beta",
+        })
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -150,6 +170,7 @@ pub(super) fn energy(
     eri: &CompactEri,
     budget: u64,
     term: Term,
+    sector: Mp2MemorySector,
     report: &mut impl FnMut(Mp2MemoryPlan),
 ) -> Result<f64, Mp2Error> {
     if budget == 0 {
@@ -188,11 +209,7 @@ pub(super) fn energy(
         },
     ])?;
     report(Mp2MemoryPlan {
-        sector: match term {
-            Term::Rhf => "RHF",
-            Term::Same => "UHF same-spin",
-            Term::Opposite => "UHF opposite-spin",
-        },
+        sector,
         basis_functions: d.n,
         left_occupied: d.left,
         right_occupied: d.right,
@@ -517,10 +534,18 @@ mod tests {
                         let budget = d.workspace(b).unwrap();
                         let actual = pool
                             .install(|| {
-                                energy(left, right, &eri, budget, term, &mut |p| {
-                                    assert_eq!(p.block_size, b);
-                                    assert!(p.workspace_bytes <= budget);
-                                })
+                                energy(
+                                    left,
+                                    right,
+                                    &eri,
+                                    budget,
+                                    term,
+                                    Mp2MemorySector::Rhf,
+                                    &mut |p| {
+                                        assert_eq!(p.block_size, b);
+                                        assert!(p.workspace_bytes <= budget);
+                                    },
+                                )
                             })
                             .unwrap();
                         assert_relative_eq!(
@@ -589,6 +614,7 @@ mod tests {
                 &eri,
                 d.workspace(1).unwrap(),
                 Term::Rhf,
+                Mp2MemorySector::Rhf,
                 &mut |_| {}
             ),
             Err(Mp2Error::NearZeroDenominator { .. })
