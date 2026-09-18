@@ -87,7 +87,7 @@ required-features = ["bench-support"]
 bat = { workspace = true, features = ["build-assets"] }
 
 [profile.release]
-lto = "fat"
+lto = "thin"
 codegen-units = 1
 strip = "symbols"
 
