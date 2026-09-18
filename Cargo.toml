@@ -86,6 +86,12 @@ required-features = ["bench-support"]
 [build-dependencies]
 bat = { workspace = true, features = ["build-assets"] }
 
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
 [profile.profiling]
 inherits = "release"
 debug = true
+strip = "none"
