@@ -34,6 +34,10 @@ impl DiisAccelerator {
         Ok(Self::new(max_history))
     }
 
+    pub(crate) fn clear(&mut self) {
+        self.history.clear();
+    }
+
     pub(crate) fn extrapolate(
         &mut self,
         fock_matrix: &DMatrix<f64>,
@@ -71,45 +75,61 @@ impl DiisAccelerator {
     }
 
     fn extrapolated_fock_matrix(&self) -> Option<DMatrix<f64>> {
-        let history_size = self.history.len();
-        if history_size < 2 {
-            return None;
+        // Nearly dependent residuals can give enormous DIIS weights. Discard
+        // older entries until the solve gives bounded, finite coefficients.
+        for history_size in (2..=self.history.len()).rev() {
+            let start = self.history.len() - history_size;
+            let b_size = history_size + 1;
+            let b_values = (0..b_size.pow(2))
+                .into_par_iter()
+                .map(|index| {
+                    let i = index % b_size;
+                    let j = index / b_size;
+                    match (i == history_size, j == history_size) {
+                        (false, false) => self.history[start + i]
+                            .error_matrix
+                            .dot(&self.history[start + j].error_matrix),
+                        (true, true) => 0.0,
+                        _ => -1.0,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let b_matrix = DMatrix::from_column_slice(b_size, b_size, &b_values);
+
+            let mut rhs = DVector::zeros(b_size);
+            rhs[history_size] = -1.0;
+            let Some(coefficients) = b_matrix.lu().solve(&rhs) else {
+                continue;
+            };
+            if !coefficients
+                .iter()
+                .all(|coefficient| coefficient.is_finite())
+                || coefficients
+                    .rows(0, history_size)
+                    .iter()
+                    .map(|c| c.abs())
+                    .sum::<f64>()
+                    > 10.0
+            {
+                continue;
+            }
+
+            let (nrows, ncols) = self.history[start].fock_matrix.shape();
+            let fock_values = (0..nrows * ncols)
+                .into_par_iter()
+                .map(|index| {
+                    let mu = index % nrows;
+                    let nu = index / nrows;
+                    (0..history_size)
+                        .map(|i| self.history[start + i].fock_matrix[(mu, nu)] * coefficients[i])
+                        .sum()
+                })
+                .collect::<Vec<_>>();
+            if fock_values.iter().all(|value: &f64| value.is_finite()) {
+                return Some(DMatrix::from_column_slice(nrows, ncols, &fock_values));
+            }
         }
-
-        let b_size = history_size + 1;
-        let b_values = (0..b_size.pow(2))
-            .into_par_iter()
-            .map(|index| {
-                let i = index % b_size;
-                let j = index / b_size;
-                match (i == history_size, j == history_size) {
-                    (false, false) => self.history[i]
-                        .error_matrix
-                        .dot(&self.history[j].error_matrix),
-                    (true, true) => 0.0,
-                    _ => -1.0,
-                }
-            })
-            .collect::<Vec<_>>();
-        let b_matrix = DMatrix::from_column_slice(b_size, b_size, &b_values);
-
-        let mut rhs = DVector::zeros(history_size + 1);
-        rhs[history_size] = -1.0;
-
-        let coefficients = b_matrix.lu().solve(&rhs)?;
-        let (nrows, ncols) = self.history[0].fock_matrix.shape();
-        let fock_values = (0..nrows * ncols)
-            .into_par_iter()
-            .map(|index| {
-                let mu = index % nrows;
-                let nu = index / nrows;
-                (0..history_size)
-                    .map(|i| self.history[i].fock_matrix[(mu, nu)] * coefficients[i])
-                    .sum()
-            })
-            .collect::<Vec<_>>();
-
-        Some(DMatrix::from_column_slice(nrows, ncols, &fock_values))
+        None
     }
 }
 
@@ -177,5 +197,39 @@ mod tests {
         let result = DiisAccelerator::try_new(1);
 
         assert!(matches!(result, Err(DiisError::HistoryTooSmall(1))));
+    }
+
+    #[test]
+    fn test_dependent_old_residual_is_dropped() {
+        let mut diis = DiisAccelerator::try_new(3).unwrap();
+        diis.push_history(
+            DMatrix::from_element(1, 1, 100.0),
+            DMatrix::from_row_slice(1, 2, &[1.0, 0.0]),
+        );
+        diis.push_history(
+            DMatrix::from_element(1, 1, 2.0),
+            DMatrix::from_row_slice(1, 2, &[1.0, 0.0]),
+        );
+        diis.push_history(
+            DMatrix::from_element(1, 1, 3.0),
+            DMatrix::from_row_slice(1, 2, &[0.0, 1.0]),
+        );
+
+        let result = diis.extrapolated_fock_matrix().unwrap();
+        approx::assert_abs_diff_eq!(result[(0, 0)], 2.5, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn test_large_cancelling_weights_are_rejected() {
+        let mut diis = DiisAccelerator::try_new(2).unwrap();
+        diis.push_history(
+            DMatrix::from_element(1, 1, 1.0),
+            DMatrix::from_element(1, 1, 1.0),
+        );
+        diis.push_history(
+            DMatrix::from_element(1, 1, 2.0),
+            DMatrix::from_element(1, 1, 1.0001),
+        );
+        assert!(diis.extrapolated_fock_matrix().is_none());
     }
 }
