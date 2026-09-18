@@ -1,0 +1,21 @@
+[global]
+basis = "cc-pvdz"
+
+[global.molecule]
+geometry = "../anthracene.xyz"
+charge = 0
+multiplicity = 1
+molecule_unit = "Angstrom"
+
+[hf]
+# DIIS automatically restarts with optimal damping after an uphill RHF step.
+max_iterations = 300
+convergence_threshold = 1e-8
+diis = true
+diis_size = 6
+
+[hf.guess]
+type = "CoreHamiltonian"
+
+[mp2]
+frozen_orbitals = 0
