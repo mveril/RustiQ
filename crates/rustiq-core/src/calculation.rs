@@ -38,6 +38,14 @@
 //! $FPS-SPF$ must be below the configured convergence threshold. The reported
 //! total HF energy adds the nuclear repulsion to the electronic energy.
 //!
+//! With DIIS enabled, RHF rejects energy-increasing proposals beyond roundoff,
+//! clears the DIIS history, and applies optimal damping to a fresh physical
+//! Roothaan--Hall step. The mixing fraction minimizes the exact quadratic RHF
+//! energy along the density segment. Intermediate densities may have fractional
+//! occupations; convergence requires an unmixed occupied-orbital density before
+//! final canonicalization. See [Cances and Le Bris](https://cermics.enpc.fr/cermics-rapports-recherche/1999/CERMICS-1999/CERMICS-1999-184.pdf)
+//! for the optimal damping approach.
+//!
 //! The overlap eigendecomposition $S=U\Lambda U^\mathsf{T}$ gives an AO
 //! orthogonalizer $X$ satisfying $X^\mathsf{T}SX=I$. With full rank, the code
 //! uses symmetric orthogonalization $X=U\Lambda^{-1/2}U^\mathsf{T}$; when
