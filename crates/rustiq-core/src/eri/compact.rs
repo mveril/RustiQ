@@ -35,6 +35,26 @@ impl CompactEri {
         }
     }
 
+    /// Returns the values in the stable compact ordering used by persistence.
+    pub(crate) fn ordered_values(&self) -> &[f64] {
+        &self.storage
+    }
+
+    /// Builds an ERI tensor from values in the stable compact ordering.
+    pub(crate) fn from_ordered_values(
+        basis_functions: usize,
+        values: Vec<f64>,
+    ) -> Result<Self, CompactEriBuildError> {
+        let expected = Self::storage_len(basis_functions);
+        let actual = values.len();
+        if actual != expected {
+            return Err(CompactEriBuildError::InvalidLength { expected, actual });
+        }
+        Ok(Self {
+            storage: values.into_boxed_slice(),
+        })
+    }
+
     #[allow(dead_code)]
     pub fn Zeroed(size: usize) -> Self {
         Self {

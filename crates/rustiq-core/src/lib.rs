@@ -45,6 +45,7 @@ pub(crate) mod hf;
 pub(crate) mod math_utils;
 pub mod molecules;
 pub(crate) mod mp2;
+pub mod persistence;
 pub mod prelude;
 pub(crate) mod resources;
 
