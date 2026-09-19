@@ -101,7 +101,7 @@ use crate::{
         HfConfig, HfConfigError, HfMethodResolutionError, MoleculeConfigError, Mp2Config,
         ResolvedHfMethod,
     },
-    hf::{scf::ScfCalculation, uhf::UhfCalculation},
+    hf::{integrals::IntegralBuilder, scf::ScfCalculation, uhf::UhfCalculation},
     molecules::molecule::{Molecule, MoleculeError},
     mp2,
 };
@@ -195,18 +195,26 @@ impl<'a> HfCalculation<'a> {
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
-        progress: impl FnMut(ScfSetupStep),
+        mut progress: impl FnMut(ScfSetupStep),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
+        let integrals = IntegralBuilder::new(molecule, basis)
+            .build(&mut progress)
+            .map_err(|error| CalculationError::HfSetup {
+                method,
+                span: None,
+                error: error.into(),
+            })?;
         let state = match method {
             ResolvedHfMethod::Rhf => {
-                let mut scf = ScfCalculation::new_with_progress(
+                let mut scf = ScfCalculation::new_with_integrals(
                     molecule,
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
                     config.linear_dependency_threshold.value.into_inner(),
                     config.guess.into_inner(),
+                    integrals,
                     progress,
                 )
                 .map_err(|error| CalculationError::HfSetup {
@@ -220,13 +228,14 @@ impl<'a> HfCalculation<'a> {
                 HfState::Rhf(scf)
             }
             ResolvedHfMethod::Uhf => {
-                let mut scf = UhfCalculation::new_with_progress(
+                let mut scf = UhfCalculation::new_with_integrals(
                     molecule,
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
                     config.linear_dependency_threshold.value.into_inner(),
                     config.guess.into_inner(),
+                    integrals,
                     progress,
                 )
                 .map_err(|error| CalculationError::HfSetup {

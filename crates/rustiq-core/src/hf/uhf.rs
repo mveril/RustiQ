@@ -6,22 +6,20 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::{electron_repulsion_ints, index::PairIndex, CompactEri, EriError},
+    eri::{index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
 };
 
 use super::orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo};
 use super::{
-    core::core_hamiltonian_ints,
     density_guess::{mo_coefficients_from_fock_like_matrix, DensityGuess, OrbitalGuess},
     diis::{DiisAccelerator, DiisError},
+    integrals::{IntegralBuilder, ScfIntegrals},
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
-    scf_result::{
-        ScfOutcome, ScfResult, ScfSetupTimings, ScfTermination, ScfTimings, SpinDiagnostics,
-    },
+    scf_result::{ScfOutcome, ScfResult, ScfTermination, ScfTimings, SpinDiagnostics},
     scf_setup::ScfSetupStep,
 };
 
@@ -129,21 +127,48 @@ impl<'a> UhfCalculation<'a> {
         G::Error: 'static,
         F: FnMut(ScfSetupStep),
     {
+        let integrals = IntegralBuilder::new(molecule, basis)
+            .build(&mut progress)
+            .map_err(UhfSetupError::ElectronRepulsion)?;
+        Self::new_with_integrals(
+            molecule,
+            basis,
+            max_iterations,
+            convergence_threshold,
+            linear_dependency_threshold,
+            density_guess_builder,
+            integrals,
+            progress,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_integrals<G, F>(
+        molecule: &'a Molecule,
+        basis: &'a Basis,
+        max_iterations: usize,
+        convergence_threshold: f64,
+        linear_dependency_threshold: f64,
+        density_guess_builder: G,
+        integrals: ScfIntegrals,
+        mut progress: F,
+    ) -> Result<Self, UhfSetupError<G::Error>>
+    where
+        G: DensityGuess,
+        G::Error: 'static,
+        F: FnMut(ScfSetupStep),
+    {
         let occupied_orbitals = alpha_beta_occupied_orbitals(molecule);
         let setup_start = Instant::now();
-        let mut setup_timings = ScfSetupTimings::default();
-
-        progress(ScfSetupStep::CoreHamiltonian);
-        let step_start = Instant::now();
-        let (t_matrix, v_matrix) = core_hamiltonian_ints(molecule, basis);
-        setup_timings.core_hamiltonian = step_start.elapsed();
+        let ScfIntegrals {
+            overlap: overlap_matrix,
+            kinetic: t_matrix,
+            nuclear_attraction: v_matrix,
+            electron_repulsion: two_electron_integrals,
+            mut timings,
+        } = integrals;
         let h_core = &t_matrix + &v_matrix;
 
-        progress(ScfSetupStep::OverlapMatrix);
-        let step_start = Instant::now();
-        let overlap_matrix = basis.overlap_ints();
-        setup_timings.overlap = step_start.elapsed();
-        crate::debug_assert_is_symmetric!(&overlap_matrix, 1e-8);
         progress(ScfSetupStep::OverlapOrthogonalizer);
         let step_start = Instant::now();
         let orthogonalization_result =
@@ -154,13 +179,9 @@ impl<'a> UhfCalculation<'a> {
         let required_occupied_orbitals = occupied_orbitals.alpha.max(occupied_orbitals.beta);
         ensure_sufficient_rank(orthogonalization, required_occupied_orbitals)
             .map_err(ScfSetupError::Numerical)?;
-        setup_timings.orthogonalizer = step_start.elapsed();
+        timings.orthogonalizer = step_start.elapsed();
         progress(ScfSetupStep::OverlapOrthogonalized(orthogonalization));
-
         progress(ScfSetupStep::ElectronRepulsionIntegrals);
-        let step_start = Instant::now();
-        let two_electron_integrals = electron_repulsion_ints(basis)?;
-        setup_timings.electron_repulsion_integrals = step_start.elapsed();
 
         progress(ScfSetupStep::InitialDensityGuess);
         let step_start = Instant::now();
@@ -206,13 +227,13 @@ impl<'a> UhfCalculation<'a> {
                 Spin::duplicate(DVector::zeros(orthogonalizer.ncols())),
             ),
         };
-        setup_timings.density_guess = step_start.elapsed();
+        timings.density_guess = step_start.elapsed();
 
         let fock = SpinMatrices {
             alpha: h_core.clone(),
             beta: h_core.clone(),
         };
-        setup_timings.total = setup_start.elapsed();
+        timings.total += setup_start.elapsed();
 
         Ok(Self {
             molecule,
@@ -235,7 +256,7 @@ impl<'a> UhfCalculation<'a> {
             orthogonalization,
             occupied_orbitals,
             timings: ScfTimings {
-                setup: setup_timings,
+                setup: timings,
                 ..ScfTimings::default()
             },
         })
