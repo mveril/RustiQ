@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use nalgebra::DMatrix;
+use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
@@ -8,7 +9,13 @@ use crate::{
     molecules::molecule::Molecule,
 };
 
-use super::{core::core_hamiltonian_ints, scf_result::ScfSetupTimings, scf_setup::ScfSetupStep};
+use super::{
+    core::core_hamiltonian_ints,
+    numerical_error::NumericalError,
+    orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo},
+    scf_result::ScfSetupTimings,
+    scf_setup::ScfSetupStep,
+};
 
 /// Integral data shared by restricted and unrestricted SCF calculations.
 pub(crate) struct ScfIntegrals {
@@ -16,7 +23,22 @@ pub(crate) struct ScfIntegrals {
     pub(crate) kinetic: DMatrix<f64>,
     pub(crate) nuclear_attraction: DMatrix<f64>,
     pub(crate) electron_repulsion: CompactEri,
+}
+
+/// SCF setup data produced before constructing a restricted or unrestricted engine.
+pub(crate) struct PreparedScfIntegrals {
+    pub(crate) integrals: ScfIntegrals,
+    pub(crate) orthogonalizer: DMatrix<f64>,
+    pub(crate) orthogonalization: OrthogonalizationInfo,
     pub(crate) timings: ScfSetupTimings,
+}
+
+#[derive(Debug, Error)]
+pub(crate) enum IntegralSetupError {
+    #[error(transparent)]
+    ElectronRepulsion(#[from] EriError),
+    #[error(transparent)]
+    Numerical(#[from] NumericalError),
 }
 
 /// Builds the complete set of integrals needed to initialize an SCF engine.
@@ -30,10 +52,12 @@ impl<'a> IntegralBuilder<'a> {
         Self { molecule, basis }
     }
 
-    pub(crate) fn build(
+    pub(crate) fn prepare(
         self,
+        occupied_orbitals: usize,
+        linear_dependency_threshold: f64,
         mut progress: impl FnMut(ScfSetupStep),
-    ) -> Result<ScfIntegrals, EriError> {
+    ) -> Result<PreparedScfIntegrals, IntegralSetupError> {
         let setup_start = Instant::now();
         let mut timings = ScfSetupTimings::default();
 
@@ -48,16 +72,31 @@ impl<'a> IntegralBuilder<'a> {
         timings.overlap = step_start.elapsed();
         crate::debug_assert_is_symmetric!(&overlap, 1e-8);
 
+        progress(ScfSetupStep::OverlapOrthogonalizer);
+        let step_start = Instant::now();
+        let orthogonalization_result =
+            orthogonalizer(&overlap, "overlap", linear_dependency_threshold)?;
+        let orthogonalization = orthogonalization_result.info;
+        ensure_sufficient_rank(orthogonalization, occupied_orbitals)?;
+        let orthogonalizer = orthogonalization_result.matrix;
+        timings.orthogonalizer = step_start.elapsed();
+        progress(ScfSetupStep::OverlapOrthogonalized(orthogonalization));
+
+        progress(ScfSetupStep::ElectronRepulsionIntegrals);
         let step_start = Instant::now();
         let electron_repulsion = electron_repulsion_ints(self.basis)?;
         timings.electron_repulsion_integrals = step_start.elapsed();
         timings.total = setup_start.elapsed();
 
-        Ok(ScfIntegrals {
-            overlap,
-            kinetic,
-            nuclear_attraction,
-            electron_repulsion,
+        Ok(PreparedScfIntegrals {
+            integrals: ScfIntegrals {
+                overlap,
+                kinetic,
+                nuclear_attraction,
+                electron_repulsion,
+            },
+            orthogonalizer,
+            orthogonalization,
             timings,
         })
     }

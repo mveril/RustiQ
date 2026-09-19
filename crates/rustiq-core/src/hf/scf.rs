@@ -13,11 +13,11 @@ use rayon::prelude::*;
 use crate::basis::gaussian::basis::Basis;
 use crate::molecules::molecule::Molecule;
 
-use super::orthogonalization::{ensure_sufficient_rank, orthogonalizer, OrthogonalizationInfo};
+use super::orthogonalization::OrthogonalizationInfo;
 use super::{
     density_guess::{mo_coefficients_from_fock_like_matrix, DensityGuess, OrbitalGuess},
     diis::DiisAccelerator,
-    integrals::{IntegralBuilder, ScfIntegrals},
+    integrals::{IntegralBuilder, IntegralSetupError, PreparedScfIntegrals},
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
     scf_result::{ScfOutcome, ScfResult, ScfTermination, ScfTimings},
@@ -117,28 +117,37 @@ impl<'a> ScfCalculation<'a> {
         G::Error: 'static,
         F: FnMut(ScfSetupStep),
     {
-        let integrals = IntegralBuilder::new(molecule, basis).build(&mut progress)?;
-        Self::new_with_integrals(
+        let prepared = IntegralBuilder::new(molecule, basis)
+            .prepare(
+                molecule.occupied_orbitals(),
+                linear_dependency_threshold,
+                &mut progress,
+            )
+            .map_err(|error| match error {
+                IntegralSetupError::ElectronRepulsion(error) => {
+                    ScfSetupError::ElectronRepulsion(error)
+                }
+                IntegralSetupError::Numerical(error) => ScfSetupError::Numerical(error),
+            })?;
+        Self::new_with_prepared(
             molecule,
             basis,
             max_iterations,
             convergence_threshold,
-            linear_dependency_threshold,
             density_guess_builder,
-            integrals,
+            prepared,
             progress,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new_with_integrals<G, F>(
+    pub(crate) fn new_with_prepared<G, F>(
         molecule: &'a Molecule,
         basis: &'a Basis,
         max_iterations: usize,
         convergence_threshold: f64,
-        linear_dependency_threshold: f64,
         density_guess_builder: G,
-        integrals: ScfIntegrals,
+        prepared: PreparedScfIntegrals,
         mut progress: F,
     ) -> Result<Self, ScfSetupError<G::Error>>
     where
@@ -147,26 +156,20 @@ impl<'a> ScfCalculation<'a> {
         F: FnMut(ScfSetupStep),
     {
         let setup_start = Instant::now();
-        let ScfIntegrals {
+        let PreparedScfIntegrals {
+            integrals,
+            orthogonalizer,
+            orthogonalization,
+            mut timings,
+        } = prepared;
+        let super::integrals::ScfIntegrals {
             overlap: overlap_matrix,
             kinetic: t_matrix,
             nuclear_attraction: v_matrix,
             electron_repulsion: two_electron_integrals,
-            mut timings,
         } = integrals;
         let h_core = &t_matrix + &v_matrix;
-
-        progress(ScfSetupStep::OverlapOrthogonalizer);
-        let step_start = Instant::now();
-        let orthogonalization_result =
-            orthogonalizer(&overlap_matrix, "overlap", linear_dependency_threshold)?;
-        let orthogonalization = orthogonalization_result.info;
-        let orthogonalizer = orthogonalization_result.matrix;
         let occupied_orbitals = molecule.occupied_orbitals();
-        ensure_sufficient_rank(orthogonalization, occupied_orbitals)?;
-        timings.orthogonalizer = step_start.elapsed();
-        progress(ScfSetupStep::OverlapOrthogonalized(orthogonalization));
-        progress(ScfSetupStep::ElectronRepulsionIntegrals);
 
         // Initialize density matrix using a density guess builder
         progress(ScfSetupStep::InitialDensityGuess);
@@ -530,6 +533,7 @@ mod tests {
     use crate::eri::electron_repulsion_ints;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
+    use crate::hf::orthogonalization::orthogonalizer;
     use crate::molecules::atom::Atom;
     use crate::molecules::geometry::Geometry;
     use crate::test_utils;

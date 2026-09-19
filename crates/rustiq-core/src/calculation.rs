@@ -101,7 +101,11 @@ use crate::{
         HfConfig, HfConfigError, HfMethodResolutionError, MoleculeConfigError, Mp2Config,
         ResolvedHfMethod,
     },
-    hf::{integrals::IntegralBuilder, scf::ScfCalculation, uhf::UhfCalculation},
+    hf::{
+        integrals::{IntegralBuilder, IntegralSetupError},
+        scf::ScfCalculation,
+        uhf::{alpha_beta_occupied_orbitals, UhfCalculation},
+    },
     molecules::molecule::{Molecule, MoleculeError},
     mp2,
 };
@@ -198,23 +202,44 @@ impl<'a> HfCalculation<'a> {
         mut progress: impl FnMut(ScfSetupStep),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
-        let integrals = IntegralBuilder::new(molecule, basis)
-            .build(&mut progress)
+        let required_occupied_orbitals = match method {
+            ResolvedHfMethod::Rhf => molecule.occupied_orbitals(),
+            ResolvedHfMethod::Uhf => {
+                let occupied = alpha_beta_occupied_orbitals(molecule);
+                occupied.alpha.max(occupied.beta)
+            }
+        };
+        let prepared = IntegralBuilder::new(molecule, basis)
+            .prepare(
+                required_occupied_orbitals,
+                config.linear_dependency_threshold.value.into_inner(),
+                &mut progress,
+            )
             .map_err(|error| CalculationError::HfSetup {
                 method,
-                span: None,
-                error: error.into(),
+                span: match &error {
+                    IntegralSetupError::Numerical(
+                        NumericalError::InsufficientOverlapRank { .. }
+                        | NumericalError::InvalidLinearDependencyThreshold { .. },
+                    ) => config.linear_dependency_threshold.span,
+                    IntegralSetupError::ElectronRepulsion(_) | IntegralSetupError::Numerical(_) => {
+                        None
+                    }
+                },
+                error: match error {
+                    IntegralSetupError::ElectronRepulsion(error) => error.into(),
+                    IntegralSetupError::Numerical(error) => error.into(),
+                },
             })?;
         let state = match method {
             ResolvedHfMethod::Rhf => {
-                let mut scf = ScfCalculation::new_with_integrals(
+                let mut scf = ScfCalculation::new_with_prepared(
                     molecule,
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
-                    config.linear_dependency_threshold.value.into_inner(),
                     config.guess.into_inner(),
-                    integrals,
+                    prepared,
                     progress,
                 )
                 .map_err(|error| CalculationError::HfSetup {
@@ -228,14 +253,13 @@ impl<'a> HfCalculation<'a> {
                 HfState::Rhf(scf)
             }
             ResolvedHfMethod::Uhf => {
-                let mut scf = UhfCalculation::new_with_integrals(
+                let mut scf = UhfCalculation::new_with_prepared(
                     molecule,
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
-                    config.linear_dependency_threshold.value.into_inner(),
                     config.guess.into_inner(),
-                    integrals,
+                    prepared,
                     progress,
                 )
                 .map_err(|error| CalculationError::HfSetup {
