@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
+pub(crate) use compact::CompactEriBuildError;
 pub(crate) mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
 use crate::math_utils::boys::CachedBoysFunction;
@@ -17,7 +18,7 @@ use rayon::prelude::*;
 use smallvec::SmallVec;
 use thiserror::Error;
 
-const ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
+pub(crate) const ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
 const ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE: f64 = 1e-12;
 const COULOMB_CACHE_SMALLVEC_CAPACITY: usize = 128;
 
