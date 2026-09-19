@@ -6,6 +6,7 @@ pub(crate) mod component;
 pub(crate) mod core;
 pub(crate) mod density_guess;
 pub(crate) mod diis;
+pub(crate) mod integrals;
 pub(crate) mod numerical_error;
 pub(crate) mod orthogonalization;
 pub(crate) mod scf;

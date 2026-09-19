@@ -101,7 +101,11 @@ use crate::{
         HfConfig, HfConfigError, HfMethodResolutionError, MoleculeConfigError, Mp2Config,
         ResolvedHfMethod,
     },
-    hf::{scf::ScfCalculation, uhf::UhfCalculation},
+    hf::{
+        scf::ScfCalculation,
+        scf_setup::{prepare_scf_setup, ScfPreparationError},
+        uhf::{alpha_beta_occupied_orbitals, UhfCalculation},
+    },
     molecules::molecule::{Molecule, MoleculeError},
     mp2,
 };
@@ -195,18 +199,48 @@ impl<'a> HfCalculation<'a> {
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
-        progress: impl FnMut(ScfSetupStep),
+        mut progress: impl FnMut(ScfSetupStep),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
+        let required_occupied_orbitals = match method {
+            ResolvedHfMethod::Rhf => molecule.occupied_orbitals(),
+            ResolvedHfMethod::Uhf => {
+                let occupied = alpha_beta_occupied_orbitals(molecule);
+                occupied.alpha.max(occupied.beta)
+            }
+        };
+        let prepared = prepare_scf_setup(
+            molecule,
+            basis,
+            required_occupied_orbitals,
+            config.linear_dependency_threshold.value.into_inner(),
+            &mut progress,
+        )
+        .map_err(|error| CalculationError::HfSetup {
+            method,
+            span: match &error {
+                ScfPreparationError::Numerical(
+                    NumericalError::InsufficientOverlapRank { .. }
+                    | NumericalError::InvalidLinearDependencyThreshold { .. },
+                ) => config.linear_dependency_threshold.span,
+                ScfPreparationError::ElectronRepulsion(_) | ScfPreparationError::Numerical(_) => {
+                    None
+                }
+            },
+            error: match error {
+                ScfPreparationError::ElectronRepulsion(error) => error.into(),
+                ScfPreparationError::Numerical(error) => error.into(),
+            },
+        })?;
         let state = match method {
             ResolvedHfMethod::Rhf => {
-                let mut scf = ScfCalculation::new_with_progress(
+                let mut scf = ScfCalculation::new_with_prepared(
                     molecule,
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
-                    config.linear_dependency_threshold.value.into_inner(),
                     config.guess.into_inner(),
+                    prepared,
                     progress,
                 )
                 .map_err(|error| CalculationError::HfSetup {
@@ -220,13 +254,13 @@ impl<'a> HfCalculation<'a> {
                 HfState::Rhf(scf)
             }
             ResolvedHfMethod::Uhf => {
-                let mut scf = UhfCalculation::new_with_progress(
+                let mut scf = UhfCalculation::new_with_prepared(
                     molecule,
                     basis,
                     config.max_iterations.get(),
                     config.convergence_threshold.into_inner(),
-                    config.linear_dependency_threshold.value.into_inner(),
                     config.guess.into_inner(),
+                    prepared,
                     progress,
                 )
                 .map_err(|error| CalculationError::HfSetup {
