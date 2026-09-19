@@ -496,3 +496,43 @@ fn setup_errors_retain_threshold_and_guess_locations() {
         assert_eq!(labels(&error), vec![span]);
     }
 }
+
+#[test]
+fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
+    let geometry = geometry();
+    let file = basis_file();
+
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        let config = HfConfig {
+            method: method.into(),
+            linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
+            ..Default::default()
+        };
+        let mut setup_steps = Vec::new();
+
+        let error = CalculationBuilder::new(&geometry, &file)
+            .with_hf(config)
+            .execute_with_events(|event| {
+                if let CalculationEvent::ScfSetup(step) = event {
+                    setup_steps.push(step);
+                }
+            })
+            .unwrap_err();
+
+        assert!(matches!(
+            error.cause(),
+            CalculationError::HfSetup {
+                error: HfSetupError::Numerical(NumericalError::InsufficientOverlapRank { .. }),
+                ..
+            }
+        ));
+        assert_eq!(
+            setup_steps,
+            vec![
+                ScfSetupStep::CoreHamiltonian,
+                ScfSetupStep::OverlapMatrix,
+                ScfSetupStep::OverlapOrthogonalizer,
+            ]
+        );
+    }
+}

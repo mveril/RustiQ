@@ -15,12 +15,11 @@ use super::orthogonalization::OrthogonalizationInfo;
 use super::{
     density_guess::{mo_coefficients_from_fock_like_matrix, DensityGuess, OrbitalGuess},
     diis::{DiisAccelerator, DiisError},
-    integrals::{IntegralBuilder, IntegralSetupError, PreparedScfIntegrals},
     scf::ScfSetupError,
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
     scf_result::{ScfOutcome, ScfResult, ScfTermination, ScfTimings, SpinDiagnostics},
-    scf_setup::ScfSetupStep,
+    scf_setup::{prepare_scf_setup, PreparedScfSetup, ScfPreparationError, ScfSetupStep},
 };
 
 #[derive(Debug, Error)]
@@ -127,23 +126,23 @@ impl<'a> UhfCalculation<'a> {
         G::Error: 'static,
         F: FnMut(ScfSetupStep),
     {
-        let required_occupied_orbitals = alpha_beta_occupied_orbitals(molecule)
-            .alpha
-            .max(alpha_beta_occupied_orbitals(molecule).beta);
-        let prepared = IntegralBuilder::new(molecule, basis)
-            .prepare(
-                required_occupied_orbitals,
-                linear_dependency_threshold,
-                &mut progress,
-            )
-            .map_err(|error| match error {
-                IntegralSetupError::ElectronRepulsion(error) => {
-                    UhfSetupError::ElectronRepulsion(error)
-                }
-                IntegralSetupError::Numerical(error) => {
-                    UhfSetupError::Scf(ScfSetupError::Numerical(error))
-                }
-            })?;
+        let occupied_orbitals = alpha_beta_occupied_orbitals(molecule);
+        let required_occupied_orbitals = occupied_orbitals.alpha.max(occupied_orbitals.beta);
+        let prepared = prepare_scf_setup(
+            molecule,
+            basis,
+            required_occupied_orbitals,
+            linear_dependency_threshold,
+            &mut progress,
+        )
+        .map_err(|error| match error {
+            ScfPreparationError::ElectronRepulsion(error) => {
+                UhfSetupError::ElectronRepulsion(error)
+            }
+            ScfPreparationError::Numerical(error) => {
+                UhfSetupError::Scf(ScfSetupError::Numerical(error))
+            }
+        })?;
         Self::new_with_prepared(
             molecule,
             basis,
@@ -162,7 +161,7 @@ impl<'a> UhfCalculation<'a> {
         max_iterations: usize,
         convergence_threshold: f64,
         density_guess_builder: G,
-        prepared: PreparedScfIntegrals,
+        prepared: PreparedScfSetup,
         mut progress: F,
     ) -> Result<Self, UhfSetupError<G::Error>>
     where
@@ -172,7 +171,7 @@ impl<'a> UhfCalculation<'a> {
     {
         let occupied_orbitals = alpha_beta_occupied_orbitals(molecule);
         let setup_start = Instant::now();
-        let PreparedScfIntegrals {
+        let PreparedScfSetup {
             integrals,
             orthogonalizer,
             orthogonalization,

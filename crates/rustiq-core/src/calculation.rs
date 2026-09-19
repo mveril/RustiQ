@@ -102,8 +102,8 @@ use crate::{
         ResolvedHfMethod,
     },
     hf::{
-        integrals::{IntegralBuilder, IntegralSetupError},
         scf::ScfCalculation,
+        scf_setup::{prepare_scf_setup, ScfPreparationError},
         uhf::{alpha_beta_occupied_orbitals, UhfCalculation},
     },
     molecules::molecule::{Molecule, MoleculeError},
@@ -209,28 +209,29 @@ impl<'a> HfCalculation<'a> {
                 occupied.alpha.max(occupied.beta)
             }
         };
-        let prepared = IntegralBuilder::new(molecule, basis)
-            .prepare(
-                required_occupied_orbitals,
-                config.linear_dependency_threshold.value.into_inner(),
-                &mut progress,
-            )
-            .map_err(|error| CalculationError::HfSetup {
-                method,
-                span: match &error {
-                    IntegralSetupError::Numerical(
-                        NumericalError::InsufficientOverlapRank { .. }
-                        | NumericalError::InvalidLinearDependencyThreshold { .. },
-                    ) => config.linear_dependency_threshold.span,
-                    IntegralSetupError::ElectronRepulsion(_) | IntegralSetupError::Numerical(_) => {
-                        None
-                    }
-                },
-                error: match error {
-                    IntegralSetupError::ElectronRepulsion(error) => error.into(),
-                    IntegralSetupError::Numerical(error) => error.into(),
-                },
-            })?;
+        let prepared = prepare_scf_setup(
+            molecule,
+            basis,
+            required_occupied_orbitals,
+            config.linear_dependency_threshold.value.into_inner(),
+            &mut progress,
+        )
+        .map_err(|error| CalculationError::HfSetup {
+            method,
+            span: match &error {
+                ScfPreparationError::Numerical(
+                    NumericalError::InsufficientOverlapRank { .. }
+                    | NumericalError::InvalidLinearDependencyThreshold { .. },
+                ) => config.linear_dependency_threshold.span,
+                ScfPreparationError::ElectronRepulsion(_) | ScfPreparationError::Numerical(_) => {
+                    None
+                }
+            },
+            error: match error {
+                ScfPreparationError::ElectronRepulsion(error) => error.into(),
+                ScfPreparationError::Numerical(error) => error.into(),
+            },
+        })?;
         let state = match method {
             ResolvedHfMethod::Rhf => {
                 let mut scf = ScfCalculation::new_with_prepared(

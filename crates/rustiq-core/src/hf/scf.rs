@@ -17,11 +17,10 @@ use super::orthogonalization::OrthogonalizationInfo;
 use super::{
     density_guess::{mo_coefficients_from_fock_like_matrix, DensityGuess, OrbitalGuess},
     diis::DiisAccelerator,
-    integrals::{IntegralBuilder, IntegralSetupError, PreparedScfIntegrals},
     scf_energy_details::ScfEnergyDetails,
     scf_iteration::ScfIteration,
     scf_result::{ScfOutcome, ScfResult, ScfTermination, ScfTimings},
-    scf_setup::ScfSetupStep,
+    scf_setup::{prepare_scf_setup, PreparedScfSetup, ScfPreparationError, ScfSetupStep},
 };
 use thiserror::Error;
 
@@ -117,18 +116,19 @@ impl<'a> ScfCalculation<'a> {
         G::Error: 'static,
         F: FnMut(ScfSetupStep),
     {
-        let prepared = IntegralBuilder::new(molecule, basis)
-            .prepare(
-                molecule.occupied_orbitals(),
-                linear_dependency_threshold,
-                &mut progress,
-            )
-            .map_err(|error| match error {
-                IntegralSetupError::ElectronRepulsion(error) => {
-                    ScfSetupError::ElectronRepulsion(error)
-                }
-                IntegralSetupError::Numerical(error) => ScfSetupError::Numerical(error),
-            })?;
+        let prepared = prepare_scf_setup(
+            molecule,
+            basis,
+            molecule.occupied_orbitals(),
+            linear_dependency_threshold,
+            &mut progress,
+        )
+        .map_err(|error| match error {
+            ScfPreparationError::ElectronRepulsion(error) => {
+                ScfSetupError::ElectronRepulsion(error)
+            }
+            ScfPreparationError::Numerical(error) => ScfSetupError::Numerical(error),
+        })?;
         Self::new_with_prepared(
             molecule,
             basis,
@@ -147,7 +147,7 @@ impl<'a> ScfCalculation<'a> {
         max_iterations: usize,
         convergence_threshold: f64,
         density_guess_builder: G,
-        prepared: PreparedScfIntegrals,
+        prepared: PreparedScfSetup,
         mut progress: F,
     ) -> Result<Self, ScfSetupError<G::Error>>
     where
@@ -156,7 +156,7 @@ impl<'a> ScfCalculation<'a> {
         F: FnMut(ScfSetupStep),
     {
         let setup_start = Instant::now();
-        let PreparedScfIntegrals {
+        let PreparedScfSetup {
             integrals,
             orthogonalizer,
             orthogonalization,
