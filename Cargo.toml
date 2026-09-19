@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rustiq-core"]
+members = ["crates/rustiq-core", "crates/rustiq-python"]
 default-members = [".", "crates/rustiq-core"]
 resolver = "2"
 
