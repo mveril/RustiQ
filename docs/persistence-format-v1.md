@@ -18,7 +18,7 @@ complete payload bytes. Payload integrity is independent of its container.
 AO ERIs are a one-dimensional NPY array of IEEE-754 binary64 values. Object and
 pickled arrays are forbidden. Readers must validate the dtype, rank, element
 count and digest before scientific use. Both little- and big-endian binary64 NPY
-payloads are readable; writers use the native binary64 dtype emitted by `npyz`.
+payloads are readable; RustiQ writers emit deterministic little-endian `<f8>` payloads.
 
 For `n` basis functions, define the symmetric pair index
 
@@ -49,10 +49,11 @@ The stream contains, in order:
 
 1. identity and ERI representation identifiers;
 2. ordered atoms: atomic number and coordinates in Bohr;
-3. ordered resolved shells: centers, exponents, spherical/cartesian flag,
-   angular momentum and effective normalized contraction coefficients;
-4. ordered AO angular/component expansion and coefficients;
-5. the Schwarz screening threshold.
+3. ordered effective AO data consumed by the ERI engine: shell center,
+   normalized component angular momentum, primitive exponents and effective
+   normalized coefficients;
+4. Schwarz screening state, encoded distinctly as disabled or enabled with a
+   positive finite threshold.
 
 Producer version, paths, timestamps, compression and container metadata do not
 participate in scientific identity.
