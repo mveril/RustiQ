@@ -1605,13 +1605,13 @@ dev = [
     { name = "ipykernel" },
     { name = "jupyterlab" },
     { name = "matplotlib" },
-    { name = "numpy" },
     { name = "scipy" },
 ]
 linting = [
     { name = "ruff" },
 ]
 test = [
+    { name = "numpy" },
     { name = "pytest" },
 ]
 
@@ -1623,11 +1623,13 @@ dev = [
     { name = "ipykernel" },
     { name = "jupyterlab" },
     { name = "matplotlib" },
-    { name = "numpy" },
     { name = "scipy" },
 ]
 linting = [{ name = "ruff" }]
-test = [{ name = "pytest" }]
+test = [
+    { name = "numpy" },
+    { name = "pytest" },
+]
 
 [[package]]
 name = "scipy"

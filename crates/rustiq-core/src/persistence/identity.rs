@@ -1,8 +1,4 @@
-use crate::{
-    basis::Basis,
-    config::validated::PositiveFiniteF64,
-    molecules::geometry::Geometry,
-};
+use crate::{basis::Basis, config::validated::PositiveFiniteF64, molecules::geometry::Geometry};
 
 use super::{sha256, Sha256Digest, COMPACT_ERI_REPRESENTATION, SCIENTIFIC_IDENTITY_VERSION};
 
@@ -100,10 +96,7 @@ impl CanonicalBytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        config::DEFAULT_ERI_SCHWARZ_THRESHOLD,
-        test_utils::load_sto3g_basis,
-    };
+    use crate::{config::DEFAULT_ERI_SCHWARZ_THRESHOLD, test_utils::load_sto3g_basis};
 
     fn input() -> (Geometry, Basis) {
         let geometry = Geometry::from_source(
@@ -159,7 +152,10 @@ mod tests {
     fn identity_changes_with_screening_settings() {
         let (geometry, basis) = input();
         let default = ao_eri_identity(&geometry, &basis, default_threshold());
-        assert_ne!(default, ao_eri_identity(&geometry, &basis, threshold(1e-10)));
+        assert_ne!(
+            default,
+            ao_eri_identity(&geometry, &basis, threshold(1e-10))
+        );
         assert_ne!(default, ao_eri_identity(&geometry, &basis, None));
     }
 

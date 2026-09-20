@@ -224,6 +224,12 @@
             UV_NO_SYNC = "1";
             UV_PYTHON = pythonSet.python.interpreter;
             UV_PYTHON_DOWNLOADS = "never";
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            # uv installs binary Python wheels into .venv. Unlike Nix-built
+            # extensions, their ELF dependencies are not patched, so make the
+            # C++ runtime available to NumPy at import time.
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
           };
 
           mkDevShell =
