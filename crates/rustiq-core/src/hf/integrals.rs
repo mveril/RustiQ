@@ -2,7 +2,7 @@ use nalgebra::DMatrix;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    config::validated::NonNegativeFiniteF64,
+    config::validated::PositiveFiniteF64,
     eri::{electron_repulsion_ints_with_threshold, CompactEri, EriError},
     molecules::molecule::Molecule,
 };
@@ -21,14 +21,14 @@ pub(crate) struct ScfIntegrals {
 pub(crate) struct IntegralBuilder<'a> {
     molecule: &'a Molecule,
     basis: &'a Basis,
-    eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
+    eri_schwarz_threshold: Option<PositiveFiniteF64>,
 }
 
 impl<'a> IntegralBuilder<'a> {
     pub(crate) fn new(
         molecule: &'a Molecule,
         basis: &'a Basis,
-        eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
+        eri_schwarz_threshold: Option<PositiveFiniteF64>,
     ) -> Self {
         Self {
             molecule,
