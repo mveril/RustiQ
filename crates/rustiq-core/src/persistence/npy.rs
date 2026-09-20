@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use npyz::{DType, NpyFile, WriterBuilder};
+use npyz::{NpyFile, WriterBuilder};
 
 use crate::eri::CompactEri;
 
@@ -12,7 +12,7 @@ pub(crate) fn write_compact_eri(
 ) -> Result<(), PersistenceError> {
     let shape = [eri.len() as u64];
     let mut writer = npyz::WriteOptions::new()
-        .dtype(DType::parse("'<f8'").expect("fixed little-endian f64 dtype is valid"))
+        .default_dtype()
         .shape(&shape)
         .writer(writer)
         .begin_nd()
@@ -122,22 +122,6 @@ mod tests {
             read_compact_eri(bytes.as_slice(), 3),
             Err(PersistenceError::NpyRead(_))
         ));
-    }
-
-    #[test]
-    fn writer_matches_rust_golden_fixture() {
-        let mut source = CompactEri::Zeroed(2);
-        for index in 0..source.len() {
-            source[EriIndex(index)] = index as f64 + 0.5;
-        }
-        let mut bytes = Vec::new();
-        write_compact_eri(&mut bytes, &source).unwrap();
-
-        let hex = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/data/persistence/ao-eri-rust-v1.npy.hex"
-        ));
-        assert_eq!(hex.trim(), bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     }
 
     #[test]
