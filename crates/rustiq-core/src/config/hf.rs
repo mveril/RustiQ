@@ -28,7 +28,7 @@ pub struct HfConfig {
     pub convergence_threshold: PositiveFiniteF64,
     pub linear_dependency_threshold: Located<NonNegativeFiniteF64>,
     /// Schwarz screening cutoff for ERIs. Larger values discard more small
-    /// integrals, improving speed and memory use at the cost of accuracy;
+    /// integrals, reducing ERI computation time at the cost of accuracy;
     /// `None` disables screening.
     pub eri_schwarz_threshold: Option<PositiveFiniteF64>,
     pub guess: Located<DensityGuessConfig>,
