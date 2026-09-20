@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    config::{validated::NonNegativeFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD},
+    config::{validated::PositiveFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD},
     eri::EriError,
     molecules::molecule::Molecule,
 };
@@ -61,7 +61,7 @@ pub(crate) fn prepare_scf_setup(
         required_occupied_orbitals,
         linear_dependency_threshold,
         Some(
-            NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+            PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
                 .expect("default ERI Schwarz threshold is valid"),
         ),
         progress,
@@ -73,7 +73,7 @@ pub(crate) fn prepare_scf_setup_with_eri_threshold(
     basis: &Basis,
     required_occupied_orbitals: usize,
     linear_dependency_threshold: f64,
-    eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
+    eri_schwarz_threshold: Option<PositiveFiniteF64>,
     mut progress: impl FnMut(ScfSetupStep),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
     let setup_start = Instant::now();
