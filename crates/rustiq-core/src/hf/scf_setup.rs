@@ -3,7 +3,12 @@ use std::time::Instant;
 use nalgebra::DMatrix;
 use thiserror::Error;
 
-use crate::{basis::gaussian::basis::Basis, eri::EriError, molecules::molecule::Molecule};
+use crate::{
+    basis::gaussian::basis::Basis,
+    config::{validated::NonNegativeFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD},
+    eri::EriError,
+    molecules::molecule::Molecule,
+};
 
 use super::{
     integrals::{IntegralBuilder, ScfIntegrals},
@@ -48,11 +53,32 @@ pub(crate) fn prepare_scf_setup(
     basis: &Basis,
     required_occupied_orbitals: usize,
     linear_dependency_threshold: f64,
+    progress: impl FnMut(ScfSetupStep),
+) -> Result<PreparedScfSetup, ScfPreparationError> {
+    prepare_scf_setup_with_eri_threshold(
+        molecule,
+        basis,
+        required_occupied_orbitals,
+        linear_dependency_threshold,
+        Some(
+            NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+                .expect("default ERI Schwarz threshold is valid"),
+        ),
+        progress,
+    )
+}
+
+pub(crate) fn prepare_scf_setup_with_eri_threshold(
+    molecule: &Molecule,
+    basis: &Basis,
+    required_occupied_orbitals: usize,
+    linear_dependency_threshold: f64,
+    eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
     mut progress: impl FnMut(ScfSetupStep),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
     let setup_start = Instant::now();
     let mut timings = ScfSetupTimings::default();
-    let builder = IntegralBuilder::new(molecule, basis);
+    let builder = IntegralBuilder::new(molecule, basis, eri_schwarz_threshold);
 
     progress(ScfSetupStep::CoreHamiltonian);
     let step_start = Instant::now();

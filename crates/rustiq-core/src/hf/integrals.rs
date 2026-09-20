@@ -2,7 +2,8 @@ use nalgebra::DMatrix;
 
 use crate::{
     basis::gaussian::basis::Basis,
-    eri::{electron_repulsion_ints, CompactEri, EriError},
+    config::validated::NonNegativeFiniteF64,
+    eri::{electron_repulsion_ints_with_threshold, CompactEri, EriError},
     molecules::molecule::Molecule,
 };
 
@@ -20,11 +21,20 @@ pub(crate) struct ScfIntegrals {
 pub(crate) struct IntegralBuilder<'a> {
     molecule: &'a Molecule,
     basis: &'a Basis,
+    eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
 }
 
 impl<'a> IntegralBuilder<'a> {
-    pub(crate) fn new(molecule: &'a Molecule, basis: &'a Basis) -> Self {
-        Self { molecule, basis }
+    pub(crate) fn new(
+        molecule: &'a Molecule,
+        basis: &'a Basis,
+        eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
+    ) -> Self {
+        Self {
+            molecule,
+            basis,
+            eri_schwarz_threshold,
+        }
     }
 
     pub(crate) fn core_hamiltonian(&self) -> (DMatrix<f64>, DMatrix<f64>) {
@@ -36,6 +46,6 @@ impl<'a> IntegralBuilder<'a> {
     }
 
     pub(crate) fn electron_repulsion(&self) -> Result<CompactEri, EriError> {
-        electron_repulsion_ints(self.basis)
+        electron_repulsion_ints_with_threshold(self.basis, self.eri_schwarz_threshold)
     }
 }

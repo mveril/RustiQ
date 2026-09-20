@@ -28,6 +28,10 @@ pub struct HfConfig {
     #[toml(default = default_linear_dependency_threshold())]
     #[toml(with = crate::runfile::validated::non_negative_finite_f64)]
     pub linear_dependency_threshold: NonNegativeFiniteF64,
+    /// Larger values screen more small ERIs; `0` disables screening.
+    #[toml(default = Some(default_eri_schwarz_threshold()))]
+    #[toml(with = crate::runfile::validated::optional_non_negative_finite_f64)]
+    pub eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
     #[toml(default)]
     pub guess: DensityGuessConfig,
     #[toml(default)]
@@ -46,6 +50,7 @@ impl Default for HfConfig {
             max_iterations: default_max_iter(),
             convergence_threshold: default_conv_threshold(),
             linear_dependency_threshold: default_linear_dependency_threshold(),
+            eri_schwarz_threshold: Some(default_eri_schwarz_threshold()),
             guess: DensityGuessConfig::default(),
             diis: false,
             diis_size: default_diis_size(),
@@ -89,6 +94,11 @@ fn default_conv_threshold() -> PositiveFiniteF64 {
 fn default_linear_dependency_threshold() -> NonNegativeFiniteF64 {
     NonNegativeFiniteF64::try_new(1e-8)
         .expect("default linear dependency threshold is non-negative and finite")
+}
+
+fn default_eri_schwarz_threshold() -> NonNegativeFiniteF64 {
+    NonNegativeFiniteF64::try_new(rustiq_core::config::DEFAULT_ERI_SCHWARZ_THRESHOLD)
+        .expect("default ERI Schwarz threshold is non-negative and finite")
 }
 
 fn default_max_iter() -> NonZeroUsize {
@@ -146,6 +156,7 @@ mod tests {
         assert_eq!(config.max_iterations.get(), 100);
         assert_eq!(config.convergence_threshold.into_inner(), 1e-8);
         assert_eq!(config.linear_dependency_threshold.into_inner(), 1e-8);
+        assert_eq!(config.eri_schwarz_threshold.unwrap().into_inner(), 1e-12);
         assert_eq!(config.diis_size.into_inner(), 6);
         assert_eq!(config.format, HfOutputFormat::Normal);
     }
@@ -413,6 +424,15 @@ mod tests {
     fn test_hf_config_rejects_invalid_linear_dependency_threshold() {
         let negative = toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = -1e-8");
         let infinite = toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = inf");
+
+        assert!(negative.is_err());
+        assert!(infinite.is_err());
+    }
+
+    #[test]
+    fn test_hf_config_rejects_invalid_eri_schwarz_threshold() {
+        let negative = toml_spanner::from_str::<HfConfig>("eri_schwarz_threshold = -1e-12");
+        let infinite = toml_spanner::from_str::<HfConfig>("eri_schwarz_threshold = inf");
 
         assert!(negative.is_err());
         assert!(infinite.is_err());

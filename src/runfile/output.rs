@@ -149,6 +149,7 @@ mod tests {
             "max_iterations",
             "convergence_threshold",
             "linear_dependency_threshold",
+            "eri_schwarz_threshold",
             "diis",
             "guess",
             "frozen_orbitals",

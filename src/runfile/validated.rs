@@ -50,6 +50,47 @@ pub(crate) mod non_negative_finite_f64 {
     }
 }
 
+pub(crate) mod optional_non_negative_finite_f64 {
+    use super::*;
+
+    pub(crate) trait ToTomlThreshold {
+        fn to_item(&self) -> f64;
+    }
+
+    impl ToTomlThreshold for NonNegativeFiniteF64 {
+        fn to_item(&self) -> f64 {
+            self.into_inner()
+        }
+    }
+
+    impl ToTomlThreshold for Option<NonNegativeFiniteF64> {
+        fn to_item(&self) -> f64 {
+            self.map_or(0.0, NonNegativeFiniteF64::into_inner)
+        }
+    }
+
+    pub(crate) fn from_toml<'de>(
+        ctx: &mut Context<'de>,
+        item: &Item<'de>,
+    ) -> Result<Option<NonNegativeFiniteF64>, Failed> {
+        let value = f64::from_toml(ctx, item)?;
+        if value == 0.0 {
+            Ok(None)
+        } else {
+            NonNegativeFiniteF64::try_new(value)
+                .map(Some)
+                .map_err(|error| ctx.report_custom_error(error, item))
+        }
+    }
+
+    pub(crate) fn to_toml<'a, T: ToTomlThreshold>(
+        value: &'a T,
+        _arena: &'a Arena,
+    ) -> Result<Item<'a>, ToTomlError> {
+        Ok(Item::from(value.to_item()))
+    }
+}
+
 pub(crate) mod diis_size {
     use super::*;
     pub(crate) fn from_toml<'de>(

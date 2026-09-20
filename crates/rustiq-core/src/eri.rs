@@ -10,6 +10,7 @@ mod compact;
 pub use compact::CompactEri;
 pub(crate) mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
+use crate::config::{validated::NonNegativeFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD};
 use crate::math_utils::boys::CachedBoysFunction;
 use index::PairIndex;
 use nalgebra::{Point3, Vector3};
@@ -17,7 +18,6 @@ use rayon::prelude::*;
 use smallvec::SmallVec;
 use thiserror::Error;
 
-const ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
 const ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE: f64 = 1e-12;
 const COULOMB_CACHE_SMALLVEC_CAPACITY: usize = 128;
 
@@ -161,10 +161,28 @@ pub enum EriError {
 }
 
 pub fn electron_repulsion_ints(basis: &Basis) -> Result<CompactEri, EriError> {
+    electron_repulsion_ints_with_threshold(
+        basis,
+        Some(
+            NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+                .expect("default ERI Schwarz threshold is valid"),
+        ),
+    )
+}
+
+pub(crate) fn electron_repulsion_ints_with_threshold(
+    basis: &Basis,
+    schwarz_threshold: Option<NonNegativeFiniteF64>,
+) -> Result<CompactEri, EriError> {
     let n = basis.nbasis();
     let pair_expansions = build_pair_expansions(basis);
     let pair_bounds = build_pair_schwarz_bounds(&pair_expansions)?;
-    Ok(build_compact_eri(n, &pair_expansions, &pair_bounds))
+    Ok(build_compact_eri(
+        n,
+        &pair_expansions,
+        &pair_bounds,
+        schwarz_threshold.map_or(0.0, NonNegativeFiniteF64::into_inner),
+    ))
 }
 
 #[cfg(feature = "bench-support")]
@@ -239,7 +257,14 @@ pub fn electron_repulsion_ints_timed_with_observer(
     observer("schwarz bounds", schwarz_bounds_elapsed);
 
     let compact_fill_start = Instant::now();
-    let integrals = build_compact_eri(n, &pair_expansions, &pair_bounds);
+    let integrals = build_compact_eri(
+        n,
+        &pair_expansions,
+        &pair_bounds,
+        NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+            .expect("default ERI Schwarz threshold is valid")
+            .into_inner(),
+    );
     let compact_fill_elapsed = compact_fill_start.elapsed();
     observer("compact fill", compact_fill_elapsed);
     let total_elapsed = total_start.elapsed();
@@ -262,6 +287,7 @@ fn build_compact_eri(
     basis_function_count: usize,
     pair_expansions: &[PairExpansion],
     pair_bounds: &[f64],
+    schwarz_threshold: f64,
 ) -> CompactEri {
     let storage_len = CompactEri::storage_len(basis_function_count);
     CompactEri::from_ordered_values_par_iter(
@@ -269,7 +295,7 @@ fn build_compact_eri(
         (0..storage_len).into_par_iter().map(|index| {
             let (pair_pq, pair_rs) = PairIndex(index).indices();
             let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
-            if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
+            if schwarz_bound < schwarz_threshold {
                 0.0
             } else if pair_pq == pair_rs {
                 schwarz_bound
@@ -796,7 +822,7 @@ mod tests {
                         let pair_pq = PairIndex::new(mu, nu).0;
                         let pair_rs = PairIndex::new(lambda, sigma).0;
                         let schwarz_bound = pair_bounds[pair_pq] * pair_bounds[pair_rs];
-                        let expected = if schwarz_bound < ERI_SCHWARZ_THRESHOLD {
+                        let expected = if schwarz_bound < DEFAULT_ERI_SCHWARZ_THRESHOLD {
                             0.0
                         } else if pair_pq == pair_rs {
                             schwarz_bound
@@ -824,6 +850,23 @@ mod tests {
         let eri_tensor = electron_repulsion_ints(&basis).unwrap();
 
         assert_eq!(eri_tensor[(0, 1, 0, 1)], 0.0);
+    }
+
+    #[test]
+    fn test_custom_eri_schwarz_threshold_controls_screening() {
+        let basis_file = test_utils::load_minimal_basis_file();
+        let geom = create_h2_geometry();
+        let basis = Basis::try_load(&basis_file, &geom).unwrap();
+
+        let default_eri = electron_repulsion_ints(&basis).unwrap();
+        let screened_eri = electron_repulsion_ints_with_threshold(
+            &basis,
+            Some(NonNegativeFiniteF64::try_new(1.0).unwrap()),
+        )
+        .unwrap();
+
+        assert!(default_eri[(0, 0, 0, 0)] > 0.0);
+        assert_eq!(screened_eri[(0, 0, 0, 0)], 0.0);
     }
 
     /// Test the symmetry of ERI matrices.
