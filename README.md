@@ -631,8 +631,8 @@ type = "CoreHamiltonian"
 ```
 
 `eri_schwarz_threshold` controls Schwarz screening of electron-repulsion
-integrals. Increasing it discards more small integrals, reducing calculation
-time and memory use but potentially changing energies and SCF convergence;
+integrals. Increasing it discards more small integrals, reducing ERI computation
+time but potentially changing energies and SCF convergence;
 decreasing it retains more integrals at greater cost. The default `1e-12`
 preserves the previous behavior. Set `eri_schwarz_threshold = 0` to disable
 Schwarz screening.
