@@ -9,15 +9,16 @@ scientific persistence. It does not specify a cache layout or archive container.
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
 
-Every artifact records its logical path, encoding, dtype, representation,
-logical shape, basis-function count and a `sha256:<lowercase hex>` digest of the
-complete payload bytes. Payload integrity is independent of its container.
+Every artifact records its logical path, byte size, encoding, dtype,
+representation, logical shape, basis-function count and a content digest in the
+form `sha256:<lowercase hex>`. Readers should validate the declared size and
+digest before scientific use. Payload integrity is independent of its container.
 
 ## `rustiq-compact-eri-v1`
 
 AO ERIs are a one-dimensional NPY array of IEEE-754 binary64 values. Object and
-pickled arrays are forbidden. Readers must validate the dtype, rank, element
-count and digest before scientific use. Both little- and big-endian binary64 NPY
+pickled arrays are forbidden. Readers must validate the declared byte size,
+dtype, rank, element count and digest before scientific use. Both little- and big-endian binary64 NPY
 payloads are readable; writers use the native binary64 dtype emitted by `npyz`,
 and the dtype stored in the NPY header defines the payload endianness.
 
