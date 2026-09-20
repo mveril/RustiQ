@@ -4,11 +4,13 @@
 //! cache directory or container format.
 
 mod checksum;
+mod eri_cache;
 mod identity;
 mod manifest;
 mod npy;
 
-pub use checksum::{sha256, verify_sha256, Sha256Digest, Sha256DigestParseError};
+pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
+pub use eri_cache::{EriCache, EriCacheEntry};
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity};
 pub use manifest::{ArtifactManifest, Manifest, Producer, ScientificIdentityManifest};

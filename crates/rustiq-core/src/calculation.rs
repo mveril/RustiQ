@@ -108,6 +108,7 @@ use crate::{
     },
     molecules::molecule::{Molecule, MoleculeError},
     mp2,
+    persistence::EriCache,
 };
 
 /// Typed errors with optional input locations, but no source text or renderer.
@@ -192,13 +193,14 @@ impl<'a> HfCalculation<'a> {
         basis: &'a Basis,
         config: &HfConfig,
     ) -> Result<Self, CalculationError> {
-        Self::new_with_progress(molecule, basis, config, |_| {})
+        Self::new_with_progress(molecule, basis, config, None, |_| {})
     }
 
     pub(crate) fn new_with_progress(
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
+        eri_cache: Option<&'a EriCache>,
         mut progress: impl FnMut(ScfSetupStep),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
@@ -215,6 +217,7 @@ impl<'a> HfCalculation<'a> {
             required_occupied_orbitals,
             config.linear_dependency_threshold.value.into_inner(),
             config.eri_schwarz_threshold,
+            eri_cache,
             &mut progress,
         )
         .map_err(|error| CalculationError::HfSetup {

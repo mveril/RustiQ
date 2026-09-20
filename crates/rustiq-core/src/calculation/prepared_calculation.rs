@@ -18,6 +18,7 @@ pub struct PreparedCalculation {
     pub(super) basis: Basis,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
     pub(super) mp2: Option<Mp2Config>,
+    pub(super) eri_cache: Option<crate::persistence::EriCache>,
 }
 
 impl PreparedCalculation {
@@ -45,10 +46,13 @@ impl PreparedCalculation {
             method: *method,
             config,
         });
-        let mut calculation =
-            HfCalculation::new_with_progress(&self.molecule, &self.basis, config, |step| {
-                events(CalculationEvent::ScfSetup(step))
-            })?;
+        let mut calculation = HfCalculation::new_with_progress(
+            &self.molecule,
+            &self.basis,
+            config,
+            self.eri_cache.as_ref(),
+            |step| events(CalculationEvent::ScfSetup(step)),
+        )?;
         let outcome = calculation
             .run_with_iterations(|iteration| events(CalculationEvent::ScfIteration(iteration)))?;
         let hf = match outcome {

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use std::{fmt, str::FromStr};
+use std::{fmt, io::Read, str::FromStr};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Sha256Digest([u8; 32]);
@@ -96,6 +96,19 @@ impl<'de> Deserialize<'de> for Sha256Digest {
 
 pub fn sha256(bytes: &[u8]) -> Sha256Digest {
     Sha256::digest(bytes).into()
+}
+
+/// Computes a SHA-256 digest without materializing the complete input.
+pub fn sha256_reader(mut reader: impl Read) -> Result<Sha256Digest, std::io::Error> {
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            return Ok(hasher.finalize().into());
+        }
+        hasher.update(&buffer[..read]);
+    }
 }
 
 pub fn verify_sha256(bytes: &[u8], expected: Sha256Digest) -> bool {

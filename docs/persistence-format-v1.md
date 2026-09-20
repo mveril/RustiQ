@@ -1,7 +1,35 @@
 # RustiQ logical persistence format V1
 
 This document specifies the storage-independent logical format used by RustiQ
-scientific persistence. It does not specify a cache layout or archive container.
+scientific persistence. It does not specify an archive container.
+
+## Active AO ERI cache
+
+The active deterministic-integral cache is directory-backed. Its root is an
+explicit application choice; the scientific core never chooses a user or
+system cache directory. The RustiQ CLI defaults to `dirs::cache_dir()/RustiQ`,
+or `RUSTIQ_CACHE_HOME` when set; `rustiq run --eri-cache-dir DIR` overrides it
+for one execution. An AO ERI entry has this layout:
+
+```text
+<cache-root>/eri/<scientific-identity-digest>/
+├── manifest.json
+└── arrays/integrals/ao-eri.npy
+```
+
+The cache validates the manifest version, scientific identity, representation,
+basis-function count, payload size and SHA-256 digest before reading NPY data.
+Any missing, malformed, stale, truncated or corrupted entry is a cache miss and
+must be recomputed; it is never used as scientific input. Entries are written
+to a sibling temporary directory, finalized and synced, then atomically renamed
+into place. Published entries are immutable, so concurrent producers can safely
+leave the first completed entry in place.
+
+Use `rustiq cache list` to inspect published entries. To delete precisely one
+entry, pass its full fingerprint to `rustiq cache remove <fingerprint>`; the
+command accepts only a 64-character lowercase SHA-256 digest and deletes only
+the matching entry directory. `rustiq cache remove --all` removes all published
+AO ERI entries under the selected cache root.
 
 ## Logical entries
 

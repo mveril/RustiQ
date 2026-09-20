@@ -8,6 +8,7 @@ use crate::{
     config::{validated::PositiveFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD},
     eri::EriError,
     molecules::molecule::Molecule,
+    persistence::EriCache,
 };
 
 use super::{
@@ -64,6 +65,7 @@ pub(crate) fn prepare_scf_setup(
             PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
                 .expect("default ERI Schwarz threshold is valid"),
         ),
+        None,
         progress,
     )
 }
@@ -74,11 +76,12 @@ pub(crate) fn prepare_scf_setup_with_eri_threshold(
     required_occupied_orbitals: usize,
     linear_dependency_threshold: f64,
     eri_schwarz_threshold: Option<PositiveFiniteF64>,
+    eri_cache: Option<&EriCache>,
     mut progress: impl FnMut(ScfSetupStep),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
     let setup_start = Instant::now();
     let mut timings = ScfSetupTimings::default();
-    let builder = IntegralBuilder::new(molecule, basis, eri_schwarz_threshold);
+    let builder = IntegralBuilder::new(molecule, basis, eri_schwarz_threshold, eri_cache);
 
     progress(ScfSetupStep::CoreHamiltonian);
     let step_start = Instant::now();
