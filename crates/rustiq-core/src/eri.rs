@@ -10,7 +10,7 @@ mod compact;
 pub use compact::CompactEri;
 pub(crate) mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
-use crate::config::{validated::NonNegativeFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD};
+use crate::config::{validated::PositiveFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD};
 use crate::math_utils::boys::CachedBoysFunction;
 use index::PairIndex;
 use nalgebra::{Point3, Vector3};
@@ -164,7 +164,7 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Result<CompactEri, EriError> {
     electron_repulsion_ints_with_threshold(
         basis,
         Some(
-            NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+            PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
                 .expect("default ERI Schwarz threshold is valid"),
         ),
     )
@@ -172,7 +172,7 @@ pub fn electron_repulsion_ints(basis: &Basis) -> Result<CompactEri, EriError> {
 
 pub(crate) fn electron_repulsion_ints_with_threshold(
     basis: &Basis,
-    schwarz_threshold: Option<NonNegativeFiniteF64>,
+    schwarz_threshold: Option<PositiveFiniteF64>,
 ) -> Result<CompactEri, EriError> {
     let n = basis.nbasis();
     let pair_expansions = build_pair_expansions(basis);
@@ -181,7 +181,7 @@ pub(crate) fn electron_repulsion_ints_with_threshold(
         n,
         &pair_expansions,
         &pair_bounds,
-        schwarz_threshold.map_or(0.0, NonNegativeFiniteF64::into_inner),
+        schwarz_threshold.map_or(0.0, PositiveFiniteF64::into_inner),
     ))
 }
 
@@ -261,7 +261,7 @@ pub fn electron_repulsion_ints_timed_with_observer(
         n,
         &pair_expansions,
         &pair_bounds,
-        NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+        PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
             .expect("default ERI Schwarz threshold is valid")
             .into_inner(),
     );
@@ -861,7 +861,7 @@ mod tests {
         let default_eri = electron_repulsion_ints(&basis).unwrap();
         let screened_eri = electron_repulsion_ints_with_threshold(
             &basis,
-            Some(NonNegativeFiniteF64::try_new(1.0).unwrap()),
+            Some(PositiveFiniteF64::try_new(1.0).unwrap()),
         )
         .unwrap();
 
