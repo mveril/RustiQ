@@ -536,3 +536,49 @@ fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
         );
     }
 }
+
+#[test]
+fn configured_eri_threshold_reaches_scf_integrals() {
+    let geometry = geometry();
+    let file = basis_file();
+    let default_result = CalculationBuilder::new(&geometry, &file)
+        .with_molecule_config(MoleculeConfig {
+            units: Units::Angstrom,
+            ..Default::default()
+        })
+        .with_hf(HfConfig::default())
+        .execute()
+        .unwrap();
+    let screened_result = CalculationBuilder::new(&geometry, &file)
+        .with_molecule_config(MoleculeConfig {
+            units: Units::Angstrom,
+            ..Default::default()
+        })
+        .with_hf(HfConfig {
+            eri_schwarz_threshold: Some(PositiveFiniteF64::try_new(1.0).unwrap()),
+            ..Default::default()
+        })
+        .execute()
+        .unwrap();
+    let unscreened_result = CalculationBuilder::new(&geometry, &file)
+        .with_molecule_config(MoleculeConfig {
+            units: Units::Angstrom,
+            ..Default::default()
+        })
+        .with_hf(HfConfig {
+            eri_schwarz_threshold: None,
+            ..Default::default()
+        })
+        .execute()
+        .unwrap();
+
+    assert_ne!(
+        default_result.hf.summary().scf.electronic_energy,
+        screened_result.hf.summary().scf.electronic_energy
+    );
+    assert_abs_diff_eq!(
+        default_result.hf.summary().scf.electronic_energy,
+        unscreened_result.hf.summary().scf.electronic_energy,
+        epsilon = 1e-12
+    );
+}

@@ -29,6 +29,7 @@ impl From<&hf::HfConfig> for core::HfConfig {
             max_iterations: value.max_iterations,
             convergence_threshold: value.convergence_threshold,
             linear_dependency_threshold: value.linear_dependency_threshold.into(),
+            eri_schwarz_threshold: value.eri_schwarz_threshold,
             guess: core::DensityGuessConfig::from(value.guess).into(),
             diis: value.diis,
             diis_size: value.diis_size,
