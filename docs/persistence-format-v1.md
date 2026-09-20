@@ -18,7 +18,8 @@ complete payload bytes. Payload integrity is independent of its container.
 AO ERIs are a one-dimensional NPY array of IEEE-754 binary64 values. Object and
 pickled arrays are forbidden. Readers must validate the dtype, rank, element
 count and digest before scientific use. Both little- and big-endian binary64 NPY
-payloads are readable; RustiQ writers emit deterministic little-endian `<f8>` payloads.
+payloads are readable; writers use the native binary64 dtype emitted by `npyz`,
+and the dtype stored in the NPY header defines the payload endianness.
 
 For `n` basis functions, define the symmetric pair index
 
