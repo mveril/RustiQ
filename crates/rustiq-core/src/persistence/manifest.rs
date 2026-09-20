@@ -35,7 +35,7 @@ pub struct ArtifactManifest {
     pub representation: String,
     pub basis_functions: usize,
     pub shape: Vec<usize>,
-    pub sha256: Sha256Digest,
+    pub digest: Sha256Digest,
 }
 
 #[cfg(test)]
