@@ -6,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use rustiq_core::basis::BasisStore;
+use rustiq_core::{basis::BasisStore, persistence::EriCache};
 
 fn temp_root(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
@@ -39,6 +39,19 @@ fn run_rustiq_with_data_home(args: &[&str], data_home: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_RustiQ"))
         .args(args)
         .env("RUSTIQ_DATA_HOME", data_home)
+        .output()
+        .unwrap()
+}
+
+fn run_rustiq_with_data_and_cache_home(
+    args: &[&str],
+    data_home: &Path,
+    cache_home: &Path,
+) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(args)
+        .env("RUSTIQ_DATA_HOME", data_home)
+        .env("RUSTIQ_CACHE_HOME", cache_home)
         .output()
         .unwrap()
 }
@@ -121,6 +134,40 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
+}
+
+#[test]
+fn test_cli_h2_sample_uses_eri_cache_by_default() {
+    let temp_root = temp_root("cli-default-eri-cache");
+    prepare_basis_store(&temp_root);
+    let cache_root = temp_root.join("cache");
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+
+    let entries = EriCache::new(cache_root).entries().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0].valid_manifest);
+}
+
+#[test]
+fn test_cli_no_cache_does_not_create_a_cache_entry() {
+    let temp_root = temp_root("cli-no-cache");
+    prepare_basis_store(&temp_root);
+    let cache_root = temp_root.join("cache");
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation.toml", "--no-cache"],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+
+    assert!(EriCache::new(cache_root).entries().unwrap().is_empty());
 }
 
 #[test]

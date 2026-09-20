@@ -15,7 +15,7 @@ impl Runnable for ListCommand {
         let root = self
             .cache_dir
             .clone()
-            .unwrap_or_else(crate::cli::env::eri_cache_path);
+            .unwrap_or_else(crate::cli::directories::cache_path);
         for entry in EriCache::new(root).entries().into_diagnostic()? {
             let size = entry
                 .payload_size

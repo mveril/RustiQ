@@ -28,7 +28,7 @@ impl Runnable for RemoveCommand {
         let root = self
             .cache_dir
             .clone()
-            .unwrap_or_else(crate::cli::env::eri_cache_path);
+            .unwrap_or_else(crate::cli::directories::cache_path);
         let cache = EriCache::new(root);
         if self.all {
             cache.remove_all().into_diagnostic()?;

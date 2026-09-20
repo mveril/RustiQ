@@ -8,7 +8,7 @@ scientific persistence. It does not specify an archive container.
 The active deterministic-integral cache is directory-backed. Its root is an
 explicit application choice; the scientific core never chooses a user or
 system cache directory. The RustiQ CLI defaults to `dirs::cache_dir()/RustiQ`,
-or `RUSTIQ_CACHE_HOME` when set; `rustiq run --eri-cache-dir DIR` overrides it
+or `RUSTIQ_CACHE_HOME` when set; `rustiq run --cache-dir DIR` overrides it
 for one execution. An AO ERI entry has this layout:
 
 ```text

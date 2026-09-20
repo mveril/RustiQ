@@ -31,7 +31,7 @@ fn application_data_path() -> PathBuf {
 }
 
 /// Resolve the application cache root before passing it to the scientific core.
-pub fn eri_cache_path() -> PathBuf {
+pub fn cache_path() -> PathBuf {
     if let Some(path) = env::var_os(CACHE_HOME) {
         return path.into();
     }
@@ -92,20 +92,20 @@ mod tests {
     }
 
     #[test]
-    fn eri_cache_uses_configured_cache_home() {
+    fn cache_uses_configured_cache_home() {
         let directory = tempfile::tempdir().unwrap();
         temp_env::with_var(CACHE_HOME, Some(directory.path().as_os_str()), || {
-            assert_eq!(eri_cache_path(), directory.path());
+            assert_eq!(cache_path(), directory.path());
         });
     }
 
     #[test]
-    fn eri_cache_defaults_to_project_cache_directory() {
+    fn cache_defaults_to_project_cache_directory() {
         temp_env::with_var(CACHE_HOME, None::<&str>, || {
             let expected = ProjectDirs::from("", "", APPLICATION_NAME)
                 .map(|directories| directories.cache_dir().to_path_buf())
                 .unwrap_or_else(|| env::temp_dir().join(APPLICATION_NAME));
-            assert_eq!(eri_cache_path(), expected);
+            assert_eq!(cache_path(), expected);
         });
     }
 }

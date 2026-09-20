@@ -46,9 +46,13 @@ pub struct RunCommand {
     #[arg(long, value_enum, default_value_t = CalculationOutputFormat::Text)]
     format: CalculationOutputFormat,
 
-    /// Directory used to cache validated deterministic AO ERIs for this execution.
+    /// Directory used to cache calculation artifacts for this execution.
     #[arg(long, value_name = "DIR")]
-    eri_cache_dir: Option<PathBuf>,
+    cache_dir: Option<PathBuf>,
+
+    /// Disable calculation artifact caching for this execution.
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "cache_dir")]
+    no_cache: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
@@ -153,11 +157,15 @@ impl Runnable for RunCommand {
         let calculation = CalculationBuilder::new(&geom, &basis_file)
             .with_molecule_config(parsed.molecule_config)
             .with_mp2(parsed.mp2_config);
-        let cache_root = self
-            .eri_cache_dir
-            .clone()
-            .unwrap_or_else(cli::env::eri_cache_path);
-        let calculation = calculation.with_eri_cache(EriCache::new(cache_root));
+        let calculation = if self.no_cache {
+            calculation
+        } else {
+            let cache_root = self
+                .cache_dir
+                .clone()
+                .unwrap_or_else(cli::directories::cache_path);
+            calculation.with_eri_cache(EriCache::new(cache_root))
+        };
         let calculation = if let Some(hf_config) = parsed.hf_config {
             calculation.with_hf(hf_config)
         } else {
@@ -225,7 +233,8 @@ mod tests {
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
-                eri_cache_dir: None,
+                cache_dir: None,
+                no_cache: false,
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -241,7 +250,8 @@ mod tests {
                 auto_download: true,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
-                eri_cache_dir: None,
+                cache_dir: None,
+                no_cache: false,
             };
 
             assert!(command.resolve_auto_download());
@@ -253,7 +263,8 @@ mod tests {
                 auto_download: false,
                 no_auto_download: true,
                 format: CalculationOutputFormat::Text,
-                eri_cache_dir: None,
+                cache_dir: None,
+                no_cache: false,
             };
 
             assert!(!command.resolve_auto_download());
@@ -269,7 +280,8 @@ mod tests {
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
-                eri_cache_dir: None,
+                cache_dir: None,
+                no_cache: false,
             };
 
             assert!(!command.resolve_auto_download());
