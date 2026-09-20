@@ -555,7 +555,7 @@ fn configured_eri_threshold_reaches_scf_integrals() {
             ..Default::default()
         })
         .with_hf(HfConfig {
-            eri_schwarz_threshold: Some(NonNegativeFiniteF64::try_new(1.0).unwrap()),
+            eri_schwarz_threshold: Some(PositiveFiniteF64::try_new(1.0).unwrap()),
             ..Default::default()
         })
         .execute()
