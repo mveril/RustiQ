@@ -23,12 +23,14 @@ reqwest = { version = "0.13", default-features = false, optional = true, feature
   "rustls",
 ] }
 nalgebra.workspace = true
+npyz = "0.9.1"
 physical_constants = "0.5"
 periodic_table.workspace = true
 rayon.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"], optional = true }
 serde_json.workspace = true
 serde.workspace = true
+sha2 = "0.11.0"
 delegate.workspace = true
 bounded-vec-deque = "0.1.1"
 thiserror.workspace = true

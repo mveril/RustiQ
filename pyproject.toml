@@ -6,8 +6,8 @@ requires-python = ">=3.12,<3.15"
 dependencies = ["pyscf==2.14.0"]
 
 [dependency-groups]
-test = ["pytest"]
-dev = ["ipykernel", "jupyterlab", "matplotlib", "numpy", "scipy"]
+test = ["numpy", "pytest"]
+dev = ["ipykernel", "jupyterlab", "matplotlib", "scipy"]
 linting = ["ruff"]
 
 [tool.uv]

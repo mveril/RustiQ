@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
+pub(crate) use compact::CompactEriBuildError;
 pub(crate) mod index;
 use crate::basis::gaussian::basis::{gaussian_product_center, hermite_terms, Basis, HermiteTerm};
 use crate::config::{validated::PositiveFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD};
