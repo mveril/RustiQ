@@ -23,12 +23,13 @@ pub struct Producer {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScientificIdentityManifest {
     pub version: u32,
-    pub sha256: Sha256Digest,
+    pub digest: Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactManifest {
     pub path: String,
+    pub size: u64,
     pub encoding: String,
     pub dtype: String,
     pub representation: String,
@@ -52,12 +53,13 @@ mod tests {
             "ao_eri".to_string(),
             ArtifactManifest {
                 path: AO_ERI_PATH.to_string(),
+                size: 176,
                 encoding: "npy".to_string(),
                 dtype: "<f8".to_string(),
                 representation: COMPACT_ERI_REPRESENTATION.to_string(),
                 basis_functions: 2,
                 shape: vec![6],
-                sha256: Sha256Digest::from([0x22; 32]),
+                digest: Sha256Digest::from([0x22; 32]),
             },
         );
 
@@ -71,7 +73,7 @@ mod tests {
             },
             scientific_identity: ScientificIdentityManifest {
                 version: SCIENTIFIC_IDENTITY_VERSION,
-                sha256: Sha256Digest::from([0x11; 32]),
+                digest: Sha256Digest::from([0x11; 32]),
             },
             artifacts,
         };
@@ -90,11 +92,12 @@ mod tests {
                 "  },\n",
                 "  \"scientific_identity\": {\n",
                 "    \"version\": 1,\n",
-                "    \"sha256\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n",
+                "    \"digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n",
                 "  },\n",
                 "  \"artifacts\": {\n",
                 "    \"ao_eri\": {\n",
                 "      \"path\": \"arrays/integrals/ao-eri.npy\",\n",
+                "      \"size\": 176,\n",
                 "      \"encoding\": \"npy\",\n",
                 "      \"dtype\": \"<f8\",\n",
                 "      \"representation\": \"rustiq-compact-eri-v1\",\n",
@@ -102,7 +105,7 @@ mod tests {
                 "      \"shape\": [\n",
                 "        6\n",
                 "      ],\n",
-                "      \"sha256\": \"sha256:2222222222222222222222222222222222222222222222222222222222222222\"\n",
+                "      \"digest\": \"sha256:2222222222222222222222222222222222222222222222222222222222222222\"\n",
                 "    }\n",
                 "  }\n",
                 "}"
@@ -118,7 +121,7 @@ mod tests {
             "format_version": 1,
             "kind": "integral-cache",
             "producer": {"name": "RustiQ", "version": "0.1.0"},
-            "scientific_identity": {"version": 1, "sha256": "banana"},
+            "scientific_identity": {"version": 1, "digest": "banana"},
             "artifacts": {}
         }"#;
 
