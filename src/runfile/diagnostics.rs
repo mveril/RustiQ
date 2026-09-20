@@ -145,6 +145,10 @@ fn humanized_runfile_error(
             "The HF linear dependency threshold must be a non-negative finite number.".to_string(),
             "expected a non-negative finite threshold".to_string(),
         ),
+        "hf.eri_schwarz_threshold" => (
+            "The ERI Schwarz threshold must be a non-negative finite number.".to_string(),
+            "expected a non-negative finite threshold".to_string(),
+        ),
         "hf.diis" => (
             "The DIIS flag must be a boolean.".to_string(),
             "expected true or false".to_string(),

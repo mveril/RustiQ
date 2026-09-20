@@ -27,7 +27,7 @@ impl<T> Located<T> {
 }
 pub use hf::{
     DensityGuessConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
-    HfMethodResolutionError, RandomGuessConfig, ResolvedHfMethod,
+    HfMethodResolutionError, RandomGuessConfig, ResolvedHfMethod, DEFAULT_ERI_SCHWARZ_THRESHOLD,
 };
 
 /// MP2 options shared by restricted and unrestricted calculations.
