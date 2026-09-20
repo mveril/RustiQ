@@ -1,22 +1,27 @@
-use crate::{basis::Basis, molecules::geometry::Geometry};
+use crate::{
+    basis::Basis,
+    config::validated::PositiveFiniteF64,
+    molecules::geometry::Geometry,
+};
 
 use super::{sha256, Sha256Digest, COMPACT_ERI_REPRESENTATION, SCIENTIFIC_IDENTITY_VERSION};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ScientificIdentity {
-    pub version: u32,
-    pub digest: Sha256Digest,
+pub(crate) struct ScientificIdentity {
+    pub(crate) version: u32,
+    pub(crate) digest: Sha256Digest,
 }
 
 /// Computes the AO ERI identity from effective, ordered scientific inputs.
 ///
-/// The encoding uses length-prefixed collections, big-endian integers and
-/// IEEE-754 binary64 bits with signed zero normalized. It intentionally does
-/// not use Serde or Rust layouts.
-pub fn ao_eri_identity(
+/// The geometry must already be expressed in Bohr. The encoding uses
+/// length-prefixed collections, big-endian integers and IEEE-754 binary64 bits
+/// with signed zero normalized. It intentionally does not use Serde or Rust
+/// layouts.
+pub(crate) fn ao_eri_identity(
     geometry: &Geometry,
     basis: &Basis,
-    schwarz_threshold: f64,
+    schwarz_threshold: Option<PositiveFiniteF64>,
 ) -> ScientificIdentity {
     let mut bytes = CanonicalBytes::default();
     bytes.text(b"scientific-identity-v1");
@@ -30,47 +35,34 @@ pub fn ao_eri_identity(
         bytes.f64(atom.position.z);
     }
 
-    bytes.len(basis.shells.len());
-    for shell in &basis.shells {
-        for coordinate in shell.origin.coords.iter() {
+    // Encode the effective AO data consumed by the ERI engine, in AO order.
+    bytes.len(basis.normalized_components.len());
+    for (shell_id, components) in basis.shell_ids.iter().zip(&basis.normalized_components) {
+        let origin = basis.shells[*shell_id].origin;
+        for coordinate in origin.coords.iter() {
             bytes.f64(*coordinate);
         }
-        bytes.len(shell.alpha.len());
-        for exponent in shell.alpha.iter() {
-            bytes.f64(*exponent);
-        }
-        bytes.len(shell.contr.len());
-        for contraction in &shell.contr {
-            bytes.u8(contraction.l);
-            bytes.u8(u8::from(contraction.pure));
-            bytes.len(contraction.coeff.len());
-            for coefficient in contraction.coeff.iter() {
-                bytes.f64(*coefficient);
+
+        bytes.len(components.len());
+        for component in components {
+            for axis in component.angular_momentum.iter() {
+                bytes.u8(*axis);
+            }
+            bytes.len(component.primitives.len());
+            for primitive in &component.primitives {
+                bytes.f64(primitive.exponent);
+                bytes.f64(primitive.coefficient);
             }
         }
     }
 
-    // Explicitly encode AO ordering and spherical/cartesian component expansion.
-    bytes.len(basis.shell_ids.len());
-    for ((shell_id, angular_momentum), components) in basis
-        .shell_ids
-        .iter()
-        .zip(&basis.angular_momenta)
-        .zip(&basis.angular_components)
-    {
-        bytes.len(*shell_id);
-        for component in angular_momentum.iter() {
-            bytes.u8(*component);
-        }
-        bytes.len(components.len());
-        for (component, coefficient) in components {
-            for axis in component.iter() {
-                bytes.u8(*axis);
-            }
-            bytes.f64(*coefficient);
+    match schwarz_threshold {
+        None => bytes.u8(0),
+        Some(threshold) => {
+            bytes.u8(1);
+            bytes.f64(threshold.into_inner());
         }
     }
-    bytes.f64(schwarz_threshold);
 
     ScientificIdentity {
         version: SCIENTIFIC_IDENTITY_VERSION,
@@ -108,7 +100,10 @@ impl CanonicalBytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::load_sto3g_basis;
+    use crate::{
+        config::DEFAULT_ERI_SCHWARZ_THRESHOLD,
+        test_utils::load_sto3g_basis,
+    };
 
     fn input() -> (Geometry, Basis) {
         let geometry = Geometry::from_source(
@@ -120,48 +115,67 @@ mod tests {
         (geometry, basis)
     }
 
+    fn threshold(value: f64) -> Option<PositiveFiniteF64> {
+        Some(PositiveFiniteF64::try_new(value).unwrap())
+    }
+
+    fn default_threshold() -> Option<PositiveFiniteF64> {
+        threshold(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+    }
+
     #[test]
     fn identity_is_deterministic() {
         let (geometry, basis) = input();
-        let identity = ao_eri_identity(&geometry, &basis, 1e-12);
-        assert_eq!(identity, ao_eri_identity(&geometry, &basis, 1e-12));
+        let identity = ao_eri_identity(&geometry, &basis, default_threshold());
+        assert_eq!(
+            identity,
+            ao_eri_identity(&geometry, &basis, default_threshold())
+        );
         assert_eq!(
             identity.digest.to_hex(),
-            "4a3caf7927b541f70b8357959a9a63eddfbd2f87a9577a3fb9ebd09252474ce9"
+            "a3d6e1988a404814c5f06c7422d90712267501f2bce518752a71af4e6d20f6e9"
         );
     }
 
     #[test]
     fn identity_changes_with_geometry() {
         let (mut geometry, basis) = input();
-        let original = ao_eri_identity(&geometry, &basis, 1e-12);
+        let original = ao_eri_identity(&geometry, &basis, default_threshold());
         geometry.atoms[1].position.x += 1e-9;
-        assert_ne!(original, ao_eri_identity(&geometry, &basis, 1e-12));
-    }
-
-    #[test]
-    fn identity_changes_with_resolved_basis() {
-        let (geometry, mut basis) = input();
-        let original = ao_eri_identity(&geometry, &basis, 1e-12);
-        basis.shells[0].alpha[0] += 1e-9;
-        assert_ne!(original, ao_eri_identity(&geometry, &basis, 1e-12));
-    }
-
-    #[test]
-    fn identity_changes_with_screening_threshold() {
-        let (geometry, basis) = input();
         assert_ne!(
-            ao_eri_identity(&geometry, &basis, 1e-12),
-            ao_eri_identity(&geometry, &basis, 1e-10)
+            original,
+            ao_eri_identity(&geometry, &basis, default_threshold())
         );
+    }
+
+    #[test]
+    fn identity_changes_with_effective_basis() {
+        let (geometry, mut basis) = input();
+        let original = ao_eri_identity(&geometry, &basis, default_threshold());
+        basis.normalized_components[0][0].primitives[0].coefficient += 1e-9;
+        assert_ne!(
+            original,
+            ao_eri_identity(&geometry, &basis, default_threshold())
+        );
+    }
+
+    #[test]
+    fn identity_changes_with_screening_settings() {
+        let (geometry, basis) = input();
+        let default = ao_eri_identity(&geometry, &basis, default_threshold());
+        assert_ne!(default, ao_eri_identity(&geometry, &basis, threshold(1e-10)));
+        assert_ne!(default, ao_eri_identity(&geometry, &basis, None));
     }
 
     #[test]
     fn identity_canonicalizes_signed_zero() {
         let (mut geometry, basis) = input();
         geometry.atoms[0].position.x = -0.0;
-        let negative_zero = ao_eri_identity(&geometry, &basis, 1e-12);
+        let negative_zero = ao_eri_identity(&geometry, &basis, default_threshold());
         geometry.atoms[0].position.x = 0.0;
-        assert_eq!(negative_zero, ao_eri_identity(&geometry, &basis, 1e-12));
+        assert_eq!(
+            negative_zero,
+            ao_eri_identity(&geometry, &basis, default_threshold())
+        );
     }
 }
