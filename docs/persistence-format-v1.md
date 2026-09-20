@@ -37,10 +37,12 @@ AO ERI entries under the selected cache root.
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
 
-Every artifact records its logical path, byte size, encoding, dtype,
-representation, logical shape, basis-function count and a content digest in the
-form `sha256:<lowercase hex>`. Readers should validate the declared size and
-digest before scientific use. Payload integrity is independent of its container.
+Every artifact records its logical path, byte size, representation,
+basis-function count and a content digest in the form `sha256:<lowercase hex>`.
+NPY-specific metadata such as the dtype and logical shape is carried by the NPY
+header rather than duplicated in the manifest. Readers should validate the
+declared size and digest before scientific use. Payload integrity is independent
+of its container.
 
 ## `rustiq-compact-eri-v1`
 

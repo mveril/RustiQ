@@ -30,11 +30,8 @@ pub struct ScientificIdentityManifest {
 pub struct ArtifactManifest {
     pub path: String,
     pub size: u64,
-    pub encoding: String,
-    pub dtype: String,
     pub representation: String,
     pub basis_functions: usize,
-    pub shape: Vec<usize>,
     pub digest: Sha256Digest,
 }
 
@@ -54,11 +51,8 @@ mod tests {
             ArtifactManifest {
                 path: AO_ERI_PATH.to_string(),
                 size: 176,
-                encoding: "npy".to_string(),
-                dtype: "<f8".to_string(),
                 representation: COMPACT_ERI_REPRESENTATION.to_string(),
                 basis_functions: 2,
-                shape: vec![6],
                 digest: Sha256Digest::from([0x22; 32]),
             },
         );
@@ -98,13 +92,8 @@ mod tests {
                 "    \"ao_eri\": {\n",
                 "      \"path\": \"arrays/integrals/ao-eri.npy\",\n",
                 "      \"size\": 176,\n",
-                "      \"encoding\": \"npy\",\n",
-                "      \"dtype\": \"<f8\",\n",
                 "      \"representation\": \"rustiq-compact-eri-v1\",\n",
                 "      \"basis_functions\": 2,\n",
-                "      \"shape\": [\n",
-                "        6\n",
-                "      ],\n",
                 "      \"digest\": \"sha256:2222222222222222222222222222222222222222222222222222222222222222\"\n",
                 "    }\n",
                 "  }\n",

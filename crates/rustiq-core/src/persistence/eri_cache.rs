@@ -82,7 +82,6 @@ impl EriCache {
                     && manifest.scientific_identity.digest.to_hex() == fingerprint
                     && artifact.is_some_and(|artifact| {
                         artifact.path == AO_ERI_PATH
-                            && artifact.encoding == "npy"
                             && artifact.representation == COMPACT_ERI_REPRESENTATION
                     })
             });
@@ -180,10 +179,8 @@ impl EriCache {
             || manifest.scientific_identity.version != identity.version
             || manifest.scientific_identity.digest != identity.digest
             || artifact.path != AO_ERI_PATH
-            || artifact.encoding != "npy"
             || artifact.representation != COMPACT_ERI_REPRESENTATION
             || artifact.basis_functions != basis_functions
-            || artifact.shape != [CompactEri::storage_len(basis_functions)]
         {
             return None;
         }
@@ -241,11 +238,8 @@ impl EriCache {
                 ArtifactManifest {
                     path: AO_ERI_PATH.to_owned(),
                     size: payload_metadata.len(),
-                    encoding: "npy".to_owned(),
-                    dtype: "<f8".to_owned(),
                     representation: COMPACT_ERI_REPRESENTATION.to_owned(),
                     basis_functions,
-                    shape: vec![eri.len()],
                     digest: payload_digest,
                 },
             )]
