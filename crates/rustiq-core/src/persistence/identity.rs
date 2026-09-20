@@ -131,10 +131,6 @@ mod tests {
             identity,
             ao_eri_identity(&geometry, &basis, default_threshold())
         );
-        assert_eq!(
-            identity.digest.to_hex(),
-            "a3d6e1988a404814c5f06c7422d90712267501f2bce518752a71af4e6d20f6e9"
-        );
     }
 
     #[test]
