@@ -30,8 +30,8 @@ pub struct HfConfig {
     pub linear_dependency_threshold: NonNegativeFiniteF64,
     /// Larger values screen more small ERIs; `0` disables screening.
     #[toml(default = Some(default_eri_schwarz_threshold()))]
-    #[toml(with = crate::runfile::validated::optional_non_negative_finite_f64)]
-    pub eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
+    #[toml(with = crate::runfile::validated::optional_positive_finite_f64)]
+    pub eri_schwarz_threshold: Option<PositiveFiniteF64>,
     #[toml(default)]
     pub guess: DensityGuessConfig,
     #[toml(default)]
@@ -96,9 +96,9 @@ fn default_linear_dependency_threshold() -> NonNegativeFiniteF64 {
         .expect("default linear dependency threshold is non-negative and finite")
 }
 
-fn default_eri_schwarz_threshold() -> NonNegativeFiniteF64 {
-    NonNegativeFiniteF64::try_new(rustiq_core::config::DEFAULT_ERI_SCHWARZ_THRESHOLD)
-        .expect("default ERI Schwarz threshold is non-negative and finite")
+fn default_eri_schwarz_threshold() -> PositiveFiniteF64 {
+    PositiveFiniteF64::try_new(rustiq_core::config::DEFAULT_ERI_SCHWARZ_THRESHOLD)
+        .expect("default ERI Schwarz threshold is positive and finite")
 }
 
 fn default_max_iter() -> NonZeroUsize {
@@ -427,6 +427,13 @@ mod tests {
 
         assert!(negative.is_err());
         assert!(infinite.is_err());
+    }
+
+    #[test]
+    fn test_hf_config_zero_eri_schwarz_threshold_disables_screening() {
+        let config = toml_spanner::from_str::<HfConfig>("eri_schwarz_threshold = 0").unwrap();
+
+        assert!(config.eri_schwarz_threshold.is_none());
     }
 
     #[test]
