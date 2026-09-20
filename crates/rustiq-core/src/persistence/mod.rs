@@ -8,8 +8,9 @@ mod identity;
 mod manifest;
 mod npy;
 
-pub use checksum::{sha256, verify_sha256, Sha256Digest};
-pub use identity::{ao_eri_identity, ScientificIdentity};
+pub use checksum::{sha256, verify_sha256, Sha256Digest, Sha256DigestParseError};
+#[allow(unused_imports)]
+pub(crate) use identity::{ao_eri_identity, ScientificIdentity};
 pub use manifest::{ArtifactManifest, Manifest, Producer, ScientificIdentityManifest};
 
 #[allow(unused_imports)]
