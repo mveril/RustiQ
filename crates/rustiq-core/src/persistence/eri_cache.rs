@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, BufReader, BufWriter, Write},
+    io::{self, BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -12,9 +12,9 @@ use crate::{
 };
 
 use super::{
-    ao_eri_identity, read_compact_eri, sha256_reader, ArtifactManifest, Manifest, Producer,
+    ao_eri_identity, read_compact_eri, sha256, sha256_reader, ArtifactManifest, Manifest, Producer,
     ScientificIdentity, ScientificIdentityManifest, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION,
-    FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
+    FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH, SCIENTIFIC_IDENTITY_VERSION,
 };
 
 const CACHE_KIND: &str = "integral-cache";
@@ -66,23 +66,22 @@ impl EriCache {
             {
                 continue;
             }
-            let manifest_path = entry.path().join(MANIFEST_PATH);
-            let manifest = fs::metadata(&manifest_path)
-                .ok()
-                .filter(|metadata| metadata.len() <= MAX_MANIFEST_BYTES)
-                .and_then(|_| File::open(manifest_path).ok())
-                .and_then(|file| serde_json::from_reader::<_, Manifest>(BufReader::new(file)).ok());
+            let entry_path = entry.path();
+            let manifest = read_manifest(&entry_path);
             let artifact = manifest
                 .as_ref()
                 .and_then(|manifest| manifest.artifacts.get(AO_ERI_ARTIFACT));
             let valid_manifest = manifest.as_ref().is_some_and(|manifest| {
-                manifest.format == FORMAT_NAME
-                    && manifest.format_version == FORMAT_VERSION
-                    && manifest.kind == CACHE_KIND
-                    && manifest.scientific_identity.digest.to_hex() == fingerprint
+                manifest_is_valid(
+                    manifest,
+                    ScientificIdentity {
+                        version: SCIENTIFIC_IDENTITY_VERSION,
+                        digest: manifest.scientific_identity.digest,
+                    },
+                ) && manifest.scientific_identity.digest.to_hex() == fingerprint
                     && artifact.is_some_and(|artifact| {
-                        artifact.path == AO_ERI_PATH
-                            && artifact.representation == COMPACT_ERI_REPRESENTATION
+                        read_validated_payload(&entry_path, artifact, artifact.basis_functions)
+                            .is_some()
                     })
             });
             result.push(EriCacheEntry {
@@ -166,35 +165,12 @@ impl EriCache {
         basis_functions: usize,
     ) -> Option<CompactEri> {
         let entry = self.entry_path(identity);
-        let manifest_path = entry.join(MANIFEST_PATH);
-        if fs::metadata(&manifest_path).ok()?.len() > MAX_MANIFEST_BYTES {
-            return None;
-        }
-        let manifest: Manifest =
-            serde_json::from_reader(BufReader::new(File::open(manifest_path).ok()?)).ok()?;
+        let manifest = read_manifest(&entry)?;
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
-        if manifest.format != FORMAT_NAME
-            || manifest.format_version != FORMAT_VERSION
-            || manifest.kind != CACHE_KIND
-            || manifest.scientific_identity.version != identity.version
-            || manifest.scientific_identity.digest != identity.digest
-            || artifact.path != AO_ERI_PATH
-            || artifact.representation != COMPACT_ERI_REPRESENTATION
-            || artifact.basis_functions != basis_functions
-        {
+        if !manifest_is_valid(&manifest, identity) || artifact.basis_functions != basis_functions {
             return None;
         }
-        let payload_path = entry.join(AO_ERI_PATH);
-        let metadata = fs::metadata(&payload_path).ok()?;
-        let digest = sha256_reader(BufReader::new(File::open(&payload_path).ok()?)).ok()?;
-        if metadata.len() != artifact.size || digest != artifact.digest {
-            return None;
-        }
-        read_compact_eri(
-            BufReader::new(File::open(payload_path).ok()?),
-            basis_functions,
-        )
-        .ok()
+        read_validated_payload(&entry, artifact, basis_functions)
     }
 
     fn store_identity(
@@ -204,7 +180,7 @@ impl EriCache {
         eri: &CompactEri,
     ) -> io::Result<()> {
         let final_entry = self.entry_path(identity);
-        if final_entry.exists() {
+        if self.load_identity(identity, basis_functions).is_some() {
             return Ok(());
         }
         let parent = final_entry.parent().expect("ERI cache entry has a parent");
@@ -254,17 +230,69 @@ impl EriCache {
             writer.into_inner()?.sync_all()?;
         }
         let temporary_path = temporary.keep();
+        if fs::symlink_metadata(&final_entry).is_ok() {
+            if self.load_identity(identity, basis_functions).is_some() {
+                let _ = fs::remove_dir_all(temporary_path);
+                return Ok(());
+            }
+            remove_invalid_entry(&final_entry)?;
+        }
         match fs::rename(&temporary_path, &final_entry) {
             Ok(()) => Ok(()),
-            Err(_) if final_entry.exists() => {
-                let _ = fs::remove_dir_all(temporary_path);
-                Ok(())
-            }
             Err(error) => {
                 let _ = fs::remove_dir_all(temporary_path);
                 Err(error)
             }
         }
+    }
+}
+
+fn read_manifest(entry: &Path) -> Option<Manifest> {
+    let manifest_path = entry.join(MANIFEST_PATH);
+    fs::metadata(&manifest_path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_MANIFEST_BYTES)?;
+    serde_json::from_reader(BufReader::new(File::open(manifest_path).ok()?)).ok()
+}
+
+fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool {
+    manifest.format == FORMAT_NAME
+        && manifest.format_version == FORMAT_VERSION
+        && manifest.kind == CACHE_KIND
+        && manifest.scientific_identity.version == identity.version
+        && manifest.scientific_identity.digest == identity.digest
+        && manifest
+            .artifacts
+            .get(AO_ERI_ARTIFACT)
+            .is_some_and(|artifact| {
+                artifact.path == AO_ERI_PATH
+                    && artifact.representation == COMPACT_ERI_REPRESENTATION
+            })
+}
+
+fn read_validated_payload(
+    entry: &Path,
+    artifact: &ArtifactManifest,
+    basis_functions: usize,
+) -> Option<CompactEri> {
+    let file = File::open(entry.join(AO_ERI_PATH)).ok()?;
+    if file.metadata().ok()?.len() != artifact.size {
+        return None;
+    }
+    let mut payload = Vec::with_capacity(usize::try_from(artifact.size).ok()?);
+    BufReader::new(file).read_to_end(&mut payload).ok()?;
+    if sha256(&payload) != artifact.digest {
+        return None;
+    }
+    read_compact_eri(payload.as_slice(), basis_functions).ok()
+}
+
+fn remove_invalid_entry(entry: &Path) -> io::Result<()> {
+    let metadata = fs::symlink_metadata(entry)?;
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        fs::remove_dir_all(entry)
+    } else {
+        fs::remove_file(entry)
     }
 }
 
@@ -331,6 +359,49 @@ mod tests {
         let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
         fs::write(cache.entry_path(identity).join(AO_ERI_PATH), b"corrupt").unwrap();
         assert!(cache.load(&molecule, &basis, threshold()).is_none());
+    }
+
+    #[test]
+    fn corrupted_entry_is_repaired_when_storing() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        let eri = CompactEri::Zeroed(basis.nbasis());
+        cache.store(&molecule, &basis, threshold(), &eri).unwrap();
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        fs::write(cache.entry_path(identity).join(AO_ERI_PATH), b"corrupt").unwrap();
+
+        cache.store(&molecule, &basis, threshold(), &eri).unwrap();
+
+        assert_eq!(
+            cache
+                .load(&molecule, &basis, threshold())
+                .unwrap()
+                .ordered_values(),
+            eri.ordered_values()
+        );
+    }
+
+    #[test]
+    fn entries_mark_corrupted_payload_as_invalid() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        cache
+            .store(
+                &molecule,
+                &basis,
+                threshold(),
+                &CompactEri::Zeroed(basis.nbasis()),
+            )
+            .unwrap();
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        fs::write(cache.entry_path(identity).join(AO_ERI_PATH), b"corrupt").unwrap();
+
+        let entries = cache.entries().unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].valid_manifest);
     }
     #[test]
     fn incomplete_temporary_state_is_not_a_hit() {
