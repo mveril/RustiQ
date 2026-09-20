@@ -30,7 +30,7 @@ pub struct HfConfig {
     /// Schwarz screening cutoff for ERIs. Larger values discard more small
     /// integrals, improving speed and memory use at the cost of accuracy;
     /// `None` disables screening.
-    pub eri_schwarz_threshold: Option<NonNegativeFiniteF64>,
+    pub eri_schwarz_threshold: Option<PositiveFiniteF64>,
     pub guess: Located<DensityGuessConfig>,
     pub diis: bool,
     pub diis_size: DiisSize,
@@ -140,9 +140,9 @@ fn default_linear_dependency_threshold() -> NonNegativeFiniteF64 {
         .expect("default linear dependency threshold is non-negative and finite")
 }
 
-fn default_eri_schwarz_threshold() -> NonNegativeFiniteF64 {
-    NonNegativeFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
-        .expect("default ERI Schwarz threshold is non-negative and finite")
+fn default_eri_schwarz_threshold() -> PositiveFiniteF64 {
+    PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
+        .expect("default ERI Schwarz threshold is positive and finite")
 }
 
 fn default_max_iter() -> NonZeroUsize {
