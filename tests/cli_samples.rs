@@ -152,10 +152,10 @@ fn test_cli_h2_sample_uses_eri_cache_by_default() {
     let first_stdout = String::from_utf8_lossy(&output.stdout);
     let stored_line = first_stdout
         .lines()
-        .find(|line| line.starts_with("AO ERI cache: stored as "))
+        .find(|line| line.starts_with("AO ERI cache: generated as "))
         .expect("first run should report cache publication");
     let target = stored_line
-        .strip_prefix("AO ERI cache: stored as ")
+        .strip_prefix("AO ERI cache: generated as ")
         .unwrap();
     assert!(target.contains('-') || target.ends_with('…'));
 
@@ -167,7 +167,7 @@ fn test_cli_h2_sample_uses_eri_cache_by_default() {
     assert_success(&output);
     assert!(String::from_utf8_lossy(&output.stdout)
         .lines()
-        .any(|line| line == format!("AO ERI cache: hit {target}")));
+        .any(|line| line == format!("AO ERI cache: reused {target}")));
 
     let entries = EriCache::new(cache_root).entries().unwrap();
     assert_eq!(entries.len(), 1);
@@ -235,7 +235,7 @@ fn calculation_succeeds_when_cache_names_cannot_be_written() {
     assert_success(&output);
     assert!(String::from_utf8_lossy(&output.stdout)
         .lines()
-        .any(|line| line.starts_with("AO ERI cache: stored as ")));
+        .any(|line| line.starts_with("AO ERI cache: generated as ")));
     let entries = EriCache::new(&cache_root).entries().unwrap();
     assert!(entries[0].verified);
     assert!(entries[0].name.is_none());

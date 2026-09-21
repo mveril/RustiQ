@@ -143,9 +143,11 @@ impl<W: Write> CalculationReporter<W> {
                 .name
                 .unwrap_or_else(|| format!("{}…", &event.fingerprint[..12]));
             match event.action {
-                EriCacheAction::Hit => writeln!(scf.writer_mut(), "AO ERI cache: hit {target}"),
-                EriCacheAction::Stored => {
-                    writeln!(scf.writer_mut(), "AO ERI cache: stored as {target}")
+                EriCacheAction::Reused => {
+                    writeln!(scf.writer_mut(), "AO ERI cache: reused {target}")
+                }
+                EriCacheAction::Generated => {
+                    writeln!(scf.writer_mut(), "AO ERI cache: generated as {target}")
                 }
             }
         });

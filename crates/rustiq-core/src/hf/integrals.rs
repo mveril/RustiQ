@@ -59,7 +59,7 @@ impl<'a> IntegralBuilder<'a> {
             return Ok((
                 eri,
                 Some(EriCacheEvent {
-                    action: EriCacheAction::Hit,
+                    action: EriCacheAction::Reused,
                     name: reference.name,
                     fingerprint: reference.fingerprint,
                 }),
@@ -72,7 +72,7 @@ impl<'a> IntegralBuilder<'a> {
                 .store_with_reference(self.molecule, self.basis, self.eri_schwarz_threshold, &eri)
                 .ok()
                 .map(|reference| EriCacheEvent {
-                    action: EriCacheAction::Stored,
+                    action: EriCacheAction::Generated,
                     name: reference.name,
                     fingerprint: reference.fingerprint,
                 });
