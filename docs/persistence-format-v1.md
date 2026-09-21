@@ -27,11 +27,44 @@ to a sibling temporary directory, finalized and synced, then atomically renamed
 into place. Published entries are immutable, so concurrent producers can safely
 leave the first completed entry in place.
 
-Use `rustiq cache list` to inspect published entries. To delete precisely one
-entry, pass its full fingerprint to `rustiq cache remove <fingerprint>`; the
-command accepts only a 64-character lowercase SHA-256 digest and deletes only
-the matching entry directory. `rustiq cache remove --all` removes all published
-AO ERI entries under the selected cache root.
+Use `rustiq cache list` to inspect published entries in a table with `NAME`,
+`FINGERPRINT`, `SIZE` and `STATUS` columns. Sizes are human-readable (`unknown`
+when unavailable), and statuses are `verified` or `invalid`. An empty cache
+prints `No cache entries found.`
+
+Entries receive persistent English aliases such as `calm-photon` or
+`quiet-xenon`, generated with `petname`. Nouns include scientific terms (including
+`quanta`) and all 118 element names from `periodic_table`. Existing names remain
+unchanged when the vocabulary changes. Names are management metadata, not part
+of scientific identity, the manifest, or NPY:
+
+```text
+<cache-root>/
+├── eri/<fingerprint>/manifest.json
+└── names/calm-photon -> ../eri/<fingerprint>
+```
+
+Unix uses relative symbolic links. Other platforms, or filesystems without
+symlink support, use a text file containing the full lowercase fingerprint and
+a newline. Readers accept both representations and validate link targets without
+following them. Names are atomically reserved without overwriting existing aliases;
+collisions try another two-word name, up to 256 attempts. Failure to assign an
+alias never invalidates a calculation or its cached integrals.
+
+Names are assigned after publication and, for older entries, by `cache list`.
+Listing therefore may create management metadata. Read-only caches remain
+inspectable, with `-` for entries without an alias. The core `entries()` API is
+read-only; `assign_missing_names()` performs assignment separately. Concurrent
+writers may leave several aliases for one fingerprint; all work, and listing
+uses the lexicographically first one.
+
+Delete one entry with `rustiq cache remove calm-photon` or
+`rustiq cache remove <fingerprint>`. Fingerprints must contain exactly 64 lowercase
+hexadecimal characters. Alias resolution does not read or hash NPY data.
+Successful removal also deletes associated aliases. `rustiq cache remove --all`
+removes published AO ERI entries and recognized orphan aliases without inspecting
+payloads. Orphan aliases are not silently reassigned; malformed metadata is left
+untouched. Names and fingerprints are validated rather than interpreted as paths.
 
 ## Logical entries
 

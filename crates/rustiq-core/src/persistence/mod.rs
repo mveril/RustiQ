@@ -3,6 +3,7 @@
 //! This module defines the stable logical representation; it does not choose a
 //! cache directory or container format.
 
+mod cache_names;
 mod checksum;
 mod eri_cache;
 mod identity;

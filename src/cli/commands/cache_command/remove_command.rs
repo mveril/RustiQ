@@ -9,12 +9,12 @@ use crate::cli::commands::{CommandResult, Runnable};
     ArgGroup::new("target")
         .required(true)
         .multiple(false)
-        .args(["fingerprint", "all"])
+        .args(["entry", "all"])
 ))]
 pub struct RemoveCommand {
-    /// Full lowercase SHA-256 fingerprint shown by `rustiq cache list`.
-    #[arg(value_name = "FINGERPRINT")]
-    fingerprint: Option<String>,
+    /// Persistent name or full lowercase SHA-256 fingerprint shown by `cache list`.
+    #[arg(value_name = "NAME|FINGERPRINT")]
+    entry: Option<String>,
     /// Remove every published AO ERI cache entry.
     #[arg(long, action = ArgAction::SetTrue)]
     all: bool,
@@ -34,11 +34,9 @@ impl Runnable for RemoveCommand {
             cache.remove_all().into_diagnostic()?;
             return Ok(());
         }
-        let fingerprint = self.fingerprint.as_deref().expect("clap requires a target");
-        if !cache.remove(fingerprint).into_diagnostic()? {
-            return Err(miette!(
-                "No AO ERI cache entry exists for fingerprint '{fingerprint}'"
-            ));
+        let target = self.entry.as_deref().expect("clap requires a target");
+        if !cache.remove_named(target).into_diagnostic()? {
+            return Err(miette!("No AO ERI cache entry exists for '{target}'"));
         }
         Ok(())
     }

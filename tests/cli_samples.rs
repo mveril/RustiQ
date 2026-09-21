@@ -152,6 +152,76 @@ fn test_cli_h2_sample_uses_eri_cache_by_default() {
     let entries = EriCache::new(cache_root).entries().unwrap();
     assert_eq!(entries.len(), 1);
     assert!(entries[0].verified);
+    assert!(entries[0].name.is_some());
+}
+
+#[test]
+fn cache_list_names_old_entries_and_remove_accepts_names() {
+    let root = tempfile::tempdir().unwrap();
+    let fingerprint = "a".repeat(64);
+    fs::create_dir_all(root.path().join("eri").join(&fingerprint)).unwrap();
+    let directory = root.path().to_str().unwrap();
+    let output = run_rustiq(&["cache", "list", "--cache-dir", directory]);
+    assert_success(&output);
+    let cache = EriCache::new(root.path());
+    let name = cache.entries().unwrap()[0].name.clone().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for expected in [
+        "NAME",
+        "FINGERPRINT",
+        "SIZE",
+        "STATUS",
+        "invalid",
+        "unknown",
+        &name,
+        &fingerprint,
+    ] {
+        assert!(stdout.contains(expected));
+    }
+    assert_success(&run_rustiq(&[
+        "cache",
+        "remove",
+        &name,
+        "--cache-dir",
+        directory,
+    ]));
+    assert_error(&run_rustiq(&[
+        "cache",
+        "remove",
+        &name,
+        "--cache-dir",
+        directory,
+    ]));
+    let output = run_rustiq(&["cache", "list", "--cache-dir", directory]);
+    assert_success(&output);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "No cache entries found."
+    );
+}
+
+#[test]
+fn calculation_succeeds_when_cache_names_cannot_be_written() {
+    let root = temp_root("cache-names-unavailable");
+    prepare_basis_store(&root);
+    let cache_root = root.join("cache");
+    fs::create_dir(&cache_root).unwrap();
+    fs::write(cache_root.join("names"), "not a directory").unwrap();
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &root,
+        &cache_root,
+    );
+    assert_success(&output);
+    let entries = EriCache::new(&cache_root).entries().unwrap();
+    assert!(entries[0].verified);
+    assert!(entries[0].name.is_none());
+    assert_success(&run_rustiq(&[
+        "cache",
+        "list",
+        "--cache-dir",
+        cache_root.to_str().unwrap(),
+    ]));
 }
 
 #[test]

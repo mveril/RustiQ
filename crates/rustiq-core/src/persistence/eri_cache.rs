@@ -25,6 +25,8 @@ const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 /// A directory-backed AO ERI cache entry available for management.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EriCacheEntry {
+    /// Persisted human-readable alias, when available.
+    pub name: Option<String>,
     pub fingerprint: String,
     pub payload_size: Option<u64>,
     pub verified: bool,
@@ -50,24 +52,10 @@ impl EriCache {
 
     /// Lists the published ERI cache entries without following symbolic links.
     pub fn entries(&self) -> io::Result<Vec<EriCacheEntry>> {
-        let parent = self.root.join("eri");
-        let entries = match fs::read_dir(parent) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(error),
-        };
+        let names = super::cache_names::mappings(&self.root).unwrap_or_default();
         let mut result = Vec::new();
-        for entry in entries {
-            let entry = entry?;
-            let fingerprint = entry.file_name().to_string_lossy().into_owned();
-            let metadata = fs::symlink_metadata(entry.path())?;
-            if !is_fingerprint(&fingerprint)
-                || !metadata.is_dir()
-                || metadata.file_type().is_symlink()
-            {
-                continue;
-            }
-            let entry_path = entry.path();
+        for fingerprint in self.fingerprints()? {
+            let entry_path = self.root.join("eri").join(&fingerprint);
             let manifest = read_manifest(&entry_path);
             let artifact = manifest
                 .as_ref()
@@ -85,13 +73,83 @@ impl EriCache {
                     })
             });
             result.push(EriCacheEntry {
+                name: names
+                    .iter()
+                    .find(|(_, value)| **value == fingerprint)
+                    .map(|(name, _)| name.clone()),
                 fingerprint,
                 payload_size: artifact.map(|artifact| artifact.size),
                 verified,
             });
         }
-        result.sort_by(|left, right| left.fingerprint.cmp(&right.fingerprint));
         Ok(result)
+    }
+
+    /// Lists published directory fingerprints without inspecting their payloads.
+    fn fingerprints(&self) -> io::Result<Vec<String>> {
+        let parent = self.root.join("eri");
+        match super::cache_names::regular_directory(&parent) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            result => result?,
+        }
+        let entries = match fs::read_dir(parent) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error),
+        };
+        let mut result = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            let fingerprint = entry.file_name().to_string_lossy().into_owned();
+            let metadata = fs::symlink_metadata(entry.path())?;
+            if !is_fingerprint(&fingerprint)
+                || !metadata.is_dir()
+                || metadata.file_type().is_symlink()
+            {
+                continue;
+            }
+            result.push(fingerprint);
+        }
+        result.sort();
+        Ok(result)
+    }
+
+    /// Assigns persistent aliases to published entries without reading payloads.
+    /// Failure leaves all scientific entries intact; callers may still list them.
+    pub fn assign_missing_names(&self) -> io::Result<()> {
+        let mut names = super::cache_names::mappings(&self.root)?;
+        for fingerprint in self.fingerprints()? {
+            let name = super::cache_names::assign(&self.root, &fingerprint, &names)?;
+            names.insert(name, fingerprint);
+        }
+        Ok(())
+    }
+
+    /// Resolves a persistent alias to a published fingerprint without reading NPY.
+    pub fn resolve_name(&self, name: &str) -> io::Result<Option<String>> {
+        let Some(fingerprint) = super::cache_names::resolve(&self.root, name)? else {
+            return Ok(None);
+        };
+        match super::cache_names::regular_directory(&self.root.join("eri")) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            result => result?,
+        }
+        match super::cache_names::regular_directory(&self.root.join("eri").join(&fingerprint)) {
+            Ok(()) => Ok(Some(fingerprint)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Removes an entry by its full fingerprint or persistent alias.
+    pub fn remove_named(&self, target: &str) -> io::Result<bool> {
+        if is_fingerprint(target) {
+            return self.remove(target);
+        }
+        match self.resolve_name(target)? {
+            Some(fingerprint) => self.remove(&fingerprint),
+            None => Ok(false),
+        }
     }
 
     /// Removes exactly one published entry identified by its full SHA-256 hex digest.
@@ -106,6 +164,10 @@ impl EriCache {
             ));
         }
         let entry = self.root.join("eri").join(fingerprint);
+        match super::cache_names::regular_directory(&self.root.join("eri")) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            result => result?,
+        }
         let metadata = match fs::symlink_metadata(&entry) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
@@ -118,13 +180,25 @@ impl EriCache {
             ));
         }
         fs::remove_dir_all(entry)?;
+        for (name, value) in super::cache_names::mappings(&self.root)? {
+            if value == fingerprint {
+                super::cache_names::remove_alias(&self.root, &name)?;
+            }
+        }
         Ok(true)
     }
 
     /// Removes every published ERI cache entry below this cache root.
     pub fn remove_all(&self) -> io::Result<()> {
-        for entry in self.entries()? {
-            self.remove(&entry.fingerprint)?;
+        for fingerprint in self.fingerprints()? {
+            self.remove(&fingerprint)?;
+        }
+        for (name, fingerprint) in super::cache_names::mappings(&self.root)? {
+            if fs::symlink_metadata(self.root.join("eri").join(fingerprint))
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            {
+                super::cache_names::remove_alias(&self.root, &name)?;
+            }
         }
         Ok(())
     }
@@ -148,11 +222,13 @@ impl EriCache {
         threshold: Option<PositiveFiniteF64>,
         eri: &CompactEri,
     ) -> io::Result<()> {
-        self.store_identity(
-            ao_eri_identity(molecule.geometry(), basis, threshold),
-            basis.nbasis(),
-            eri,
-        )
+        let identity = ao_eri_identity(molecule.geometry(), basis, threshold);
+        self.store_identity(identity, basis.nbasis(), eri)?;
+        // Naming, like payload caching, is only an optimization.
+        if let Ok(names) = super::cache_names::mappings(&self.root) {
+            let _ = super::cache_names::assign(&self.root, &identity.digest.to_hex(), &names);
+        }
+        Ok(())
     }
 
     fn entry_path(&self, identity: ScientificIdentity) -> PathBuf {
@@ -354,7 +430,7 @@ fn remove_invalid_entry(entry: &Path) -> io::Result<()> {
     }
 }
 
-fn is_fingerprint(value: &str) -> bool {
+pub(super) fn is_fingerprint(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
