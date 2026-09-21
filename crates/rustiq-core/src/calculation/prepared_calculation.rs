@@ -8,6 +8,7 @@ use crate::{
     config::{HfConfig, Mp2Config, ResolvedHfMethod},
     molecules::molecule::Molecule,
 };
+use std::cell::RefCell;
 
 /// A validated molecule in Bohr and its basis, prepared together by the builder.
 ///
@@ -39,22 +40,25 @@ impl PreparedCalculation {
 
     pub fn run_hf_with_events(
         &self,
-        mut events: impl FnMut(CalculationEvent<'_>),
+        events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<HfOutcome, CalculationExecutionError> {
+        let events = RefCell::new(events);
         let (config, method) = &self.hf;
-        events(CalculationEvent::HfStarted {
+        events.borrow_mut()(CalculationEvent::HfStarted {
             method: *method,
             config,
         });
-        let mut calculation = HfCalculation::new_with_progress(
+        let mut calculation = HfCalculation::new_with_progress_and_cache(
             &self.molecule,
             &self.basis,
             config,
             self.eri_cache.as_ref(),
-            |step| events(CalculationEvent::ScfSetup(step)),
+            |step| events.borrow_mut()(CalculationEvent::ScfSetup(step)),
+            |event| events.borrow_mut()(CalculationEvent::EriCache(event)),
         )?;
-        let outcome = calculation
-            .run_with_iterations(|iteration| events(CalculationEvent::ScfIteration(iteration)))?;
+        let outcome = calculation.run_with_iterations(|iteration| {
+            events.borrow_mut()(CalculationEvent::ScfIteration(iteration))
+        })?;
         let hf = match outcome {
             ScfOutcome::Converged(scf) => HfOutcome::Converged(HfSolution::from_state(
                 HfCalculationResult {
@@ -71,7 +75,7 @@ impl PreparedCalculation {
                 calculation.state,
             )),
         };
-        events(CalculationEvent::HfCompleted(&hf));
+        events.borrow_mut()(CalculationEvent::HfCompleted(&hf));
         Ok(hf)
     }
 }

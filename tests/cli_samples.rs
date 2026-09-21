@@ -149,6 +149,26 @@ fn test_cli_h2_sample_uses_eri_cache_by_default() {
     );
     assert_success(&output);
 
+    let first_stdout = String::from_utf8_lossy(&output.stdout);
+    let stored_line = first_stdout
+        .lines()
+        .find(|line| line.starts_with("AO ERI cache: stored as "))
+        .expect("first run should report cache publication");
+    let target = stored_line
+        .strip_prefix("AO ERI cache: stored as ")
+        .unwrap();
+    assert!(target.contains('-') || target.ends_with('…'));
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line == format!("AO ERI cache: hit {target}")));
+
     let entries = EriCache::new(cache_root).entries().unwrap();
     assert_eq!(entries.len(), 1);
     assert!(entries[0].verified);
@@ -213,6 +233,9 @@ fn calculation_succeeds_when_cache_names_cannot_be_written() {
         &cache_root,
     );
     assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line.starts_with("AO ERI cache: stored as ")));
     let entries = EriCache::new(&cache_root).entries().unwrap();
     assert!(entries[0].verified);
     assert!(entries[0].name.is_none());
@@ -237,7 +260,29 @@ fn test_cli_no_cache_does_not_create_a_cache_entry() {
     );
     assert_success(&output);
 
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
     assert!(EriCache::new(cache_root).entries().unwrap().is_empty());
+}
+
+#[test]
+fn test_cli_json_output_has_no_cache_message() {
+    let temp_root = temp_root("cli-json-eri-cache");
+    prepare_basis_store(&temp_root);
+    let cache_root = temp_root.join("cache");
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &[
+            "run",
+            "samples/h2/sto-3g/calculation.toml",
+            "--format",
+            "json",
+        ],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
 }
 
 #[test]

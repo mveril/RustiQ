@@ -92,7 +92,8 @@ pub use crate::{
 };
 pub use builder::CalculationBuilder;
 pub use execution::{
-    CalculationEvent, CalculationExecution, CalculationResult, HfCalculationResult, Mp2MemoryPlan,
+    CalculationEvent, CalculationExecution, CalculationResult, EriCacheAction, EriCacheEvent,
+    HfCalculationResult, Mp2MemoryPlan,
 };
 pub use prepared_calculation::PreparedCalculation;
 
@@ -201,7 +202,18 @@ impl<'a> HfCalculation<'a> {
         basis: &'a Basis,
         config: &HfConfig,
         eri_cache: Option<&'a EriCache>,
+        progress: impl FnMut(ScfSetupStep),
+    ) -> Result<Self, CalculationError> {
+        Self::new_with_progress_and_cache(molecule, basis, config, eri_cache, progress, |_| {})
+    }
+
+    pub(crate) fn new_with_progress_and_cache(
+        molecule: &'a Molecule,
+        basis: &'a Basis,
+        config: &HfConfig,
+        eri_cache: Option<&'a EriCache>,
         mut progress: impl FnMut(ScfSetupStep),
+        mut cache_event: impl FnMut(crate::calculation::EriCacheEvent),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
         let required_occupied_orbitals = match method {
@@ -219,6 +231,7 @@ impl<'a> HfCalculation<'a> {
             config.eri_schwarz_threshold,
             eri_cache,
             &mut progress,
+            &mut cache_event,
         )
         .map_err(|error| CalculationError::HfSetup {
             method,

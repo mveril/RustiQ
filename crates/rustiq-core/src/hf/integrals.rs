@@ -1,5 +1,6 @@
 use nalgebra::DMatrix;
 
+use crate::calculation::{EriCacheAction, EriCacheEvent};
 use crate::{
     basis::gaussian::basis::Basis,
     config::validated::PositiveFiniteF64,
@@ -49,19 +50,35 @@ impl<'a> IntegralBuilder<'a> {
         self.basis.overlap_ints()
     }
 
-    pub(crate) fn electron_repulsion(&self) -> Result<CompactEri, EriError> {
-        if let Some(eri) = self
-            .eri_cache
-            .and_then(|cache| cache.load(self.molecule, self.basis, self.eri_schwarz_threshold))
-        {
-            return Ok(eri);
+    pub(crate) fn electron_repulsion(
+        &self,
+    ) -> Result<(CompactEri, Option<EriCacheEvent>), EriError> {
+        if let Some((eri, reference)) = self.eri_cache.and_then(|cache| {
+            cache.load_with_reference(self.molecule, self.basis, self.eri_schwarz_threshold)
+        }) {
+            return Ok((
+                eri,
+                Some(EriCacheEvent {
+                    action: EriCacheAction::Hit,
+                    name: reference.name,
+                    fingerprint: reference.fingerprint,
+                }),
+            ));
         }
         let eri = electron_repulsion_ints_with_threshold(self.basis, self.eri_schwarz_threshold)?;
         if let Some(cache) = self.eri_cache {
             // Caching is an optimization: cache I/O never invalidates a calculation.
-            let _ = cache.store(self.molecule, self.basis, self.eri_schwarz_threshold, &eri);
+            let event = cache
+                .store_with_reference(self.molecule, self.basis, self.eri_schwarz_threshold, &eri)
+                .ok()
+                .map(|reference| EriCacheEvent {
+                    action: EriCacheAction::Stored,
+                    name: reference.name,
+                    fingerprint: reference.fingerprint,
+                });
+            return Ok((eri, event));
         }
-        Ok(eri)
+        Ok((eri, None))
     }
 }
 
@@ -90,13 +107,16 @@ mod tests {
 
         let uncached = IntegralBuilder::new(&molecule, &basis, threshold, None)
             .electron_repulsion()
-            .unwrap();
+            .unwrap()
+            .0;
         let cached = IntegralBuilder::new(&molecule, &basis, threshold, Some(&cache))
             .electron_repulsion()
-            .unwrap();
+            .unwrap()
+            .0;
         let reused = IntegralBuilder::new(&molecule, &basis, threshold, Some(&cache))
             .electron_repulsion()
-            .unwrap();
+            .unwrap()
+            .0;
 
         assert_eq!(cached.ordered_values(), uncached.ordered_values());
         assert_eq!(reused.ordered_values(), uncached.ordered_values());

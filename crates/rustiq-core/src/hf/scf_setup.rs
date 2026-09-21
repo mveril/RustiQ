@@ -3,6 +3,7 @@ use std::time::Instant;
 use nalgebra::DMatrix;
 use thiserror::Error;
 
+use crate::calculation::EriCacheEvent;
 use crate::{
     basis::gaussian::basis::Basis,
     config::{validated::PositiveFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD},
@@ -67,9 +68,11 @@ pub(crate) fn prepare_scf_setup(
         ),
         None,
         progress,
+        |_| {},
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_scf_setup_with_eri_threshold(
     molecule: &Molecule,
     basis: &Basis,
@@ -78,6 +81,7 @@ pub(crate) fn prepare_scf_setup_with_eri_threshold(
     eri_schwarz_threshold: Option<PositiveFiniteF64>,
     eri_cache: Option<&EriCache>,
     mut progress: impl FnMut(ScfSetupStep),
+    mut cache_event: impl FnMut(EriCacheEvent),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
     let setup_start = Instant::now();
     let mut timings = ScfSetupTimings::default();
@@ -106,7 +110,10 @@ pub(crate) fn prepare_scf_setup_with_eri_threshold(
 
     progress(ScfSetupStep::ElectronRepulsionIntegrals);
     let step_start = Instant::now();
-    let electron_repulsion = builder.electron_repulsion()?;
+    let (electron_repulsion, eri_cache_event) = builder.electron_repulsion()?;
+    if let Some(event) = eri_cache_event {
+        cache_event(event);
+    }
     timings.electron_repulsion_integrals = step_start.elapsed();
     timings.total = setup_start.elapsed();
 

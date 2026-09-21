@@ -32,6 +32,12 @@ pub struct EriCacheEntry {
     pub verified: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct EriCacheReference {
+    pub(crate) fingerprint: String,
+    pub(crate) name: Option<String>,
+}
+
 /// Directory-backed cache for deterministic AO electron-repulsion integrals.
 ///
 /// The caller selects `root`; the scientific core never infers a cache location.
@@ -209,10 +215,50 @@ impl EriCache {
         basis: &Basis,
         threshold: Option<PositiveFiniteF64>,
     ) -> Option<CompactEri> {
-        self.load_identity(
-            ao_eri_identity(molecule.geometry(), basis, threshold),
-            basis.nbasis(),
-        )
+        self.load_with_reference(molecule, basis, threshold)
+            .map(|(eri, _)| eri)
+    }
+
+    pub(crate) fn load_with_reference(
+        &self,
+        molecule: &Molecule,
+        basis: &Basis,
+        threshold: Option<PositiveFiniteF64>,
+    ) -> Option<(CompactEri, EriCacheReference)> {
+        let identity = ao_eri_identity(molecule.geometry(), basis, threshold);
+        self.load_identity(identity, basis.nbasis())
+            .map(|eri| (eri, self.reference(identity)))
+    }
+
+    fn reference(&self, identity: ScientificIdentity) -> EriCacheReference {
+        let fingerprint = identity.digest.to_hex();
+        let name = super::cache_names::mappings(&self.root)
+            .ok()
+            .and_then(|names| {
+                names
+                    .into_iter()
+                    .find(|(_, value)| value == &fingerprint)
+                    .map(|(name, _)| name)
+            });
+        EriCacheReference { fingerprint, name }
+    }
+
+    pub(crate) fn store_with_reference(
+        &self,
+        molecule: &Molecule,
+        basis: &Basis,
+        threshold: Option<PositiveFiniteF64>,
+        eri: &CompactEri,
+    ) -> io::Result<EriCacheReference> {
+        let identity = ao_eri_identity(molecule.geometry(), basis, threshold);
+        self.store_identity(identity, basis.nbasis(), eri)?;
+        let fingerprint = identity.digest.to_hex();
+        let name = if let Ok(names) = super::cache_names::mappings(&self.root) {
+            super::cache_names::assign(&self.root, &fingerprint, &names).ok()
+        } else {
+            None
+        };
+        Ok(EriCacheReference { fingerprint, name })
     }
 
     pub(crate) fn store(
@@ -222,12 +268,7 @@ impl EriCache {
         threshold: Option<PositiveFiniteF64>,
         eri: &CompactEri,
     ) -> io::Result<()> {
-        let identity = ao_eri_identity(molecule.geometry(), basis, threshold);
-        self.store_identity(identity, basis.nbasis(), eri)?;
-        // Naming, like payload caching, is only an optimization.
-        if let Ok(names) = super::cache_names::mappings(&self.root) {
-            let _ = super::cache_names::assign(&self.root, &identity.digest.to_hex(), &names);
-        }
+        let _ = self.store_with_reference(molecule, basis, threshold, eri)?;
         Ok(())
     }
 
