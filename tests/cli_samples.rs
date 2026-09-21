@@ -39,6 +39,7 @@ fn run_rustiq_with_data_home(args: &[&str], data_home: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_RustiQ"))
         .args(args)
         .env("RUSTIQ_DATA_HOME", data_home)
+        .env("RUSTIQ_CACHE_HOME", data_home.join("cache"))
         .output()
         .unwrap()
 }
