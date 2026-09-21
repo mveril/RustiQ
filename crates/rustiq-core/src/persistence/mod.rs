@@ -1,7 +1,8 @@
-//! Storage-independent primitives for persisted scientific artifacts.
+//! Scientific persistence primitives and storage infrastructure.
 //!
-//! This module defines the stable logical representation; it does not choose a
-//! cache directory or container format.
+//! This module defines the stable logical persistence representation and storage
+//! components such as the directory-backed deterministic artifact cache. Cache
+//! location policy remains outside `rustiq-core`.
 
 mod cache_names;
 mod checksum;

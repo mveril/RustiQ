@@ -391,7 +391,7 @@ fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: 
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return false;
     }
-    let file = match File::open(&file_path) {
+    let mut file = match File::open(&file_path) {
         Ok(file) => file,
         Err(_) => return false,
     };
@@ -402,19 +402,13 @@ fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: 
     {
         return false;
     }
-    let file_size = artifact.size;
-    let mut file_for_hash = match File::open(file_path) {
-        Ok(file) => file,
-        Err(_) => return false,
-    };
-    if sha256_reader(&mut file_for_hash).ok() != Some(artifact.digest) {
+    if sha256_reader(&mut file).ok() != Some(artifact.digest) {
         return false;
     }
-    let file = match File::open(entry.join(AO_ERI_PATH)) {
-        Ok(file) => file,
-        Err(_) => return false,
-    };
-    validate_compact_eri_header(file, basis_functions, file_size)
+    if file.rewind().is_err() {
+        return false;
+    }
+    validate_compact_eri_header(file, basis_functions, artifact.size)
 }
 
 fn remove_invalid_entry(entry: &Path) -> io::Result<()> {
@@ -514,6 +508,39 @@ mod tests {
                 .ordered_values(),
             eri.ordered_values()
         );
+    }
+
+    #[test]
+    fn aliases_are_management_metadata_only() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        let eri = CompactEri::Zeroed(basis.nbasis());
+        cache.store(&molecule, &basis, threshold(), &eri).unwrap();
+
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        let entry = cache.entry_path(identity);
+        let manifest_before = fs::read(entry.join(MANIFEST_PATH)).unwrap();
+        let payload_before = fs::read(entry.join(AO_ERI_PATH)).unwrap();
+        let listed = cache.entries().unwrap();
+        let name = listed[0].name.clone().unwrap();
+
+        assert_eq!(
+            cache.resolve_name(&name).unwrap(),
+            Some(identity.digest.to_hex())
+        );
+        assert_eq!(
+            cache
+                .load(&molecule, &basis, threshold())
+                .unwrap()
+                .ordered_values(),
+            eri.ordered_values()
+        );
+        assert_eq!(
+            fs::read(entry.join(MANIFEST_PATH)).unwrap(),
+            manifest_before
+        );
+        assert_eq!(fs::read(entry.join(AO_ERI_PATH)).unwrap(), payload_before);
     }
 
     #[test]

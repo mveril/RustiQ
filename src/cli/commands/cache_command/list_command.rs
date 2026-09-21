@@ -6,7 +6,9 @@ use crate::cli::commands::{CommandResult, Runnable};
 
 #[derive(clap::Args, Debug)]
 pub struct ListCommand {
-    /// Cache root directory; defaults to the RustiQ platform cache directory.
+    /// List entries and verify payload size, digest, and supported NPY layout.
+    /// The `verified` status means all of those checks completed successfully.
+    /// Cache root defaults to the RustiQ platform cache directory.
     #[arg(long, value_name = "DIR")]
     cache_dir: Option<std::path::PathBuf>,
 }
