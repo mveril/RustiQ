@@ -16,7 +16,7 @@ pub(crate) use identity::{ao_eri_identity, ScientificIdentity};
 pub use manifest::{ArtifactManifest, Manifest, Producer, ScientificIdentityManifest};
 
 #[allow(unused_imports)]
-pub(crate) use npy::{read_compact_eri, write_compact_eri};
+pub(crate) use npy::{read_compact_eri, validate_compact_eri_header, write_compact_eri};
 
 pub const FORMAT_NAME: &str = "rustiq-persistence";
 pub const FORMAT_VERSION: u32 = 1;

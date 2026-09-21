@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, BufReader, BufWriter, Read, Write},
+    io::{self, BufReader, BufWriter, Seek, Write},
     path::{Path, PathBuf},
 };
 
@@ -12,9 +12,10 @@ use crate::{
 };
 
 use super::{
-    ao_eri_identity, read_compact_eri, sha256, sha256_reader, ArtifactManifest, Manifest, Producer,
-    ScientificIdentity, ScientificIdentityManifest, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION,
-    FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH, SCIENTIFIC_IDENTITY_VERSION,
+    ao_eri_identity, read_compact_eri, sha256_reader, validate_compact_eri_header,
+    ArtifactManifest, Manifest, Producer, ScientificIdentity, ScientificIdentityManifest,
+    AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
+    SCIENTIFIC_IDENTITY_VERSION,
 };
 
 const CACHE_KIND: &str = "integral-cache";
@@ -26,7 +27,7 @@ const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 pub struct EriCacheEntry {
     pub fingerprint: String,
     pub payload_size: Option<u64>,
-    pub valid_manifest: bool,
+    pub verified: bool,
 }
 
 /// Directory-backed cache for deterministic AO electron-repulsion integrals.
@@ -71,7 +72,7 @@ impl EriCache {
             let artifact = manifest
                 .as_ref()
                 .and_then(|manifest| manifest.artifacts.get(AO_ERI_ARTIFACT));
-            let valid_manifest = manifest.as_ref().is_some_and(|manifest| {
+            let verified = manifest.as_ref().is_some_and(|manifest| {
                 manifest_is_valid(
                     manifest,
                     ScientificIdentity {
@@ -80,14 +81,13 @@ impl EriCache {
                     },
                 ) && manifest.scientific_identity.digest.to_hex() == fingerprint
                     && artifact.is_some_and(|artifact| {
-                        read_validated_payload(&entry_path, artifact, artifact.basis_functions)
-                            .is_some()
+                        validate_payload(&entry_path, artifact, artifact.basis_functions)
                     })
             });
             result.push(EriCacheEntry {
                 fingerprint,
                 payload_size: artifact.map(|artifact| artifact.size),
-                valid_manifest,
+                verified,
             });
         }
         result.sort_by(|left, right| left.fingerprint.cmp(&right.fingerprint));
@@ -165,6 +165,10 @@ impl EriCache {
         basis_functions: usize,
     ) -> Option<CompactEri> {
         let entry = self.entry_path(identity);
+        let metadata = fs::symlink_metadata(&entry).ok()?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return None;
+        }
         let manifest = read_manifest(&entry)?;
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
         if !manifest_is_valid(&manifest, identity) || artifact.basis_functions != basis_functions {
@@ -235,13 +239,20 @@ impl EriCache {
                 let _ = fs::remove_dir_all(temporary_path);
                 return Ok(());
             }
-            remove_invalid_entry(&final_entry)?;
+            if let Err(error) = remove_invalid_entry(&final_entry) {
+                let _ = fs::remove_dir_all(&temporary_path);
+                return Err(error);
+            }
         }
         match fs::rename(&temporary_path, &final_entry) {
             Ok(()) => Ok(()),
             Err(error) => {
                 let _ = fs::remove_dir_all(temporary_path);
-                Err(error)
+                if self.load_identity(identity, basis_functions).is_some() {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
             }
         }
     }
@@ -249,9 +260,13 @@ impl EriCache {
 
 fn read_manifest(entry: &Path) -> Option<Manifest> {
     let manifest_path = entry.join(MANIFEST_PATH);
-    fs::metadata(&manifest_path)
+    fs::symlink_metadata(&manifest_path)
         .ok()
-        .filter(|metadata| metadata.len() <= MAX_MANIFEST_BYTES)?;
+        .filter(|metadata| {
+            metadata.is_file()
+                && !metadata.file_type().is_symlink()
+                && metadata.len() <= MAX_MANIFEST_BYTES
+        })?;
     serde_json::from_reader(BufReader::new(File::open(manifest_path).ok()?)).ok()
 }
 
@@ -275,20 +290,63 @@ fn read_validated_payload(
     artifact: &ArtifactManifest,
     basis_functions: usize,
 ) -> Option<CompactEri> {
-    let file = File::open(entry.join(AO_ERI_PATH)).ok()?;
+    let payload_path = entry.join(AO_ERI_PATH);
+    let metadata = fs::symlink_metadata(&payload_path).ok()?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return None;
+    }
+    let mut file = File::open(payload_path).ok()?;
     if file.metadata().ok()?.len() != artifact.size {
         return None;
     }
-    let mut payload = Vec::with_capacity(usize::try_from(artifact.size).ok()?);
-    BufReader::new(file).read_to_end(&mut payload).ok()?;
-    if sha256(&payload) != artifact.digest {
+    if sha256_reader(&mut file).ok()? != artifact.digest {
         return None;
     }
-    read_compact_eri(payload.as_slice(), basis_functions).ok()
+    file.rewind().ok()?;
+    read_compact_eri(file, basis_functions).ok()
+}
+
+fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: usize) -> bool {
+    let file_path = entry.join(AO_ERI_PATH);
+    let metadata = match fs::symlink_metadata(&file_path) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return false;
+    }
+    let file = match File::open(&file_path) {
+        Ok(file) => file,
+        Err(_) => return false,
+    };
+    if file
+        .metadata()
+        .ok()
+        .is_none_or(|metadata| metadata.len() != artifact.size)
+    {
+        return false;
+    }
+    let file_size = artifact.size;
+    let mut file_for_hash = match File::open(file_path) {
+        Ok(file) => file,
+        Err(_) => return false,
+    };
+    if sha256_reader(&mut file_for_hash).ok() != Some(artifact.digest) {
+        return false;
+    }
+    let file = match File::open(entry.join(AO_ERI_PATH)) {
+        Ok(file) => file,
+        Err(_) => return false,
+    };
+    validate_compact_eri_header(file, basis_functions, file_size)
 }
 
 fn remove_invalid_entry(entry: &Path) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(entry)?;
+    let metadata = match fs::symlink_metadata(entry) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
     if metadata.is_dir() && !metadata.file_type().is_symlink() {
         fs::remove_dir_all(entry)
     } else {
@@ -401,7 +459,7 @@ mod tests {
         let entries = cache.entries().unwrap();
 
         assert_eq!(entries.len(), 1);
-        assert!(!entries[0].valid_manifest);
+        assert!(!entries[0].verified);
     }
     #[test]
     fn incomplete_temporary_state_is_not_a_hit() {
@@ -448,5 +506,11 @@ mod tests {
             cache.remove("../outside").unwrap_err().kind(),
             io::ErrorKind::InvalidInput
         );
+    }
+
+    #[test]
+    fn removing_a_missing_invalid_entry_is_race_tolerant() {
+        let entry = tempfile::tempdir().unwrap().path().join("missing");
+        assert!(remove_invalid_entry(&entry).is_ok());
     }
 }

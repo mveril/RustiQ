@@ -18,7 +18,9 @@ for one execution. An AO ERI entry has this layout:
 ```
 
 The cache validates the manifest version, scientific identity, representation,
-basis-function count, payload size and SHA-256 digest before reading NPY data.
+basis-function count, payload size, SHA-256 digest and NPY header before reading
+NPY data. `rustiq cache list` reports entries as `verified` only after these
+bounded-memory checks; it does not load the ERI values.
 Any missing, malformed, stale, truncated or corrupted entry is a cache miss and
 must be recomputed; it is never used as scientific input. Entries are written
 to a sibling temporary directory, finalized and synced, then atomically renamed

@@ -151,7 +151,7 @@ fn test_cli_h2_sample_uses_eri_cache_by_default() {
 
     let entries = EriCache::new(cache_root).entries().unwrap();
     assert_eq!(entries.len(), 1);
-    assert!(entries[0].valid_manifest);
+    assert!(entries[0].verified);
 }
 
 #[test]

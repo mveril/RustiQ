@@ -1,6 +1,6 @@
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 
-use npyz::{NpyFile, WriterBuilder};
+use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
 
@@ -56,6 +56,40 @@ pub(crate) fn read_compact_eri(
             }
         }
     })
+}
+
+pub(crate) fn validate_compact_eri_header(
+    reader: impl Read + Seek,
+    basis_functions: usize,
+    file_size: u64,
+) -> bool {
+    let mut reader = std::io::BufReader::new(reader);
+    let npy = match NpyFile::new(&mut reader) {
+        Ok(npy) => npy,
+        Err(_) => return false,
+    };
+    let dtype = npy.dtype();
+    let valid_dtype = matches!(
+        dtype,
+        DType::Plain(type_str)
+            if type_str.type_char() == TypeChar::Float
+                && type_str.size_field() == 8
+                && matches!(
+                    type_str.endianness(),
+                    npyz::Endianness::Little | npyz::Endianness::Big
+                )
+    );
+    let expected = CompactEri::storage_len(basis_functions) as u64;
+    let valid_shape = npy.shape() == [expected];
+    let data_offset = match reader.stream_position() {
+        Ok(position) => position,
+        Err(_) => return false,
+    };
+    valid_dtype
+        && valid_shape
+        && data_offset
+            .checked_add(expected.saturating_mul(8))
+            .is_some_and(|end| end == file_size)
 }
 
 #[cfg(test)]

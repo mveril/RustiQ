@@ -21,8 +21,8 @@ impl Runnable for ListCommand {
                 .payload_size
                 .map(|size| size.to_string())
                 .unwrap_or_else(|| "unknown".to_owned());
-            let status = if entry.valid_manifest {
-                "valid"
+            let status = if entry.verified {
+                "verified"
             } else {
                 "invalid"
             };
