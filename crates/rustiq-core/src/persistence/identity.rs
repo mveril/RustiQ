@@ -2,6 +2,8 @@ use crate::{basis::Basis, config::validated::PositiveFiniteF64, molecules::geome
 
 use super::{sha256, Sha256Digest, COMPACT_ERI_REPRESENTATION, SCIENTIFIC_IDENTITY_VERSION};
 
+pub(crate) const AO_ERI_COMPUTATION_VERSION: u32 = 1;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ScientificIdentity {
     pub(crate) version: u32,
@@ -19,8 +21,24 @@ pub(crate) fn ao_eri_identity(
     basis: &Basis,
     schwarz_threshold: Option<PositiveFiniteF64>,
 ) -> ScientificIdentity {
+    ao_eri_identity_with_computation_version(
+        geometry,
+        basis,
+        schwarz_threshold,
+        AO_ERI_COMPUTATION_VERSION,
+    )
+}
+
+fn ao_eri_identity_with_computation_version(
+    geometry: &Geometry,
+    basis: &Basis,
+    schwarz_threshold: Option<PositiveFiniteF64>,
+    computation_version: u32,
+) -> ScientificIdentity {
     let mut bytes = CanonicalBytes::default();
     bytes.text(b"scientific-identity-v1");
+    bytes.text(b"ao-eri-computation-version");
+    bytes.u32(computation_version);
     bytes.text(COMPACT_ERI_REPRESENTATION.as_bytes());
 
     bytes.len(geometry.atoms.len());
@@ -157,6 +175,24 @@ mod tests {
             ao_eri_identity(&geometry, &basis, threshold(1e-10))
         );
         assert_ne!(default, ao_eri_identity(&geometry, &basis, None));
+    }
+
+    #[test]
+    fn identity_changes_with_eri_computation_version() {
+        let (geometry, basis) = input();
+        let current = ao_eri_identity_with_computation_version(
+            &geometry,
+            &basis,
+            default_threshold(),
+            AO_ERI_COMPUTATION_VERSION,
+        );
+        let next = ao_eri_identity_with_computation_version(
+            &geometry,
+            &basis,
+            default_threshold(),
+            AO_ERI_COMPUTATION_VERSION + 1,
+        );
+        assert_ne!(current, next);
     }
 
     #[test]

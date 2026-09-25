@@ -423,6 +423,20 @@ mod tests {
         assert!(directory.join("bad-target").exists());
     }
 
+    #[test]
+    fn malformed_names_do_not_prevent_fingerprint_removal_or_remove_all() {
+        let root = tempfile::tempdir().unwrap();
+        let first = entry(root.path(), 'a');
+        let second = entry(root.path(), 'b');
+        fs::write(root.path().join("names"), "not a directory").unwrap();
+        let cache = EriCache::new(root.path());
+
+        assert!(cache.remove(&first).unwrap());
+        assert!(root.path().join("eri").join(&second).exists());
+        cache.remove_all().unwrap();
+        assert!(!root.path().join("eri").join(second).exists());
+    }
+
     #[cfg(unix)]
     #[test]
     fn unix_links_are_relative_and_unsafe_targets_are_never_followed() {

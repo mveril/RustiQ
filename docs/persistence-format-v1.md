@@ -53,6 +53,12 @@ following them. Names are atomically reserved without overwriting existing alias
 collisions try another two-word name, up to 256 attempts. Failure to assign an
 alias never invalidates a calculation or its cached integrals.
 
+During `rustiq run`, successful cache publication is reported as
+`AO ERI cache: stored as <name>` and reuse is reported as
+`AO ERI cache: hit <name>`. If alias metadata cannot be created or read, RustiQ
+reports the full 64-character fingerprint instead. Aliases are management-only
+metadata and are not part of the scientific result or cache identity.
+
 Names are assigned after publication and, for older entries, by `cache list`.
 Listing therefore may create management metadata. Read-only caches remain
 inspectable, with `-` for entries without an alias. The core `entries()` API is
@@ -126,3 +132,8 @@ The stream contains, in order:
 
 Producer version, paths, timestamps, compression and container metadata do not
 participate in scientific identity.
+
+The AO ERI computation has its own explicit version in the scientific identity,
+independent of the persistence identity version, NPY representation, and
+RustiQ package version. Bumping that computation version invalidates prior AO
+ERI entries even when their inputs and storage representation are unchanged.

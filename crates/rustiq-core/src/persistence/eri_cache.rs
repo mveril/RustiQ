@@ -186,9 +186,11 @@ impl EriCache {
             ));
         }
         fs::remove_dir_all(entry)?;
-        for (name, value) in super::cache_names::mappings(&self.root)? {
-            if value == fingerprint {
-                super::cache_names::remove_alias(&self.root, &name)?;
+        if let Ok(names) = super::cache_names::mappings(&self.root) {
+            for (name, value) in names {
+                if value == fingerprint {
+                    let _ = super::cache_names::remove_alias(&self.root, &name);
+                }
             }
         }
         Ok(true)
@@ -199,11 +201,13 @@ impl EriCache {
         for fingerprint in self.fingerprints()? {
             self.remove(&fingerprint)?;
         }
-        for (name, fingerprint) in super::cache_names::mappings(&self.root)? {
-            if fs::symlink_metadata(self.root.join("eri").join(fingerprint))
-                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
-            {
-                super::cache_names::remove_alias(&self.root, &name)?;
+        if let Ok(names) = super::cache_names::mappings(&self.root) {
+            for (name, fingerprint) in names {
+                if fs::symlink_metadata(self.root.join("eri").join(fingerprint))
+                    .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+                {
+                    let _ = super::cache_names::remove_alias(&self.root, &name);
+                }
             }
         }
         Ok(())
@@ -239,6 +243,14 @@ impl EriCache {
                     .into_iter()
                     .find(|(_, value)| value == &fingerprint)
                     .map(|(name, _)| name)
+            })
+            .or_else(|| {
+                super::cache_names::assign(
+                    &self.root,
+                    &fingerprint,
+                    &std::collections::BTreeMap::new(),
+                )
+                .ok()
             });
         EriCacheReference { fingerprint, name }
     }
@@ -253,11 +265,22 @@ impl EriCache {
         let identity = ao_eri_identity(molecule.geometry(), basis, threshold);
         self.store_identity(identity, basis.nbasis(), eri)?;
         let fingerprint = identity.digest.to_hex();
-        let name = if let Ok(names) = super::cache_names::mappings(&self.root) {
-            super::cache_names::assign(&self.root, &fingerprint, &names).ok()
-        } else {
-            None
-        };
+        let name = super::cache_names::mappings(&self.root)
+            .ok()
+            .and_then(|names| {
+                names
+                    .into_iter()
+                    .find(|(_, value)| value == &fingerprint)
+                    .map(|(name, _)| name)
+            })
+            .or_else(|| {
+                super::cache_names::assign(
+                    &self.root,
+                    &fingerprint,
+                    &std::collections::BTreeMap::new(),
+                )
+                .ok()
+            });
         Ok(EriCacheReference { fingerprint, name })
     }
 
@@ -407,6 +430,7 @@ fn read_validated_payload(
     artifact: &ArtifactManifest,
     basis_functions: usize,
 ) -> Option<CompactEri> {
+    CompactEri::checked_storage_len(basis_functions)?;
     let payload_path = entry.join(AO_ERI_PATH);
     let metadata = fs::symlink_metadata(&payload_path).ok()?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
@@ -424,6 +448,9 @@ fn read_validated_payload(
 }
 
 fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: usize) -> bool {
+    if CompactEri::checked_storage_len(basis_functions).is_none() {
+        return false;
+    }
     let file_path = entry.join(AO_ERI_PATH);
     let metadata = match fs::symlink_metadata(&file_path) {
         Ok(metadata) => metadata,
@@ -604,6 +631,32 @@ mod tests {
 
         assert_eq!(entries.len(), 1);
         assert!(!entries[0].verified);
+    }
+
+    #[test]
+    fn overflowing_manifest_basis_functions_are_invalid_and_not_loaded() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        cache
+            .store(
+                &molecule,
+                &basis,
+                threshold(),
+                &CompactEri::Zeroed(basis.nbasis()),
+            )
+            .unwrap();
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        let manifest_path = cache.entry_path(identity).join(MANIFEST_PATH);
+        let mut manifest: serde_json::Value =
+            serde_json::from_reader(File::open(&manifest_path).unwrap()).unwrap();
+        manifest["artifacts"][AO_ERI_ARTIFACT]["basis_functions"] = serde_json::json!(usize::MAX);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        let entries = cache.entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].verified);
+        assert!(cache.load(&molecule, &basis, threshold()).is_none());
     }
     #[test]
     fn incomplete_temporary_state_is_not_a_hit() {

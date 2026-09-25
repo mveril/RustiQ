@@ -27,11 +27,17 @@ pub(crate) fn read_compact_eri(
     reader: impl Read,
     basis_functions: usize,
 ) -> Result<CompactEri, PersistenceError> {
+    let expected = CompactEri::checked_storage_len(basis_functions).ok_or(
+        PersistenceError::InvalidValueCount {
+            basis_functions,
+            expected: 0,
+            actual: 0,
+        },
+    )?;
     let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
     if npy.shape().len() != 1 {
         return Err(PersistenceError::InvalidShape(npy.shape().to_vec()));
     }
-    let expected = CompactEri::storage_len(basis_functions);
     let actual = usize::try_from(npy.shape()[0]).unwrap_or(usize::MAX);
     if actual != expected {
         return Err(PersistenceError::InvalidValueCount {
@@ -63,6 +69,9 @@ pub(crate) fn validate_compact_eri_header(
     basis_functions: usize,
     file_size: u64,
 ) -> bool {
+    let Some(expected) = CompactEri::checked_storage_len(basis_functions) else {
+        return false;
+    };
     let mut reader = std::io::BufReader::new(reader);
     let npy = match NpyFile::new(&mut reader) {
         Ok(npy) => npy,
@@ -79,7 +88,9 @@ pub(crate) fn validate_compact_eri_header(
                     npyz::Endianness::Little | npyz::Endianness::Big
                 )
     );
-    let expected = CompactEri::storage_len(basis_functions) as u64;
+    let Some(expected) = u64::try_from(expected).ok() else {
+        return false;
+    };
     let valid_shape = npy.shape() == [expected];
     let data_offset = match reader.stream_position() {
         Ok(position) => position,

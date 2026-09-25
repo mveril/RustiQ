@@ -17,8 +17,8 @@ pub struct HfCalculationResult {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EriCacheAction {
-    Reused,
-    Generated,
+    Hit,
+    Stored,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
