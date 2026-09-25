@@ -21,7 +21,9 @@ pub use manifest::{
 };
 
 #[allow(unused_imports)]
-pub(crate) use npy::{read_compact_eri, validate_compact_eri_header, write_compact_eri};
+pub(crate) use npy::{
+    read_compact_eri, read_dmatrix, validate_compact_eri_header, write_compact_eri,
+};
 
 pub const FORMAT_NAME: &str = "rustiq-persistence";
 pub const FORMAT_VERSION: u32 = 1;
@@ -40,6 +42,8 @@ pub enum PersistenceError {
     NpyWrite(#[source] std::io::Error),
     #[error("AO ERI NPY must be one-dimensional, found shape {0:?}")]
     InvalidShape(Vec<u64>),
+    #[error("matrix NPY must be two-dimensional, found shape {0:?}")]
+    InvalidMatrixShape(Vec<u64>),
     #[error("AO ERI payload has {actual} values, expected {expected} for {basis_functions} basis functions")]
     InvalidValueCount {
         basis_functions: usize,
