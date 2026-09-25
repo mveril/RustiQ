@@ -4,7 +4,10 @@ use clap::{ArgAction, ArgGroup};
 use miette::{miette, IntoDiagnostic};
 use rustiq_core::persistence::EriCache;
 
-use crate::cli::{commands::{CommandResult, Runnable}, directories::cache_path};
+use crate::cli::{
+    commands::{CommandResult, Runnable},
+    directories::cache_path,
+};
 
 #[derive(clap::Args, Debug)]
 #[command(group(
@@ -27,10 +30,7 @@ pub struct RemoveCommand {
 
 impl Runnable for RemoveCommand {
     fn run(&self) -> CommandResult {
-        let root = self
-            .cache_dir
-            .clone()
-            .unwrap_or_else(cache_path);
+        let root = self.cache_dir.clone().unwrap_or_else(cache_path);
         let cache = EriCache::new(root);
         if self.all {
             cache.remove_all().into_diagnostic()?;

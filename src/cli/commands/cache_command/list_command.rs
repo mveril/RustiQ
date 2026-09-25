@@ -4,7 +4,10 @@ use miette::IntoDiagnostic;
 use rustiq_core::persistence::{EriCache, EriCacheEntry};
 use tabled::{Table, Tabled};
 
-use crate::cli::{commands::{CommandResult, Runnable}, directories::cache_path};
+use crate::cli::{
+    commands::{CommandResult, Runnable},
+    directories::cache_path,
+};
 
 #[derive(clap::Args, Debug)]
 pub struct ListCommand {
@@ -17,10 +20,7 @@ pub struct ListCommand {
 
 impl Runnable for ListCommand {
     fn run(&self) -> CommandResult {
-        let root = self
-            .cache_dir
-            .clone()
-            .unwrap_or_else(cache_path);
+        let root = self.cache_dir.clone().unwrap_or_else(cache_path);
         let cache = EriCache::new(root);
         // A read-only cache remains inspectable even when aliases cannot be assigned.
         let _ = cache.assign_missing_names();

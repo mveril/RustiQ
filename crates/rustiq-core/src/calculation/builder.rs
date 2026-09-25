@@ -119,19 +119,13 @@ impl<'a> CalculationBuilder<'a> {
     }
 
     /// Use an explicitly located cache for deterministic AO ERIs.
-    pub fn eri_cache(
-        &mut self,
-        cache: impl Into<Option<EriCache>>,
-    ) -> &mut Self {
+    pub fn eri_cache(&mut self, cache: impl Into<Option<EriCache>>) -> &mut Self {
         self.eri_cache = cache.into();
         self
     }
 
     #[must_use]
-    pub fn with_eri_cache(
-        mut self,
-        cache: impl Into<Option<EriCache>>,
-    ) -> Self {
+    pub fn with_eri_cache(mut self, cache: impl Into<Option<EriCache>>) -> Self {
         self.eri_cache(cache);
         self
     }

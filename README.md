@@ -470,13 +470,13 @@ cargo build
 
 ### Cargo build profiles
 
-| Profile | Used by | Purpose |
-| ------- | ------- | ------- |
-| `dev` | `cargo build`, `cargo run` | Fast builds with debug information. |
-| `test` | `cargo test` | Runs tests with development settings. |
-| `bench` | `cargo bench` | Runs benchmarks with release settings. |
-| `release` | `cargo build --release`, `cargo run --release`, `cargo install` | Optimizes runtime performance with thin LTO and one codegen unit; strips symbols from the final binary. Builds take longer. |
-| `profiling` | `cargo build --profile profiling`, `cargo run --profile profiling` | Inherits release optimizations while retaining full debug information and symbols for profilers. |
+| Profile     | Used by                                                            | Purpose                                                                                                                     |
+| ----------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `dev`       | `cargo build`, `cargo run`                                         | Fast builds with debug information.                                                                                         |
+| `test`      | `cargo test`                                                       | Runs tests with development settings.                                                                                       |
+| `bench`     | `cargo bench`                                                      | Runs benchmarks with release settings.                                                                                      |
+| `release`   | `cargo build --release`, `cargo run --release`, `cargo install`    | Optimizes runtime performance with thin LTO and one codegen unit; strips symbols from the final binary. Builds take longer. |
+| `profiling` | `cargo build --profile profiling`, `cargo run --profile profiling` | Inherits release optimizations while retaining full debug information and symbols for profilers.                            |
 
 For a portable optimized binary, use `cargo build --release`. To optimize for
 the CPU of the build machine, pass the compiler flag explicitly:

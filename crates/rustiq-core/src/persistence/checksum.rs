@@ -1,6 +1,10 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use std::{fmt, io::{self, Read}, str::FromStr};
+use std::{
+    fmt,
+    io::{self, Read},
+    str::FromStr,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Sha256Digest([u8; 32]);
