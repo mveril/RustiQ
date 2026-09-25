@@ -2,6 +2,7 @@ use crate::{
     basis::{Basis, BasisFile},
     config::{HfConfig, MoleculeConfig, Mp2Config},
     molecules::{geometry::Geometry, units::Units},
+    persistence::EriCache,
 };
 use std::time::Instant;
 
@@ -42,7 +43,7 @@ pub struct CalculationBuilder<'a> {
     molecule_config: MoleculeConfig,
     hf: HfConfig,
     mp2: Option<Mp2Config>,
-    eri_cache: Option<crate::persistence::EriCache>,
+    eri_cache: Option<EriCache>,
 }
 
 impl<'a> CalculationBuilder<'a> {
@@ -72,7 +73,7 @@ impl<'a> CalculationBuilder<'a> {
     pub fn get_mp2(&self) -> Option<&Mp2Config> {
         self.mp2.as_ref()
     }
-    pub fn get_eri_cache(&self) -> Option<&crate::persistence::EriCache> {
+    pub fn get_eri_cache(&self) -> Option<&EriCache> {
         self.eri_cache.as_ref()
     }
 
@@ -120,7 +121,7 @@ impl<'a> CalculationBuilder<'a> {
     /// Use an explicitly located cache for deterministic AO ERIs.
     pub fn eri_cache(
         &mut self,
-        cache: impl Into<Option<crate::persistence::EriCache>>,
+        cache: impl Into<Option<EriCache>>,
     ) -> &mut Self {
         self.eri_cache = cache.into();
         self
@@ -129,7 +130,7 @@ impl<'a> CalculationBuilder<'a> {
     #[must_use]
     pub fn with_eri_cache(
         mut self,
-        cache: impl Into<Option<crate::persistence::EriCache>>,
+        cache: impl Into<Option<EriCache>>,
     ) -> Self {
         self.eri_cache(cache);
         self
