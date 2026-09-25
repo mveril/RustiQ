@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use miette::IntoDiagnostic;
 use rustiq_core::persistence::{EriCache, EriCacheEntry};
 use tabled::{Table, Tabled};
 
-use crate::cli::commands::{CommandResult, Runnable};
+use crate::cli::{commands::{CommandResult, Runnable}, directories::cache_path};
 
 #[derive(clap::Args, Debug)]
 pub struct ListCommand {
@@ -10,7 +12,7 @@ pub struct ListCommand {
     /// The `verified` status means all of those checks completed successfully.
     /// Cache root defaults to the RustiQ platform cache directory.
     #[arg(long, value_name = "DIR")]
-    cache_dir: Option<std::path::PathBuf>,
+    cache_dir: Option<PathBuf>,
 }
 
 impl Runnable for ListCommand {
@@ -18,7 +20,7 @@ impl Runnable for ListCommand {
         let root = self
             .cache_dir
             .clone()
-            .unwrap_or_else(crate::cli::directories::cache_path);
+            .unwrap_or_else(cache_path);
         let cache = EriCache::new(root);
         // A read-only cache remains inspectable even when aliases cannot be assigned.
         let _ = cache.assign_missing_names();
