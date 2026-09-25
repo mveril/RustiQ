@@ -329,10 +329,15 @@ impl EriCache {
         eri: &CompactEri,
     ) -> io::Result<()> {
         let final_entry = self.entry_path(identity);
+        let parent = final_entry.parent().expect("ERI cache entry has a parent");
+        match super::cache_names::regular_directory(parent) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
         if self.load_identity(identity, basis_functions).is_some() {
             return Ok(());
         }
-        let parent = final_entry.parent().expect("ERI cache entry has a parent");
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
         let payload_path = temporary.path().join(AO_ERI_PATH);
@@ -462,7 +467,7 @@ fn read_validated_payload(
         return None;
     }
     file.rewind().ok()?;
-    read_compact_eri(file, basis_functions).ok()
+    read_compact_eri(BufReader::new(file), basis_functions).ok()
 }
 
 fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: usize) -> bool {
