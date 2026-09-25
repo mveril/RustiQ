@@ -23,6 +23,7 @@ pub struct Producer {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScientificIdentityManifest {
     pub version: u32,
+    pub ao_eri_computation_version: u32,
     pub digest: Sha256Digest,
 }
 
@@ -39,8 +40,8 @@ pub struct ArtifactManifest {
 mod tests {
     use super::*;
     use crate::persistence::{
-        AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION,
-        SCIENTIFIC_IDENTITY_VERSION,
+        AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+        FORMAT_VERSION, SCIENTIFIC_IDENTITY_VERSION,
     };
 
     #[test]
@@ -67,6 +68,7 @@ mod tests {
             },
             scientific_identity: ScientificIdentityManifest {
                 version: SCIENTIFIC_IDENTITY_VERSION,
+                ao_eri_computation_version: AO_ERI_COMPUTATION_VERSION,
                 digest: Sha256Digest::from([0x11; 32]),
             },
             artifacts,
@@ -86,6 +88,7 @@ mod tests {
                 "  },\n",
                 "  \"scientific_identity\": {\n",
                 "    \"version\": 1,\n",
+                "    \"ao_eri_computation_version\": 1,\n",
                 "    \"digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n",
                 "  },\n",
                 "  \"artifacts\": {\n",
@@ -110,7 +113,7 @@ mod tests {
             "format_version": 1,
             "kind": "integral-cache",
             "producer": {"name": "RustiQ", "version": "0.1.0"},
-            "scientific_identity": {"version": 1, "digest": "banana"},
+            "scientific_identity": {"version": 1, "ao_eri_computation_version": 1, "digest": "banana"},
             "artifacts": {}
         }"#;
 
