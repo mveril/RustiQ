@@ -14,8 +14,8 @@ use crate::{
 use super::{
     ao_eri_identity, read_compact_eri, sha256_reader, validate_compact_eri_header,
     ArtifactManifest, Manifest, Producer, ScientificIdentity, ScientificIdentityManifest,
-    AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
-    SCIENTIFIC_IDENTITY_VERSION,
+    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+    FORMAT_VERSION, MANIFEST_PATH, SCIENTIFIC_IDENTITY_VERSION,
 };
 
 const CACHE_KIND: &str = "integral-cache";
@@ -351,6 +351,7 @@ impl EriCache {
             },
             scientific_identity: ScientificIdentityManifest {
                 version: identity.version,
+                ao_eri_computation_version: AO_ERI_COMPUTATION_VERSION,
                 digest: identity.digest,
             },
             artifacts: [(
@@ -415,6 +416,8 @@ fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool 
         && manifest.format_version == FORMAT_VERSION
         && manifest.kind == CACHE_KIND
         && manifest.scientific_identity.version == identity.version
+        && manifest.scientific_identity.ao_eri_computation_version
+            == AO_ERI_COMPUTATION_VERSION
         && manifest.scientific_identity.digest == identity.digest
         && manifest
             .artifacts
@@ -631,6 +634,33 @@ mod tests {
 
         assert_eq!(entries.len(), 1);
         assert!(!entries[0].verified);
+    }
+
+    #[test]
+    fn stale_eri_computation_version_is_invalid_and_not_loaded() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        cache
+            .store(
+                &molecule,
+                &basis,
+                threshold(),
+                &CompactEri::Zeroed(basis.nbasis()),
+            )
+            .unwrap();
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        let manifest_path = cache.entry_path(identity).join(MANIFEST_PATH);
+        let mut manifest: serde_json::Value =
+            serde_json::from_reader(File::open(&manifest_path).unwrap()).unwrap();
+        manifest["scientific_identity"]["ao_eri_computation_version"] =
+            serde_json::json!(AO_ERI_COMPUTATION_VERSION + 1);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        let entries = cache.entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].verified);
+        assert!(cache.load(&molecule, &basis, threshold()).is_none());
     }
 
     #[test]
