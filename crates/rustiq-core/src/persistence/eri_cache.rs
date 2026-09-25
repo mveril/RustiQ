@@ -13,8 +13,9 @@ use crate::{
 
 use super::{
     ao_eri_identity, read_compact_eri, sha256_reader, validate_compact_eri_header,
-    ArtifactManifest, Manifest, Producer, ScientificIdentity, ScientificIdentityManifest,
-    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer, ScientificIdentity,
+    ScientificIdentityManifest, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
+    COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, MANIFEST_PATH, SCIENTIFIC_IDENTITY_VERSION,
 };
 
@@ -75,7 +76,9 @@ impl EriCache {
                     },
                 ) && manifest.scientific_identity.digest.to_hex() == fingerprint
                     && artifact.is_some_and(|artifact| {
-                        validate_payload(&entry_path, artifact, artifact.basis_functions)
+                        ao_eri_attributes(artifact).is_some_and(|attributes| {
+                            validate_payload(&entry_path, artifact, attributes.basis_functions)
+                        })
                     })
             });
             result.push(EriCacheEntry {
@@ -311,7 +314,10 @@ impl EriCache {
         }
         let manifest = read_manifest(&entry)?;
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
-        if !manifest_is_valid(&manifest, identity) || artifact.basis_functions != basis_functions {
+        let attributes = ao_eri_attributes(artifact)?;
+        if !manifest_is_valid(&manifest, identity)
+            || attributes.basis_functions != basis_functions
+        {
             return None;
         }
         read_validated_payload(&entry, artifact, basis_functions)
@@ -351,7 +357,6 @@ impl EriCache {
             },
             scientific_identity: ScientificIdentityManifest {
                 version: identity.version,
-                ao_eri_computation_version: AO_ERI_COMPUTATION_VERSION,
                 digest: identity.digest,
             },
             artifacts: [(
@@ -360,8 +365,11 @@ impl EriCache {
                     path: AO_ERI_PATH.to_owned(),
                     size: payload_metadata.len(),
                     representation: COMPACT_ERI_REPRESENTATION.to_owned(),
-                    basis_functions,
                     digest: payload_digest,
+                    attributes: ArtifactAttributes::AoEri(AoEriAttributes {
+                        basis_functions,
+                        computation_version: AO_ERI_COMPUTATION_VERSION,
+                    }),
                 },
             )]
             .into_iter()
@@ -416,8 +424,6 @@ fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool 
         && manifest.format_version == FORMAT_VERSION
         && manifest.kind == CACHE_KIND
         && manifest.scientific_identity.version == identity.version
-        && manifest.scientific_identity.ao_eri_computation_version
-            == AO_ERI_COMPUTATION_VERSION
         && manifest.scientific_identity.digest == identity.digest
         && manifest
             .artifacts
@@ -425,7 +431,17 @@ fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool 
             .is_some_and(|artifact| {
                 artifact.path == AO_ERI_PATH
                     && artifact.representation == COMPACT_ERI_REPRESENTATION
+                    && ao_eri_attributes(artifact).is_some_and(|attributes| {
+                        attributes.computation_version == AO_ERI_COMPUTATION_VERSION
+                    })
             })
+}
+
+fn ao_eri_attributes(artifact: &ArtifactManifest) -> Option<&AoEriAttributes> {
+    match &artifact.attributes {
+        ArtifactAttributes::AoEri(attributes) => Some(attributes),
+        ArtifactAttributes::Unknown(_) => None,
+    }
 }
 
 fn read_validated_payload(
@@ -653,7 +669,7 @@ mod tests {
         let manifest_path = cache.entry_path(identity).join(MANIFEST_PATH);
         let mut manifest: serde_json::Value =
             serde_json::from_reader(File::open(&manifest_path).unwrap()).unwrap();
-        manifest["scientific_identity"]["ao_eri_computation_version"] =
+        manifest["artifacts"][AO_ERI_ARTIFACT]["attributes"]["computation_version"] =
             serde_json::json!(AO_ERI_COMPUTATION_VERSION + 1);
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
@@ -680,7 +696,8 @@ mod tests {
         let manifest_path = cache.entry_path(identity).join(MANIFEST_PATH);
         let mut manifest: serde_json::Value =
             serde_json::from_reader(File::open(&manifest_path).unwrap()).unwrap();
-        manifest["artifacts"][AO_ERI_ARTIFACT]["basis_functions"] = serde_json::json!(usize::MAX);
+        manifest["artifacts"][AO_ERI_ARTIFACT]["attributes"]["basis_functions"] =
+            serde_json::json!(usize::MAX);
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
         let entries = cache.entries().unwrap();
