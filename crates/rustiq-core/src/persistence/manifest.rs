@@ -82,10 +82,7 @@ impl<'de> Deserialize<'de> for ArtifactManifest {
     }
 }
 
-fn decode_attributes(
-    representation: &str,
-    raw: BTreeMap<String, Value>,
-) -> ArtifactAttributes {
+fn decode_attributes(representation: &str, raw: BTreeMap<String, Value>) -> ArtifactAttributes {
     if representation == COMPACT_ERI_REPRESENTATION {
         let value = Value::Object(raw.clone().into_iter().collect());
         if let Ok(attributes) = serde_json::from_value::<AoEriAttributes>(value) {
@@ -200,7 +197,10 @@ mod tests {
         let ArtifactAttributes::Unknown(attributes) = &artifact.attributes else {
             panic!("unknown representation must retain raw attributes");
         };
-        assert_eq!(attributes.get("engine_version"), Some(&serde_json::json!(7)));
+        assert_eq!(
+            attributes.get("engine_version"),
+            Some(&serde_json::json!(7))
+        );
         assert_eq!(attributes.get("spin"), Some(&serde_json::json!("alpha")));
 
         let encoded = serde_json::to_value(&manifest).unwrap();
