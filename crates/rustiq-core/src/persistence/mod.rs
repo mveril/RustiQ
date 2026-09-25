@@ -17,7 +17,10 @@ pub use eri_cache::{EriCache, EriCacheEntry};
 pub(crate) use identity::{
     ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION,
 };
-pub use manifest::{\n    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,\n    ScientificIdentityManifest,\n};
+pub use manifest::{
+    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
+    ScientificIdentityManifest,
+};
 
 #[allow(unused_imports)]
 pub(crate) use npy::{read_compact_eri, validate_compact_eri_header, write_compact_eri};
