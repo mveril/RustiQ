@@ -1,5 +1,6 @@
 use std::io::{Read, Seek, Write};
 
+use nalgebra::DMatrix;
 use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
@@ -103,16 +104,37 @@ pub(crate) fn validate_compact_eri_header(
             .is_some_and(|end| end == file_size)
 }
 
-#[cfg(test)]
+pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, PersistenceError> {
+    let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
+    if npy.shape().len() != 2 {
+        return Err(PersistenceError::InvalidMatrixShape(npy.shape().to_vec()));
+    }
+    let rows = usize::try_from(npy.shape()[0])
+        .map_err(|_| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+    let columns = usize::try_from(npy.shape()[1])
+        .map_err(|_| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+    rows.checked_mul(columns)
+        .ok_or_else(|| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+    let order = npy.order();
+    let values = npy.into_vec::<f64>().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::InvalidData {
+            PersistenceError::InvalidDtype(error.to_string())
+        } else {
+            PersistenceError::NpyRead(error)
+        }
+    })?;
+    Ok(matrix_from_npy_values(rows, columns, order, values))
+}
+
 fn matrix_from_npy_values(
     rows: usize,
     columns: usize,
     order: npyz::Order,
     values: Vec<f64>,
-) -> nalgebra::DMatrix<f64> {
+) -> DMatrix<f64> {
     match order {
-        npyz::Order::C => nalgebra::DMatrix::from_row_slice(rows, columns, &values),
-        npyz::Order::Fortran => nalgebra::DMatrix::from_vec(rows, columns, values),
+        npyz::Order::C => DMatrix::from_row_slice(rows, columns, &values),
+        npyz::Order::Fortran => DMatrix::from_vec(rows, columns, values),
     }
 }
 
@@ -136,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn c_order_npy_reconstructs_a_nalgebra_matrix_through_internal_conversion() {
+    fn read_dmatrix_converts_c_order_npy_to_nalgebra_layout() {
         let shape = [2, 3];
         let values = [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0];
         let mut bytes = Vec::new();
@@ -149,14 +171,10 @@ mod tests {
         writer.extend(values).unwrap();
         writer.finish().unwrap();
 
-        let npy = NpyFile::new(bytes.as_slice()).unwrap();
-        assert_eq!(npy.shape(), [2, 3]);
-        assert_eq!(npy.order(), npyz::Order::C);
-        let order = npy.order();
-        let stored = npy.into_vec::<f64>().unwrap();
+        let matrix = read_dmatrix(bytes.as_slice()).unwrap();
 
-        let matrix = matrix_from_npy_values(2, 3, order, stored);
-
+        assert_eq!(matrix.nrows(), 2);
+        assert_eq!(matrix.ncols(), 3);
         assert_eq!(matrix[(0, 0)], 1.0);
         assert_eq!(matrix[(0, 1)], 2.0);
         assert_eq!(matrix[(0, 2)], 3.0);
