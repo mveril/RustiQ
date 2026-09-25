@@ -104,10 +104,22 @@ pub(crate) fn validate_compact_eri_header(
 }
 
 #[cfg(test)]
+fn matrix_from_npy_values(
+    rows: usize,
+    columns: usize,
+    order: npyz::Order,
+    values: Vec<f64>,
+) -> nalgebra::DMatrix<f64> {
+    match order {
+        npyz::Order::C => nalgebra::DMatrix::from_row_slice(rows, columns, &values),
+        npyz::Order::Fortran => nalgebra::DMatrix::from_vec(rows, columns, values),
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::eri::index::EriIndex;
-    use nalgebra::DMatrix;
     use std::fs::File;
 
     #[test]
@@ -124,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn c_order_npy_values_reconstruct_a_nalgebra_matrix_by_rows() {
+    fn c_order_npy_reconstructs_a_nalgebra_matrix_through_internal_conversion() {
         let shape = [2, 3];
         let values = [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0];
         let mut bytes = Vec::new();
@@ -137,19 +149,20 @@ mod tests {
         writer.extend(values).unwrap();
         writer.finish().unwrap();
 
-        assert!(String::from_utf8_lossy(&bytes).contains("'fortran_order': False"));
-
         let npy = NpyFile::new(bytes.as_slice()).unwrap();
         assert_eq!(npy.shape(), [2, 3]);
+        assert_eq!(npy.order(), npyz::Order::C);
+        let order = npy.order();
         let stored = npy.into_vec::<f64>().unwrap();
 
-        let matrix = DMatrix::from_row_slice(2, 3, &stored);
-        assert_eq!(
-            matrix,
-            DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-        );
+        let matrix = matrix_from_npy_values(2, 3, order, stored);
 
-        assert_ne!(DMatrix::from_vec(2, 3, stored), matrix);
+        assert_eq!(matrix[(0, 0)], 1.0);
+        assert_eq!(matrix[(0, 1)], 2.0);
+        assert_eq!(matrix[(0, 2)], 3.0);
+        assert_eq!(matrix[(1, 0)], 4.0);
+        assert_eq!(matrix[(1, 1)], 5.0);
+        assert_eq!(matrix[(1, 2)], 6.0);
     }
 
     #[test]
