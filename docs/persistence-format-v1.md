@@ -17,8 +17,9 @@ for one execution. An AO ERI entry has this layout:
 └── arrays/integrals/ao-eri.npy
 ```
 
-The cache validates the manifest version, scientific identity, representation,
-basis-function count, payload size, SHA-256 digest and NPY header before reading
+The cache validates the manifest version, scientific identity, current AO ERI
+computation version, representation, basis-function count, payload size, SHA-256
+digest and NPY header before reading
 NPY data. `rustiq cache list` reports entries as `verified` only after the
 payload has been checked for the expected byte size, SHA-256 digest, supported
 f64 dtype and endianness, one-dimensional rank, and expected value count. These
@@ -122,7 +123,7 @@ positive zero.
 
 The stream contains, in order:
 
-1. identity and ERI representation identifiers;
+1. identity identifier, AO ERI computation version, and ERI representation identifier;
 2. ordered atoms: atomic number and coordinates in Bohr;
 3. ordered effective AO data consumed by the ERI engine: shell center,
    normalized component angular momentum, primitive exponents and effective
@@ -135,5 +136,8 @@ participate in scientific identity.
 
 The AO ERI computation has its own explicit version in the scientific identity,
 independent of the persistence identity version, NPY representation, and
-RustiQ package version. Bumping that computation version invalidates prior AO
-ERI entries even when their inputs and storage representation are unchanged.
+RustiQ package version. It is both included in the canonical identity digest and
+stored explicitly as `scientific_identity.ao_eri_computation_version` in the
+manifest. Bumping that computation version changes the fingerprint and causes
+older entries to be reported as `invalid`, even when their inputs and storage
+representation are otherwise unchanged.
