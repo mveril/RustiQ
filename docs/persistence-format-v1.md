@@ -17,10 +17,10 @@ for one execution. An AO ERI entry has this layout:
 └── arrays/integrals/ao-eri.npy
 ```
 
-The cache validates the manifest version, scientific identity, current AO ERI
-computation version, representation, basis-function count, payload size, SHA-256
-digest and NPY header before reading
-NPY data. `rustiq cache list` reports entries as `verified` only after the
+The cache validates the manifest version, scientific identity, artifact
+representation, typed AO ERI attributes, payload size, SHA-256 digest and NPY
+header before reading NPY data. AO ERI attributes include the basis-function
+count and the current AO ERI computation version. `rustiq cache list` reports entries as `verified` only after the
 payload has been checked for the expected byte size, SHA-256 digest, supported
 f64 dtype and endianness, one-dimensional rank, and expected value count. These
 checks use bounded memory; listing does not construct or load the ERI values.
@@ -81,12 +81,61 @@ untouched. Names and fingerprints are validated rather than interpreted as paths
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
 
-Every artifact records its logical path, byte size, representation,
-basis-function count and a content digest in the form `sha256:<lowercase hex>`.
-NPY-specific metadata such as the dtype and logical shape is carried by the NPY
-header rather than duplicated in the manifest. Readers should validate the
-declared size and digest before scientific use. Payload integrity is independent
-of its container.
+Every artifact records common envelope metadata:
+
+- logical path;
+- byte size;
+- representation identifier;
+- content digest in the form `sha256:<lowercase hex>`;
+- a representation-specific `attributes` object.
+
+The common artifact envelope deliberately does not contain AO-ERI-specific fields.
+Known representations decode their `attributes` into strict typed metadata;
+unknown representations preserve the raw JSON attributes so newer manifests
+remain inspectable by older readers. Preserving unknown metadata does not make an
+unsupported scientific representation usable: consumers must reject artifacts
+they do not understand when those artifacts are required for a calculation.
+
+For `rustiq-compact-eri-v1`, the attributes are:
+
+```json
+{
+  "basis_functions": 114,
+  "computation_version": 1
+}
+```
+
+NPY-specific metadata such as dtype, endianness and shape remains authoritative
+in the NPY header rather than being duplicated in the manifest. Readers validate
+the representation-specific semantic attributes together with the actual NPY
+metadata, declared size and digest before scientific use. Payload integrity is
+independent of its container.
+
+## Generic artifact manifest
+
+The root manifest is an index of versioned scientific artifacts rather than a
+union of every scientific state RustiQ may ever persist. A representative entry
+has this shape:
+
+```json
+{
+  "path": "arrays/integrals/ao-eri.npy",
+  "size": 123456,
+  "representation": "rustiq-compact-eri-v1",
+  "digest": "sha256:...",
+  "attributes": {
+    "basis_functions": 114,
+    "computation_version": 1
+  }
+}
+```
+
+The `representation` field selects the semantic contract for both the payload
+and its attributes. RustiQ readers use typed attributes for known
+representations and retain unknown attributes unchanged for forward-compatible
+inspection. Future matrix, SCF restart, converged-HF, and post-HF representations
+can therefore define their own attributes without changing the common artifact
+envelope.
 
 ## `rustiq-compact-eri-v1`
 
@@ -134,10 +183,10 @@ The stream contains, in order:
 Producer version, paths, timestamps, compression and container metadata do not
 participate in scientific identity.
 
-The AO ERI computation has its own explicit version in the scientific identity,
-independent of the persistence identity version, NPY representation, and
-RustiQ package version. It is both included in the canonical identity digest and
-stored explicitly as `scientific_identity.ao_eri_computation_version` in the
-manifest. Bumping that computation version changes the fingerprint and causes
-older entries to be reported as `invalid`, even when their inputs and storage
-representation are otherwise unchanged.
+The AO ERI computation has its own explicit version, independent of the
+persistence identity version, NPY representation, and RustiQ package version.
+It is included in the canonical scientific-identity digest and is also stored
+as the AO ERI artifact attribute `attributes.computation_version`. Bumping that
+version changes the fingerprint and causes older ERI artifacts to be reported as
+`invalid`, even when their inputs and storage representation are otherwise
+unchanged.
