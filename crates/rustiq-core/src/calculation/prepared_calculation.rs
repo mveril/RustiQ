@@ -7,6 +7,7 @@ use crate::{
     basis::Basis,
     config::{HfConfig, Mp2Config, ResolvedHfMethod},
     molecules::molecule::Molecule,
+    persistence::EriCache,
 };
 use std::cell::RefCell;
 
@@ -19,7 +20,7 @@ pub struct PreparedCalculation {
     pub(super) basis: Basis,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
     pub(super) mp2: Option<Mp2Config>,
-    pub(super) eri_cache: Option<crate::persistence::EriCache>,
+    pub(super) eri_cache: Option<EriCache>,
 }
 
 impl PreparedCalculation {
