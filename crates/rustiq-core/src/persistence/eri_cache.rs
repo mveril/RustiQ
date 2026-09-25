@@ -12,11 +12,11 @@ use crate::{
 };
 
 use super::{
-    ao_eri_identity, read_compact_eri, sha256_reader, validate_compact_eri_header,
-    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer, ScientificIdentity,
+    ao_eri_identity, read_compact_eri, sha256_reader, validate_compact_eri_header, AoEriAttributes,
+    ArtifactAttributes, ArtifactManifest, Manifest, Producer, ScientificIdentity,
     ScientificIdentityManifest, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
-    COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
-    FORMAT_VERSION, MANIFEST_PATH, SCIENTIFIC_IDENTITY_VERSION,
+    COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
+    SCIENTIFIC_IDENTITY_VERSION,
 };
 
 const CACHE_KIND: &str = "integral-cache";
@@ -315,8 +315,7 @@ impl EriCache {
         let manifest = read_manifest(&entry)?;
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
         let attributes = ao_eri_attributes(artifact)?;
-        if !manifest_is_valid(&manifest, identity)
-            || attributes.basis_functions != basis_functions
+        if !manifest_is_valid(&manifest, identity) || attributes.basis_functions != basis_functions
         {
             return None;
         }
