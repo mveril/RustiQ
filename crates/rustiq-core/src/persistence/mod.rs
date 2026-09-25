@@ -14,7 +14,9 @@ mod npy;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
 pub use eri_cache::{EriCache, EriCacheEntry};
 #[allow(unused_imports)]
-pub(crate) use identity::{ao_eri_identity, ScientificIdentity};
+pub(crate) use identity::{
+    ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION,
+};
 pub use manifest::{ArtifactManifest, Manifest, Producer, ScientificIdentityManifest};
 
 #[allow(unused_imports)]
