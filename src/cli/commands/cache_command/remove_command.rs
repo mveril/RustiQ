@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use clap::{ArgAction, ArgGroup};
 use miette::{miette, IntoDiagnostic};
 use rustiq_core::persistence::EriCache;
 
-use crate::cli::commands::{CommandResult, Runnable};
+use crate::cli::{commands::{CommandResult, Runnable}, directories::cache_path};
 
 #[derive(clap::Args, Debug)]
 #[command(group(
@@ -20,7 +22,7 @@ pub struct RemoveCommand {
     all: bool,
     /// Cache root directory; defaults to the RustiQ platform cache directory.
     #[arg(long, value_name = "DIR")]
-    cache_dir: Option<std::path::PathBuf>,
+    cache_dir: Option<PathBuf>,
 }
 
 impl Runnable for RemoveCommand {
@@ -28,7 +30,7 @@ impl Runnable for RemoveCommand {
         let root = self
             .cache_dir
             .clone()
-            .unwrap_or_else(crate::cli::directories::cache_path);
+            .unwrap_or_else(cache_path);
         let cache = EriCache::new(root);
         if self.all {
             cache.remove_all().into_diagnostic()?;
