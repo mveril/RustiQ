@@ -213,7 +213,7 @@ impl<'a> HfCalculation<'a> {
         config: &HfConfig,
         eri_cache: Option<&'a EriCache>,
         mut progress: impl FnMut(ScfSetupStep),
-        mut cache_event: impl FnMut(crate::calculation::EriCacheEvent),
+        mut cache_event: impl FnMut(EriCacheEvent),
     ) -> Result<Self, CalculationError> {
         let method = config.resolve_method(molecule)?;
         let required_occupied_orbitals = match method {
