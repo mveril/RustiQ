@@ -1,6 +1,7 @@
 //! CLI TOML frontend. Convert these representations to `rustiq_core::config`
 //! before invoking scientific code; parsing is never needed for direct Rust use.
 mod adapter;
+pub mod cache;
 mod diagnostics;
 pub mod global;
 pub mod hf;
@@ -20,6 +21,8 @@ pub struct RunFile {
     pub hf: Option<hf::HfConfig>,
     #[toml(default)]
     pub mp2: Option<mp2::Mp2Config>,
+    #[toml(default)]
+    pub cache: cache::CacheConfig,
 }
 
 #[cfg(test)]
