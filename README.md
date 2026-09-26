@@ -678,6 +678,33 @@ H 0.0 0.0  0.37
 
 ## Basis Sets
 
+### Storage location and alpha compatibility
+
+The CLI now uses `directories::ProjectDirs` to select the platform-specific
+local application data directory, with `basis_sets` appended. This changes the
+default location for existing alpha installations:
+
+| Platform | Previous default | New default |
+| --- | --- | --- |
+| Linux | `~/.local/share/RustiQ/basis_sets` | `~/.local/share/rustiq/basis_sets` |
+| Windows | `%LOCALAPPDATA%\RustiQ\basis_sets` | `%LOCALAPPDATA%\RustiQ\data\basis_sets` |
+
+On Linux, `XDG_DATA_HOME`, when configured with an absolute path, replaces
+`~/.local/share` in these paths. No automatic migration or lookup in the old
+directory is performed. Existing files are left untouched, but bases in the
+old location will no longer appear in `basis list` or be available to calculations.
+
+To reuse existing bases, copy them into the new directory, or set
+`RUSTIQ_DATA_BASIS` to the absolute path of the old `basis_sets` directory.
+This override works on all platforms and takes precedence over other settings.
+Alternatively, download the bases again before running offline calculations.
+
+`RUSTIQ_DATA_HOME` still selects a custom data root: bases are stored under
+`<RUSTIQ_DATA_HOME>/RustiQ/basis_sets`. If neither override is set and
+`ProjectDirs` cannot determine an application directory, the CLI uses
+`<system temporary directory>/RustiQ/basis_sets`; temporary files may be
+removed by the operating system.
+
 List locally cached basis sets:
 
 ```sh

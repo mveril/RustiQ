@@ -31,6 +31,8 @@ fn application_data_path() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    // The harness-free ERI benchmark includes this module but omits test functions.
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]
