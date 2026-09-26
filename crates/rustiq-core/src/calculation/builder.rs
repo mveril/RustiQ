@@ -2,6 +2,7 @@ use crate::{
     basis::{Basis, BasisFile},
     config::{HfConfig, MoleculeConfig, Mp2Config},
     molecules::{geometry::Geometry, units::Units},
+    persistence::EriCache,
 };
 use std::time::Instant;
 
@@ -42,6 +43,7 @@ pub struct CalculationBuilder<'a> {
     molecule_config: MoleculeConfig,
     hf: HfConfig,
     mp2: Option<Mp2Config>,
+    eri_cache: Option<EriCache>,
 }
 
 impl<'a> CalculationBuilder<'a> {
@@ -52,6 +54,7 @@ impl<'a> CalculationBuilder<'a> {
             molecule_config: MoleculeConfig::default(),
             hf: HfConfig::default(),
             mp2: None,
+            eri_cache: None,
         }
     }
 
@@ -69,6 +72,9 @@ impl<'a> CalculationBuilder<'a> {
     }
     pub fn get_mp2(&self) -> Option<&Mp2Config> {
         self.mp2.as_ref()
+    }
+    pub fn get_eri_cache(&self) -> Option<&EriCache> {
+        self.eri_cache.as_ref()
     }
 
     pub fn molecule_config(&mut self, config: MoleculeConfig) -> &mut Self {
@@ -111,6 +117,18 @@ impl<'a> CalculationBuilder<'a> {
         self.mp2(config);
         self
     }
+
+    /// Use an explicitly located cache for deterministic AO ERIs.
+    pub fn eri_cache(&mut self, cache: impl Into<Option<EriCache>>) -> &mut Self {
+        self.eri_cache = cache.into();
+        self
+    }
+
+    #[must_use]
+    pub fn with_eri_cache(mut self, cache: impl Into<Option<EriCache>>) -> Self {
+        self.eri_cache(cache);
+        self
+    }
 }
 
 impl<'a> CalculationBuilder<'a> {
@@ -138,6 +156,7 @@ impl<'a> CalculationBuilder<'a> {
             basis,
             hf,
             mp2: self.mp2,
+            eri_cache: self.eri_cache.clone(),
         })
     }
 }

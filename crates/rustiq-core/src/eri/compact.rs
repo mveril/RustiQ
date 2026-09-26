@@ -35,6 +35,19 @@ impl CompactEri {
         }
     }
 
+    pub(crate) fn checked_storage_len(basis_functions: usize) -> Option<usize> {
+        fn triangular(value: usize) -> Option<usize> {
+            let next = value.checked_add(1)?;
+            if value.is_multiple_of(2) {
+                (value / 2).checked_mul(next)
+            } else {
+                value.checked_mul(next / 2)
+            }
+        }
+
+        triangular(triangular(basis_functions)?)
+    }
+
     /// Returns the values in the stable compact ordering used by persistence.
     pub(crate) fn ordered_values(&self) -> &[f64] {
         &self.storage
@@ -141,6 +154,12 @@ mod tests {
 
             assert_eq!(CompactEri::storage_len(basis_functions), unique_quartets);
         }
+    }
+
+    #[test]
+    fn checked_storage_len_rejects_overflowing_basis_function_counts() {
+        assert_eq!(CompactEri::checked_storage_len(usize::MAX), None);
+        assert_eq!(CompactEri::checked_storage_len(4), Some(55));
     }
 
     #[test]

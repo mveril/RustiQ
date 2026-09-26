@@ -6,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use rustiq_core::basis::BasisStore;
+use rustiq_core::{basis::BasisStore, persistence::EriCache};
 
 fn temp_root(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
@@ -39,6 +39,20 @@ fn run_rustiq_with_data_home(args: &[&str], data_home: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_RustiQ"))
         .args(args)
         .env("RUSTIQ_DATA_HOME", data_home)
+        .env("RUSTIQ_CACHE_HOME", data_home.join("cache"))
+        .output()
+        .unwrap()
+}
+
+fn run_rustiq_with_data_and_cache_home(
+    args: &[&str],
+    data_home: &Path,
+    cache_home: &Path,
+) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(args)
+        .env("RUSTIQ_DATA_HOME", data_home)
+        .env("RUSTIQ_CACHE_HOME", cache_home)
         .output()
         .unwrap()
 }
@@ -121,6 +135,177 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
+}
+
+#[test]
+fn test_cli_h2_sample_uses_eri_cache_when_enabled_in_runfile() {
+    let temp_root = temp_root("cli-enabled-eri-cache");
+    prepare_basis_store(&temp_root);
+    let cache_root = temp_root.join("cache");
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+
+    let first_stdout = String::from_utf8_lossy(&output.stdout);
+    let stored_line = first_stdout
+        .lines()
+        .find(|line| line.starts_with("AO ERI cache: stored as "))
+        .expect("first run should report cache publication");
+    let target = stored_line
+        .strip_prefix("AO ERI cache: stored as ")
+        .unwrap();
+    assert!(target.contains('-'));
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line == format!("AO ERI cache: hit {target}")));
+
+    let entries = EriCache::new(cache_root).entries().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0].verified);
+    assert!(entries[0].name.is_some());
+}
+
+#[test]
+fn cache_list_names_old_entries_and_remove_accepts_names() {
+    let root = tempfile::tempdir().unwrap();
+    let fingerprint = "a".repeat(64);
+    fs::create_dir_all(root.path().join("eri").join(&fingerprint)).unwrap();
+    let directory = root.path().to_str().unwrap();
+    let output = run_rustiq(&["cache", "list", "--cache-dir", directory]);
+    assert_success(&output);
+    let cache = EriCache::new(root.path());
+    let name = cache.entries().unwrap()[0].name.clone().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for expected in [
+        "NAME",
+        "FINGERPRINT",
+        "SIZE",
+        "STATUS",
+        "invalid",
+        "unknown",
+        &name,
+        &fingerprint,
+    ] {
+        assert!(stdout.contains(expected));
+    }
+    assert_success(&run_rustiq(&[
+        "cache",
+        "remove",
+        &name,
+        "--cache-dir",
+        directory,
+    ]));
+    assert_error(&run_rustiq(&[
+        "cache",
+        "remove",
+        &name,
+        "--cache-dir",
+        directory,
+    ]));
+    let output = run_rustiq(&["cache", "list", "--cache-dir", directory]);
+    assert_success(&output);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "No cache entries found."
+    );
+}
+
+#[test]
+fn calculation_succeeds_when_cache_names_cannot_be_written() {
+    let root = temp_root("cache-names-unavailable");
+    prepare_basis_store(&root);
+    let cache_root = root.join("cache");
+    fs::create_dir(&cache_root).unwrap();
+    fs::write(cache_root.join("names"), "not a directory").unwrap();
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
+        &root,
+        &cache_root,
+    );
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line.starts_with("AO ERI cache: stored as ")));
+    let entries = EriCache::new(&cache_root).entries().unwrap();
+    assert!(entries[0].verified);
+    assert!(entries[0].name.is_none());
+    let stored_stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stored_stdout
+        .lines()
+        .find(|line| line.starts_with("AO ERI cache: stored as "))
+        .unwrap();
+    let fingerprint = line.strip_prefix("AO ERI cache: stored as ").unwrap();
+    assert_eq!(fingerprint.len(), 64);
+    let output = run_rustiq_with_data_and_cache_home(
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
+        &root,
+        &cache_root,
+    );
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line == format!("AO ERI cache: hit {fingerprint}")));
+    assert_success(&run_rustiq(&[
+        "cache",
+        "remove",
+        fingerprint,
+        "--cache-dir",
+        cache_root.to_str().unwrap(),
+    ]));
+}
+
+#[test]
+fn test_cli_cache_is_disabled_when_runfile_omits_cache_section() {
+    let temp_root = temp_root("cli-cache-disabled-by-default");
+    prepare_basis_store(&temp_root);
+    let cache_root = temp_root.join("cache");
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &[
+            "run",
+            "samples/h2/sto-3g/calculation.toml",
+            "--cache-dir",
+            cache_root.to_str().unwrap(),
+        ],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
+    assert!(EriCache::new(cache_root).entries().unwrap().is_empty());
+}
+
+#[test]
+fn test_cli_json_output_has_no_cache_message() {
+    let temp_root = temp_root("cli-json-eri-cache");
+    prepare_basis_store(&temp_root);
+    let cache_root = temp_root.join("cache");
+
+    let output = run_rustiq_with_data_and_cache_home(
+        &[
+            "run",
+            "samples/h2/sto-3g/calculation-cache.toml",
+            "--format",
+            "json",
+        ],
+        &temp_root,
+        &cache_root,
+    );
+    assert_success(&output);
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
 }
 
 #[test]

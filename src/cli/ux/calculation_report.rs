@@ -7,7 +7,10 @@ use std::{
 use super::{mp2_report::Mp2Reporter, scf_report::ScfReporter};
 use rustiq_core::{
     basis::Basis,
-    calculation::{CalculationEvent, HfCalculationResult, HfOutcome, Mp2Result, ScfSetupStep},
+    calculation::{
+        CalculationEvent, EriCacheAction, EriCacheEvent, HfCalculationResult, HfOutcome, Mp2Result,
+        ScfSetupStep,
+    },
     config::{HfConfig, ResolvedHfMethod},
 };
 
@@ -53,6 +56,7 @@ impl<W: Write> CalculationReporter<W> {
                 }
             }
             CalculationEvent::HfCompleted(result) => self.on_hf_complete(result),
+            CalculationEvent::EriCache(event) => self.on_eri_cache(event),
             CalculationEvent::Mp2Planned(plan) => self.report(|scf| {
                 let size = |bytes| ByteSize::b(bytes).display().iec().to_string();
                 writeln!(scf.writer_mut(),
@@ -131,6 +135,20 @@ impl<W: Write> CalculationReporter<W> {
                 )
             });
         }
+    }
+
+    fn on_eri_cache(&mut self, event: EriCacheEvent) {
+        self.report(|scf| {
+            let target = event.name.unwrap_or(event.fingerprint);
+            match event.action {
+                EriCacheAction::Hit => {
+                    writeln!(scf.writer_mut(), "AO ERI cache: hit {target}")
+                }
+                EriCacheAction::Stored => {
+                    writeln!(scf.writer_mut(), "AO ERI cache: stored as {target}")
+                }
+            }
+        });
     }
 
     fn on_mp2_complete(&mut self, hf: &HfCalculationResult, result: &Mp2Result) {

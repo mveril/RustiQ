@@ -7,7 +7,9 @@ use crate::{
     basis::Basis,
     config::{HfConfig, Mp2Config, ResolvedHfMethod},
     molecules::molecule::Molecule,
+    persistence::EriCache,
 };
+use std::cell::RefCell;
 
 /// A validated molecule in Bohr and its basis, prepared together by the builder.
 ///
@@ -18,6 +20,7 @@ pub struct PreparedCalculation {
     pub(super) basis: Basis,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
     pub(super) mp2: Option<Mp2Config>,
+    pub(super) eri_cache: Option<EriCache>,
 }
 
 impl PreparedCalculation {
@@ -38,19 +41,25 @@ impl PreparedCalculation {
 
     pub fn run_hf_with_events(
         &self,
-        mut events: impl FnMut(CalculationEvent<'_>),
+        events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<HfOutcome, CalculationExecutionError> {
+        let events = RefCell::new(events);
         let (config, method) = &self.hf;
-        events(CalculationEvent::HfStarted {
+        events.borrow_mut()(CalculationEvent::HfStarted {
             method: *method,
             config,
         });
-        let mut calculation =
-            HfCalculation::new_with_progress(&self.molecule, &self.basis, config, |step| {
-                events(CalculationEvent::ScfSetup(step))
-            })?;
-        let outcome = calculation
-            .run_with_iterations(|iteration| events(CalculationEvent::ScfIteration(iteration)))?;
+        let mut calculation = HfCalculation::new_with_progress_and_cache(
+            &self.molecule,
+            &self.basis,
+            config,
+            self.eri_cache.as_ref(),
+            |step| events.borrow_mut()(CalculationEvent::ScfSetup(step)),
+            |event| events.borrow_mut()(CalculationEvent::EriCache(event)),
+        )?;
+        let outcome = calculation.run_with_iterations(|iteration| {
+            events.borrow_mut()(CalculationEvent::ScfIteration(iteration))
+        })?;
         let hf = match outcome {
             ScfOutcome::Converged(scf) => HfOutcome::Converged(HfSolution::from_state(
                 HfCalculationResult {
@@ -67,7 +76,7 @@ impl PreparedCalculation {
                 calculation.state,
             )),
         };
-        events(CalculationEvent::HfCompleted(&hf));
+        events.borrow_mut()(CalculationEvent::HfCompleted(&hf));
         Ok(hf)
     }
 }

@@ -15,6 +15,19 @@ pub struct HfCalculationResult {
     pub scf: ScfResult,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EriCacheAction {
+    Hit,
+    Stored,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EriCacheEvent {
+    pub action: EriCacheAction,
+    pub name: Option<String>,
+    pub fingerprint: String,
+}
+
 /// Results of the requested scientific stages, without presentation choices.
 #[derive(Debug, Clone)]
 pub struct CalculationResult {
@@ -41,6 +54,7 @@ pub enum CalculationEvent<'a> {
         method: ResolvedHfMethod,
         config: &'a HfConfig,
     },
+    EriCache(EriCacheEvent),
     ScfSetup(ScfSetupStep),
     ScfIteration(&'a ScfIteration),
     HfCompleted(&'a HfOutcome),

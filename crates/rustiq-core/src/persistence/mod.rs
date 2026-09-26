@@ -1,20 +1,29 @@
-//! Storage-independent primitives for persisted scientific artifacts.
+//! Scientific persistence primitives and storage infrastructure.
 //!
-//! This module defines the stable logical representation; it does not choose a
-//! cache directory or container format.
+//! This module defines the stable logical persistence representation and storage
+//! components such as the directory-backed deterministic artifact cache. Cache
+//! location policy remains outside `rustiq-core`.
 
+mod cache_names;
 mod checksum;
+mod eri_cache;
 mod identity;
 mod manifest;
 mod npy;
 
-pub use checksum::{sha256, verify_sha256, Sha256Digest, Sha256DigestParseError};
+pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
+pub use eri_cache::{EriCache, EriCacheEntry};
 #[allow(unused_imports)]
-pub(crate) use identity::{ao_eri_identity, ScientificIdentity};
-pub use manifest::{ArtifactManifest, Manifest, Producer, ScientificIdentityManifest};
+pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
+pub use manifest::{
+    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
+    ScientificIdentityManifest,
+};
 
 #[allow(unused_imports)]
-pub(crate) use npy::{read_compact_eri, write_compact_eri};
+pub(crate) use npy::{
+    read_compact_eri, read_dmatrix, validate_compact_eri_header, write_compact_eri,
+};
 
 pub const FORMAT_NAME: &str = "rustiq-persistence";
 pub const FORMAT_VERSION: u32 = 1;
@@ -32,13 +41,15 @@ pub enum PersistenceError {
     #[error("could not write NPY data: {0}")]
     NpyWrite(#[source] std::io::Error),
     #[error("AO ERI NPY must be one-dimensional, found shape {0:?}")]
-    InvalidShape(Vec<u64>),
+    InvalidEriShape(Vec<u64>),
+    #[error("matrix NPY must be two-dimensional, found shape {0:?}")]
+    InvalidMatrixShape(Vec<u64>),
     #[error("AO ERI payload has {actual} values, expected {expected} for {basis_functions} basis functions")]
     InvalidValueCount {
         basis_functions: usize,
         expected: usize,
         actual: usize,
     },
-    #[error("AO ERI NPY dtype is not a supported f64 representation: {0}")]
+    #[error("NPY dtype is not a supported f64 representation: {0}")]
     InvalidDtype(String),
 }

@@ -1,6 +1,7 @@
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 
-use npyz::{NpyFile, WriterBuilder};
+use nalgebra::DMatrix;
+use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
 
@@ -27,11 +28,17 @@ pub(crate) fn read_compact_eri(
     reader: impl Read,
     basis_functions: usize,
 ) -> Result<CompactEri, PersistenceError> {
+    let expected = CompactEri::checked_storage_len(basis_functions).ok_or(
+        PersistenceError::InvalidValueCount {
+            basis_functions,
+            expected: 0,
+            actual: 0,
+        },
+    )?;
     let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
     if npy.shape().len() != 1 {
-        return Err(PersistenceError::InvalidShape(npy.shape().to_vec()));
+        return Err(PersistenceError::InvalidEriShape(npy.shape().to_vec()));
     }
-    let expected = CompactEri::storage_len(basis_functions);
     let actual = usize::try_from(npy.shape()[0]).unwrap_or(usize::MAX);
     if actual != expected {
         return Err(PersistenceError::InvalidValueCount {
@@ -58,6 +65,79 @@ pub(crate) fn read_compact_eri(
     })
 }
 
+pub(crate) fn validate_compact_eri_header(
+    reader: impl Read + Seek,
+    basis_functions: usize,
+    file_size: u64,
+) -> bool {
+    let Some(expected) = CompactEri::checked_storage_len(basis_functions) else {
+        return false;
+    };
+    let mut reader = std::io::BufReader::new(reader);
+    let npy = match NpyFile::new(&mut reader) {
+        Ok(npy) => npy,
+        Err(_) => return false,
+    };
+    let dtype = npy.dtype();
+    let valid_dtype = matches!(
+        dtype,
+        DType::Plain(type_str)
+            if type_str.type_char() == TypeChar::Float
+                && type_str.size_field() == 8
+                && matches!(
+                    type_str.endianness(),
+                    npyz::Endianness::Little | npyz::Endianness::Big
+                )
+    );
+    let Some(expected) = u64::try_from(expected).ok() else {
+        return false;
+    };
+    let valid_shape = npy.shape() == [expected];
+    let data_offset = match reader.stream_position() {
+        Ok(position) => position,
+        Err(_) => return false,
+    };
+    valid_dtype
+        && valid_shape
+        && data_offset
+            .checked_add(expected.saturating_mul(8))
+            .is_some_and(|end| end == file_size)
+}
+
+pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, PersistenceError> {
+    let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
+    if npy.shape().len() != 2 {
+        return Err(PersistenceError::InvalidMatrixShape(npy.shape().to_vec()));
+    }
+    let rows = usize::try_from(npy.shape()[0])
+        .map_err(|_| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+    let columns = usize::try_from(npy.shape()[1])
+        .map_err(|_| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+    rows.checked_mul(columns)
+        .ok_or_else(|| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+    let order = npy.order();
+    let values = npy.into_vec::<f64>().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::InvalidData {
+            PersistenceError::InvalidDtype(error.to_string())
+        } else {
+            PersistenceError::NpyRead(error)
+        }
+    })?;
+    Ok(matrix_from_npy_values(rows, columns, order, values))
+}
+
+fn matrix_from_npy_values(
+    rows: usize,
+    columns: usize,
+    order: npyz::Order,
+    values: Vec<f64>,
+) -> DMatrix<f64> {
+    match order {
+        npyz::Order::C => DMatrix::from_row_slice(rows, columns, &values),
+        npyz::Order::Fortran => DMatrix::from_vec(rows, columns, values),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,6 +155,32 @@ mod tests {
         write_compact_eri(&mut bytes, &source).unwrap();
         let restored = read_compact_eri(bytes.as_slice(), basis_functions).unwrap();
         assert_eq!(restored.ordered_values(), source.ordered_values());
+    }
+
+    #[test]
+    fn read_dmatrix_converts_c_order_npy_to_nalgebra_layout() {
+        let shape = [2, 3];
+        let values = [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let mut bytes = Vec::new();
+        let mut writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&shape)
+            .writer(&mut bytes)
+            .begin_nd()
+            .unwrap();
+        writer.extend(values).unwrap();
+        writer.finish().unwrap();
+
+        let matrix = read_dmatrix(bytes.as_slice()).unwrap();
+
+        assert_eq!(matrix.nrows(), 2);
+        assert_eq!(matrix.ncols(), 3);
+        assert_eq!(matrix[(0, 0)], 1.0);
+        assert_eq!(matrix[(0, 1)], 2.0);
+        assert_eq!(matrix[(0, 2)], 3.0);
+        assert_eq!(matrix[(1, 0)], 4.0);
+        assert_eq!(matrix[(1, 1)], 5.0);
+        assert_eq!(matrix[(1, 2)], 6.0);
     }
 
     #[test]

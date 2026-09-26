@@ -17,6 +17,7 @@ use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
     molecules::geometry::Geometry,
+    persistence::EriCache,
 };
 
 use super::{CommandResult, Runnable};
@@ -44,6 +45,10 @@ pub struct RunCommand {
     /// Select the calculation-result output format. JSON writes only the versioned machine-readable result to stdout.
     #[arg(long, value_enum, default_value_t = CalculationOutputFormat::Text)]
     format: CalculationOutputFormat,
+
+    /// Directory used to cache calculation artifacts for this execution.
+    #[arg(long, value_name = "DIR")]
+    cache_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
@@ -148,6 +153,15 @@ impl Runnable for RunCommand {
         let calculation = CalculationBuilder::new(&geom, &basis_file)
             .with_molecule_config(parsed.molecule_config)
             .with_mp2(parsed.mp2_config);
+        let calculation = if run.cache.enabled {
+            let cache_root = self
+                .cache_dir
+                .clone()
+                .unwrap_or_else(cli::directories::cache_path);
+            calculation.with_eri_cache(EriCache::new(cache_root))
+        } else {
+            calculation
+        };
         let calculation = if let Some(hf_config) = parsed.hf_config {
             calculation.with_hf(hf_config)
         } else {
@@ -215,6 +229,7 @@ mod tests {
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
+                cache_dir: None,
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -230,6 +245,7 @@ mod tests {
                 auto_download: true,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
+                cache_dir: None,
             };
 
             assert!(command.resolve_auto_download());
@@ -241,6 +257,7 @@ mod tests {
                 auto_download: false,
                 no_auto_download: true,
                 format: CalculationOutputFormat::Text,
+                cache_dir: None,
             };
 
             assert!(!command.resolve_auto_download());
@@ -256,6 +273,7 @@ mod tests {
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
+                cache_dir: None,
             };
 
             assert!(!command.resolve_auto_download());

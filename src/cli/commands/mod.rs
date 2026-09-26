@@ -1,10 +1,12 @@
 mod basis_command;
+mod cache_command;
 mod init_command;
 mod run_command;
 use run_command::RunCommand;
 mod geometry_command;
 mod runnable;
 use basis_command::BasisCommands;
+use cache_command::CacheCommands;
 use clap::Subcommand;
 use delegate::delegate;
 use geometry_command::GeometryCommands;
@@ -23,6 +25,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: BasisCommands,
     },
+    /// Inspect and remove deterministic scientific artifacts
+    Cache {
+        #[command(subcommand)]
+        command: CacheCommands,
+    },
     /// Inspect and transform molecular geometry files
     Geometry {
         #[command(subcommand)]
@@ -36,6 +43,7 @@ impl Runnable for Commands {
             Commands::Init(command) => command,
             Commands::Run(command) => command,
             Commands::Basis { command } => command,
+            Commands::Cache { command } => command,
             Commands::Geometry { command } => command,
         } {
             fn run(&self) -> CommandResult;
