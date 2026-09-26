@@ -43,6 +43,35 @@ mod mp2_tests {
     }
 
     #[test]
+    fn test_runfile_defaults_cache_to_disabled() {
+        let run: RunFile = toml_spanner::from_str(
+            r#"
+            [global]
+            basis = "sto-3g"
+            "#,
+        )
+        .unwrap();
+
+        assert!(!run.cache.enabled);
+    }
+
+    #[test]
+    fn test_runfile_deserializes_enabled_cache() {
+        let run: RunFile = toml_spanner::from_str(
+            r#"
+            [global]
+            basis = "sto-3g"
+
+            [cache]
+            enabled = true
+            "#,
+        )
+        .unwrap();
+
+        assert!(run.cache.enabled);
+    }
+
+    #[test]
     fn test_runfile_deserializes_mp2_section() {
         let run: RunFile = toml_spanner::from_str(
             r#"
