@@ -10,6 +10,7 @@ use miette::{miette, IntoDiagnostic, WrapErr};
 
 use super::{CommandResult, Runnable};
 use crate::runfile::{
+    cache::CacheConfig,
     global::{molecule_config::MoleculeConfig, Global},
     hf::{HfConfig, HfMethod},
     mp2::Mp2Config,
@@ -167,6 +168,7 @@ impl Runnable for InitCommand {
                 ..HfConfig::default()
             }),
             mp2: self.mp2.then(Mp2Config::default),
+            cache: CacheConfig::default(),
         };
         let content = toml_spanner::to_string(&run.output(Defaults::Omit)).into_diagnostic()?;
         let mut temporary = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
