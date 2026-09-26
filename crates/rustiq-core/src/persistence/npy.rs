@@ -37,7 +37,7 @@ pub(crate) fn read_compact_eri(
     )?;
     let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
     if npy.shape().len() != 1 {
-        return Err(PersistenceError::InvalidShape(npy.shape().to_vec()));
+        return Err(PersistenceError::InvalidEriShape(npy.shape().to_vec()));
     }
     let actual = usize::try_from(npy.shape()[0]).unwrap_or(usize::MAX);
     if actual != expected {
