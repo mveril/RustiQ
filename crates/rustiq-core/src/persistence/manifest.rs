@@ -70,7 +70,8 @@ impl<'de> Deserialize<'de> for ArtifactManifest {
         D: Deserializer<'de>,
     {
         let raw = RawArtifactManifest::deserialize(deserializer)?;
-        let attributes = decode_attributes(&raw.representation, raw.attributes);
+        let attributes =
+            decode_attributes(&raw.representation, raw.attributes).map_err(serde::de::Error::custom)?;
 
         Ok(Self {
             path: raw.path,
@@ -82,15 +83,16 @@ impl<'de> Deserialize<'de> for ArtifactManifest {
     }
 }
 
-fn decode_attributes(representation: &str, raw: BTreeMap<String, Value>) -> ArtifactAttributes {
+fn decode_attributes(
+    representation: &str,
+    raw: BTreeMap<String, Value>,
+) -> Result<ArtifactAttributes, serde_json::Error> {
     if representation == COMPACT_ERI_REPRESENTATION {
-        let value = Value::Object(raw.clone().into_iter().collect());
-        if let Ok(attributes) = serde_json::from_value::<AoEriAttributes>(value) {
-            return ArtifactAttributes::AoEri(attributes);
-        }
+        let value = Value::Object(raw.into_iter().collect());
+        return serde_json::from_value(value).map(ArtifactAttributes::AoEri);
     }
 
-    ArtifactAttributes::Unknown(raw)
+    Ok(ArtifactAttributes::Unknown(raw))
 }
 
 #[cfg(test)]
@@ -215,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn malformed_known_attributes_fall_back_without_breaking_manifest_parsing() {
+    fn malformed_known_attributes_are_rejected() {
         let json = r#"{
             "format": "rustiq-persistence",
             "format_version": 1,
@@ -239,11 +241,7 @@ mod tests {
             }
         }"#;
 
-        let manifest: Manifest = serde_json::from_str(json).unwrap();
-        assert!(matches!(
-            manifest.artifacts["ao_eri"].attributes,
-            ArtifactAttributes::Unknown(_)
-        ));
+        assert!(serde_json::from_str::<Manifest>(json).is_err());
     }
 
     #[test]
