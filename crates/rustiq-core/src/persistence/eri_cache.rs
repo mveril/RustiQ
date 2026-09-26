@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, BufReader, BufWriter, Seek, Write},
+    io::{self, Seek},
     path::{Path, PathBuf},
 };
 
@@ -12,16 +12,13 @@ use crate::{
 };
 
 use super::{
-    ao_eri_identity, read_compact_eri, sha256_reader, validate_compact_eri_header, AoEriAttributes,
-    ArtifactAttributes, ArtifactManifest, Manifest, Producer, ScientificIdentity,
-    ScientificIdentityManifest, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
-    COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
-    SCIENTIFIC_IDENTITY_VERSION,
+    ao_eri_identity, sha256_reader, validate_compact_eri_header, AoEriAttributes,
+    ArtifactAttributes, ArtifactManifest, Manifest, RustiQData, ScientificIdentity,
+    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+    FORMAT_VERSION, SCIENTIFIC_IDENTITY_VERSION,
 };
 
-const CACHE_KIND: &str = "integral-cache";
-const AO_ERI_ARTIFACT: &str = "ao_eri";
-const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
+use super::data::{AO_ERI_ARTIFACT, CACHE_KIND};
 
 /// A directory-backed AO ERI cache entry available for management.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -312,14 +309,15 @@ impl EriCache {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return None;
         }
-        let manifest = read_manifest(&entry)?;
+        let mut data = RustiQData::read(&entry).ok()?;
+        let manifest = data.manifest();
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
         let attributes = ao_eri_attributes(artifact)?;
-        if !manifest_is_valid(&manifest, identity) || attributes.basis_functions != basis_functions
-        {
+        if !manifest_is_valid(manifest, identity) || attributes.basis_functions != basis_functions {
             return None;
         }
-        read_validated_payload(&entry, artifact, basis_functions)
+        data.read_eri().ok()?;
+        data.take_eri()
     }
 
     fn store_identity(
@@ -340,53 +338,13 @@ impl EriCache {
         }
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
-        let payload_path = temporary.path().join(AO_ERI_PATH);
-        fs::create_dir_all(payload_path.parent().expect("AO ERI path has a parent"))?;
-        {
-            let mut writer = BufWriter::new(File::create(&payload_path)?);
-            super::write_compact_eri(&mut writer, eri)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            writer.flush()?;
-            writer.into_inner()?.sync_all()?;
-        }
-        let payload_metadata = fs::metadata(&payload_path)?;
-        let payload_digest = sha256_reader(BufReader::new(File::open(&payload_path)?))?;
-        let manifest = Manifest {
-            format: FORMAT_NAME.to_owned(),
-            format_version: FORMAT_VERSION,
-            kind: CACHE_KIND.to_owned(),
-            producer: Producer {
-                name: "RustiQ".to_owned(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-            },
-            scientific_identity: ScientificIdentityManifest {
-                version: identity.version,
-                digest: identity.digest,
-            },
-            artifacts: [(
-                AO_ERI_ARTIFACT.to_owned(),
-                ArtifactManifest {
-                    path: AO_ERI_PATH.to_owned(),
-                    size: payload_metadata.len(),
-                    representation: COMPACT_ERI_REPRESENTATION.to_owned(),
-                    digest: payload_digest,
-                    attributes: ArtifactAttributes::AoEri(AoEriAttributes {
-                        basis_functions,
-                        computation_version: AO_ERI_COMPUTATION_VERSION,
-                    }),
-                },
-            )]
-            .into_iter()
-            .collect(),
-        };
-        {
-            let mut writer = BufWriter::new(File::create(temporary.path().join(MANIFEST_PATH))?);
-            serde_json::to_writer_pretty(&mut writer, &manifest).map_err(io::Error::other)?;
-            writer.write_all(b"\n")?;
-            writer.flush()?;
-            writer.into_inner()?.sync_all()?;
-        }
+        let entry_data = RustiQData::new_with_identity(identity, basis_functions);
+        let staged_entry = temporary.path().join("entry");
+        entry_data
+            .write_with_eri(&staged_entry, Some(eri))
+            .map_err(io::Error::other)?;
         let temporary_path = temporary.keep();
+        let staged_entry = temporary_path.join("entry");
         if fs::symlink_metadata(&final_entry).is_ok() {
             if self.load_identity(identity, basis_functions).is_some() {
                 let _ = fs::remove_dir_all(temporary_path);
@@ -397,8 +355,11 @@ impl EriCache {
                 return Err(error);
             }
         }
-        match fs::rename(&temporary_path, &final_entry) {
-            Ok(()) => Ok(()),
+        match fs::rename(&staged_entry, &final_entry) {
+            Ok(()) => {
+                let _ = fs::remove_dir_all(temporary_path);
+                Ok(())
+            }
             Err(error) => {
                 let _ = fs::remove_dir_all(temporary_path);
                 if self.load_identity(identity, basis_functions).is_some() {
@@ -412,15 +373,9 @@ impl EriCache {
 }
 
 fn read_manifest(entry: &Path) -> Option<Manifest> {
-    let manifest_path = entry.join(MANIFEST_PATH);
-    fs::symlink_metadata(&manifest_path)
+    RustiQData::read(entry)
         .ok()
-        .filter(|metadata| {
-            metadata.is_file()
-                && !metadata.file_type().is_symlink()
-                && metadata.len() <= MAX_MANIFEST_BYTES
-        })?;
-    serde_json::from_reader(BufReader::new(File::open(manifest_path).ok()?)).ok()
+        .map(|data| data.manifest().clone())
 }
 
 fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool {
@@ -446,28 +401,6 @@ fn ao_eri_attributes(artifact: &ArtifactManifest) -> Option<&AoEriAttributes> {
         ArtifactAttributes::AoEri(attributes) => Some(attributes),
         ArtifactAttributes::Unknown(_) => None,
     }
-}
-
-fn read_validated_payload(
-    entry: &Path,
-    artifact: &ArtifactManifest,
-    basis_functions: usize,
-) -> Option<CompactEri> {
-    CompactEri::checked_storage_len(basis_functions)?;
-    let payload_path = entry.join(AO_ERI_PATH);
-    let metadata = fs::symlink_metadata(&payload_path).ok()?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() {
-        return None;
-    }
-    let mut file = File::open(payload_path).ok()?;
-    if file.metadata().ok()?.len() != artifact.size {
-        return None;
-    }
-    if sha256_reader(&mut file).ok()? != artifact.digest {
-        return None;
-    }
-    file.rewind().ok()?;
-    read_compact_eri(BufReader::new(file), basis_functions).ok()
 }
 
 fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: usize) -> bool {
@@ -525,6 +458,7 @@ pub(super) fn is_fingerprint(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::persistence::MANIFEST_PATH;
     use crate::{config::DEFAULT_ERI_SCHWARZ_THRESHOLD, test_utils::load_sto3g_basis};
 
     fn input() -> (Molecule, Basis) {

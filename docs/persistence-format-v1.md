@@ -87,6 +87,25 @@ untouched. Names and fingerprints are validated rather than interpreted as paths
 
 ## Logical entries
 
+The core Rust API exposes `persistence::RustiQData` for reading and writing a
+directory in this format. `RustiQData::read` reads the manifest only. Its
+`read_eri` method validates and decodes the AO ERI NPY on first access and keeps
+the resulting `CompactEri` for subsequent accesses. Writing to a new directory
+copies artifacts that have not been decoded, including unknown representations,
+as verified byte streams. Its public scientific API is typed: `set_eri` and
+`read_eri` operate on `CompactEri`. The generic `get::<AoEriArtifact>()` returns
+`Result<Option<&CompactEri>, PersistenceError>`, while
+`set::<AoEriArtifact>(value)` accepts only `CompactEri`; only declared artifact
+marker types are accepted. A future known artifact gets its own marker, typed field,
+and accessors in `RustiQData`. The `NpyConvert` trait handles NPY byte streams
+for `CompactEri` and `DMatrix<f64>`. Its associated `Shape` type is `usize` for
+the ERI basis-function count and `(usize, usize)` for matrix dimensions;
+`try_read_with_shape` checks the declared shape before constructing the value.
+`from_npy` and `try_from_npy_with_shape` also accept an already parsed
+`npyz::NpyFile`, so callers can parse a stream once without using a filesystem
+path. Matrix readers accept C and Fortran order and matrix writers emit Fortran
+order.
+
 - `manifest.json` is UTF-8 JSON and describes the format, producer, scientific
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
