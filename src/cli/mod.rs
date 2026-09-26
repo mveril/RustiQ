@@ -1,8 +1,9 @@
 pub mod commands;
+pub(crate) mod directories;
+pub(crate) mod env;
 pub mod ux;
 use clap::Parser;
 use commands::Commands;
-pub(crate) mod env;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

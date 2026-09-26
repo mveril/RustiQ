@@ -23,7 +23,7 @@ pub struct RemoveCommand {
 
 impl Runnable for RemoveCommand {
     fn run(&self) -> CommandResult {
-        let store = crate::cli::env::basis_store();
+        let store = crate::cli::directories::basis_store();
         if self.all {
             store.remove_all()
         } else {

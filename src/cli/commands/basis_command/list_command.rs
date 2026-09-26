@@ -35,7 +35,7 @@ pub struct ListCommand {
 
 impl Runnable for ListCommand {
     fn run(&self) -> CommandResult {
-        let store = crate::cli::env::basis_store();
+        let store = crate::cli::directories::basis_store();
         #[cfg(feature = "online")]
         if self.online {
             let list = store.list_online_sync().into_diagnostic()?;
