@@ -127,7 +127,7 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     prepare_basis_store(&temp_root);
 
     let output =
-        run_rustiq_with_data_home(&["run", "samples/h2/sto-3g/calculation-cache.toml"], &temp_root);
+        run_rustiq_with_data_home(&["run", "samples/h2/sto-3g/calculation.toml"], &temp_root);
 
     assert_success(&output);
 
@@ -272,7 +272,12 @@ fn test_cli_cache_is_disabled_when_runfile_omits_cache_section() {
     let cache_root = temp_root.join("cache");
 
     let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &[
+            "run",
+            "samples/h2/sto-3g/calculation.toml",
+            "--cache-dir",
+            cache_root.to_str().unwrap(),
+        ],
         &temp_root,
         &cache_root,
     );
