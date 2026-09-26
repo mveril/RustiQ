@@ -49,10 +49,6 @@ pub struct RunCommand {
     /// Directory used to cache calculation artifacts for this execution.
     #[arg(long, value_name = "DIR")]
     cache_dir: Option<PathBuf>,
-
-    /// Disable calculation artifact caching for this execution.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "cache_dir")]
-    no_cache: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
@@ -157,14 +153,14 @@ impl Runnable for RunCommand {
         let calculation = CalculationBuilder::new(&geom, &basis_file)
             .with_molecule_config(parsed.molecule_config)
             .with_mp2(parsed.mp2_config);
-        let calculation = if self.no_cache {
-            calculation
-        } else {
+        let calculation = if run.cache.enabled {
             let cache_root = self
                 .cache_dir
                 .clone()
                 .unwrap_or_else(cli::directories::cache_path);
             calculation.with_eri_cache(EriCache::new(cache_root))
+        } else {
+            calculation
         };
         let calculation = if let Some(hf_config) = parsed.hf_config {
             calculation.with_hf(hf_config)
@@ -234,7 +230,6 @@ mod tests {
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
                 cache_dir: None,
-                no_cache: false,
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -251,7 +246,6 @@ mod tests {
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
                 cache_dir: None,
-                no_cache: false,
             };
 
             assert!(command.resolve_auto_download());
@@ -264,7 +258,6 @@ mod tests {
                 no_auto_download: true,
                 format: CalculationOutputFormat::Text,
                 cache_dir: None,
-                no_cache: false,
             };
 
             assert!(!command.resolve_auto_download());
@@ -281,7 +274,6 @@ mod tests {
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
                 cache_dir: None,
-                no_cache: false,
             };
 
             assert!(!command.resolve_auto_download());
