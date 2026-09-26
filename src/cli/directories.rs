@@ -1,4 +1,4 @@
-use directories::ProjectDirs;
+use ::directories::ProjectDirs;
 use rustiq_core::basis::BasisStore;
 use std::{env, path::PathBuf};
 
