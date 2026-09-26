@@ -41,7 +41,7 @@ pub enum PersistenceError {
     #[error("could not write NPY data: {0}")]
     NpyWrite(#[source] std::io::Error),
     #[error("AO ERI NPY must be one-dimensional, found shape {0:?}")]
-    InvalidShape(Vec<u64>),
+    InvalidEriShape(Vec<u64>),
     #[error("matrix NPY must be two-dimensional, found shape {0:?}")]
     InvalidMatrixShape(Vec<u64>),
     #[error("AO ERI payload has {actual} values, expected {expected} for {basis_functions} basis functions")]
@@ -50,6 +50,6 @@ pub enum PersistenceError {
         expected: usize,
         actual: usize,
     },
-    #[error("AO ERI NPY dtype is not a supported f64 representation: {0}")]
+    #[error("NPY dtype is not a supported f64 representation: {0}")]
     InvalidDtype(String),
 }
