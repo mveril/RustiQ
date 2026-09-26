@@ -70,8 +70,8 @@ impl<'de> Deserialize<'de> for ArtifactManifest {
         D: Deserializer<'de>,
     {
         let raw = RawArtifactManifest::deserialize(deserializer)?;
-        let attributes =
-            decode_attributes(&raw.representation, raw.attributes).map_err(serde::de::Error::custom)?;
+        let attributes = decode_attributes(&raw.representation, raw.attributes)
+            .map_err(serde::de::Error::custom)?;
 
         Ok(Self {
             path: raw.path,
