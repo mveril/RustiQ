@@ -127,7 +127,7 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     prepare_basis_store(&temp_root);
 
     let output =
-        run_rustiq_with_data_home(&["run", "samples/h2/sto-3g/calculation.toml"], &temp_root);
+        run_rustiq_with_data_home(&["run", "samples/h2/sto-3g/calculation-cache.toml"], &temp_root);
 
     assert_success(&output);
 
@@ -138,13 +138,13 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
 }
 
 #[test]
-fn test_cli_h2_sample_uses_eri_cache_by_default() {
-    let temp_root = temp_root("cli-default-eri-cache");
+fn test_cli_h2_sample_uses_eri_cache_when_enabled_in_runfile() {
+    let temp_root = temp_root("cli-enabled-eri-cache");
     prepare_basis_store(&temp_root);
     let cache_root = temp_root.join("cache");
 
     let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
         &temp_root,
         &cache_root,
     );
@@ -161,7 +161,7 @@ fn test_cli_h2_sample_uses_eri_cache_by_default() {
     assert!(target.contains('-'));
 
     let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
         &temp_root,
         &cache_root,
     );
@@ -229,7 +229,7 @@ fn calculation_succeeds_when_cache_names_cannot_be_written() {
     fs::create_dir(&cache_root).unwrap();
     fs::write(cache_root.join("names"), "not a directory").unwrap();
     let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
         &root,
         &cache_root,
     );
@@ -248,7 +248,7 @@ fn calculation_succeeds_when_cache_names_cannot_be_written() {
     let fingerprint = line.strip_prefix("AO ERI cache: stored as ").unwrap();
     assert_eq!(fingerprint.len(), 64);
     let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation.toml"],
+        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
         &root,
         &cache_root,
     );
@@ -266,13 +266,13 @@ fn calculation_succeeds_when_cache_names_cannot_be_written() {
 }
 
 #[test]
-fn test_cli_no_cache_does_not_create_a_cache_entry() {
-    let temp_root = temp_root("cli-no-cache");
+fn test_cli_cache_is_disabled_when_runfile_omits_cache_section() {
+    let temp_root = temp_root("cli-cache-disabled-by-default");
     prepare_basis_store(&temp_root);
     let cache_root = temp_root.join("cache");
 
     let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation.toml", "--no-cache"],
+        &["run", "samples/h2/sto-3g/calculation.toml"],
         &temp_root,
         &cache_root,
     );
@@ -291,7 +291,7 @@ fn test_cli_json_output_has_no_cache_message() {
     let output = run_rustiq_with_data_and_cache_home(
         &[
             "run",
-            "samples/h2/sto-3g/calculation.toml",
+            "samples/h2/sto-3g/calculation-cache.toml",
             "--format",
             "json",
         ],
