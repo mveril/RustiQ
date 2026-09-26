@@ -5,11 +5,21 @@ scientific persistence. It does not specify an archive container.
 
 ## Active AO ERI cache
 
-The active deterministic-integral cache is directory-backed. Its root is an
-explicit application choice; the scientific core never chooses a user or
-system cache directory. The RustiQ CLI defaults to `dirs::cache_dir()/RustiQ`,
-or `RUSTIQ_CACHE_HOME` when set; `rustiq run --cache-dir DIR` overrides it
-for one execution. An AO ERI entry has this layout:
+The active deterministic-integral cache is directory-backed and disabled by
+default. A calculation opts into reuse explicitly in its runfile:
+
+```toml
+[cache]
+enabled = true
+```
+
+Cache activation is part of the calculation configuration, while the cache root
+is a machine-local application choice. The scientific core never chooses a user
+or system cache directory. When caching is enabled, the RustiQ CLI uses
+`dirs::cache_dir()/RustiQ` by default, `RUSTIQ_CACHE_HOME` when set, or
+`rustiq run --cache-dir DIR` for a one-execution location override.
+`--cache-dir` does not enable caching by itself. An AO ERI entry has this
+layout:
 
 ```text
 <cache-root>/eri/<scientific-identity-digest>/
