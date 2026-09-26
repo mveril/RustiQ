@@ -21,17 +21,7 @@
     "hf": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "method",
-        "converged",
-        "iterations",
-        "electronic_energy",
-        "nuclear_repulsion_energy",
-        "total_energy",
-        "delta_energy",
-        "residual_norm",
-        "orthogonalization"
-      ],
+      "required": ["method", "converged", "iterations", "electronic_energy", "nuclear_repulsion_energy", "total_energy", "delta_energy", "residual_norm", "orthogonalization"],
       "properties": {
         "method": { "enum": ["RHF", "UHF"] },
         "converged": { "type": "boolean" },
@@ -58,12 +48,7 @@
     "orthogonalization": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "ao_basis_dimension",
-        "effective_rank",
-        "discarded_directions",
-        "relative_linear_dependency_threshold"
-      ],
+      "required": ["ao_basis_dimension", "effective_rank", "discarded_directions", "relative_linear_dependency_threshold"],
       "properties": {
         "ao_basis_dimension": { "type": "integer", "minimum": 0 },
         "effective_rank": { "type": "integer", "minimum": 0 },
@@ -74,12 +59,7 @@
     "mp2": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "method",
-        "correlation_energy",
-        "electronic_energy",
-        "total_energy"
-      ],
+      "required": ["method", "correlation_energy", "electronic_energy", "total_energy"],
       "properties": {
         "method": { "enum": ["RHF-MP2", "UHF-MP2"] },
         "correlation_energy": { "type": "number" },
