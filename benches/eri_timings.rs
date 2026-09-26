@@ -6,8 +6,8 @@ use rustiq_core::bench_support::{BasisStore, EriBenchInput};
 
 // Share application path policy; the scientific core only receives explicit paths.
 #[allow(dead_code)]
-#[path = "../src/cli/env.rs"]
-mod cli_env;
+#[path = "../src/cli/directories.rs"]
+mod cli_directories;
 
 #[derive(Debug, Clone, Copy)]
 struct BenchCase {
@@ -130,7 +130,7 @@ fn basis_store() -> BasisStore {
         return BasisStore::new(&PathBuf::from(path));
     }
 
-    let default_store = cli_env::basis_store();
+    let default_store = cli_directories::basis_store();
     if matches!(default_store.get("sto-3g"), Ok(Some(_))) {
         return default_store;
     }
