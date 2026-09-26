@@ -90,11 +90,13 @@ Every artifact records common envelope metadata:
 - a representation-specific `attributes` object.
 
 The common artifact envelope deliberately does not contain AO-ERI-specific fields.
-Known representations decode their `attributes` into strict typed metadata;
-unknown representations preserve the raw JSON attributes so newer manifests
-remain inspectable by older readers. Preserving unknown metadata does not make an
-unsupported scientific representation usable: consumers must reject artifacts
-they do not understand when those artifacts are required for a calculation.
+Known representations decode their `attributes` into strict typed metadata.
+Malformed attributes for a known representation are rejected rather than treated
+as an unknown representation. Truly unknown representations preserve their raw
+JSON attributes so newer manifests remain inspectable by older readers.
+Preserving unknown metadata does not make an unsupported scientific
+representation usable: consumers must reject artifacts they do not understand
+when those artifacts are required for a calculation.
 
 For `rustiq-compact-eri-v1`, the attributes are:
 
