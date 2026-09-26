@@ -66,7 +66,7 @@ impl RunCommand {
     }
 
     fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
-        let basis_store = crate::cli::env::basis_store();
+        let basis_store = crate::cli::directories::basis_store();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "online")] {

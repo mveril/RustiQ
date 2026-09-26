@@ -46,7 +46,7 @@ bench-support = ["rustiq-core/bench-support"]
 [dependencies]
 bytesize.workspace = true
 rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
-dirs = "7"
+directories = "6"
 miette = { workspace = true, features = ["fancy"] }
 toml-spanner.workspace = true
 clap = { version = "4.6", features = ["cargo", "derive"] }

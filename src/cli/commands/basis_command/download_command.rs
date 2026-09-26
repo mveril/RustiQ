@@ -13,7 +13,7 @@ pub struct DownloadCommand {
 
 impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) -> CommandResult {
-        let store = crate::cli::env::basis_store();
+        let store = crate::cli::directories::basis_store();
         let mut pb_cell = OnceCell::new(); // The ProgressBar is stored here and initialized only once.
         let progress_style = ProgressStyle::with_template("{wide_bar:.cyan/blue} {percent}%")
             .into_diagnostic()?

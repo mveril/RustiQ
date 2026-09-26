@@ -127,7 +127,7 @@ RustiQ deliberately uses community crates where they make the code clearer:
 - `miette` for diagnostics that point at invalid TOML fields and XYZ geometry
   lines;
 - `thiserror` for explicit error handling;
-- `reqwest`, `tokio`, `dirs`, and `indicatif` for optional online basis-set download
+- `reqwest`, `tokio`, `directories`, and `indicatif` for optional online basis-set download
   and cache behavior;
 - `periodic_table` and `physical_constants` rather than hand-maintained
   chemistry constants;
@@ -729,8 +729,9 @@ the calculation did not converge.
 
 TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
 `toml-spanner` dependency or runfile feature, even with all its features enabled.
-User directories and `RUSTIQ_DATA_HOME` / `RUSTIQ_DATA_BASIS` are resolved by
-`src/cli/env.rs`; core consumers provide their own path to `BasisStore::new`.
+Application directories and `RUSTIQ_DATA_HOME` / `RUSTIQ_DATA_BASIS` are
+resolved by `src/cli/directories.rs`; environment-only behavior remains in
+`src/cli/env.rs`. Core consumers provide their own path to `BasisStore::new`.
 There is no environment-dependent `BasisStore::default()` in the core.
 Ordinary Rust consumers can disable online support with `default-features = false`:
 
