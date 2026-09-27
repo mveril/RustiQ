@@ -1,11 +1,12 @@
 use std::{
     fs::{self, File, OpenOptions},
-    io::{BufReader, BufWriter, Read, Write},
+    io::{self, BufReader, BufWriter, Read, Write},
     path::PathBuf,
 };
 
 use relative_path::RelativePath;
 use serde::{de::DeserializeOwned, Serialize};
+use sha2::{Digest, Sha256};
 
 use super::{sha256_reader, PersistenceError, Sha256Digest};
 
@@ -26,13 +27,57 @@ pub(crate) struct ArtifactMetadata {
     pub(crate) digest: Sha256Digest,
 }
 
+struct DigestWriter<W> {
+    inner: W,
+    hasher: Sha256,
+    size: u64,
+}
+
+impl<W> DigestWriter<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            hasher: Sha256::new(),
+            size: 0,
+        }
+    }
+
+    fn finish(self) -> (W, ArtifactMetadata) {
+        (
+            self.inner,
+            ArtifactMetadata {
+                size: self.size,
+                digest: self.hasher.finalize().into(),
+            },
+        )
+    }
+}
+
+impl<W: Write> Write for DigestWriter<W> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let written = self.inner.write(buffer)?;
+        self.hasher.update(&buffer[..written]);
+        let written = u64::try_from(written)
+            .map_err(|_| io::Error::other("artifact size exceeds u64"))?;
+        self.size = self
+            .size
+            .checked_add(written)
+            .ok_or_else(|| io::Error::other("artifact size exceeds u64"))?;
+        Ok(usize::try_from(written).expect("written byte count originated as usize"))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 impl Storage {
     pub(crate) fn folder(root: impl Into<PathBuf>) -> Self {
         Self::Folder(FolderStorage { root: root.into() })
     }
 
     pub(crate) fn artifact_metadata(
-        &self,
+        &mut self,
         path: &RelativePath,
     ) -> Result<ArtifactMetadata, PersistenceError> {
         match self {
@@ -41,7 +86,7 @@ impl Storage {
     }
 
     pub(crate) fn with_artifact<T, F>(
-        &self,
+        &mut self,
         path: &RelativePath,
         read: F,
     ) -> Result<T, PersistenceError>
@@ -67,7 +112,7 @@ impl Storage {
     }
 
     pub(crate) fn read_json<T: DeserializeOwned>(
-        &self,
+        &mut self,
         path: &RelativePath,
         max_size: u64,
     ) -> Result<T, PersistenceError> {
@@ -97,6 +142,12 @@ impl Storage {
         })?;
         Ok(())
     }
+
+    pub(crate) fn finish(self) -> Result<(), PersistenceError> {
+        match self {
+            Self::Folder(_) => Ok(()),
+        }
+    }
 }
 
 impl FolderStorage {
@@ -104,10 +155,7 @@ impl FolderStorage {
         Ok(self.open_artifact(path)?.metadata()?.len())
     }
 
-    fn artifact_metadata(
-        &self,
-        path: &RelativePath,
-    ) -> Result<ArtifactMetadata, PersistenceError> {
+    fn artifact_metadata(&self, path: &RelativePath) -> Result<ArtifactMetadata, PersistenceError> {
         let file = self.open_artifact(path)?;
         let size = file.metadata()?.len();
         let digest = sha256_reader(BufReader::new(file))?;
@@ -135,15 +183,16 @@ impl FolderStorage {
         F: FnOnce(&mut dyn Write) -> Result<(), PersistenceError>,
     {
         let file = self.create_artifact(path)?;
-        let mut writer = BufWriter::new(file);
+        let writer = BufWriter::new(file);
+        let mut writer = DigestWriter::new(writer);
         write(&mut writer)?;
         writer.flush()?;
+        let (writer, metadata) = writer.finish();
         let file = writer
             .into_inner()
             .map_err(|error| PersistenceError::Io(error.into_error()))?;
         file.sync_all()?;
-        drop(file);
-        self.artifact_metadata(path)
+        Ok(metadata)
     }
 
     fn open_artifact(&self, path: &RelativePath) -> Result<File, PersistenceError> {
@@ -200,7 +249,7 @@ impl FolderStorage {
                         )));
                     }
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
                     fs::create_dir(&parent)?;
                 }
                 Err(error) => return Err(error.into()),
@@ -213,24 +262,50 @@ impl FolderStorage {
     }
 }
 
+pub(crate) fn portable_path_key(path: &RelativePath) -> Result<String, PersistenceError> {
+    validate_path(path)?;
+    Ok(path.as_str().to_lowercase())
+}
+
 pub(crate) fn validate_path(path: &RelativePath) -> Result<(), PersistenceError> {
     let value = path.as_str();
-    let invalid_component = value
-        .split('/')
-        .any(|component| component.is_empty() || matches!(component, "." | ".."));
+    if value.is_empty() || value.starts_with('/') || value.contains('\\') {
+        return Err(unsafe_path(path));
+    }
 
-    if value.is_empty()
-        || value.starts_with('/')
-        || value.contains('\\')
-        || value.contains(':')
-        || invalid_component
-    {
-        return Err(PersistenceError::InvalidArtifact(format!(
-            "unsafe artifact path: {path}"
-        )));
+    for component in value.split('/') {
+        if component.is_empty()
+            || matches!(component, "." | "..")
+            || component.ends_with(['.', ' '])
+            || component.chars().any(|character| {
+                character < '\u{20}' || matches!(character, '<' | '>' | ':' | '"' | '|' | '?' | '*')
+            })
+            || is_windows_reserved_name(component)
+        {
+            return Err(unsafe_path(path));
+        }
     }
 
     Ok(())
+}
+
+fn is_windows_reserved_name(component: &str) -> bool {
+    let stem = component
+        .split('.')
+        .next()
+        .unwrap_or(component)
+        .to_ascii_uppercase();
+
+    matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || (stem.len() == 4
+        && matches!(&stem[..3], "COM" | "LPT")
+        && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+}
+
+fn unsafe_path(path: &RelativePath) -> PersistenceError {
+    PersistenceError::InvalidArtifact(format!("unsafe artifact path: {path}"))
 }
 
 #[cfg(test)]
@@ -250,6 +325,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(metadata.size, 7);
+        assert_eq!(metadata.digest, super::super::sha256(b"payload"));
 
         let payload = storage
             .with_artifact(artifact_path, |reader| {
@@ -266,5 +342,23 @@ mod tests {
             .unwrap();
         let manifest: serde_json::Value = storage.read_json(manifest_path, 1024).unwrap();
         assert_eq!(manifest["version"], 1);
+        storage.finish().unwrap();
+    }
+
+    #[test]
+    fn rejects_non_portable_windows_paths() {
+        for path in [
+            "CON",
+            "con.npy",
+            "arrays/NUL.bin",
+            "arrays/COM1.npy",
+            "arrays/LPT9.npy",
+            "arrays/trailing.",
+            "arrays/trailing ",
+            "arrays/bad?.npy",
+            "arrays/bad|name.npy",
+        ] {
+            assert!(validate_path(RelativePath::new(path)).is_err(), "{path}");
+        }
     }
 }
