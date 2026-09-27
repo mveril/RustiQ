@@ -8,6 +8,7 @@ mod cache_names;
 mod checksum;
 mod data;
 mod eri_cache;
+mod error;
 mod identity;
 mod manifest;
 mod npy;
@@ -17,13 +18,14 @@ pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
 pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
+pub use error::{ArtifactError, ManifestError, NpyError, StorageError};
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
 pub(crate) use manifest::{
     AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
     ScientificIdentityManifest,
 };
-pub use storage::Storage;
+pub(crate) use storage::Storage;
 
 #[allow(unused_imports)]
 pub(crate) use npy::{
@@ -38,39 +40,3 @@ pub(crate) const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
 pub(crate) const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
 pub(crate) const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
 
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum PersistenceError {
-    #[error("persistence I/O failed: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("could not read or write persistence manifest: {0}")]
-    Manifest(#[from] serde_json::Error),
-    #[error("invalid persistence manifest: {0}")]
-    InvalidManifest(String),
-    #[error("invalid persistence artifact: {0}")]
-    InvalidArtifact(String),
-    #[error("AO ERI artifact is missing")]
-    MissingEri,
-    #[error("could not read NPY data: {0}")]
-    NpyRead(#[source] std::io::Error),
-    #[error("could not write NPY data: {0}")]
-    NpyWrite(#[source] std::io::Error),
-    #[error("AO ERI NPY must be one-dimensional, found shape {0:?}")]
-    InvalidEriShape(Vec<u64>),
-    #[error("matrix NPY must be two-dimensional, found shape {0:?}")]
-    InvalidMatrixShape(Vec<u64>),
-    #[error("NPY has shape {actual:?}, expected {expected:?}")]
-    InvalidNpyShape {
-        expected: Box<[u64]>,
-        actual: Box<[u64]>,
-    },
-    #[error("AO ERI payload has {actual} values, expected {expected} for {basis_functions} basis functions")]
-    InvalidValueCount {
-        basis_functions: usize,
-        expected: usize,
-        actual: usize,
-    },
-    #[error("NPY dtype is not a supported f64 representation: {0}")]
-    InvalidDtype(String),
-}
