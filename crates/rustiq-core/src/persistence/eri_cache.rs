@@ -309,7 +309,7 @@ impl EriCache {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return None;
         }
-        let mut data = RustiQData::read(Storage::folder(&entry)).ok()?;
+        let mut data = RustiQData::read_from(Storage::folder(&entry)).ok()?;
         let manifest = data.manifest();
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
         let attributes = ao_eri_attributes(artifact)?;
@@ -368,7 +368,7 @@ impl EriCache {
 }
 
 fn read_manifest(entry: &Path) -> Option<Manifest> {
-    RustiQData::read(Storage::folder(entry))
+    RustiQData::read_from(Storage::folder(entry))
         .ok()
         .map(|data| data.manifest().clone())
 }
