@@ -45,7 +45,7 @@ impl NpyConvert for CompactEri {
 
     fn npy_shape(basis_functions: usize) -> Result<Self::NpyShape, NpyError> {
         let length = CompactEri::checked_storage_len(basis_functions)
-            .ok_or_else(|| NpyError::DimensionOverflow)?;
+            .ok_or(NpyError::DimensionOverflow)?;
         Ok([u64::try_from(length).map_err(|_| NpyError::DimensionOverflow)?])
     }
 
