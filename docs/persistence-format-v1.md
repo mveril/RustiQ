@@ -87,12 +87,13 @@ untouched. Names and fingerprints are validated rather than interpreted as paths
 
 ## Logical entries
 
-The core Rust API exposes `persistence::RustiQData` for reading and writing a
-directory in this format. `RustiQData::read` reads the manifest only. Its
+The core Rust API exposes `persistence::RustiQData` together with a selectable
+`persistence::Storage`. V1 currently provides `Storage::Folder(PathBuf)`; a ZIP-backed
+variant can be added without changing the `RustiQData` type. `RustiQData::read(storage)`
+reads the manifest only. Its
 `read_eri` method validates and decodes the AO ERI NPY on first access and keeps
-the resulting `CompactEri` for subsequent accesses. Writing to a new directory
-copies artifacts that have not been decoded, including unknown representations,
-as verified byte streams. Its public scientific API is typed: `set_eri` and
+the resulting `CompactEri` for subsequent accesses. Writing to a selected storage copies artifacts that have not been decoded,
+including unknown representations, as verified byte streams. Its public scientific API is typed: `set_eri` and
 `read_eri` operate on `CompactEri`. The generic `get::<AoEriArtifact>()` returns
 `Result<Option<&CompactEri>, PersistenceError>`, while
 `set::<AoEriArtifact>(value)` accepts only `CompactEri`; only declared artifact
@@ -109,8 +110,10 @@ emit Fortran order.
 
 Artifact paths are portable relative UTF-8 paths with `/` as the only separator,
 independent of the host operating system. Empty components, `.`, `..`,
-backslashes, drive-like prefixes containing `:`, absolute paths, and paths
-conflicting with `manifest.json` are rejected before filesystem access.
+backslashes, drive-like prefixes containing `:`, absolute paths, Windows-reserved
+device names, Windows-invalid filename characters, trailing dots/spaces, and paths
+conflicting with `manifest.json` are rejected before storage access. Logical paths
+are also checked case-insensitively to avoid cross-platform collisions.
 
 Every artifact records common envelope metadata:
 
