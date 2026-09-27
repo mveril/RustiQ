@@ -8,7 +8,6 @@ use super::{Sha256Digest, COMPACT_ERI_REPRESENTATION};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ManifestKind {
-    Checkpoint,
     IntegralCache,
     Unknown(String),
 }
@@ -16,7 +15,6 @@ pub(crate) enum ManifestKind {
 impl ManifestKind {
     pub(crate) fn as_str(&self) -> &str {
         match self {
-            Self::Checkpoint => "checkpoint",
             Self::IntegralCache => "integral-cache",
             Self::Unknown(value) => value,
         }
@@ -39,7 +37,6 @@ impl<'de> Deserialize<'de> for ManifestKind {
     {
         let value = String::deserialize(deserializer)?;
         Ok(match value.as_str() {
-            "checkpoint" => Self::Checkpoint,
             "integral-cache" => Self::IntegralCache,
             _ => Self::Unknown(value),
         })
@@ -215,7 +212,7 @@ mod tests {
     proptest! {
         #[test]
         fn unknown_manifest_kind_round_trips(value in "[A-Za-z0-9_-]{1,64}") {
-            prop_assume!(value != "checkpoint" && value != "integral-cache");
+            prop_assume!(value != "integral-cache");
 
             let kind = ManifestKind::Unknown(value.clone());
             let json = serde_json::to_string(&kind).unwrap();
@@ -230,7 +227,7 @@ mod tests {
         let json = r#"{
             "format": "rustiq-persistence",
             "format_version": 1,
-            "kind": "checkpoint",
+            "kind": "future-state",
             "producer": {"name": "RustiQ", "version": "0.2.0"},
             "scientific_identity": {
                 "version": 1,
