@@ -164,17 +164,13 @@ impl FolderStorage {
         Ok(ArtifactMetadata { size, digest })
     }
 
-    fn with_artifact<T, E, F>(&self, path: &RelativePath, read: F) -> Result<T, StorageError>
+    fn with_artifact<T, E, F>(&self, path: &RelativePath, read: F) -> Result<T, E>
     where
         E: From<StorageError>,
         F: FnOnce(&mut dyn Read) -> Result<T, E>,
     {
-        let mut reader = BufReader::new(self.open_artifact(path)?);
-        read(&mut reader).map_err(|_| {
-            StorageError::Io(io::Error::other(
-                "artifact reader callback failed outside the storage layer",
-            ))
-        })
+        let mut reader = BufReader::new(self.open_artifact(path).map_err(E::from)?);
+        read(&mut reader)
     }
 
     fn write_artifact<E, F>(
