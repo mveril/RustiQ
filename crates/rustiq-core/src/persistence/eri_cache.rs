@@ -13,14 +13,13 @@ use crate::{
 
 use super::{
     ao_eri_identity, sha256_reader, validate_compact_eri_header, AoEriAttributes,
-    ArtifactAttributes, ArtifactManifest, Manifest, RustiQData, ScientificIdentity, Storage,
+    ArtifactAttributes, ArtifactManifest, Manifest, ManifestKind, RustiQData, ScientificIdentity,
+    Storage,
     AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, SCIENTIFIC_IDENTITY_VERSION,
 };
 
 use super::data::AO_ERI_ARTIFACT;
-
-const CACHE_KIND: &str = "integral-cache";
 
 /// A directory-backed AO ERI cache entry available for management.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -340,7 +339,8 @@ impl EriCache {
         }
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
-        let mut entry_data = RustiQData::new_with_identity(identity, basis_functions, CACHE_KIND);
+        let mut entry_data =
+            RustiQData::new_with_identity(identity, basis_functions, ManifestKind::IntegralCache);
         entry_data
             .write_with_eri(Storage::folder(temporary.path()), eri)
             .map_err(io::Error::other)?;
@@ -378,7 +378,7 @@ fn read_manifest(entry: &Path) -> Option<Manifest> {
 fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool {
     manifest.format == FORMAT_NAME
         && manifest.format_version == FORMAT_VERSION
-        && manifest.kind == CACHE_KIND
+        && manifest.kind == ManifestKind::IntegralCache.as_str()
         && manifest.scientific_identity.version == identity.version
         && manifest.scientific_identity.digest == identity.digest
         && manifest
@@ -493,6 +493,42 @@ mod tests {
             eri.ordered_values()
         );
     }
+    #[test]
+    fn stored_entry_is_explicitly_an_integral_cache_with_ao_eri() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        let eri = CompactEri::Zeroed(basis.nbasis());
+
+        cache.store(&molecule, &basis, threshold(), &eri).unwrap();
+
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        let manifest = read_manifest(&cache.entry_path(identity)).unwrap();
+        assert_eq!(manifest.kind, ManifestKind::IntegralCache.as_str());
+        assert!(manifest.artifacts.contains_key(AO_ERI_ARTIFACT));
+    }
+
+    #[test]
+    fn checkpoint_is_never_accepted_as_a_cache_hit() {
+        let temporary = tempfile::tempdir().unwrap();
+        let cache = EriCache::new(temporary.path());
+        let (molecule, basis) = input();
+        let eri = CompactEri::Zeroed(basis.nbasis());
+        cache.store(&molecule, &basis, threshold(), &eri).unwrap();
+
+        let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
+        let manifest_path = cache.entry_path(identity).join(MANIFEST_PATH);
+        let mut manifest: serde_json::Value =
+            serde_json::from_reader(File::open(&manifest_path).unwrap()).unwrap();
+        manifest["kind"] = serde_json::json!(ManifestKind::Checkpoint.as_str());
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        assert!(cache.load(&molecule, &basis, threshold()).is_none());
+        let entries = cache.entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].verified);
+    }
+
     #[test]
     fn corruption_is_a_cache_miss() {
         let temporary = tempfile::tempdir().unwrap();
