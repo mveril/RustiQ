@@ -3,7 +3,7 @@ use std::io;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum StorageError {
+pub(crate) enum StorageError {
     #[error("storage I/O failed: {0}")]
     Io(#[from] io::Error),
     #[error("unsafe storage path: {0}")]
@@ -15,7 +15,7 @@ pub enum StorageError {
 }
 
 #[derive(Debug, Error)]
-pub enum NpyError {
+pub(crate) enum NpyError {
     #[error("could not read NPY data: {0}")]
     Read(#[source] io::Error),
     #[error("could not write NPY data: {0}")]
@@ -36,7 +36,7 @@ pub enum NpyError {
 }
 
 #[derive(Debug, Error)]
-pub enum ManifestError {
+pub(crate) enum ManifestError {
     #[error("manifest storage failed: {0}")]
     Storage(#[from] StorageError),
     #[error("could not decode or encode persistence manifest: {0}")]
