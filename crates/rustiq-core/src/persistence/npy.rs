@@ -115,6 +115,57 @@ pub(crate) fn read_compact_eri(
     CompactEri::try_read_with_shape(reader, basis_functions)
 }
 
+/// Validates the small NPY header and exact payload length before allocating values.
+pub(crate) fn checked_eri_prefix(
+    reader: &mut dyn Read,
+    basis_functions: usize,
+    file_size: u64,
+) -> Result<Vec<u8>, NpyError> {
+    let mut prefix = [0_u8; 8];
+    reader.read_exact(&mut prefix).map_err(NpyError::Read)?;
+    if &prefix[..6] != b"\x93NUMPY" || !matches!((prefix[6], prefix[7]), (1..=3, 0)) {
+        return Err(NpyError::Read(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "invalid NPY prefix",
+        )));
+    }
+    let length_bytes = if prefix[6] == 1 { 2 } else { 4 };
+    let mut length = [0_u8; 4];
+    reader
+        .read_exact(&mut length[..length_bytes])
+        .map_err(NpyError::Read)?;
+    let header_len = u32::from_le_bytes(length) as usize;
+    if header_len > 65536 {
+        return Err(NpyError::Read(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "NPY header exceeds 64 KiB",
+        )));
+    }
+    let mut header = Vec::with_capacity(8 + length_bytes + header_len);
+    header.extend_from_slice(&prefix);
+    header.extend_from_slice(&length[..length_bytes]);
+    header.resize(8 + length_bytes + header_len, 0);
+    reader
+        .read_exact(&mut header[8 + length_bytes..])
+        .map_err(NpyError::Read)?;
+    if !validate_compact_eri_header(std::io::Cursor::new(&header), basis_functions, file_size) {
+        return Err(NpyError::Read(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "NPY dtype, shape or payload length is invalid",
+        )));
+    }
+    Ok(header)
+}
+
+pub(crate) fn read_checked_compact_eri(
+    reader: &mut dyn Read,
+    basis_functions: usize,
+    file_size: u64,
+) -> Result<CompactEri, NpyError> {
+    let header = checked_eri_prefix(reader, basis_functions, file_size)?;
+    read_compact_eri(std::io::Cursor::new(header).chain(reader), basis_functions)
+}
+
 fn decode_compact_eri<R: Read>(
     npy: NpyFile<R>,
     basis_functions: usize,

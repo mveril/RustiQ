@@ -9,6 +9,7 @@ use super::{Sha256Digest, COMPACT_ERI_REPRESENTATION};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ManifestKind {
     IntegralCache,
+    Portable,
     Unknown(String),
 }
 
@@ -16,6 +17,7 @@ impl ManifestKind {
     pub(crate) fn as_str(&self) -> &str {
         match self {
             Self::IntegralCache => "integral-cache",
+            Self::Portable => "portable",
             Self::Unknown(value) => value,
         }
     }
@@ -38,6 +40,7 @@ impl<'de> Deserialize<'de> for ManifestKind {
         let value = String::deserialize(deserializer)?;
         Ok(match value.as_str() {
             "integral-cache" => Self::IntegralCache,
+            "portable" => Self::Portable,
             _ => Self::Unknown(value),
         })
     }
@@ -51,6 +54,17 @@ pub(crate) struct Manifest {
     pub producer: Producer,
     pub scientific_identity: ScientificIdentityManifest,
     pub artifacts: BTreeMap<String, ArtifactManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calculation: Option<CalculationManifest>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CalculationManifest {
+    pub path: String,
+    pub version: u32,
+    pub size: u64,
+    pub digest: Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -161,6 +175,7 @@ mod tests {
         );
 
         let manifest = Manifest {
+            calculation: None,
             format: FORMAT_NAME.to_string(),
             format_version: FORMAT_VERSION,
             kind: ManifestKind::IntegralCache,

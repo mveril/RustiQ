@@ -1,0 +1,101 @@
+{
+  "format": "rustiq-calculation",
+  "version": 1,
+  "units": "bohr",
+  "atoms": [
+    {
+      "atomic_number": 1,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "atomic_number": 1,
+      "position": [
+        1.4,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "charge": 0,
+  "multiplicity": 1,
+  "basis": [
+    {
+      "center": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "components": [
+        {
+          "angular_momentum": [
+            0,
+            0,
+            0
+          ],
+          "primitives": [
+            {
+              "exponent": 3.425250914,
+              "coefficient": 0.2769343550790519
+            },
+            {
+              "exponent": 0.6239137298,
+              "coefficient": 0.26783885160947885
+            },
+            {
+              "exponent": 0.168855404,
+              "coefficient": 0.08347367112984119
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "center": [
+        1.4,
+        0.0,
+        0.0
+      ],
+      "components": [
+        {
+          "angular_momentum": [
+            0,
+            0,
+            0
+          ],
+          "primitives": [
+            {
+              "exponent": 3.425250914,
+              "coefficient": 0.2769343550790519
+            },
+            {
+              "exponent": 0.6239137298,
+              "coefficient": 0.26783885160947885
+            },
+            {
+              "exponent": 0.168855404,
+              "coefficient": 0.08347367112984119
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "hf": {
+    "method": "rhf",
+    "max_iterations": 100,
+    "convergence_threshold": 1e-8,
+    "linear_dependency_threshold": 1e-8,
+    "eri_schwarz_threshold": 1e-12,
+    "diis_size": null,
+    "guess": {
+      "kind": "core_hamiltonian",
+      "perturbation": null
+    }
+  },
+  "mp2": null,
+  "ao_eri_computation_version": 1
+}

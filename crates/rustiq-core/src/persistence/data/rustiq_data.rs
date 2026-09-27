@@ -5,10 +5,10 @@ use relative_path::RelativePath;
 use crate::eri::CompactEri;
 
 use super::super::{
-    read_compact_eri, validate_storage_path, write_compact_eri, AoEriAttributes,
-    ArtifactAttributes, ArtifactError, ArtifactManifest, Manifest, ManifestError, ManifestKind,
-    PersistenceReadError, PersistenceWriteError, Producer, ScientificIdentityManifest, Storage,
-    StorageError, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+    validate_storage_path, write_compact_eri, AoEriAttributes, ArtifactAttributes, ArtifactError,
+    ArtifactManifest, Manifest, ManifestError, ManifestKind, PersistenceReadError,
+    PersistenceWriteError, Producer, ScientificIdentityManifest, Storage, StorageError,
+    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, MANIFEST_PATH,
 };
 use super::artifact::Artifact;
@@ -20,9 +20,10 @@ const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 #[derive(Debug)]
 pub struct RustiQData {
     pub(super) manifest: Manifest,
-    source: Option<Storage>,
+    pub(super) source: Option<Storage>,
     pub(super) ao_eri: Option<CompactEri>,
-    basis_functions: Option<usize>,
+    pub(super) basis_functions: Option<usize>,
+    pub(super) context: Option<super::super::CalculationContext>,
 }
 
 impl RustiQData {
@@ -55,8 +56,10 @@ impl RustiQData {
                     digest: identity.digest,
                 },
                 artifacts: BTreeMap::new(),
+                calculation: None,
             },
             source: None,
+            context: None,
             ao_eri: None,
             basis_functions: Some(basis_functions),
         }
@@ -92,6 +95,7 @@ impl RustiQData {
         Ok(Self {
             manifest,
             source: Some(source),
+            context: None,
             ao_eri: None,
             basis_functions,
         })
@@ -103,6 +107,15 @@ impl RustiQData {
 
     /// Replaces the AO ERI artifact after checking its compact length.
     pub fn set_eri(&mut self, eri: CompactEri) -> Result<(), ArtifactError> {
+        if self
+            .context
+            .as_ref()
+            .is_some_and(|context| context.0.computation_version() != AO_ERI_COMPUTATION_VERSION)
+        {
+            return Err(ArtifactError::UnsupportedRepresentation(
+                "AO ERI computation version".into(),
+            ));
+        }
         let basis_functions = self.basis_functions.ok_or(ArtifactError::Missing)?;
         validate_eri_len(&eri, basis_functions)?;
         self.ao_eri = Some(eri);
@@ -132,16 +145,25 @@ impl RustiQData {
             }
 
             let source = self.source.as_mut().ok_or(ArtifactError::Missing)?;
+            if source.artifact_size(&artifact.path)? != artifact.size {
+                return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()));
+            }
             let metadata = source.artifact_metadata(&artifact.path)?;
             if metadata.size != artifact.size || metadata.digest != artifact.digest {
                 return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()));
             }
 
-            self.ao_eri = Some(
-                source.with_artifact::<_, ArtifactError, _>(&artifact.path, |reader| {
-                    read_compact_eri(reader, attributes.basis_functions).map_err(Into::into)
-                })?,
-            );
+            self.ao_eri = Some(source.with_artifact::<_, ArtifactError, _>(
+                &artifact.path,
+                |reader| {
+                    super::super::npy::read_checked_compact_eri(
+                        reader,
+                        attributes.basis_functions,
+                        artifact.size,
+                    )
+                    .map_err(Into::into)
+                },
+            )?);
         }
 
         Ok(self
@@ -176,6 +198,19 @@ impl RustiQData {
     ) -> Result<(), PersistenceWriteError> {
         let mut manifest = self.manifest.clone();
 
+        if let Some(context) = &self.context {
+            let metadata = destination.write_json(
+                RelativePath::new(super::super::calculation::CALCULATION_PATH),
+                &context.0,
+            )?;
+            manifest.calculation = Some(super::super::manifest::CalculationManifest {
+                path: super::super::calculation::CALCULATION_PATH.into(),
+                version: 1,
+                size: metadata.size,
+                digest: metadata.digest,
+            });
+        }
+
         for (name, artifact) in &self.manifest.artifacts {
             if name == AO_ERI_ARTIFACT && eri.is_some() {
                 continue;
@@ -186,6 +221,9 @@ impl RustiQData {
             })?;
             validate_artifact_path(&artifact.path)?;
 
+            if source.artifact_size(&artifact.path)? != artifact.size {
+                return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()).into());
+            }
             let metadata =
                 source.with_artifact::<_, PersistenceWriteError, _>(&artifact.path, |input| {
                     destination.write_artifact::<PersistenceWriteError, _>(

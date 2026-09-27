@@ -1,7 +1,7 @@
 import io
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import numpy as np
 
@@ -56,3 +56,79 @@ def test_python_numpy_big_endian_ao_eri_fixture() -> None:
     assert values.dtype == np.dtype(">f8")
     assert values.shape == (6,)
     np.testing.assert_array_equal(values, [0.5, 1.5, 2.5, 3.5, 4.5, 5.5])
+
+
+def test_numpy_reads_rust_portable_archive(tmp_path: Path) -> None:
+    import json
+    import zipfile
+
+    from generate_portable_fixtures import digest, scientific_identity
+
+    output = tmp_path / "h2.rustiq"
+    environment = os.environ.copy()
+    environment["RUSTIQ_ARCHIVE_TEST_OUTPUT"] = str(output)
+    subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "rustiq-core",
+            "--no-default-features",
+            "persistence::data::portable::tests::writes_archive_for_python_interoperability",
+            "--",
+            "--ignored",
+            "--exact",
+        ],
+        check=True,
+        cwd=ROOT,
+        env=environment,
+    )
+    with zipfile.ZipFile(output) as archive:
+        assert archive.testzip() is None
+        assert set(archive.namelist()) == {
+            "manifest.json",
+            "calculation.json",
+            "arrays/integrals/ao-eri.npy",
+        }
+        manifest = json.loads(archive.read("manifest.json"))
+        snapshot_bytes = archive.read("calculation.json")
+        snapshot = json.loads(snapshot_bytes)
+        assert manifest["scientific_identity"]["digest"] == scientific_identity(
+            snapshot
+        )
+        assert manifest["calculation"]["digest"] == digest(snapshot_bytes)
+        assert snapshot["hf"]["method"] == "rhf"
+        assert snapshot["units"] == "bohr"
+        payload = archive.read("arrays/integrals/ao-eri.npy")
+        assert manifest["artifacts"]["ao_eri"]["digest"] == digest(payload)
+        _assert_ao_eri_values(np.load(io.BytesIO(payload), allow_pickle=False))
+        assert (
+            archive.getinfo("arrays/integrals/ao-eri.npy").compress_type
+            == zipfile.ZIP_STORED
+        )
+        assert all(
+            info.date_time == (1980, 1, 1, 0, 0, 0) for info in archive.infolist()
+        )
+
+
+def test_python_portable_golden_fixtures() -> None:
+    import json
+    import zipfile
+
+    from generate_portable_fixtures import digest, scientific_identity
+
+    for byte_order in ("little", "big"):
+        content = bytes.fromhex(
+            (FIXTURE_DIR / f"portable-python-{byte_order}-v1.rustiq.hex").read_text()
+        )
+        assert b"PK\x06\x06" in content
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            manifest = json.loads(archive.read("manifest.json"))
+            snapshot = json.loads(archive.read("calculation.json"))
+            assert (
+                scientific_identity(snapshot)
+                == manifest["scientific_identity"]["digest"]
+            )
+            payload = archive.read("arrays/integrals/ao-eri.npy")
+            assert digest(payload) == manifest["artifacts"]["ao_eri"]["digest"]
+            _assert_ao_eri_values(np.load(io.BytesIO(payload), allow_pickle=False))

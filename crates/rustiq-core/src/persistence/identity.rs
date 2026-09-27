@@ -35,11 +35,7 @@ fn ao_eri_identity_with_computation_version(
     schwarz_threshold: Option<PositiveFiniteF64>,
     computation_version: u32,
 ) -> ScientificIdentity {
-    let mut bytes = CanonicalBytes::default();
-    bytes.text(b"scientific-identity-v1");
-    bytes.text(b"ao-eri-computation-version");
-    bytes.u32(computation_version);
-    bytes.text(COMPACT_ERI_REPRESENTATION.as_bytes());
+    let mut bytes = CanonicalBytes::ao_eri(computation_version);
 
     bytes.len(geometry.atoms.len());
     for atom in &geometry.atoms {
@@ -70,41 +66,49 @@ fn ao_eri_identity_with_computation_version(
         }
     }
 
-    match schwarz_threshold {
-        None => bytes.u8(0),
-        Some(threshold) => {
-            bytes.u8(1);
-            bytes.f64(threshold.into_inner());
-        }
-    }
-
-    ScientificIdentity {
-        version: SCIENTIFIC_IDENTITY_VERSION,
-        digest: sha256(&bytes.0),
-    }
+    bytes.finish_ao_eri(schwarz_threshold.map(|value| value.into_inner()))
 }
 
 #[derive(Default)]
-struct CanonicalBytes(Vec<u8>);
+pub(crate) struct CanonicalBytes(Vec<u8>);
 
 impl CanonicalBytes {
-    fn u8(&mut self, value: u8) {
+    pub(crate) fn ao_eri(computation_version: u32) -> Self {
+        let mut bytes = Self::default();
+        bytes.text(b"scientific-identity-v1");
+        bytes.text(b"ao-eri-computation-version");
+        bytes.u32(computation_version);
+        bytes.text(COMPACT_ERI_REPRESENTATION.as_bytes());
+        bytes
+    }
+
+    pub(crate) fn finish_ao_eri(mut self, threshold: Option<f64>) -> ScientificIdentity {
+        match threshold {
+            None => self.u8(0),
+            Some(value) => {
+                self.u8(1);
+                self.f64(value);
+            }
+        }
+        ScientificIdentity {
+            version: SCIENTIFIC_IDENTITY_VERSION,
+            digest: sha256(&self.0),
+        }
+    }
+
+    pub(crate) fn u8(&mut self, value: u8) {
         self.0.push(value);
     }
-
-    fn u32(&mut self, value: u32) {
+    pub(crate) fn u32(&mut self, value: u32) {
         self.0.extend_from_slice(&value.to_be_bytes());
     }
-
-    fn len(&mut self, value: usize) {
+    pub(crate) fn len(&mut self, value: usize) {
         self.0.extend_from_slice(&(value as u64).to_be_bytes());
     }
-
-    fn f64(&mut self, value: f64) {
+    pub(crate) fn f64(&mut self, value: f64) {
         let canonical = if value == 0.0 { 0.0 } else { value };
         self.0.extend_from_slice(&canonical.to_bits().to_be_bytes());
     }
-
     fn text(&mut self, value: &[u8]) {
         self.len(value.len());
         self.0.extend_from_slice(value);
