@@ -54,7 +54,7 @@ impl RustiQData {
             manifest: Manifest {
                 format: FORMAT_NAME.to_owned(),
                 format_version: FORMAT_VERSION,
-                kind: kind.as_str().to_owned(),
+                kind,
                 producer: Producer {
                     name: "RustiQ".to_owned(),
                     version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -305,7 +305,7 @@ mod tests {
         data.write_to(Storage::folder(&entry)).unwrap();
 
         let restored = RustiQData::read_from(Storage::folder(&entry)).unwrap();
-        assert_eq!(restored.manifest().kind, ManifestKind::Checkpoint.as_str());
+        assert_eq!(restored.manifest().kind, ManifestKind::Checkpoint);
         assert!(!restored.manifest().artifacts.contains_key(AO_ERI_ARTIFACT));
     }
 
