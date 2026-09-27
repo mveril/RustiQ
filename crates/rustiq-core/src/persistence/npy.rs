@@ -352,6 +352,32 @@ mod tests {
     }
 
     #[test]
+    fn reads_python_numpy_matrix_fixtures_in_c_and_fortran_order() {
+        for hex in [
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/persistence/dmatrix-python-c-v1.npy.hex"
+            )),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/persistence/dmatrix-python-fortran-v1.npy.hex"
+            )),
+        ] {
+            let (pairs, remainder) = hex.trim().as_bytes().as_chunks::<2>();
+            assert!(remainder.is_empty());
+            let bytes: Vec<u8> = pairs
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+
+            assert_eq!(
+                read_dmatrix(bytes.as_slice()).unwrap(),
+                DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            );
+        }
+    }
+
+    #[test]
     fn rejects_wrong_value_count() {
         let mut bytes = Vec::new();
         let shape = [2];
