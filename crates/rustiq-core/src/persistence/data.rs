@@ -15,9 +15,8 @@ use crate::{
 use super::{
     ao_eri_identity, read_compact_eri, sha256_reader, write_compact_eri, AoEriAttributes,
     ArtifactAttributes, ArtifactManifest, Manifest, PersistenceError, Producer,
-    ScientificIdentityManifest,
-    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
-    FORMAT_VERSION, MANIFEST_PATH,
+    ScientificIdentityManifest, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
+    COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
 };
 
 pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
@@ -479,10 +478,7 @@ mod tests {
 
     #[test]
     fn artifact_paths_are_portable_and_relative() {
-        assert!(validate_artifact_path(RelativePath::new(
-            "arrays/integrals/ao-eri.npy"
-        ))
-        .is_ok());
+        assert!(validate_artifact_path(RelativePath::new("arrays/integrals/ao-eri.npy")).is_ok());
 
         for path in [
             "",
