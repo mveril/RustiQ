@@ -17,7 +17,7 @@ use super::super::{
 use super::artifact::Artifact;
 
 pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
-pub(crate) const CACHE_KIND: &str = "integral-cache";
+const CHECKPOINT_KIND: &str = "checkpoint";
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 
 /// Known scientific artifacts and their manifest, with values loaded on demand.
@@ -40,21 +40,22 @@ impl RustiQData {
         A::set(self, value)
     }
 
-    /// Starts a new AO ERI data set with the current scientific identity.
+    /// Starts a new checkpoint data set with the current scientific identity.
     pub fn new(geometry: &Geometry, basis: &Basis, threshold: Option<PositiveFiniteF64>) -> Self {
         let identity = ao_eri_identity(geometry, basis, threshold);
-        Self::new_with_identity(identity, basis.nbasis())
+        Self::new_with_identity(identity, basis.nbasis(), CHECKPOINT_KIND)
     }
 
     pub(crate) fn new_with_identity(
         identity: super::super::ScientificIdentity,
         basis_functions: usize,
+        kind: impl Into<String>,
     ) -> Self {
         Self {
             manifest: Manifest {
                 format: FORMAT_NAME.to_owned(),
                 format_version: FORMAT_VERSION,
-                kind: CACHE_KIND.to_owned(),
+                kind: kind.into(),
                 producer: Producer {
                     name: "RustiQ".to_owned(),
                     version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -173,9 +174,9 @@ impl RustiQData {
     pub(crate) fn write_with_eri(
         &mut self,
         destination: Storage,
-        eri: Option<&CompactEri>,
+        eri: &CompactEri,
     ) -> Result<(), PersistenceWriteError> {
-        self.write_inner(destination, eri)
+        self.write_inner(destination, Some(eri))
     }
 
     fn write_inner(
@@ -237,10 +238,6 @@ impl RustiQData {
             );
         }
 
-        if manifest.kind == CACHE_KIND && !manifest.artifacts.contains_key(AO_ERI_ARTIFACT) {
-            return Err(ArtifactError::Missing.into());
-        }
-
         destination.write_json(RelativePath::new(MANIFEST_PATH), &manifest)?;
         destination.finish()?;
         Ok(())
@@ -295,6 +292,7 @@ mod tests {
                 digest: Sha256Digest::from([7; 32]),
             },
             2,
+            CHECKPOINT_KIND,
         )
     }
 
