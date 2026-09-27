@@ -10,8 +10,6 @@ pub(crate) enum StorageError {
     InvalidPath(String),
     #[error("storage entry has an unexpected type: {0}")]
     UnexpectedEntryType(String),
-    #[error("artifact size exceeds the supported limit")]
-    SizeOverflow,
 }
 
 #[derive(Debug, Error)]
