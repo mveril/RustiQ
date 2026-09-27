@@ -369,7 +369,7 @@ mod tests {
             },
         );
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-        let restored = RustiQData::read(Storage::folder(&first)).unwrap();
+        let mut restored = RustiQData::read(Storage::folder(&first)).unwrap();
         assert!(restored.ao_eri.is_none());
         restored.write(Storage::folder(&second)).unwrap();
         assert_eq!(
@@ -411,8 +411,9 @@ mod tests {
         data.set_eri(CompactEri::Zeroed(2)).unwrap();
         data.write(Storage::folder(&first)).unwrap();
         fs::write(first.join(AO_ERI_PATH), b"bad").unwrap();
+        let mut restored = RustiQData::read(Storage::folder(&first)).unwrap();
         assert!(matches!(
-            RustiQData::read(Storage::folder(&first)).unwrap().write(&second),
+            restored.write(Storage::folder(&second)),
             Err(PersistenceError::InvalidArtifact(_))
         ));
         assert!(!second.exists());
