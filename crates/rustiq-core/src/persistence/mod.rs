@@ -18,7 +18,7 @@ pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
-pub use manifest::{
+pub(crate) use manifest::{
     AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
     ScientificIdentityManifest,
 };
@@ -28,12 +28,12 @@ pub(crate) use npy::{
     read_compact_eri, read_dmatrix, validate_compact_eri_header, write_compact_eri,
 };
 
-pub const FORMAT_NAME: &str = "rustiq-persistence";
-pub const FORMAT_VERSION: u32 = 1;
-pub const MANIFEST_PATH: &str = "manifest.json";
-pub const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
-pub const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
-pub const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
+pub(crate) const FORMAT_NAME: &str = "rustiq-persistence";
+pub(crate) const FORMAT_VERSION: u32 = 1;
+pub(crate) const MANIFEST_PATH: &str = "manifest.json";
+pub(crate) const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
+pub(crate) const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
+pub(crate) const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
 
 use thiserror::Error;
 
