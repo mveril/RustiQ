@@ -17,6 +17,7 @@ pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
 pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
+pub use storage::Storage;
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
 pub(crate) use manifest::{
@@ -28,7 +29,7 @@ pub(crate) use manifest::{
 pub(crate) use npy::{
     read_compact_eri, read_dmatrix, validate_compact_eri_header, write_compact_eri,
 };
-pub(crate) use storage::{validate_path as validate_storage_path, Storage};
+pub(crate) use storage::validate_path as validate_storage_path;
 
 pub(crate) const FORMAT_NAME: &str = "rustiq-persistence";
 pub(crate) const FORMAT_VERSION: u32 = 1;
