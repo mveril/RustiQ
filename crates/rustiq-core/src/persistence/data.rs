@@ -122,7 +122,7 @@ impl RustiQData {
                 "entry is not a regular directory".into(),
             ));
         }
-        let source = Storage::folder(fs::canonicalize(directory)?);
+        let mut source = Storage::folder(fs::canonicalize(directory)?);
         let manifest: Manifest =
             source.read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)?;
         if manifest.format != FORMAT_NAME || manifest.format_version != FORMAT_VERSION {
@@ -130,19 +130,17 @@ impl RustiQData {
                 "unsupported format or version".into(),
             ));
         }
-        let mut paths: HashSet<&str> = HashSet::new();
+        let mut paths: HashSet<String> = HashSet::new();
         for artifact in manifest.artifacts.values() {
             validate_artifact_path(&artifact.path)?;
-            if paths
-                .iter()
-                .any(|other| paths_conflict(other, artifact.path.as_str()))
-            {
+            let key = artifact.path.as_str().to_lowercase();
+            if paths.iter().any(|other| paths_conflict(other, &key)) {
                 return Err(PersistenceError::InvalidManifest(format!(
                     "artifact path conflicts with another artifact: {}",
                     artifact.path
                 )));
             }
-            paths.insert(artifact.path.as_str());
+            paths.insert(key);
         }
         let basis_functions = manifest
             .artifacts
@@ -195,7 +193,7 @@ impl RustiQData {
                     "unsupported AO ERI representation".into(),
                 ));
             }
-            let source = self.source.as_ref().ok_or(PersistenceError::MissingEri)?;
+            let source = self.source.as_mut().ok_or(PersistenceError::MissingEri)?;
             let metadata = source.artifact_metadata(&artifact.path)?;
             if metadata.size != artifact.size || metadata.digest != artifact.digest {
                 return Err(PersistenceError::InvalidArtifact(
@@ -217,12 +215,12 @@ impl RustiQData {
     }
 
     /// Writes to a new directory, copying unloaded artifacts without decoding them.
-    pub fn write(&self, directory: impl AsRef<Path>) -> Result<(), PersistenceError> {
+    pub fn write(&mut self, directory: impl AsRef<Path>) -> Result<(), PersistenceError> {
         self.write_inner(directory.as_ref(), self.ao_eri.as_ref())
     }
 
     pub(crate) fn write_with_eri(
-        &self,
+        &mut self,
         directory: impl AsRef<Path>,
         eri: Option<&CompactEri>,
     ) -> Result<(), PersistenceError> {
@@ -230,7 +228,7 @@ impl RustiQData {
     }
 
     fn write_inner(
-        &self,
+        &mut self,
         directory: &Path,
         eri: Option<&CompactEri>,
     ) -> Result<(), PersistenceError> {
@@ -255,7 +253,7 @@ impl RustiQData {
             if name == AO_ERI_ARTIFACT && eri.is_some() {
                 continue;
             }
-            let source = self.source.as_ref().ok_or_else(|| {
+            let source = self.source.as_mut().ok_or_else(|| {
                 PersistenceError::InvalidArtifact(format!("artifact {name} has no source file"))
             })?;
             validate_artifact_path(&artifact.path)?;
@@ -297,6 +295,7 @@ impl RustiQData {
             return Err(PersistenceError::MissingEri);
         }
         destination.write_json(RelativePath::new(MANIFEST_PATH), &manifest)?;
+        destination.finish()?;
         fs::rename(staging.path(), directory)?;
         Ok(())
     }
