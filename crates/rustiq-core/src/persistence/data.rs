@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    fs,
-    path::Path,
-};
+use std::collections::{BTreeMap, HashSet};
 
 use relative_path::RelativePath;
 
@@ -113,16 +109,8 @@ impl RustiQData {
         }
     }
 
-    /// Reads only the bounded manifest. NPY values are opened on demand.
-    pub fn read(directory: impl AsRef<Path>) -> Result<Self, PersistenceError> {
-        let directory = directory.as_ref();
-        let metadata = fs::symlink_metadata(directory)?;
-        if !metadata.is_dir() || metadata.file_type().is_symlink() {
-            return Err(PersistenceError::InvalidManifest(
-                "entry is not a regular directory".into(),
-            ));
-        }
-        let mut source = Storage::folder(fs::canonicalize(directory)?);
+    /// Reads only the bounded manifest. Scientific artifacts are opened on demand.
+    pub fn read(mut source: Storage) -> Result<Self, PersistenceError> {
         let manifest: Manifest =
             source.read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)?;
         if manifest.format != FORMAT_NAME || manifest.format_version != FORMAT_VERSION {
@@ -214,40 +202,28 @@ impl RustiQData {
         self.ao_eri.take()
     }
 
-    /// Writes to a new directory, copying unloaded artifacts without decoding them.
-    pub fn write(&mut self, directory: impl AsRef<Path>) -> Result<(), PersistenceError> {
-        self.write_inner(directory.as_ref(), self.ao_eri.as_ref())
+    /// Writes to the selected storage, copying unloaded artifacts without decoding them.
+    pub fn write(&mut self, destination: Storage) -> Result<(), PersistenceError> {
+        let eri = self.ao_eri.take();
+        let result = self.write_inner(destination, eri.as_ref());
+        self.ao_eri = eri;
+        result
     }
 
     pub(crate) fn write_with_eri(
         &mut self,
-        directory: impl AsRef<Path>,
+        destination: Storage,
         eri: Option<&CompactEri>,
     ) -> Result<(), PersistenceError> {
-        self.write_inner(directory.as_ref(), eri)
+        self.write_inner(destination, eri)
     }
 
     fn write_inner(
         &mut self,
-        directory: &Path,
+        mut destination: Storage,
         eri: Option<&CompactEri>,
     ) -> Result<(), PersistenceError> {
-        if directory.exists() {
-            return Err(PersistenceError::Io(std::io::Error::new(
-                std::io::ErrorKind::AlreadyExists,
-                "persistence destination already exists",
-            )));
-        }
-        let parent = directory
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("."));
-        fs::create_dir_all(parent)?;
-        let staging = tempfile::Builder::new()
-            .prefix(".rustiq-data-")
-            .tempdir_in(parent)?;
         let mut manifest = self.manifest.clone();
-        let mut destination = Storage::folder(staging.path());
 
         for (name, artifact) in &self.manifest.artifacts {
             if name == AO_ERI_ARTIFACT && eri.is_some() {
@@ -295,9 +271,7 @@ impl RustiQData {
             return Err(PersistenceError::MissingEri);
         }
         destination.write_json(RelativePath::new(MANIFEST_PATH), &manifest)?;
-        destination.finish()?;
-        fs::rename(staging.path(), directory)?;
-        Ok(())
+        destination.finish()
     }
 }
 
@@ -359,8 +333,8 @@ mod tests {
         let mut data = new_data();
         assert!(data.get::<AoEriArtifact>().unwrap().is_none());
         data.set::<AoEriArtifact>(CompactEri::Zeroed(2)).unwrap();
-        data.write(&entry).unwrap();
-        let mut restored = RustiQData::read(&entry).unwrap();
+        data.write(Storage::folder(&entry)).unwrap();
+        let mut restored = RustiQData::read(Storage::folder(&entry)).unwrap();
         assert!(restored.ao_eri.is_none());
         let first = restored.get::<AoEriArtifact>().unwrap().unwrap() as *const CompactEri;
         fs::remove_file(entry.join(AO_ERI_PATH)).unwrap();
@@ -376,7 +350,7 @@ mod tests {
         let second = root.path().join("second");
         let mut data = new_data();
         data.set_eri(CompactEri::Zeroed(2)).unwrap();
-        data.write(&first).unwrap();
+        data.write(Storage::folder(&first)).unwrap();
         let unknown = b"opaque future data";
         let unknown_path = first.join("arrays/post-hf/future.npy");
         fs::create_dir_all(unknown_path.parent().unwrap()).unwrap();
@@ -395,14 +369,14 @@ mod tests {
             },
         );
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-        let restored = RustiQData::read(&first).unwrap();
+        let restored = RustiQData::read(Storage::folder(&first)).unwrap();
         assert!(restored.ao_eri.is_none());
-        restored.write(&second).unwrap();
+        restored.write(Storage::folder(&second)).unwrap();
         assert_eq!(
             fs::read(second.join("arrays/post-hf/future.npy")).unwrap(),
             unknown
         );
-        assert_eq!(RustiQData::read(&second).unwrap().manifest, manifest);
+        assert_eq!(RustiQData::read(Storage::folder(&second)).unwrap().manifest, manifest);
     }
 
     #[test]
@@ -435,10 +409,10 @@ mod tests {
         let second = root.path().join("second");
         let mut data = new_data();
         data.set_eri(CompactEri::Zeroed(2)).unwrap();
-        data.write(&first).unwrap();
+        data.write(Storage::folder(&first)).unwrap();
         fs::write(first.join(AO_ERI_PATH), b"bad").unwrap();
         assert!(matches!(
-            RustiQData::read(&first).unwrap().write(&second),
+            RustiQData::read(Storage::folder(&first)).unwrap().write(&second),
             Err(PersistenceError::InvalidArtifact(_))
         ));
         assert!(!second.exists());
@@ -458,7 +432,7 @@ mod tests {
         );
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         assert!(matches!(
-            RustiQData::read(&first),
+            RustiQData::read(Storage::folder(&first)),
             Err(PersistenceError::InvalidManifest(_))
         ));
     }
