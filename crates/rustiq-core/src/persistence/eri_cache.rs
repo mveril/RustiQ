@@ -18,7 +18,9 @@ use super::{
     FORMAT_VERSION, SCIENTIFIC_IDENTITY_VERSION,
 };
 
-use super::data::{AO_ERI_ARTIFACT, CACHE_KIND};
+use super::data::AO_ERI_ARTIFACT;
+
+const CACHE_KIND: &str = "integral-cache";
 
 /// A directory-backed AO ERI cache entry available for management.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -338,9 +340,10 @@ impl EriCache {
         }
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
-        let mut entry_data = RustiQData::new_with_identity(identity, basis_functions);
+        let mut entry_data =
+            RustiQData::new_with_identity(identity, basis_functions, CACHE_KIND);
         entry_data
-            .write_with_eri(Storage::folder(temporary.path()), Some(eri))
+            .write_with_eri(Storage::folder(temporary.path()), eri)
             .map_err(io::Error::other)?;
         let temporary_path = temporary.keep();
         if fs::symlink_metadata(&final_entry).is_ok() {
