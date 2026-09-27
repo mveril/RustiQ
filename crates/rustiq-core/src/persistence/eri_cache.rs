@@ -388,7 +388,7 @@ fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool 
             .artifacts
             .get(AO_ERI_ARTIFACT)
             .is_some_and(|artifact| {
-                artifact.path == AO_ERI_PATH
+                artifact.path.as_str() == AO_ERI_PATH
                     && artifact.representation == COMPACT_ERI_REPRESENTATION
                     && ao_eri_attributes(artifact).is_some_and(|attributes| {
                         attributes.computation_version == AO_ERI_COMPUTATION_VERSION

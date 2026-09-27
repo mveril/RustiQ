@@ -22,7 +22,6 @@ pub use manifest::{
     AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
     ScientificIdentityManifest,
 };
-pub use npy::NpyConvert;
 
 #[allow(unused_imports)]
 pub(crate) use npy::{

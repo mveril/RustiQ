@@ -2,8 +2,10 @@ use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, File},
     io::{BufReader, BufWriter, Seek, Write},
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
+
+use relative_path::RelativePath;
 
 use crate::{
     basis::Basis, config::validated::PositiveFiniteF64, eri::CompactEri,
@@ -11,8 +13,9 @@ use crate::{
 };
 
 use super::{
-    ao_eri_identity, sha256_reader, AoEriAttributes, ArtifactAttributes, ArtifactManifest,
-    Manifest, NpyConvert, PersistenceError, Producer, ScientificIdentityManifest,
+    ao_eri_identity, read_compact_eri, sha256_reader, write_compact_eri, AoEriAttributes,
+    ArtifactAttributes, ArtifactManifest, Manifest, PersistenceError, Producer,
+    ScientificIdentityManifest,
     AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, MANIFEST_PATH,
 };
@@ -140,10 +143,10 @@ impl RustiQData {
         }
         let mut paths: HashSet<&str> = HashSet::new();
         for artifact in manifest.artifacts.values() {
-            relative_artifact_path(&artifact.path)?;
+            validate_artifact_path(&artifact.path)?;
             if paths
                 .iter()
-                .any(|other| paths_conflict(other, &artifact.path))
+                .any(|other| paths_conflict(other, artifact.path.as_str()))
             {
                 return Err(PersistenceError::InvalidManifest(format!(
                     "artifact path conflicts with another artifact: {}",
@@ -195,7 +198,7 @@ impl RustiQData {
                     "AO ERI attributes are missing".into(),
                 ));
             };
-            if artifact.path != AO_ERI_PATH
+            if artifact.path.as_str() != AO_ERI_PATH
                 || artifact.representation != COMPACT_ERI_REPRESENTATION
                 || attributes.computation_version != AO_ERI_COMPUTATION_VERSION
             {
@@ -211,7 +214,7 @@ impl RustiQData {
                 ));
             }
             file.rewind()?;
-            self.ao_eri = Some(CompactEri::try_read_with_shape(
+            self.ao_eri = Some(read_compact_eri(
                 BufReader::new(file),
                 attributes.basis_functions,
             )?);
@@ -268,7 +271,8 @@ impl RustiQData {
                 PersistenceError::InvalidArtifact(format!("artifact {name} has no source file"))
             })?;
             let mut input = open_artifact(source, artifact)?;
-            let output_path = staging.path().join(relative_artifact_path(&artifact.path)?);
+            validate_artifact_path(&artifact.path)?;
+            let output_path = artifact.path.to_path(staging.path());
             fs::create_dir_all(output_path.parent().expect("artifact has a parent"))?;
             let mut output = BufWriter::new(File::create(&output_path)?);
             std::io::copy(&mut input, &mut output)?;
@@ -283,10 +287,10 @@ impl RustiQData {
         if let Some(eri) = eri {
             let basis_functions = self.basis_functions.ok_or(PersistenceError::MissingEri)?;
             validate_eri_len(eri, basis_functions)?;
-            let path = staging.path().join(AO_ERI_PATH);
+            let path = RelativePath::new(AO_ERI_PATH).to_path(staging.path());
             fs::create_dir_all(path.parent().expect("ERI artifact has a parent"))?;
             let mut output = BufWriter::new(File::create(&path)?);
-            eri.write_npy(&mut output)?;
+            write_compact_eri(&mut output, eri)?;
             output.flush()?;
             output
                 .into_inner()
@@ -295,7 +299,7 @@ impl RustiQData {
             manifest.artifacts.insert(
                 AO_ERI_ARTIFACT.to_owned(),
                 ArtifactManifest {
-                    path: AO_ERI_PATH.to_owned(),
+                    path: AO_ERI_PATH.into(),
                     size: fs::metadata(&path)?.len(),
                     representation: COMPACT_ERI_REPRESENTATION.to_owned(),
                     digest: sha256_reader(BufReader::new(File::open(&path)?))?,
@@ -338,30 +342,41 @@ fn validate_eri_len(eri: &CompactEri, basis_functions: usize) -> Result<(), Pers
     Ok(())
 }
 
-fn relative_artifact_path(path: &str) -> Result<&Path, PersistenceError> {
-    let path = Path::new(path);
-    if path.as_os_str().is_empty()
-        || !path
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
-        || path.starts_with(MANIFEST_PATH)
+fn validate_artifact_path(path: &RelativePath) -> Result<(), PersistenceError> {
+    let value = path.as_str();
+    let invalid_component = value
+        .split('/')
+        .any(|component| component.is_empty() || matches!(component, "." | ".."));
+    let conflicts_with_manifest = value.split('/').next() == Some(MANIFEST_PATH);
+
+    if value.is_empty()
+        || value.starts_with('/')
+        || value.contains('\\')
+        || value.contains(':')
+        || invalid_component
+        || conflicts_with_manifest
     {
         return Err(PersistenceError::InvalidArtifact(format!(
-            "unsafe artifact path: {}",
-            path.display()
+            "unsafe artifact path: {path}"
         )));
     }
-    Ok(path)
+    Ok(())
 }
 
 fn paths_conflict(left: &str, right: &str) -> bool {
-    Path::new(left).starts_with(right) || Path::new(right).starts_with(left)
+    left == right
+        || left
+            .strip_prefix(right)
+            .is_some_and(|suffix| suffix.starts_with('/'))
+        || right
+            .strip_prefix(left)
+            .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 fn open_artifact(root: &Path, artifact: &ArtifactManifest) -> Result<File, PersistenceError> {
-    let relative = relative_artifact_path(&artifact.path)?;
+    validate_artifact_path(&artifact.path)?;
     let mut path = root.to_path_buf();
-    for component in relative.components() {
+    for component in artifact.path.as_str().split('/') {
         path.push(component);
         let metadata = fs::symlink_metadata(&path)?;
         if metadata.file_type().is_symlink() {
@@ -460,6 +475,32 @@ mod tests {
             unknown
         );
         assert_eq!(RustiQData::read(&second).unwrap().manifest, manifest);
+    }
+
+    #[test]
+    fn artifact_paths_are_portable_and_relative() {
+        assert!(validate_artifact_path(RelativePath::new(
+            "arrays/integrals/ao-eri.npy"
+        ))
+        .is_ok());
+
+        for path in [
+            "",
+            "/arrays/integrals/ao-eri.npy",
+            "arrays\\integrals\\ao-eri.npy",
+            "C:/arrays/ao-eri.npy",
+            "arrays/../ao-eri.npy",
+            "arrays/./ao-eri.npy",
+            "arrays//ao-eri.npy",
+            "arrays/ao-eri.npy/",
+            "manifest.json",
+            "manifest.json/child",
+        ] {
+            assert!(
+                validate_artifact_path(RelativePath::new(path)).is_err(),
+                "{path} must be rejected"
+            );
+        }
     }
 
     #[test]

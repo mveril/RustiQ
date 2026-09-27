@@ -97,18 +97,20 @@ as verified byte streams. Its public scientific API is typed: `set_eri` and
 `Result<Option<&CompactEri>, PersistenceError>`, while
 `set::<AoEriArtifact>(value)` accepts only `CompactEri`; only declared artifact
 marker types are accepted. A future known artifact gets its own marker, typed field,
-and accessors in `RustiQData`. The `NpyConvert` trait handles NPY byte streams
-for `CompactEri` and `DMatrix<f64>`. Its associated `Shape` type is `usize` for
-the ERI basis-function count and `(usize, usize)` for matrix dimensions;
-`try_read_with_shape` checks the declared shape before constructing the value.
-`from_npy` and `try_from_npy_with_shape` also accept an already parsed
-`npyz::NpyFile`, so callers can parse a stream once without using a filesystem
-path. Matrix readers accept C and Fortran order and matrix writers emit Fortran
-order.
+and accessors in `RustiQData`. NPY parsing and conversion remain internal
+persistence details. Compact ERIs are decoded only with the basis-function count
+from their typed manifest attributes; the NPY length is never used to infer that
+scientific context. Matrix readers accept C and Fortran order and matrix writers
+emit Fortran order.
 
 - `manifest.json` is UTF-8 JSON and describes the format, producer, scientific
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
+
+Artifact paths are portable relative UTF-8 paths with `/` as the only separator,
+independent of the host operating system. Empty components, `.`, `..`,
+backslashes, drive-like prefixes containing `:`, absolute paths, and paths
+conflicting with `manifest.json` are rejected before filesystem access.
 
 Every artifact records common envelope metadata:
 

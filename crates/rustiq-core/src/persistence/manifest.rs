@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use relative_path::RelativePathBuf;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -47,7 +48,7 @@ pub struct AoEriAttributes {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ArtifactManifest {
-    pub path: String,
+    pub path: RelativePathBuf,
     pub size: u64,
     pub representation: String,
     pub digest: Sha256Digest,
@@ -56,7 +57,7 @@ pub struct ArtifactManifest {
 
 #[derive(Deserialize)]
 struct RawArtifactManifest {
-    path: String,
+    path: RelativePathBuf,
     size: u64,
     representation: String,
     digest: Sha256Digest,
@@ -109,7 +110,7 @@ mod tests {
         artifacts.insert(
             "ao_eri".to_string(),
             ArtifactManifest {
-                path: AO_ERI_PATH.to_string(),
+                path: RelativePathBuf::from(AO_ERI_PATH),
                 size: 176,
                 representation: COMPACT_ERI_REPRESENTATION.to_string(),
                 digest: Sha256Digest::from([0x22; 32]),
