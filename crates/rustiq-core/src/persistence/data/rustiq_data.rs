@@ -78,7 +78,7 @@ impl RustiQData {
             return Err(ManifestError::UnsupportedFormat.into());
         }
 
-        let mut paths = HashSet::new();
+        let mut paths: HashSet<String> = HashSet::new();
         for artifact in manifest.artifacts.values() {
             validate_artifact_path(&artifact.path)?;
             let key = artifact.path.as_str().to_lowercase();

@@ -125,7 +125,7 @@ impl Storage {
         path: &RelativePath,
         value: &T,
     ) -> Result<(), ManifestError> {
-        self.write_artifact(path, |writer| {
+        self.write_artifact::<ManifestError, _>(path, |writer| {
             serde_json::to_writer_pretty(&mut *writer, value)?;
             writer.write_all(b"\n").map_err(StorageError::from)?;
             Ok(())
