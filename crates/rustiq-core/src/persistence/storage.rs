@@ -11,14 +11,9 @@ use sha2::{Digest, Sha256};
 use super::{sha256_reader, PersistenceError, Sha256Digest};
 
 #[derive(Debug)]
-pub(crate) enum Storage {
-    Folder(FolderStorage),
+pub enum Storage {
+    Folder(PathBuf),
     // Later: Zip(ZipStorage).
-}
-
-#[derive(Debug)]
-pub(crate) struct FolderStorage {
-    root: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,8 +67,8 @@ impl<W: Write> Write for DigestWriter<W> {
 }
 
 impl Storage {
-    pub(crate) fn folder(root: impl Into<PathBuf>) -> Self {
-        Self::Folder(FolderStorage { root: root.into() })
+    pub fn folder(root: impl Into<PathBuf>) -> Self {
+        Self::Folder(root.into())
     }
 
     pub(crate) fn artifact_metadata(
@@ -81,7 +76,7 @@ impl Storage {
         path: &RelativePath,
     ) -> Result<ArtifactMetadata, PersistenceError> {
         match self {
-            Self::Folder(folder) => folder.artifact_metadata(path),
+            Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_metadata(path),
         }
     }
 
@@ -94,7 +89,7 @@ impl Storage {
         F: FnOnce(&mut dyn Read) -> Result<T, PersistenceError>,
     {
         match self {
-            Self::Folder(folder) => folder.with_artifact(path, read),
+            Self::Folder(root) => FolderStorage { root: root.clone() }.with_artifact(path, read),
         }
     }
 
@@ -107,7 +102,7 @@ impl Storage {
         F: FnOnce(&mut dyn Write) -> Result<(), PersistenceError>,
     {
         match self {
-            Self::Folder(folder) => folder.write_artifact(path, write),
+            Self::Folder(root) => FolderStorage { root: root.clone() }.write_artifact(path, write),
         }
     }
 
@@ -117,7 +112,7 @@ impl Storage {
         max_size: u64,
     ) -> Result<T, PersistenceError> {
         let size = match self {
-            Self::Folder(folder) => folder.artifact_size(path)?,
+            Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_size(path)?,
         };
         if size > max_size {
             return Err(PersistenceError::InvalidManifest(
@@ -148,6 +143,11 @@ impl Storage {
             Self::Folder(_) => Ok(()),
         }
     }
+}
+
+#[derive(Debug)]
+struct FolderStorage {
+    root: PathBuf,
 }
 
 impl FolderStorage {
