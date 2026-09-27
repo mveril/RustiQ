@@ -18,7 +18,8 @@ pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
 pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
-pub use error::{ArtifactError, ManifestError, NpyError, StorageError};
+pub use error::ArtifactError;
+pub(crate) use error::{ManifestError, NpyError, PersistenceReadError, PersistenceWriteError, StorageError};
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
 pub(crate) use manifest::{
