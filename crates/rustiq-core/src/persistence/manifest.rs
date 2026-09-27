@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::{Sha256Digest, COMPACT_ERI_REPRESENTATION};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Manifest {
+pub(crate) struct Manifest {
     pub format: String,
     pub format_version: u32,
     pub kind: String,
@@ -17,13 +17,13 @@ pub struct Manifest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Producer {
+pub(crate) struct Producer {
     pub name: String,
     pub version: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScientificIdentityManifest {
+pub(crate) struct ScientificIdentityManifest {
     pub version: u32,
     pub digest: Sha256Digest,
 }
@@ -34,20 +34,20 @@ pub struct ScientificIdentityManifest {
 /// retain their attributes so newer manifests remain inspectable by older readers.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
-pub enum ArtifactAttributes {
+pub(crate) enum ArtifactAttributes {
     AoEri(AoEriAttributes),
     Unknown(BTreeMap<String, Value>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AoEriAttributes {
+pub(crate) struct AoEriAttributes {
     pub basis_functions: usize,
     pub computation_version: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ArtifactManifest {
+pub(crate) struct ArtifactManifest {
     pub path: RelativePathBuf,
     pub size: u64,
     pub representation: String,
