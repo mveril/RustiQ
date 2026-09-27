@@ -6,6 +6,21 @@ use serde_json::Value;
 
 use super::{Sha256Digest, COMPACT_ERI_REPRESENTATION};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ManifestKind {
+    Checkpoint,
+    IntegralCache,
+}
+
+impl ManifestKind {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Checkpoint => "checkpoint",
+            Self::IntegralCache => "integral-cache",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Manifest {
     pub format: String,
