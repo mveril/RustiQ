@@ -63,6 +63,8 @@ pub enum ArtifactError {
     Missing,
     #[error("unsupported artifact representation: {0}")]
     UnsupportedRepresentation(String),
+    #[error("invalid artifact metadata: {0}")]
+    InvalidMetadata(String),
     #[error("artifact integrity check failed: {0}")]
     IntegrityMismatch(String),
     #[error("invalid artifact path: {0}")]
