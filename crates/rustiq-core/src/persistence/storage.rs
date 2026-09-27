@@ -90,8 +90,7 @@ impl Storage {
     {
         match self {
             Self::Folder(root) => FolderStorage { root: root.clone() }
-                .with_artifact(path, read)
-                .map_err(Into::into),
+                .with_artifact(path, read),
         }
     }
 
