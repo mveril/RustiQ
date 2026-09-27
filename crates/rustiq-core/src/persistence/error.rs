@@ -31,6 +31,14 @@ pub(crate) enum NpyError {
     },
     #[error("NPY dtype is not a supported f64 representation: {0}")]
     InvalidDtype(String),
+    #[error(
+        "AO ERI NPY has {actual} values, expected {expected} for {basis_functions} basis functions"
+    )]
+    InvalidValueCount {
+        basis_functions: usize,
+        expected: usize,
+        actual: usize,
+    },
     #[error("NPY dimensions exceed supported limits")]
     DimensionOverflow,
 }
