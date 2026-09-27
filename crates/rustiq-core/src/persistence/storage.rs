@@ -79,18 +79,13 @@ impl Storage {
         }
     }
 
-    pub(crate) fn with_artifact<T, E, F>(
-        &mut self,
-        path: &RelativePath,
-        read: F,
-    ) -> Result<T, E>
+    pub(crate) fn with_artifact<T, E, F>(&mut self, path: &RelativePath, read: F) -> Result<T, E>
     where
         E: From<StorageError>,
         F: FnOnce(&mut dyn Read) -> Result<T, E>,
     {
         match self {
-            Self::Folder(root) => FolderStorage { root: root.clone() }
-                .with_artifact(path, read),
+            Self::Folder(root) => FolderStorage { root: root.clone() }.with_artifact(path, read),
         }
     }
 
@@ -104,8 +99,7 @@ impl Storage {
         F: FnOnce(&mut dyn Write) -> Result<(), E>,
     {
         match self {
-            Self::Folder(root) => FolderStorage { root: root.clone() }
-                .write_artifact(path, write),
+            Self::Folder(root) => FolderStorage { root: root.clone() }.write_artifact(path, write),
         }
     }
 
@@ -172,11 +166,7 @@ impl FolderStorage {
         read(&mut reader)
     }
 
-    fn write_artifact<E, F>(
-        &mut self,
-        path: &RelativePath,
-        write: F,
-    ) -> Result<ArtifactMetadata, E>
+    fn write_artifact<E, F>(&mut self, path: &RelativePath, write: F) -> Result<ArtifactMetadata, E>
     where
         E: From<StorageError>,
         F: FnOnce(&mut dyn Write) -> Result<(), E>,
@@ -185,13 +175,18 @@ impl FolderStorage {
         let writer = BufWriter::new(file);
         let mut writer = DigestWriter::new(writer);
         write(&mut writer)?;
-        writer.flush().map_err(StorageError::from).map_err(E::from)?;
+        writer
+            .flush()
+            .map_err(StorageError::from)
+            .map_err(E::from)?;
         let (writer, metadata) = writer.finish();
         let file = writer
             .into_inner()
             .map_err(|error| StorageError::Io(error.into_error()))
             .map_err(E::from)?;
-        file.sync_all().map_err(StorageError::from).map_err(E::from)?;
+        file.sync_all()
+            .map_err(StorageError::from)
+            .map_err(E::from)?;
         Ok(metadata)
     }
 

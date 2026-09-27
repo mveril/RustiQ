@@ -143,15 +143,14 @@ impl RustiQData {
             let source = self.source.as_mut().ok_or(ArtifactError::Missing)?;
             let metadata = source.artifact_metadata(&artifact.path)?;
             if metadata.size != artifact.size || metadata.digest != artifact.digest {
-                return Err(ArtifactError::IntegrityMismatch(
-                    artifact.path.to_string(),
-                ));
+                return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()));
             }
 
-            self.ao_eri = Some(source.with_artifact::<_, ArtifactError, _>(
-                &artifact.path,
-                |reader| read_compact_eri(reader, attributes.basis_functions).map_err(Into::into),
-            )?);
+            self.ao_eri = Some(
+                source.with_artifact::<_, ArtifactError, _>(&artifact.path, |reader| {
+                    read_compact_eri(reader, attributes.basis_functions).map_err(Into::into)
+                })?,
+            );
         }
 
         Ok(self
@@ -164,10 +163,7 @@ impl RustiQData {
         self.ao_eri.take()
     }
 
-    pub(crate) fn write_to(
-        &mut self,
-        destination: Storage,
-    ) -> Result<(), PersistenceWriteError> {
+    pub(crate) fn write_to(&mut self, destination: Storage) -> Result<(), PersistenceWriteError> {
         let eri = self.ao_eri.take();
         let result = self.write_inner(destination, eri.as_ref());
         self.ao_eri = eri;
@@ -199,9 +195,8 @@ impl RustiQData {
             })?;
             validate_artifact_path(&artifact.path)?;
 
-            let metadata = source.with_artifact::<_, PersistenceWriteError, _>(
-                &artifact.path,
-                |input| {
+            let metadata =
+                source.with_artifact::<_, PersistenceWriteError, _>(&artifact.path, |input| {
                     destination.write_artifact::<PersistenceWriteError, _>(
                         &artifact.path,
                         |output| {
@@ -211,13 +206,10 @@ impl RustiQData {
                             Ok(())
                         },
                     )
-                },
-            )?;
+                })?;
 
             if metadata.size != artifact.size || metadata.digest != artifact.digest {
-                return Err(
-                    ArtifactError::IntegrityMismatch(artifact.path.to_string()).into(),
-                );
+                return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()).into());
             }
         }
 
@@ -225,10 +217,10 @@ impl RustiQData {
             let basis_functions = self.basis_functions.ok_or(ArtifactError::Missing)?;
             validate_eri_len(eri, basis_functions)?;
             let path = RelativePath::new(AO_ERI_PATH);
-            let metadata = destination.write_artifact::<PersistenceWriteError, _>(
-                path,
-                |writer| write_compact_eri(writer, eri).map_err(Into::into),
-            )?;
+            let metadata = destination
+                .write_artifact::<PersistenceWriteError, _>(path, |writer| {
+                    write_compact_eri(writer, eri).map_err(Into::into)
+                })?;
 
             manifest.artifacts.insert(
                 AO_ERI_ARTIFACT.to_owned(),
@@ -257,9 +249,7 @@ impl RustiQData {
 
 fn validate_eri_len(eri: &CompactEri, basis_functions: usize) -> Result<(), ArtifactError> {
     let expected = CompactEri::checked_storage_len(basis_functions).ok_or_else(|| {
-        ArtifactError::InvalidMetadata(
-            "basis-function count overflows compact ERI storage".into(),
-        )
+        ArtifactError::InvalidMetadata("basis-function count overflows compact ERI storage".into())
     })?;
     if eri.len() != expected {
         return Err(ArtifactError::InvalidValueCount {

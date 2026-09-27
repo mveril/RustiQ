@@ -40,4 +40,3 @@ pub(crate) const MANIFEST_PATH: &str = "manifest.json";
 pub(crate) const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
 pub(crate) const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
 pub(crate) const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
-

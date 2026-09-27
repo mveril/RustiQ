@@ -14,10 +14,7 @@ trait NpyConvert: Sized {
 
     fn npy_shape(shape: Self::Shape) -> Result<Self::NpyShape, NpyError>;
 
-    fn decode_with_shape<R: Read>(
-        npy: NpyFile<R>,
-        shape: Self::Shape,
-    ) -> Result<Self, NpyError>;
+    fn decode_with_shape<R: Read>(npy: NpyFile<R>, shape: Self::Shape) -> Result<Self, NpyError>;
 
     /// Checks a parsed header before decoding any array values.
     fn try_from_npy_with_shape<R: Read>(
@@ -35,14 +32,8 @@ trait NpyConvert: Sized {
     }
 
     /// Parses a stream once, checks its shape, then decodes its values.
-    fn try_read_with_shape(
-        reader: impl Read,
-        shape: Self::Shape,
-    ) -> Result<Self, NpyError> {
-        Self::try_from_npy_with_shape(
-            NpyFile::new(reader).map_err(NpyError::Read)?,
-            shape,
-        )
+    fn try_read_with_shape(reader: impl Read, shape: Self::Shape) -> Result<Self, NpyError> {
+        Self::try_from_npy_with_shape(NpyFile::new(reader).map_err(NpyError::Read)?, shape)
     }
 
     fn write_npy(&self, writer: impl Write) -> Result<(), NpyError>;
@@ -53,12 +44,9 @@ impl NpyConvert for CompactEri {
     type NpyShape = [u64; 1];
 
     fn npy_shape(basis_functions: usize) -> Result<Self::NpyShape, NpyError> {
-        let length = CompactEri::checked_storage_len(basis_functions).ok_or_else(|| {
-            NpyError::DimensionOverflow
-        })?;
-        Ok([u64::try_from(length).map_err(|_| {
-            NpyError::DimensionOverflow
-        })?])
+        let length = CompactEri::checked_storage_len(basis_functions)
+            .ok_or_else(|| NpyError::DimensionOverflow)?;
+        Ok([u64::try_from(length).map_err(|_| NpyError::DimensionOverflow)?])
     }
 
     fn decode_with_shape<R: Read>(
@@ -88,12 +76,8 @@ impl NpyConvert for DMatrix<f64> {
     type NpyShape = [u64; 2];
 
     fn npy_shape((rows, columns): (usize, usize)) -> Result<Self::NpyShape, NpyError> {
-        let rows = u64::try_from(rows).map_err(|_| {
-            NpyError::DimensionOverflow
-        })?;
-        let columns = u64::try_from(columns).map_err(|_| {
-            NpyError::DimensionOverflow
-        })?;
+        let rows = u64::try_from(rows).map_err(|_| NpyError::DimensionOverflow)?;
+        let columns = u64::try_from(columns).map_err(|_| NpyError::DimensionOverflow)?;
         Ok([rows, columns])
     }
 
@@ -120,10 +104,7 @@ impl NpyConvert for DMatrix<f64> {
     }
 }
 
-pub(crate) fn write_compact_eri(
-    writer: impl Write,
-    eri: &CompactEri,
-) -> Result<(), NpyError> {
+pub(crate) fn write_compact_eri(writer: impl Write, eri: &CompactEri) -> Result<(), NpyError> {
     eri.write_npy(writer)
 }
 
@@ -139,17 +120,18 @@ fn decode_compact_eri<R: Read>(
     basis_functions: usize,
 ) -> Result<CompactEri, NpyError> {
     if npy.shape().len() != 1 {
-        return Err(NpyError::InvalidEriShape(npy.shape().to_vec().into_boxed_slice()));
+        return Err(NpyError::InvalidEriShape(
+            npy.shape().to_vec().into_boxed_slice(),
+        ));
     }
     let actual = usize::try_from(npy.shape()[0])
         .map_err(|_| NpyError::InvalidEriShape(npy.shape().to_vec().into_boxed_slice()))?;
-    let expected = CompactEri::checked_storage_len(basis_functions).ok_or(
-        NpyError::InvalidValueCount {
+    let expected =
+        CompactEri::checked_storage_len(basis_functions).ok_or(NpyError::InvalidValueCount {
             basis_functions,
             expected: 0,
             actual,
-        },
-    )?;
+        })?;
     if actual != expected {
         return Err(NpyError::InvalidValueCount {
             basis_functions,
@@ -220,7 +202,9 @@ pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, NpyError> 
 
 fn decode_dmatrix<R: Read>(npy: NpyFile<R>) -> Result<DMatrix<f64>, NpyError> {
     if npy.shape().len() != 2 {
-        return Err(NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()));
+        return Err(NpyError::InvalidMatrixShape(
+            npy.shape().to_vec().into_boxed_slice(),
+        ));
     }
     let rows = usize::try_from(npy.shape()[0])
         .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
