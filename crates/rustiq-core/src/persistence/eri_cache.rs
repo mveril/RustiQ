@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     ao_eri_identity, sha256_reader, validate_compact_eri_header, AoEriAttributes,
-    ArtifactAttributes, ArtifactManifest, Manifest, RustiQData, ScientificIdentity,
+    ArtifactAttributes, ArtifactManifest, Manifest, RustiQData, ScientificIdentity, Storage,
     AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, SCIENTIFIC_IDENTITY_VERSION,
 };
@@ -309,7 +309,7 @@ impl EriCache {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return None;
         }
-        let mut data = RustiQData::read(&entry).ok()?;
+        let mut data = RustiQData::read(Storage::folder(&entry)).ok()?;
         let manifest = data.manifest();
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
         let attributes = ao_eri_attributes(artifact)?;
@@ -338,13 +338,11 @@ impl EriCache {
         }
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
-        let entry_data = RustiQData::new_with_identity(identity, basis_functions);
-        let staged_entry = temporary.path().join("entry");
+        let mut entry_data = RustiQData::new_with_identity(identity, basis_functions);
         entry_data
-            .write_with_eri(&staged_entry, Some(eri))
+            .write_with_eri(Storage::folder(temporary.path()), Some(eri))
             .map_err(io::Error::other)?;
         let temporary_path = temporary.keep();
-        let staged_entry = temporary_path.join("entry");
         if fs::symlink_metadata(&final_entry).is_ok() {
             if self.load_identity(identity, basis_functions).is_some() {
                 let _ = fs::remove_dir_all(temporary_path);
@@ -355,11 +353,8 @@ impl EriCache {
                 return Err(error);
             }
         }
-        match fs::rename(&staged_entry, &final_entry) {
-            Ok(()) => {
-                let _ = fs::remove_dir_all(temporary_path);
-                Ok(())
-            }
+        match fs::rename(&temporary_path, &final_entry) {
+            Ok(()) => Ok(()),
             Err(error) => {
                 let _ = fs::remove_dir_all(temporary_path);
                 if self.load_identity(identity, basis_functions).is_some() {
@@ -373,7 +368,7 @@ impl EriCache {
 }
 
 fn read_manifest(entry: &Path) -> Option<Manifest> {
-    RustiQData::read(entry)
+    RustiQData::read(Storage::folder(entry))
         .ok()
         .map(|data| data.manifest().clone())
 }
