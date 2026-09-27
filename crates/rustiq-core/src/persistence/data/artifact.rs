@@ -1,5 +1,5 @@
 use super::rustiq_data::RustiQData;
-use crate::persistence::PersistenceError;
+use crate::persistence::ArtifactError;
 
 pub(crate) mod private {
     pub trait Sealed {}
@@ -10,7 +10,7 @@ pub trait Artifact: private::Sealed {
     type Value;
 
     #[doc(hidden)]
-    fn get(data: &mut RustiQData) -> Result<Option<&Self::Value>, PersistenceError>;
+    fn get(data: &mut RustiQData) -> Result<Option<&Self::Value>, ArtifactError>;
     #[doc(hidden)]
-    fn set(data: &mut RustiQData, value: Self::Value) -> Result<(), PersistenceError>;
+    fn set(data: &mut RustiQData, value: Self::Value) -> Result<(), ArtifactError>;
 }
