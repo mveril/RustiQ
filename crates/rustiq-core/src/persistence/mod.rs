@@ -23,7 +23,7 @@ pub(crate) use error::{ManifestError, PersistenceReadError, PersistenceWriteErro
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
 pub(crate) use manifest::{
-    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
+    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, ManifestKind, Producer,
     ScientificIdentityManifest,
 };
 pub(crate) use storage::Storage;
