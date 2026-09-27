@@ -9,7 +9,7 @@ use crate::{
 
 use super::super::{
     ao_eri_identity, read_compact_eri, validate_storage_path, write_compact_eri, AoEriAttributes,
-    ArtifactAttributes, ArtifactError, ArtifactManifest, Manifest, ManifestError,
+    ArtifactAttributes, ArtifactError, ArtifactManifest, Manifest, ManifestError, ManifestKind,
     PersistenceReadError, PersistenceWriteError, Producer, ScientificIdentityManifest, Storage,
     StorageError, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, MANIFEST_PATH,
@@ -17,7 +17,6 @@ use super::super::{
 use super::artifact::Artifact;
 
 pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
-const CHECKPOINT_KIND: &str = "checkpoint";
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 
 /// Known scientific artifacts and their manifest, with values loaded on demand.
@@ -43,19 +42,19 @@ impl RustiQData {
     /// Starts a new checkpoint data set with the current scientific identity.
     pub fn new(geometry: &Geometry, basis: &Basis, threshold: Option<PositiveFiniteF64>) -> Self {
         let identity = ao_eri_identity(geometry, basis, threshold);
-        Self::new_with_identity(identity, basis.nbasis(), CHECKPOINT_KIND)
+        Self::new_with_identity(identity, basis.nbasis(), ManifestKind::Checkpoint)
     }
 
     pub(crate) fn new_with_identity(
         identity: super::super::ScientificIdentity,
         basis_functions: usize,
-        kind: impl Into<String>,
+        kind: ManifestKind,
     ) -> Self {
         Self {
             manifest: Manifest {
                 format: FORMAT_NAME.to_owned(),
                 format_version: FORMAT_VERSION,
-                kind: kind.into(),
+                kind: kind.as_str().to_owned(),
                 producer: Producer {
                     name: "RustiQ".to_owned(),
                     version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -292,8 +291,22 @@ mod tests {
                 digest: Sha256Digest::from([7; 32]),
             },
             2,
-            CHECKPOINT_KIND,
+            ManifestKind::Checkpoint,
         )
+    }
+
+    #[test]
+    fn checkpoint_can_be_written_without_ao_eri() {
+        let root = tempfile::tempdir().unwrap();
+        let entry = root.path().join("checkpoint");
+        fs::create_dir(&entry).unwrap();
+
+        let mut data = new_data();
+        data.write_to(Storage::folder(&entry)).unwrap();
+
+        let restored = RustiQData::read_from(Storage::folder(&entry)).unwrap();
+        assert_eq!(restored.manifest().kind, ManifestKind::Checkpoint.as_str());
+        assert!(!restored.manifest().artifacts.contains_key(AO_ERI_ARTIFACT));
     }
 
     #[test]
