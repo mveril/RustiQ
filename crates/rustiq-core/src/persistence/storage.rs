@@ -10,10 +10,14 @@ use sha2::{Digest, Sha256};
 
 use super::{sha256_reader, PersistenceError, Sha256Digest};
 
+/// Physical storage selected for RustiQ persistence.
+///
+/// The folder variant is available in V1. Additional variants, such as the
+/// portable ZIP/ZIP64 container, can be added without changing `RustiQData`.
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum Storage {
     Folder(PathBuf),
-    // Later: Zip(ZipStorage).
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
