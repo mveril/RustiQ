@@ -8,15 +8,10 @@ use relative_path::RelativePath;
 use serde::{de::DeserializeOwned, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::{sha256_reader, PersistenceError, Sha256Digest};
+use super::{sha256_reader, ManifestError, Sha256Digest, StorageError};
 
-/// Physical storage selected for RustiQ persistence.
-///
-/// The folder variant is available in V1. Additional variants, such as the
-/// portable ZIP/ZIP64 container, can be added without changing `RustiQData`.
-#[non_exhaustive]
 #[derive(Debug)]
-pub enum Storage {
+pub(crate) enum Storage {
     Folder(PathBuf),
 }
 
@@ -56,13 +51,13 @@ impl<W: Write> Write for DigestWriter<W> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         let written = self.inner.write(buffer)?;
         self.hasher.update(&buffer[..written]);
-        let written = u64::try_from(written)
-            .map_err(|_| io::Error::other("artifact size exceeds u64"))?;
+        let written_u64 =
+            u64::try_from(written).map_err(|_| io::Error::other("artifact size exceeds u64"))?;
         self.size = self
             .size
-            .checked_add(written)
+            .checked_add(written_u64)
             .ok_or_else(|| io::Error::other("artifact size exceeds u64"))?;
-        Ok(usize::try_from(written).expect("written byte count originated as usize"))
+        Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -71,42 +66,47 @@ impl<W: Write> Write for DigestWriter<W> {
 }
 
 impl Storage {
-    pub fn folder(root: impl Into<PathBuf>) -> Self {
+    pub(crate) fn folder(root: impl Into<PathBuf>) -> Self {
         Self::Folder(root.into())
     }
 
     pub(crate) fn artifact_metadata(
         &mut self,
         path: &RelativePath,
-    ) -> Result<ArtifactMetadata, PersistenceError> {
+    ) -> Result<ArtifactMetadata, StorageError> {
         match self {
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_metadata(path),
         }
     }
 
-    pub(crate) fn with_artifact<T, F>(
+    pub(crate) fn with_artifact<T, E, F>(
         &mut self,
         path: &RelativePath,
         read: F,
-    ) -> Result<T, PersistenceError>
+    ) -> Result<T, E>
     where
-        F: FnOnce(&mut dyn Read) -> Result<T, PersistenceError>,
+        E: From<StorageError>,
+        F: FnOnce(&mut dyn Read) -> Result<T, E>,
     {
         match self {
-            Self::Folder(root) => FolderStorage { root: root.clone() }.with_artifact(path, read),
+            Self::Folder(root) => FolderStorage { root: root.clone() }
+                .with_artifact(path, read)
+                .map_err(Into::into),
         }
     }
 
-    pub(crate) fn write_artifact<F>(
+    pub(crate) fn write_artifact<E, F>(
         &mut self,
         path: &RelativePath,
         write: F,
-    ) -> Result<ArtifactMetadata, PersistenceError>
+    ) -> Result<ArtifactMetadata, E>
     where
-        F: FnOnce(&mut dyn Write) -> Result<(), PersistenceError>,
+        E: From<StorageError>,
+        F: FnOnce(&mut dyn Write) -> Result<(), E>,
     {
         match self {
-            Self::Folder(root) => FolderStorage { root: root.clone() }.write_artifact(path, write),
+            Self::Folder(root) => FolderStorage { root: root.clone() }
+                .write_artifact(path, write),
         }
     }
 
@@ -114,18 +114,16 @@ impl Storage {
         &mut self,
         path: &RelativePath,
         max_size: u64,
-    ) -> Result<T, PersistenceError> {
+    ) -> Result<T, ManifestError> {
         let size = match self {
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_size(path)?,
         };
         if size > max_size {
-            return Err(PersistenceError::InvalidManifest(
-                "manifest is larger than the supported limit".into(),
-            ));
+            return Err(ManifestError::TooLarge);
         }
 
         self.with_artifact(path, |reader| {
-            serde_json::from_reader(reader).map_err(PersistenceError::from)
+            serde_json::from_reader(reader).map_err(ManifestError::from)
         })
     }
 
@@ -133,16 +131,16 @@ impl Storage {
         &mut self,
         path: &RelativePath,
         value: &T,
-    ) -> Result<(), PersistenceError> {
+    ) -> Result<(), ManifestError> {
         self.write_artifact(path, |writer| {
             serde_json::to_writer_pretty(&mut *writer, value)?;
-            writer.write_all(b"\n")?;
+            writer.write_all(b"\n").map_err(StorageError::from)?;
             Ok(())
         })?;
         Ok(())
     }
 
-    pub(crate) fn finish(self) -> Result<(), PersistenceError> {
+    pub(crate) fn finish(self) -> Result<(), StorageError> {
         match self {
             Self::Folder(_) => Ok(()),
         }
@@ -155,51 +153,54 @@ struct FolderStorage {
 }
 
 impl FolderStorage {
-    fn artifact_size(&self, path: &RelativePath) -> Result<u64, PersistenceError> {
+    fn artifact_size(&self, path: &RelativePath) -> Result<u64, StorageError> {
         Ok(self.open_artifact(path)?.metadata()?.len())
     }
 
-    fn artifact_metadata(&self, path: &RelativePath) -> Result<ArtifactMetadata, PersistenceError> {
+    fn artifact_metadata(&self, path: &RelativePath) -> Result<ArtifactMetadata, StorageError> {
         let file = self.open_artifact(path)?;
         let size = file.metadata()?.len();
         let digest = sha256_reader(BufReader::new(file))?;
         Ok(ArtifactMetadata { size, digest })
     }
 
-    fn with_artifact<T, F>(
-        &self,
-        path: &RelativePath,
-        read: F,
-    ) -> Result<T, PersistenceError>
+    fn with_artifact<T, E, F>(&self, path: &RelativePath, read: F) -> Result<T, StorageError>
     where
-        F: FnOnce(&mut dyn Read) -> Result<T, PersistenceError>,
+        E: From<StorageError>,
+        F: FnOnce(&mut dyn Read) -> Result<T, E>,
     {
         let mut reader = BufReader::new(self.open_artifact(path)?);
-        read(&mut reader)
+        read(&mut reader).map_err(|_| {
+            StorageError::Io(io::Error::other(
+                "artifact reader callback failed outside the storage layer",
+            ))
+        })
     }
 
-    fn write_artifact<F>(
+    fn write_artifact<E, F>(
         &mut self,
         path: &RelativePath,
         write: F,
-    ) -> Result<ArtifactMetadata, PersistenceError>
+    ) -> Result<ArtifactMetadata, E>
     where
-        F: FnOnce(&mut dyn Write) -> Result<(), PersistenceError>,
+        E: From<StorageError>,
+        F: FnOnce(&mut dyn Write) -> Result<(), E>,
     {
-        let file = self.create_artifact(path)?;
+        let file = self.create_artifact(path).map_err(E::from)?;
         let writer = BufWriter::new(file);
         let mut writer = DigestWriter::new(writer);
         write(&mut writer)?;
-        writer.flush()?;
+        writer.flush().map_err(StorageError::from).map_err(E::from)?;
         let (writer, metadata) = writer.finish();
         let file = writer
             .into_inner()
-            .map_err(|error| PersistenceError::Io(error.into_error()))?;
-        file.sync_all()?;
+            .map_err(|error| StorageError::Io(error.into_error()))
+            .map_err(E::from)?;
+        file.sync_all().map_err(StorageError::from).map_err(E::from)?;
         Ok(metadata)
     }
 
-    fn open_artifact(&self, path: &RelativePath) -> Result<File, PersistenceError> {
+    fn open_artifact(&self, path: &RelativePath) -> Result<File, StorageError> {
         validate_path(path)?;
         let components: Vec<_> = path.as_str().split('/').collect();
         let mut native = self.root.clone();
@@ -208,28 +209,24 @@ impl FolderStorage {
             native.push(component);
             let metadata = fs::symlink_metadata(&native)?;
             if metadata.file_type().is_symlink() {
-                return Err(PersistenceError::InvalidArtifact(format!(
-                    "artifact contains a symbolic link: {path}"
-                )));
+                return Err(StorageError::UnexpectedEntryType(path.to_string()));
             }
 
             let is_last = index + 1 == components.len();
             if (!is_last && !metadata.is_dir()) || (is_last && !metadata.is_file()) {
-                return Err(PersistenceError::InvalidArtifact(format!(
-                    "artifact path has an unexpected file type: {path}"
-                )));
+                return Err(StorageError::UnexpectedEntryType(path.to_string()));
             }
         }
 
         Ok(File::open(native)?)
     }
 
-    fn create_artifact(&self, path: &RelativePath) -> Result<File, PersistenceError> {
+    fn create_artifact(&self, path: &RelativePath) -> Result<File, StorageError> {
         validate_path(path)?;
         let root_metadata = fs::symlink_metadata(&self.root)?;
         if !root_metadata.is_dir() || root_metadata.file_type().is_symlink() {
-            return Err(PersistenceError::InvalidArtifact(
-                "storage root is not a regular directory".into(),
+            return Err(StorageError::UnexpectedEntryType(
+                self.root.display().to_string(),
             ));
         }
 
@@ -248,9 +245,7 @@ impl FolderStorage {
             match fs::symlink_metadata(&parent) {
                 Ok(metadata) => {
                     if !metadata.is_dir() || metadata.file_type().is_symlink() {
-                        return Err(PersistenceError::InvalidArtifact(format!(
-                            "artifact parent is not a regular directory: {path}"
-                        )));
+                        return Err(StorageError::UnexpectedEntryType(path.to_string()));
                     }
                 }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -260,21 +255,14 @@ impl FolderStorage {
             }
         }
 
-        Err(PersistenceError::InvalidArtifact(
-            "artifact path is empty".into(),
-        ))
+        Err(StorageError::InvalidPath(path.to_string()))
     }
 }
 
-pub(crate) fn portable_path_key(path: &RelativePath) -> Result<String, PersistenceError> {
-    validate_path(path)?;
-    Ok(path.as_str().to_lowercase())
-}
-
-pub(crate) fn validate_path(path: &RelativePath) -> Result<(), PersistenceError> {
+pub(crate) fn validate_path(path: &RelativePath) -> Result<(), StorageError> {
     let value = path.as_str();
     if value.is_empty() || value.starts_with('/') || value.contains('\\') {
-        return Err(unsafe_path(path));
+        return Err(StorageError::InvalidPath(path.to_string()));
     }
 
     for component in value.split('/') {
@@ -286,7 +274,7 @@ pub(crate) fn validate_path(path: &RelativePath) -> Result<(), PersistenceError>
             })
             || is_windows_reserved_name(component)
         {
-            return Err(unsafe_path(path));
+            return Err(StorageError::InvalidPath(path.to_string()));
         }
     }
 
@@ -308,10 +296,6 @@ fn is_windows_reserved_name(component: &str) -> bool {
         && matches!(stem.as_bytes()[3], b'1'..=b'9'))
 }
 
-fn unsafe_path(path: &RelativePath) -> PersistenceError {
-    PersistenceError::InvalidArtifact(format!("unsafe artifact path: {path}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,7 +307,7 @@ mod tests {
         let artifact_path = RelativePath::new("arrays/test.bin");
 
         let metadata = storage
-            .write_artifact(artifact_path, |writer| {
+            .write_artifact::<StorageError, _>(artifact_path, |writer| {
                 writer.write_all(b"payload")?;
                 Ok(())
             })
@@ -332,7 +316,7 @@ mod tests {
         assert_eq!(metadata.digest, super::super::sha256(b"payload"));
 
         let payload = storage
-            .with_artifact(artifact_path, |reader| {
+            .with_artifact::<_, StorageError, _>(artifact_path, |reader| {
                 let mut bytes = Vec::new();
                 reader.read_to_end(&mut bytes)?;
                 Ok(bytes)
