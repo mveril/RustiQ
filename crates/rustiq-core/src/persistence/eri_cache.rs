@@ -14,8 +14,7 @@ use crate::{
 use super::{
     ao_eri_identity, sha256_reader, validate_compact_eri_header, AoEriAttributes,
     ArtifactAttributes, ArtifactManifest, Manifest, ManifestKind, RustiQData, ScientificIdentity,
-    Storage,
-    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+    Storage, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
     FORMAT_VERSION, SCIENTIFIC_IDENTITY_VERSION,
 };
 
@@ -509,7 +508,7 @@ mod tests {
     }
 
     #[test]
-    fn checkpoint_is_never_accepted_as_a_cache_hit() {
+    fn unknown_kind_is_never_accepted_as_a_cache_hit() {
         let temporary = tempfile::tempdir().unwrap();
         let cache = EriCache::new(temporary.path());
         let (molecule, basis) = input();
@@ -520,7 +519,8 @@ mod tests {
         let manifest_path = cache.entry_path(identity).join(MANIFEST_PATH);
         let mut manifest: serde_json::Value =
             serde_json::from_reader(File::open(&manifest_path).unwrap()).unwrap();
-        manifest["kind"] = serde_json::json!(ManifestKind::Checkpoint.as_str());
+        manifest["kind"] =
+            serde_json::to_value(ManifestKind::Unknown("future-state".to_owned())).unwrap();
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
         assert!(cache.load(&molecule, &basis, threshold()).is_none());
