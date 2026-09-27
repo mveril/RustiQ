@@ -15,7 +15,7 @@ pub(crate) enum StorageError {
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum NpyError {
+pub enum NpyError {
     #[error("could not read NPY data: {0}")]
     Read(#[source] io::Error),
     #[error("could not write NPY data: {0}")]
@@ -77,8 +77,8 @@ pub enum ArtifactError {
         expected: usize,
         actual: usize,
     },
-    #[error("artifact storage failed: {0}")]
-    Storage(#[from] StorageError),
+    #[error("artifact access failed: {0}")]
+    AccessFailed(String),
     #[error("artifact NPY data is invalid: {0}")]
     Npy(#[from] NpyError),
 }
@@ -101,4 +101,13 @@ pub(crate) enum PersistenceWriteError {
     Artifact(#[from] ArtifactError),
     #[error(transparent)]
     Npy(#[from] NpyError),
+}
+
+impl From<StorageError> for ArtifactError {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::InvalidPath(path) => Self::InvalidPath(path),
+            other => Self::AccessFailed(other.to_string()),
+        }
+    }
 }
