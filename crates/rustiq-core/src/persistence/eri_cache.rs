@@ -378,7 +378,7 @@ fn read_manifest(entry: &Path) -> Option<Manifest> {
 fn manifest_is_valid(manifest: &Manifest, identity: ScientificIdentity) -> bool {
     manifest.format == FORMAT_NAME
         && manifest.format_version == FORMAT_VERSION
-        && manifest.kind == ManifestKind::IntegralCache.as_str()
+        && manifest.kind == ManifestKind::IntegralCache
         && manifest.scientific_identity.version == identity.version
         && manifest.scientific_identity.digest == identity.digest
         && manifest
@@ -504,7 +504,7 @@ mod tests {
 
         let identity = ao_eri_identity(molecule.geometry(), &basis, threshold());
         let manifest = read_manifest(&cache.entry_path(identity)).unwrap();
-        assert_eq!(manifest.kind, ManifestKind::IntegralCache.as_str());
+        assert_eq!(manifest.kind, ManifestKind::IntegralCache);
         assert!(manifest.artifacts.contains_key(AO_ERI_ARTIFACT));
     }
 
