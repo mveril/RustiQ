@@ -10,8 +10,9 @@ use super::PersistenceError;
 /// Conversion between scientific values and an NPY byte stream.
 trait NpyConvert: Sized {
     type Shape: Copy;
+    type NpyShape: AsRef<[u64]>;
 
-    fn npy_shape(shape: Self::Shape) -> Result<Vec<u64>, PersistenceError>;
+    fn npy_shape(shape: Self::Shape) -> Result<Self::NpyShape, PersistenceError>;
 
     fn decode_with_shape<R: Read>(
         npy: NpyFile<R>,
@@ -24,9 +25,11 @@ trait NpyConvert: Sized {
         shape: Self::Shape,
     ) -> Result<Self, PersistenceError> {
         let expected = Self::npy_shape(shape)?;
-        let actual = npy.shape().to_vec();
-        if actual != expected {
-            return Err(PersistenceError::InvalidNpyShape { expected, actual });
+        if npy.shape() != expected.as_ref() {
+            return Err(PersistenceError::InvalidNpyShape {
+                expected: expected.as_ref().to_vec().into_boxed_slice(),
+                actual: npy.shape().to_vec().into_boxed_slice(),
+            });
         }
         Self::decode_with_shape(npy, shape)
     }
@@ -47,14 +50,15 @@ trait NpyConvert: Sized {
 
 impl NpyConvert for CompactEri {
     type Shape = usize;
+    type NpyShape = [u64; 1];
 
-    fn npy_shape(basis_functions: usize) -> Result<Vec<u64>, PersistenceError> {
+    fn npy_shape(basis_functions: usize) -> Result<Self::NpyShape, PersistenceError> {
         let length = CompactEri::checked_storage_len(basis_functions).ok_or_else(|| {
             PersistenceError::InvalidArtifact(
                 "basis-function count overflows compact ERI storage".into(),
             )
         })?;
-        Ok(vec![u64::try_from(length).map_err(|_| {
+        Ok([u64::try_from(length).map_err(|_| {
             PersistenceError::InvalidArtifact("compact ERI length exceeds NPY limits".into())
         })?])
     }
@@ -83,15 +87,16 @@ impl NpyConvert for CompactEri {
 
 impl NpyConvert for DMatrix<f64> {
     type Shape = (usize, usize);
+    type NpyShape = [u64; 2];
 
-    fn npy_shape((rows, columns): (usize, usize)) -> Result<Vec<u64>, PersistenceError> {
+    fn npy_shape((rows, columns): (usize, usize)) -> Result<Self::NpyShape, PersistenceError> {
         let rows = u64::try_from(rows).map_err(|_| {
             PersistenceError::InvalidArtifact("matrix rows exceed NPY limits".into())
         })?;
         let columns = u64::try_from(columns).map_err(|_| {
             PersistenceError::InvalidArtifact("matrix columns exceed NPY limits".into())
         })?;
-        Ok(vec![rows, columns])
+        Ok([rows, columns])
     }
 
     fn decode_with_shape<R: Read>(

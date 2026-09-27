@@ -17,13 +17,13 @@ pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
 pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
-pub use storage::Storage;
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
 pub(crate) use manifest::{
     AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
     ScientificIdentityManifest,
 };
+pub use storage::Storage;
 
 #[allow(unused_imports)]
 pub(crate) use npy::{
@@ -62,8 +62,8 @@ pub enum PersistenceError {
     InvalidMatrixShape(Vec<u64>),
     #[error("NPY has shape {actual:?}, expected {expected:?}")]
     InvalidNpyShape {
-        expected: Vec<u64>,
-        actual: Vec<u64>,
+        expected: Box<[u64]>,
+        actual: Box<[u64]>,
     },
     #[error("AO ERI payload has {actual} values, expected {expected} for {basis_functions} basis functions")]
     InvalidValueCount {
