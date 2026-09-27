@@ -87,9 +87,39 @@ untouched. Names and fingerprints are validated rather than interpreted as paths
 
 ## Logical entries
 
+The core Rust API exposes `persistence::RustiQData` as a typed scientific
+facade. Physical storage selection is an internal persistence concern: the
+directory-backed ERI cache resolves folder storage internally, and the future
+portable `.rustiq` API will resolve ZIP/ZIP64 internally rather than exposing a
+generic storage backend. Internal readers load the bounded manifest first and
+open scientific artifacts on demand. `read_eri` validates and decodes the AO ERI
+NPY on first access and keeps the resulting `CompactEri` for subsequent accesses.
+Unknown representations can be copied internally as verified byte streams without
+being decoded.
+
+The public scientific API is typed: `set_eri` and `read_eri` operate on
+`CompactEri`. The generic `get::<AoEriArtifact>()` returns
+`Result<Option<&CompactEri>, ArtifactError>`, while
+`set::<AoEriArtifact>(value)` accepts only `CompactEri`; only declared artifact
+marker types are accepted. Artifact access reports `ArtifactError`, while NPY
+format failures are represented by `NpyError`; storage, manifest, and persistence
+orchestration errors remain internal. A future known artifact gets its own marker,
+typed field, and accessors in `RustiQData`. NPY parsing and conversion remain
+internal persistence details. Compact ERIs are decoded only with the
+basis-function count from their typed manifest attributes; the NPY length is never
+used to infer that scientific context. Matrix readers accept C and Fortran order
+and matrix writers emit Fortran order.
+
 - `manifest.json` is UTF-8 JSON and describes the format, producer, scientific
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
+
+Artifact paths are portable relative UTF-8 paths with `/` as the only separator,
+independent of the host operating system. Empty components, `.`, `..`,
+backslashes, drive-like prefixes containing `:`, absolute paths, Windows-reserved
+device names, Windows-invalid filename characters, trailing dots/spaces, and paths
+conflicting with `manifest.json` are rejected before storage access. Logical paths
+are also checked case-insensitively to avoid cross-platform collisions.
 
 Every artifact records common envelope metadata:
 

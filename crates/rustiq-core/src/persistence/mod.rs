@@ -6,50 +6,37 @@
 
 mod cache_names;
 mod checksum;
+mod data;
 mod eri_cache;
+mod error;
 mod identity;
 mod manifest;
 mod npy;
+mod storage;
 
+pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
+pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
+pub use error::{ArtifactError, NpyError};
+pub(crate) use error::{ManifestError, PersistenceReadError, PersistenceWriteError, StorageError};
 #[allow(unused_imports)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
-pub use manifest::{
-    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, Producer,
+pub(crate) use manifest::{
+    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, ManifestKind, Producer,
     ScientificIdentityManifest,
 };
+pub(crate) use storage::Storage;
 
 #[allow(unused_imports)]
 pub(crate) use npy::{
     read_compact_eri, read_dmatrix, validate_compact_eri_header, write_compact_eri,
 };
+pub(crate) use storage::validate_path as validate_storage_path;
 
-pub const FORMAT_NAME: &str = "rustiq-persistence";
-pub const FORMAT_VERSION: u32 = 1;
-pub const MANIFEST_PATH: &str = "manifest.json";
-pub const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
-pub const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
-pub const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
-
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum PersistenceError {
-    #[error("could not read NPY data: {0}")]
-    NpyRead(#[source] std::io::Error),
-    #[error("could not write NPY data: {0}")]
-    NpyWrite(#[source] std::io::Error),
-    #[error("AO ERI NPY must be one-dimensional, found shape {0:?}")]
-    InvalidEriShape(Vec<u64>),
-    #[error("matrix NPY must be two-dimensional, found shape {0:?}")]
-    InvalidMatrixShape(Vec<u64>),
-    #[error("AO ERI payload has {actual} values, expected {expected} for {basis_functions} basis functions")]
-    InvalidValueCount {
-        basis_functions: usize,
-        expected: usize,
-        actual: usize,
-    },
-    #[error("NPY dtype is not a supported f64 representation: {0}")]
-    InvalidDtype(String),
-}
+pub(crate) const FORMAT_NAME: &str = "rustiq-persistence";
+pub(crate) const FORMAT_VERSION: u32 = 1;
+pub(crate) const MANIFEST_PATH: &str = "manifest.json";
+pub(crate) const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
+pub(crate) const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
+pub(crate) const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;

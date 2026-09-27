@@ -14,6 +14,7 @@ periodic_table = "0.5"
 proptest = "1"
 rand = "0.10"
 rayon = "1"
+relative-path = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.*"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }

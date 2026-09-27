@@ -1,28 +1,66 @@
 use std::collections::BTreeMap;
 
+use relative_path::RelativePathBuf;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use super::{Sha256Digest, COMPACT_ERI_REPRESENTATION};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ManifestKind {
+    IntegralCache,
+    Unknown(String),
+}
+
+impl ManifestKind {
+    pub(crate) fn as_str(&self) -> &str {
+        match self {
+            Self::IntegralCache => "integral-cache",
+            Self::Unknown(value) => value,
+        }
+    }
+}
+
+impl Serialize for ManifestKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ManifestKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(match value.as_str() {
+            "integral-cache" => Self::IntegralCache,
+            _ => Self::Unknown(value),
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Manifest {
+pub(crate) struct Manifest {
     pub format: String,
     pub format_version: u32,
-    pub kind: String,
+    pub kind: ManifestKind,
     pub producer: Producer,
     pub scientific_identity: ScientificIdentityManifest,
     pub artifacts: BTreeMap<String, ArtifactManifest>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Producer {
+pub(crate) struct Producer {
     pub name: String,
     pub version: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScientificIdentityManifest {
+pub(crate) struct ScientificIdentityManifest {
     pub version: u32,
     pub digest: Sha256Digest,
 }
@@ -33,21 +71,21 @@ pub struct ScientificIdentityManifest {
 /// retain their attributes so newer manifests remain inspectable by older readers.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
-pub enum ArtifactAttributes {
+pub(crate) enum ArtifactAttributes {
     AoEri(AoEriAttributes),
     Unknown(BTreeMap<String, Value>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AoEriAttributes {
+pub(crate) struct AoEriAttributes {
     pub basis_functions: usize,
     pub computation_version: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ArtifactManifest {
-    pub path: String,
+pub(crate) struct ArtifactManifest {
+    pub path: RelativePathBuf,
     pub size: u64,
     pub representation: String,
     pub digest: Sha256Digest,
@@ -56,7 +94,7 @@ pub struct ArtifactManifest {
 
 #[derive(Deserialize)]
 struct RawArtifactManifest {
-    path: String,
+    path: RelativePathBuf,
     size: u64,
     representation: String,
     digest: Sha256Digest,
@@ -97,6 +135,8 @@ fn decode_attributes(
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::*;
     use crate::persistence::{
         AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, FORMAT_NAME, FORMAT_VERSION,
@@ -109,7 +149,7 @@ mod tests {
         artifacts.insert(
             "ao_eri".to_string(),
             ArtifactManifest {
-                path: AO_ERI_PATH.to_string(),
+                path: RelativePathBuf::from(AO_ERI_PATH),
                 size: 176,
                 representation: COMPACT_ERI_REPRESENTATION.to_string(),
                 digest: Sha256Digest::from([0x22; 32]),
@@ -123,7 +163,7 @@ mod tests {
         let manifest = Manifest {
             format: FORMAT_NAME.to_string(),
             format_version: FORMAT_VERSION,
-            kind: "integral-cache".to_string(),
+            kind: ManifestKind::IntegralCache,
             producer: Producer {
                 name: "RustiQ".to_string(),
                 version: "0.1.0".to_string(),
@@ -169,12 +209,25 @@ mod tests {
         assert_eq!(serde_json::from_str::<Manifest>(&json).unwrap(), manifest);
     }
 
+    proptest! {
+        #[test]
+        fn unknown_manifest_kind_round_trips(value in "[A-Za-z0-9_-]{1,64}") {
+            prop_assume!(value != "integral-cache");
+
+            let kind = ManifestKind::Unknown(value.clone());
+            let json = serde_json::to_string(&kind).unwrap();
+            let restored: ManifestKind = serde_json::from_str(&json).unwrap();
+
+            prop_assert_eq!(restored, ManifestKind::Unknown(value));
+        }
+    }
+
     #[test]
     fn unknown_artifact_attributes_are_preserved() {
         let json = r#"{
             "format": "rustiq-persistence",
             "format_version": 1,
-            "kind": "checkpoint",
+            "kind": "future-state",
             "producer": {"name": "RustiQ", "version": "0.2.0"},
             "scientific_identity": {
                 "version": 1,

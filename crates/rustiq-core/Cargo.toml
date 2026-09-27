@@ -27,6 +27,7 @@ npyz = "0.9.1"
 physical_constants = "0.5"
 periodic_table.workspace = true
 rayon.workspace = true
+relative-path.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"], optional = true }
 serde_json.workspace = true
 serde.workspace = true

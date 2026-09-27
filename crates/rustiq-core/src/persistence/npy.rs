@@ -5,43 +5,135 @@ use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
 
-use super::PersistenceError;
+use super::NpyError;
 
-pub(crate) fn write_compact_eri(
-    writer: impl Write,
-    eri: &CompactEri,
-) -> Result<(), PersistenceError> {
-    let shape = [eri.len() as u64];
-    let mut writer = npyz::WriteOptions::new()
-        .default_dtype()
-        .shape(&shape)
-        .writer(writer)
-        .begin_nd()
-        .map_err(PersistenceError::NpyWrite)?;
-    writer
-        .extend(eri.ordered_values().iter().copied())
-        .map_err(PersistenceError::NpyWrite)?;
-    writer.finish().map_err(PersistenceError::NpyWrite)
+/// Conversion between scientific values and an NPY byte stream.
+trait NpyConvert: Sized {
+    type Shape: Copy;
+    type NpyShape: AsRef<[u64]>;
+
+    fn npy_shape(shape: Self::Shape) -> Result<Self::NpyShape, NpyError>;
+
+    fn decode_with_shape<R: Read>(npy: NpyFile<R>, shape: Self::Shape) -> Result<Self, NpyError>;
+
+    /// Checks a parsed header before decoding any array values.
+    fn try_from_npy_with_shape<R: Read>(
+        npy: NpyFile<R>,
+        shape: Self::Shape,
+    ) -> Result<Self, NpyError> {
+        let expected = Self::npy_shape(shape)?;
+        if npy.shape() != expected.as_ref() {
+            return Err(NpyError::InvalidShape {
+                expected: expected.as_ref().to_vec().into_boxed_slice(),
+                actual: npy.shape().to_vec().into_boxed_slice(),
+            });
+        }
+        Self::decode_with_shape(npy, shape)
+    }
+
+    /// Parses a stream once, checks its shape, then decodes its values.
+    fn try_read_with_shape(reader: impl Read, shape: Self::Shape) -> Result<Self, NpyError> {
+        Self::try_from_npy_with_shape(NpyFile::new(reader).map_err(NpyError::Read)?, shape)
+    }
+
+    fn write_npy(&self, writer: impl Write) -> Result<(), NpyError>;
+}
+
+impl NpyConvert for CompactEri {
+    type Shape = usize;
+    type NpyShape = [u64; 1];
+
+    fn npy_shape(basis_functions: usize) -> Result<Self::NpyShape, NpyError> {
+        let length =
+            CompactEri::checked_storage_len(basis_functions).ok_or(NpyError::DimensionOverflow)?;
+        Ok([u64::try_from(length).map_err(|_| NpyError::DimensionOverflow)?])
+    }
+
+    fn decode_with_shape<R: Read>(
+        npy: NpyFile<R>,
+        basis_functions: usize,
+    ) -> Result<Self, NpyError> {
+        decode_compact_eri(npy, basis_functions)
+    }
+
+    fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
+        let shape = [self.len() as u64];
+        let mut writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&shape)
+            .writer(writer)
+            .begin_nd()
+            .map_err(NpyError::Write)?;
+        writer
+            .extend(self.ordered_values().iter().copied())
+            .map_err(NpyError::Write)?;
+        writer.finish().map_err(NpyError::Write)
+    }
+}
+
+impl NpyConvert for DMatrix<f64> {
+    type Shape = (usize, usize);
+    type NpyShape = [u64; 2];
+
+    fn npy_shape((rows, columns): (usize, usize)) -> Result<Self::NpyShape, NpyError> {
+        let rows = u64::try_from(rows).map_err(|_| NpyError::DimensionOverflow)?;
+        let columns = u64::try_from(columns).map_err(|_| NpyError::DimensionOverflow)?;
+        Ok([rows, columns])
+    }
+
+    fn decode_with_shape<R: Read>(
+        npy: NpyFile<R>,
+        _shape: (usize, usize),
+    ) -> Result<Self, NpyError> {
+        decode_dmatrix(npy)
+    }
+
+    fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
+        let shape = [self.nrows() as u64, self.ncols() as u64];
+        let mut writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .order(npyz::Order::Fortran)
+            .shape(&shape)
+            .writer(writer)
+            .begin_nd()
+            .map_err(NpyError::Write)?;
+        writer
+            .extend(self.as_slice().iter().copied())
+            .map_err(NpyError::Write)?;
+        writer.finish().map_err(NpyError::Write)
+    }
+}
+
+pub(crate) fn write_compact_eri(writer: impl Write, eri: &CompactEri) -> Result<(), NpyError> {
+    eri.write_npy(writer)
 }
 
 pub(crate) fn read_compact_eri(
     reader: impl Read,
     basis_functions: usize,
-) -> Result<CompactEri, PersistenceError> {
-    let expected = CompactEri::checked_storage_len(basis_functions).ok_or(
-        PersistenceError::InvalidValueCount {
+) -> Result<CompactEri, NpyError> {
+    CompactEri::try_read_with_shape(reader, basis_functions)
+}
+
+fn decode_compact_eri<R: Read>(
+    npy: NpyFile<R>,
+    basis_functions: usize,
+) -> Result<CompactEri, NpyError> {
+    if npy.shape().len() != 1 {
+        return Err(NpyError::InvalidEriShape(
+            npy.shape().to_vec().into_boxed_slice(),
+        ));
+    }
+    let actual = usize::try_from(npy.shape()[0])
+        .map_err(|_| NpyError::InvalidEriShape(npy.shape().to_vec().into_boxed_slice()))?;
+    let expected =
+        CompactEri::checked_storage_len(basis_functions).ok_or(NpyError::InvalidValueCount {
             basis_functions,
             expected: 0,
-            actual: 0,
-        },
-    )?;
-    let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
-    if npy.shape().len() != 1 {
-        return Err(PersistenceError::InvalidEriShape(npy.shape().to_vec()));
-    }
-    let actual = usize::try_from(npy.shape()[0]).unwrap_or(usize::MAX);
+            actual,
+        })?;
     if actual != expected {
-        return Err(PersistenceError::InvalidValueCount {
+        return Err(NpyError::InvalidValueCount {
             basis_functions,
             expected,
             actual,
@@ -49,14 +141,14 @@ pub(crate) fn read_compact_eri(
     }
     let values = npy.into_vec::<f64>().map_err(|error| {
         if error.kind() == std::io::ErrorKind::InvalidData {
-            PersistenceError::InvalidDtype(error.to_string())
+            NpyError::InvalidDtype(error.to_string())
         } else {
-            PersistenceError::NpyRead(error)
+            NpyError::Read(error)
         }
     })?;
     CompactEri::from_ordered_values(basis_functions, values).map_err(|error| match error {
         crate::eri::CompactEriBuildError::InvalidLength { expected, actual } => {
-            PersistenceError::InvalidValueCount {
+            NpyError::InvalidValueCount {
                 basis_functions,
                 expected,
                 actual,
@@ -104,23 +196,28 @@ pub(crate) fn validate_compact_eri_header(
             .is_some_and(|end| end == file_size)
 }
 
-pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, PersistenceError> {
-    let npy = NpyFile::new(reader).map_err(PersistenceError::NpyRead)?;
+pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, NpyError> {
+    decode_dmatrix(NpyFile::new(reader).map_err(NpyError::Read)?)
+}
+
+fn decode_dmatrix<R: Read>(npy: NpyFile<R>) -> Result<DMatrix<f64>, NpyError> {
     if npy.shape().len() != 2 {
-        return Err(PersistenceError::InvalidMatrixShape(npy.shape().to_vec()));
+        return Err(NpyError::InvalidMatrixShape(
+            npy.shape().to_vec().into_boxed_slice(),
+        ));
     }
     let rows = usize::try_from(npy.shape()[0])
-        .map_err(|_| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+        .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
     let columns = usize::try_from(npy.shape()[1])
-        .map_err(|_| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+        .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
     rows.checked_mul(columns)
-        .ok_or_else(|| PersistenceError::InvalidMatrixShape(npy.shape().to_vec()))?;
+        .ok_or_else(|| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
     let order = npy.order();
     let values = npy.into_vec::<f64>().map_err(|error| {
         if error.kind() == std::io::ErrorKind::InvalidData {
-            PersistenceError::InvalidDtype(error.to_string())
+            NpyError::InvalidDtype(error.to_string())
         } else {
-            PersistenceError::NpyRead(error)
+            NpyError::Read(error)
         }
     })?;
     Ok(matrix_from_npy_values(rows, columns, order, values))
@@ -155,6 +252,16 @@ mod tests {
         write_compact_eri(&mut bytes, &source).unwrap();
         let restored = read_compact_eri(bytes.as_slice(), basis_functions).unwrap();
         assert_eq!(restored.ordered_values(), source.ordered_values());
+        assert_eq!(
+            CompactEri::try_read_with_shape(bytes.as_slice(), basis_functions)
+                .unwrap()
+                .ordered_values(),
+            source.ordered_values()
+        );
+        assert!(matches!(
+            CompactEri::try_read_with_shape(bytes.as_slice(), basis_functions - 1),
+            Err(NpyError::InvalidShape { .. })
+        ));
     }
 
     #[test]
@@ -184,6 +291,80 @@ mod tests {
     }
 
     #[test]
+    fn dmatrix_trait_writes_fortran_order_and_reads_both_orders() {
+        let matrix = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let mut bytes = Vec::new();
+        matrix.write_npy(&mut bytes).unwrap();
+        let npy = NpyFile::new(bytes.as_slice()).unwrap();
+        assert_eq!(npy.order(), npyz::Order::Fortran);
+        assert_eq!(npy.shape(), &[2, 3]);
+        assert_eq!(npy.into_vec::<f64>().unwrap(), matrix.as_slice());
+        assert_eq!(read_dmatrix(bytes.as_slice()).unwrap(), matrix);
+        assert_eq!(
+            DMatrix::<f64>::try_from_npy_with_shape(
+                NpyFile::new(bytes.as_slice()).unwrap(),
+                (2, 3)
+            )
+            .unwrap(),
+            matrix
+        );
+        assert_eq!(
+            DMatrix::<f64>::try_read_with_shape(bytes.as_slice(), (2, 3)).unwrap(),
+            matrix
+        );
+        assert!(matches!(
+            DMatrix::<f64>::try_read_with_shape(bytes.as_slice(), (3, 2)),
+            Err(NpyError::InvalidShape { .. })
+        ));
+        let truncated = &bytes[..bytes.len() - 8];
+        assert!(matches!(
+            DMatrix::<f64>::try_read_with_shape(truncated, (3, 2)),
+            Err(NpyError::InvalidShape { .. })
+        ));
+        assert!(matches!(
+            DMatrix::<f64>::try_read_with_shape(truncated, (2, 3)),
+            Err(NpyError::Read(_))
+        ));
+
+        let mut c_bytes = Vec::new();
+        let mut writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&[2, 3])
+            .writer(&mut c_bytes)
+            .begin_nd()
+            .unwrap();
+        writer.extend([1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        writer.finish().unwrap();
+        assert_eq!(read_dmatrix(c_bytes.as_slice()).unwrap(), matrix);
+    }
+
+    #[test]
+    fn reads_python_numpy_matrix_fixtures_in_c_and_fortran_order() {
+        for hex in [
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/persistence/dmatrix-python-c-v1.npy.hex"
+            )),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/persistence/dmatrix-python-fortran-v1.npy.hex"
+            )),
+        ] {
+            let (pairs, remainder) = hex.trim().as_bytes().as_chunks::<2>();
+            assert!(remainder.is_empty());
+            let bytes: Vec<u8> = pairs
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+
+            assert_eq!(
+                read_dmatrix(bytes.as_slice()).unwrap(),
+                DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            );
+        }
+    }
+
+    #[test]
     fn rejects_wrong_value_count() {
         let mut bytes = Vec::new();
         let shape = [2];
@@ -197,7 +378,7 @@ mod tests {
         writer.finish().unwrap();
         assert!(matches!(
             read_compact_eri(bytes.as_slice(), 2),
-            Err(PersistenceError::InvalidValueCount { .. })
+            Err(NpyError::InvalidShape { .. })
         ));
     }
 
@@ -215,7 +396,7 @@ mod tests {
         writer.finish().unwrap();
         assert!(matches!(
             read_compact_eri(bytes.as_slice(), 1),
-            Err(PersistenceError::InvalidDtype(_))
+            Err(NpyError::InvalidDtype(_))
         ));
     }
 
@@ -227,7 +408,7 @@ mod tests {
         bytes.truncate(bytes.len() - 1);
         assert!(matches!(
             read_compact_eri(bytes.as_slice(), 3),
-            Err(PersistenceError::NpyRead(_))
+            Err(NpyError::Read(_))
         ));
     }
 
