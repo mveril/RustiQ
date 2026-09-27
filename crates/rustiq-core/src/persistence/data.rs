@@ -1,8 +1,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
-    fs::{self, File},
-    io::{BufReader, BufWriter, Seek, Write},
-    path::{Path, PathBuf},
+    fs,
+    path::Path,
 };
 
 use relative_path::RelativePath;
@@ -13,9 +12,9 @@ use crate::{
 };
 
 use super::{
-    ao_eri_identity, read_compact_eri, sha256_reader, write_compact_eri, AoEriAttributes,
-    ArtifactAttributes, ArtifactManifest, Manifest, PersistenceError, Producer,
-    ScientificIdentityManifest, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
+    ao_eri_identity, read_compact_eri, validate_storage_path, write_compact_eri,
+    AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, PersistenceError, Producer,
+    ScientificIdentityManifest, Storage, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
     COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
 };
 
@@ -67,7 +66,7 @@ impl Artifact for AoEriArtifact {
 #[derive(Debug)]
 pub struct RustiQData {
     manifest: Manifest,
-    source: Option<PathBuf>,
+    source: Option<Storage>,
     ao_eri: Option<CompactEri>,
     basis_functions: Option<usize>,
 }
@@ -123,18 +122,9 @@ impl RustiQData {
                 "entry is not a regular directory".into(),
             ));
         }
-        let manifest_path = directory.join(MANIFEST_PATH);
-        let metadata = fs::symlink_metadata(&manifest_path)?;
-        if !metadata.is_file()
-            || metadata.file_type().is_symlink()
-            || metadata.len() > MAX_MANIFEST_BYTES
-        {
-            return Err(PersistenceError::InvalidManifest(
-                "manifest is not a bounded regular file".into(),
-            ));
-        }
+        let source = Storage::folder(fs::canonicalize(directory)?);
         let manifest: Manifest =
-            serde_json::from_reader(BufReader::new(File::open(manifest_path)?))?;
+            source.read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)?;
         if manifest.format != FORMAT_NAME || manifest.format_version != FORMAT_VERSION {
             return Err(PersistenceError::InvalidManifest(
                 "unsupported format or version".into(),
@@ -166,7 +156,7 @@ impl RustiQData {
             });
         Ok(Self {
             manifest,
-            source: Some(fs::canonicalize(directory)?),
+            source: Some(source),
             ao_eri: None,
             basis_functions,
         })
@@ -206,17 +196,15 @@ impl RustiQData {
                 ));
             }
             let source = self.source.as_ref().ok_or(PersistenceError::MissingEri)?;
-            let mut file = open_artifact(source, artifact)?;
-            if sha256_reader(&mut file)? != artifact.digest {
+            let metadata = source.artifact_metadata(&artifact.path)?;
+            if metadata.size != artifact.size || metadata.digest != artifact.digest {
                 return Err(PersistenceError::InvalidArtifact(
-                    "AO ERI digest mismatch".into(),
+                    "AO ERI digest or size mismatch".into(),
                 ));
             }
-            file.rewind()?;
-            self.ao_eri = Some(read_compact_eri(
-                BufReader::new(file),
-                attributes.basis_functions,
-            )?);
+            self.ao_eri = Some(source.with_artifact(&artifact.path, |reader| {
+                read_compact_eri(reader, attributes.basis_functions)
+            })?);
         }
         Ok(self
             .ao_eri
@@ -261,6 +249,7 @@ impl RustiQData {
             .prefix(".rustiq-data-")
             .tempdir_in(parent)?;
         let mut manifest = self.manifest.clone();
+        let mut destination = Storage::folder(staging.path());
 
         for (name, artifact) in &self.manifest.artifacts {
             if name == AO_ERI_ARTIFACT && eri.is_some() {
@@ -269,39 +258,34 @@ impl RustiQData {
             let source = self.source.as_ref().ok_or_else(|| {
                 PersistenceError::InvalidArtifact(format!("artifact {name} has no source file"))
             })?;
-            let mut input = open_artifact(source, artifact)?;
             validate_artifact_path(&artifact.path)?;
-            let output_path = artifact.path.to_path(staging.path());
-            fs::create_dir_all(output_path.parent().expect("artifact has a parent"))?;
-            let mut output = BufWriter::new(File::create(&output_path)?);
-            std::io::copy(&mut input, &mut output)?;
-            output.flush()?;
-            output
-                .into_inner()
-                .map_err(|error| error.into_error())?
-                .sync_all()?;
-            verify_artifact(&output_path, artifact)?;
+            let metadata = source.with_artifact(&artifact.path, |input| {
+                destination.write_artifact(&artifact.path, |output| {
+                    std::io::copy(input, output)?;
+                    Ok(())
+                })
+            })?;
+            if metadata.size != artifact.size || metadata.digest != artifact.digest {
+                return Err(PersistenceError::InvalidArtifact(format!(
+                    "artifact digest or size mismatch: {}",
+                    artifact.path
+                )));
+            }
         }
 
         if let Some(eri) = eri {
             let basis_functions = self.basis_functions.ok_or(PersistenceError::MissingEri)?;
             validate_eri_len(eri, basis_functions)?;
-            let path = RelativePath::new(AO_ERI_PATH).to_path(staging.path());
-            fs::create_dir_all(path.parent().expect("ERI artifact has a parent"))?;
-            let mut output = BufWriter::new(File::create(&path)?);
-            write_compact_eri(&mut output, eri)?;
-            output.flush()?;
-            output
-                .into_inner()
-                .map_err(|error| error.into_error())?
-                .sync_all()?;
+            let path = RelativePath::new(AO_ERI_PATH);
+            let metadata =
+                destination.write_artifact(path, |writer| write_compact_eri(writer, eri))?;
             manifest.artifacts.insert(
                 AO_ERI_ARTIFACT.to_owned(),
                 ArtifactManifest {
                     path: AO_ERI_PATH.into(),
-                    size: fs::metadata(&path)?.len(),
+                    size: metadata.size,
                     representation: COMPACT_ERI_REPRESENTATION.to_owned(),
-                    digest: sha256_reader(BufReader::new(File::open(&path)?))?,
+                    digest: metadata.digest,
                     attributes: ArtifactAttributes::AoEri(AoEriAttributes {
                         basis_functions,
                         computation_version: AO_ERI_COMPUTATION_VERSION,
@@ -312,14 +296,7 @@ impl RustiQData {
         if manifest.kind == CACHE_KIND && !manifest.artifacts.contains_key(AO_ERI_ARTIFACT) {
             return Err(PersistenceError::MissingEri);
         }
-        let mut output = BufWriter::new(File::create(staging.path().join(MANIFEST_PATH))?);
-        serde_json::to_writer_pretty(&mut output, &manifest)?;
-        output.write_all(b"\n")?;
-        output.flush()?;
-        output
-            .into_inner()
-            .map_err(|error| error.into_error())?
-            .sync_all()?;
+        destination.write_json(RelativePath::new(MANIFEST_PATH), &manifest)?;
         fs::rename(staging.path(), directory)?;
         Ok(())
     }
@@ -342,19 +319,8 @@ fn validate_eri_len(eri: &CompactEri, basis_functions: usize) -> Result<(), Pers
 }
 
 fn validate_artifact_path(path: &RelativePath) -> Result<(), PersistenceError> {
-    let value = path.as_str();
-    let invalid_component = value
-        .split('/')
-        .any(|component| component.is_empty() || matches!(component, "." | ".."));
-    let conflicts_with_manifest = value.split('/').next() == Some(MANIFEST_PATH);
-
-    if value.is_empty()
-        || value.starts_with('/')
-        || value.contains('\\')
-        || value.contains(':')
-        || invalid_component
-        || conflicts_with_manifest
-    {
+    validate_storage_path(path)?;
+    if path.as_str().split('/').next() == Some(MANIFEST_PATH) {
         return Err(PersistenceError::InvalidArtifact(format!(
             "unsafe artifact path: {path}"
         )));
@@ -370,42 +336,6 @@ fn paths_conflict(left: &str, right: &str) -> bool {
         || right
             .strip_prefix(left)
             .is_some_and(|suffix| suffix.starts_with('/'))
-}
-
-fn open_artifact(root: &Path, artifact: &ArtifactManifest) -> Result<File, PersistenceError> {
-    validate_artifact_path(&artifact.path)?;
-    let mut path = root.to_path_buf();
-    for component in artifact.path.as_str().split('/') {
-        path.push(component);
-        let metadata = fs::symlink_metadata(&path)?;
-        if metadata.file_type().is_symlink() {
-            return Err(PersistenceError::InvalidArtifact(format!(
-                "artifact contains a symbolic link: {}",
-                artifact.path
-            )));
-        }
-    }
-    let metadata = fs::symlink_metadata(&path)?;
-    if !metadata.is_file() || metadata.len() != artifact.size {
-        return Err(PersistenceError::InvalidArtifact(format!(
-            "artifact size or file type mismatch: {}",
-            artifact.path
-        )));
-    }
-    Ok(File::open(path)?)
-}
-
-fn verify_artifact(path: &Path, artifact: &ArtifactManifest) -> Result<(), PersistenceError> {
-    let file = File::open(path)?;
-    if file.metadata()?.len() != artifact.size
-        || sha256_reader(BufReader::new(file))? != artifact.digest
-    {
-        return Err(PersistenceError::InvalidArtifact(format!(
-            "artifact digest or size mismatch: {}",
-            artifact.path
-        )));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
