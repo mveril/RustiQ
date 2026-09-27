@@ -1,4 +1,4 @@
-use crate::{eri::CompactEri, persistence::PersistenceError};
+use crate::{eri::CompactEri, persistence::ArtifactError};
 
 use super::{
     artifact::{private, Artifact},
@@ -13,7 +13,7 @@ impl private::Sealed for AoEriArtifact {}
 impl Artifact for AoEriArtifact {
     type Value = CompactEri;
 
-    fn get(data: &mut RustiQData) -> Result<Option<&CompactEri>, PersistenceError> {
+    fn get(data: &mut RustiQData) -> Result<Option<&CompactEri>, ArtifactError> {
         if data.ao_eri.is_some() {
             return Ok(data.ao_eri.as_ref());
         }
@@ -23,7 +23,7 @@ impl Artifact for AoEriArtifact {
         data.read_eri().map(Some)
     }
 
-    fn set(data: &mut RustiQData, value: CompactEri) -> Result<(), PersistenceError> {
+    fn set(data: &mut RustiQData, value: CompactEri) -> Result<(), ArtifactError> {
         data.set_eri(value)
     }
 }
