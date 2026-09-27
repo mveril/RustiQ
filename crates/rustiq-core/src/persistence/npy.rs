@@ -348,10 +348,7 @@ mod tests {
             .unwrap();
         writer.extend([1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
         writer.finish().unwrap();
-        assert_eq!(
-            read_dmatrix(c_bytes.as_slice()).unwrap(),
-            matrix
-        );
+        assert_eq!(read_dmatrix(c_bytes.as_slice()).unwrap(), matrix);
     }
 
     #[test]
