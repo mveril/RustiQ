@@ -1,5 +1,3 @@
-use miette::IntoDiagnostic;
-
 use crate::runfile::RunFile;
 
 use super::diagnostics::FromTomlErrorMietteExt;
@@ -7,7 +5,6 @@ use super::diagnostics::FromTomlErrorMietteExt;
 #[derive(Debug)]
 pub struct ParsedRunFile {
     pub runfile: RunFile,
-    pub formatted_toml: String,
     /// Scientific options with locations in the original input, not the formatted output.
     pub hf_config: Option<rustiq_core::config::HfConfig>,
     pub mp2_config: Option<rustiq_core::config::Mp2Config>,
@@ -26,10 +23,6 @@ pub fn parse_runfile(
     let runfile = document
         .to::<RunFile>()
         .map_err(|error| error.into_miette_diagnostic(source_name, toml_content))?;
-    let formatted_toml = toml_spanner::Formatting::preserved_from(&document)
-        .format(&runfile.output(super::output::Defaults::Include))
-        .into_diagnostic()?;
-
     let mut hf_config = runfile.hf.as_ref().map(rustiq_core::config::HfConfig::from);
     let mut molecule_config = rustiq_core::config::MoleculeConfig::from(&runfile.global.molecule);
     let mut mp2_config = runfile
@@ -63,7 +56,6 @@ pub fn parse_runfile(
 
     Ok(ParsedRunFile {
         runfile,
-        formatted_toml,
         hf_config,
         mp2_config,
         molecule_config,

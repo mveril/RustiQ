@@ -14,7 +14,7 @@ pub use density_guess_config::DensityGuessConfig;
 pub use guess_perturbation_config::GuessPerturbationConfig;
 pub use random_guess_config::RandomGuessConfig;
 
-#[derive(Debug, Toml)]
+#[derive(Debug, Clone, Toml)]
 #[toml(Toml, recoverable)]
 pub struct HfConfig {
     #[toml(default)]
@@ -59,7 +59,7 @@ impl Default for HfConfig {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Toml, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Toml, PartialEq, Eq)]
 #[toml(Toml)]
 pub enum HfMethod {
     #[default]
@@ -79,7 +79,7 @@ impl HfMethod {
     }
 }
 
-#[derive(Debug, Default, Toml, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Toml, PartialEq, Eq)]
 #[toml(Toml)]
 pub enum HfOutputFormat {
     #[default]

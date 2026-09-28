@@ -4,7 +4,7 @@ use toml_spanner::Toml;
 
 use rustiq_core::molecules::units::Units;
 
-#[derive(Debug, Toml)]
+#[derive(Debug, Clone, Toml)]
 #[toml(Toml)]
 pub struct MoleculeConfig {
     #[toml(

@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use super::{
     CalculationError, CalculationEvent, CalculationExecution, CalculationExecutionError,
-    CalculationResult, PreparedCalculation,
+    CalculationRequest, CalculationResult, PreparedCalculation,
 };
 
 /// Configure a calculation from explicitly loaded inputs.
@@ -151,13 +151,43 @@ impl<'a> CalculationBuilder<'a> {
             basis: &basis,
             elapsed: start.elapsed(),
         });
+        let mut requested_geometry = self.geometry.clone();
+        requested_geometry.comment = "Requested geometry".into();
+        let request = CalculationRequest {
+            geometry: requested_geometry,
+            molecule: MoleculeConfig {
+                units: self.molecule_config.units,
+                charge: self.molecule_config.charge.value.into(),
+                multiplicity: self.molecule_config.multiplicity.value.into(),
+            },
+            basis_name: self.basis_file.name().to_owned(),
+            hf: request_hf_config(&self.hf),
+            mp2: self.mp2.map(|config| Mp2Config {
+                frozen_orbitals: config.frozen_orbitals.value.into(),
+                memory_limit: config.memory_limit.value.into(),
+            }),
+        };
         Ok(PreparedCalculation {
+            request,
             molecule,
             basis,
             hf,
             mp2: self.mp2,
             eri_cache: self.eri_cache.clone(),
         })
+    }
+}
+
+fn request_hf_config(config: &HfConfig) -> HfConfig {
+    HfConfig {
+        method: config.method.value.into(),
+        max_iterations: config.max_iterations,
+        convergence_threshold: config.convergence_threshold,
+        linear_dependency_threshold: config.linear_dependency_threshold.value.into(),
+        eri_schwarz_threshold: config.eri_schwarz_threshold,
+        guess: config.guess.value.into(),
+        diis: config.diis,
+        diis_size: config.diis_size,
     }
 }
 

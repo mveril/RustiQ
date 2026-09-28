@@ -1,6 +1,6 @@
 use toml_spanner::Toml;
 
-#[derive(Debug, Default, Toml)]
+#[derive(Debug, Clone, Default, Toml)]
 #[toml(Toml, recoverable)]
 pub struct CacheConfig {
     #[toml(default)]

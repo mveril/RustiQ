@@ -135,6 +135,12 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
+    assert!(stdout.contains("Requested calculation (TOML)"));
+    assert!(stdout.contains("Requested geometry (XYZ, Angstrom)"));
+    assert!(stdout.contains("Resolved calculation"));
+    assert!(stdout.contains("Coordinates  Bohr"));
+    assert!(stdout.contains("HF method    RHF"));
+    assert!(stdout.contains("Basis        STO-3G (2 functions)"));
 }
 
 #[test]

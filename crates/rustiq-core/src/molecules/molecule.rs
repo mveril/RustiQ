@@ -94,12 +94,10 @@ impl Molecule {
         &self.geometry
     }
 
-    #[allow(dead_code)]
     pub fn unit(&self) -> Units {
         self.unit
     }
 
-    #[allow(dead_code)]
     pub fn charge(&self) -> i32 {
         self.charge
     }

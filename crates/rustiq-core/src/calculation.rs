@@ -81,6 +81,7 @@ pub use solution::{CalculationExecutionError, Converged, HfOutcome, HfSolution, 
 mod builder;
 mod execution;
 mod prepared_calculation;
+mod request;
 pub use crate::basis::{Basis, BasisError};
 pub use crate::eri::EriError;
 use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
@@ -104,6 +105,7 @@ pub use execution::{
     HfCalculationResult, Mp2MemoryPlan,
 };
 pub use prepared_calculation::PreparedCalculation;
+pub use request::CalculationRequest;
 
 use crate::{
     config::{

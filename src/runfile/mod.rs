@@ -14,7 +14,7 @@ pub mod random_config;
 pub mod validated;
 use toml_spanner::Toml;
 
-#[derive(Debug, Toml)]
+#[derive(Debug, Clone, Toml)]
 #[toml(Toml, recoverable)]
 pub struct RunFile {
     pub global: Global,

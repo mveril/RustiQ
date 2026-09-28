@@ -2,7 +2,7 @@ use bytesize::ByteSize;
 use serde::{Deserialize, Serialize};
 use toml_spanner::Toml;
 
-#[derive(Debug, Default, Serialize, Deserialize, Toml)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Toml)]
 #[toml(Toml)]
 pub struct Mp2Config {
     #[toml(default)]

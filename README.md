@@ -744,7 +744,16 @@ the CLI only loads inputs and presents them.
 The builder follows the `WSLCommand` conventions from WSLPlugins-rs: mutable
 setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
 `PreparedCalculation` retains the validated molecule and basis and can be
-executed repeatedly through the shared `CalculationExecution` trait.
+executed repeatedly through the shared `CalculationExecution` trait. It also
+exposes a normalized `CalculationRequest` with requested coordinates, units,
+molecular state, and effective scientific options, without frontend source
+spans or geometry paths. In text mode, `run` presents the requested settings in
+canonical TOML with defaults, followed by XYZ rendered from that request in the
+requested units. It then presents the resolved method, basis size, and
+canonical XYZ in Bohr from the prepared calculation. TOML and XYZ are CLI
+presentation adapters; future input frontends should adapt into the same
+scientific configuration and preparation path rather than introduce their
+syntax into `rustiq-core`.
 `run_hf()` returns `HfOutcome::Converged(HfSolution<Converged>)` or
 `HfOutcome::Unconverged(HfSolution<Unconverged>)`. Both retain the HF summary,
 orbitals and integrals; only the converged type exposes `mp2()`. Cloning a

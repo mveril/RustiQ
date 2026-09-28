@@ -11,11 +11,14 @@ use crate::{
 };
 use std::cell::RefCell;
 
+use super::CalculationRequest;
+
 /// A validated molecule in Bohr and its basis, prepared together by the builder.
 ///
 /// Each execution starts fresh HF state and uses the same immutable inputs.
 /// This avoids self-referential SCF storage and allows reuse of the basis.
 pub struct PreparedCalculation {
+    pub(super) request: CalculationRequest,
     pub(super) molecule: Molecule,
     pub(super) basis: Basis,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
@@ -24,12 +27,29 @@ pub struct PreparedCalculation {
 }
 
 impl PreparedCalculation {
+    /// Returns the normalized inputs as requested before scientific resolution.
+    pub fn request(&self) -> &CalculationRequest {
+        &self.request
+    }
+
     pub fn get_molecule(&self) -> &Molecule {
         &self.molecule
     }
 
     pub fn get_basis(&self) -> &Basis {
         &self.basis
+    }
+
+    pub fn hf_method(&self) -> ResolvedHfMethod {
+        self.hf.1
+    }
+
+    pub fn hf_config(&self) -> &HfConfig {
+        &self.hf.0
+    }
+
+    pub fn mp2_config(&self) -> Option<&Mp2Config> {
+        self.mp2.as_ref()
     }
 }
 

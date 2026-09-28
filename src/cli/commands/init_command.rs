@@ -225,7 +225,7 @@ mod tests {
 
         command(&input, &output, &["--mp2"]).run().unwrap();
         let content = fs::read_to_string(&output).unwrap();
-        // Use the same parser and formatted TOML that RunCommand passes to bat.
+        // Use the same canonical TOML representation shown by RunCommand.
         let parsed = parse_runfile("calculation.toml", &content).unwrap();
         for field in [
             "charge",
@@ -238,7 +238,7 @@ mod tests {
         ] {
             assert!(!content.contains(field), "init must omit {field}");
             assert!(
-                parsed.formatted_toml.contains(field),
+                parsed.runfile.canonical_toml().unwrap().contains(field),
                 "run display must include {field}"
             );
         }
