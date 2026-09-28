@@ -11,10 +11,10 @@ use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report};
 use crate::cli::{
     self,
     ux::{
-        bat,
-        calculation_presentation::{requested_geometry, requested_heading, resolved_calculation},
+        calculation_presentation::{requested_heading, resolved_calculation},
         calculation_report::CalculationReporter,
         json_output::CalculationOutput,
+        source_text,
     },
 };
 use crate::runfile::{hf::HfOutputFormat, parser::parse_runfile};
@@ -127,10 +127,12 @@ impl Runnable for RunCommand {
             ("<stdin>".to_string(), content)
         };
         let parsed = parse_runfile(source_name.clone(), &toml_content)?;
-        let source_code = NamedSource::new(source_name, toml_content);
+        let source_code = NamedSource::new(source_name, toml_content.clone());
         let run = parsed.runfile;
         let molecule_path = &run.global.molecule.geometry;
-        let geom = Geometry::from_path(molecule_path).into_diagnostic()?;
+        let xyz_content = fs::read_to_string(molecule_path).into_diagnostic()?;
+        let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
+            .into_diagnostic()?;
         if !json_output {
             println!("Loading basis set...");
         }
@@ -174,11 +176,10 @@ impl Runnable for RunCommand {
             prepared.map_err(|error| with_source(error, &source_code))?
         };
         if !json_output {
-            let request_toml = run.canonical_toml().into_diagnostic()?;
-            println!("Requested calculation (TOML)");
-            bat::print_toml(&request_toml);
+            println!("Requested calculation (TOML source)");
+            source_text::print(&toml_content);
             println!("{}", requested_heading(prepared.request().molecule().units));
-            bat::print_xyz(&requested_geometry(prepared.request()));
+            source_text::print(&xyz_content);
             println!("{}", resolved_calculation(&prepared));
         }
         let result = {

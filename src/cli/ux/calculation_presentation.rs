@@ -1,11 +1,4 @@
-use rustiq_core::{
-    calculation::{CalculationRequest, PreparedCalculation},
-    molecules::units::Units,
-};
-
-pub(crate) fn requested_geometry(request: &CalculationRequest) -> String {
-    request.geometry().to_string()
-}
+use rustiq_core::{calculation::PreparedCalculation, molecules::units::Units};
 
 pub(crate) fn resolved_calculation(prepared: &PreparedCalculation) -> String {
     let molecule = prepared.get_molecule();
@@ -24,7 +17,7 @@ pub(crate) fn resolved_calculation(prepared: &PreparedCalculation) -> String {
 }
 
 pub(crate) fn requested_heading(unit: Units) -> String {
-    format!("Requested geometry (XYZ, {})", unit_name(unit))
+    format!("Requested geometry (XYZ source, {})", unit_name(unit))
 }
 
 fn unit_name(unit: Units) -> &'static str {
@@ -45,7 +38,7 @@ mod tests {
     };
 
     #[test]
-    fn prepared_views_render_requested_and_resolved_geometry_without_source_files() {
+    fn resolved_view_renders_prepared_geometry_without_source_files() {
         let geometry =
             Geometry::from_reader(&include_bytes!("../../../samples/h2/molecule.xyz")[..]).unwrap();
         let basis =
@@ -60,10 +53,6 @@ mod tests {
             .unwrap();
         drop(geometry);
 
-        assert!(requested_geometry(prepared.request()).contains("0.370000"));
-        assert!(requested_geometry(prepared.request()).contains("Requested geometry"));
-        assert!(!requested_geometry(prepared.request()).contains("Hydrogen molecule"));
-        assert!(requested_heading(prepared.request().molecule().units).contains("Angstrom"));
         let resolved = resolved_calculation(&prepared);
         assert!(resolved.contains("HF method    RHF"));
         assert!(resolved.contains("Coordinates  Bohr"));

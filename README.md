@@ -747,10 +747,11 @@ setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
 executed repeatedly through the shared `CalculationExecution` trait. It also
 exposes a normalized `CalculationRequest` with requested coordinates, units,
 molecular state, and effective scientific options, without frontend source
-spans or geometry paths. In text mode, `run` presents the requested settings in
-canonical TOML with defaults, followed by XYZ rendered from that request in the
-requested units. It then presents the resolved method, basis size, and
-canonical XYZ in Bohr from the prepared calculation. TOML and XYZ are CLI
+spans or geometry paths. In text mode, `run` prints the original TOML and XYZ
+sources verbatim so they can be copied back into files, preserving comments,
+paths, and coordinate precision. Relative geometry paths require the same file
+layout when reused. It then presents the resolved method, basis size, and XYZ
+in Bohr from the prepared calculation. TOML and XYZ are CLI
 presentation adapters; future input frontends should adapt into the same
 scientific configuration and preparation path rather than introduce their
 syntax into `rustiq-core`.

@@ -135,12 +135,47 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
-    assert!(stdout.contains("Requested calculation (TOML)"));
-    assert!(stdout.contains("Requested geometry (XYZ, Angstrom)"));
+    assert!(stdout.contains("Requested calculation (TOML source)"));
+    assert!(stdout.contains("Requested geometry (XYZ source, Angstrom)"));
     assert!(stdout.contains("Resolved calculation"));
     assert!(stdout.contains("Coordinates  Bohr"));
     assert!(stdout.contains("HF method    RHF"));
     assert!(stdout.contains("Basis        STO-3G (2 functions)"));
+}
+
+#[test]
+fn test_cli_prints_original_toml_and_xyz_for_copying() {
+    let temp_root = temp_root("cli-original-input");
+    prepare_basis_store(&temp_root);
+    let input_dir = temp_root.join("input");
+    fs::create_dir_all(&input_dir).unwrap();
+    let toml = "# Keep the original path and formatting\n[global]\nbasis = 'sto-3g'\n\n[global.molecule]\ngeometry = 'molecule.xyz'  # relative to this file\n";
+    let xyz = "2\nHydrogen molecule -- original comment\nH  0  0  -0.370000000123456789\nH  0  0   0.370000000123456789\n";
+    let calculation_path = input_dir.join("calculation.toml");
+    fs::write(&calculation_path, toml).unwrap();
+    fs::write(input_dir.join("molecule.xyz"), xyz).unwrap();
+
+    let output =
+        run_rustiq_with_data_home(&["run", calculation_path.to_str().unwrap()], &temp_root);
+    assert_success(&output);
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let toml_section = stdout
+        .split_once("Requested calculation (TOML source)\n")
+        .unwrap()
+        .1
+        .split_once("Requested geometry (XYZ source, Angstrom)\n")
+        .unwrap()
+        .0;
+    assert_eq!(toml_section, format!("{toml}\n"));
+    let xyz_section = stdout
+        .split_once("Requested geometry (XYZ source, Angstrom)\n")
+        .unwrap()
+        .1
+        .split_once("Resolved calculation\n")
+        .unwrap()
+        .0;
+    assert_eq!(xyz_section, format!("{xyz}\n"));
 }
 
 #[test]

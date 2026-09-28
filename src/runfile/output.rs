@@ -17,15 +17,6 @@ impl RunFile {
     pub fn output(&self, defaults: Defaults) -> TomlOutput<'_, Self> {
         TomlOutput::new(self, defaults)
     }
-
-    /// Renders the effective runfile with stable TOML formatting and defaults.
-    pub fn canonical_toml(&self) -> Result<String, ToTomlError> {
-        let mut effective = self.clone();
-        if effective.hf.is_none() {
-            effective.hf = Some(super::hf::HfConfig::default());
-        }
-        toml_spanner::to_string(&effective.output(Defaults::Include))
-    }
 }
 
 impl<'a, T> TomlOutput<'a, T> {
@@ -164,7 +155,6 @@ mod tests {
             "frozen_orbitals",
         ] {
             assert!(full.contains(field), "missing {field}");
-            assert!(parsed.runfile.canonical_toml().unwrap().contains(field));
             assert!(!compact.contains(field), "unexpected {field}");
         }
         assert!(compact.contains("[hf]"));
@@ -178,20 +168,6 @@ mod tests {
             full,
             toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap()
         );
-    }
-
-    #[test]
-    fn canonical_output_normalizes_omitted_and_explicit_defaults() {
-        let implicit = parse_runfile("implicit", "[global]\nbasis = 'sto-3g'\n").unwrap();
-        let explicit_source = implicit.runfile.canonical_toml().unwrap();
-        let explicit = parse_runfile("explicit", &explicit_source).unwrap();
-
-        assert_eq!(
-            implicit.runfile.canonical_toml().unwrap(),
-            explicit.runfile.canonical_toml().unwrap()
-        );
-        assert!(explicit_source.contains("Auto"));
-        assert!(explicit_source.contains("Angstrom"));
     }
 
     #[test]
