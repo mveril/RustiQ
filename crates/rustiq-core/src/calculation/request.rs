@@ -26,7 +26,8 @@ impl CalculationRequest {
         &self.molecule
     }
 
-    /// Canonical basis name associated with the loaded basis data.
+    /// Requested portable basis label, or the loaded basis name for direct API use.
+    /// This label is not the scientific identity of the resolved basis.
     pub fn basis_name(&self) -> &str {
         &self.basis_name
     }

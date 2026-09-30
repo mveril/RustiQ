@@ -1,4 +1,4 @@
-//! Explicit conversion from the TOML schema to scientific options.
+//! Explicit conversions between CLI TOML representations and scientific options.
 use super::{hf, mp2, random_config};
 use rustiq_core::config as core;
 
@@ -106,6 +106,81 @@ impl From<random_config::RandomConfig> for core::random_config::RandomConfig {
         Self {
             distribution,
             seed: value.seed,
+        }
+    }
+}
+
+impl From<core::HfMethod> for hf::HfMethod {
+    fn from(value: core::HfMethod) -> Self {
+        match value {
+            core::HfMethod::Auto => Self::Auto,
+            core::HfMethod::Rhf => Self::Rhf,
+            core::HfMethod::Uhf => Self::Uhf,
+        }
+    }
+}
+
+impl From<core::DensityGuessConfig> for hf::DensityGuessConfig {
+    fn from(value: core::DensityGuessConfig) -> Self {
+        match value {
+            core::DensityGuessConfig::CoreHamiltonian { perturbation } => Self::CoreHamiltonian {
+                perturbation: perturbation.map(|value| hf::GuessPerturbationConfig {
+                    random: value.random.into(),
+                }),
+            },
+            core::DensityGuessConfig::OneElectron { perturbation } => Self::OneElectron {
+                perturbation: perturbation.map(|value| hf::GuessPerturbationConfig {
+                    random: value.random.into(),
+                }),
+            },
+            core::DensityGuessConfig::Random { config } => Self::Random {
+                config: hf::RandomGuessConfig {
+                    random: config.random.into(),
+                },
+            },
+            core::DensityGuessConfig::Zero => Self::Zero,
+        }
+    }
+}
+
+impl From<core::random_config::RandomConfig> for random_config::RandomConfig {
+    fn from(value: core::random_config::RandomConfig) -> Self {
+        use random_config::distribution_config::{
+            NormalDistributionConfig, UniformDistributionConfig,
+        };
+        let distribution = match value.distribution {
+            core::random_config::DistributionConfig::Normal { config } => {
+                random_config::DistributionConfig::Normal {
+                    config: NormalDistributionConfig {
+                        mean: config.mean,
+                        std_dev: config.std_dev,
+                    },
+                }
+            }
+            core::random_config::DistributionConfig::Uniform { config } => {
+                random_config::DistributionConfig::Uniform {
+                    config: UniformDistributionConfig {
+                        min: config.min,
+                        max: config.max,
+                    },
+                }
+            }
+        };
+        Self {
+            distribution,
+            seed: value.seed,
+        }
+    }
+}
+
+impl From<&core::Mp2Config> for mp2::Mp2Config {
+    fn from(value: &core::Mp2Config) -> Self {
+        Self {
+            frozen_orbitals: value.frozen_orbitals.value,
+            memory_limit: match value.memory_limit.value {
+                core::MemoryLimit::Auto => mp2::MemoryLimit::Auto,
+                core::MemoryLimit::Fixed(size) => mp2::MemoryLimit::Fixed(size),
+            },
         }
     }
 }

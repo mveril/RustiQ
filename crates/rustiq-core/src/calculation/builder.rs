@@ -40,6 +40,7 @@ use super::{
 pub struct CalculationBuilder<'a> {
     geometry: &'a Geometry,
     basis_file: &'a BasisFile,
+    basis_label: Option<String>,
     molecule_config: MoleculeConfig,
     hf: HfConfig,
     mp2: Option<Mp2Config>,
@@ -51,6 +52,7 @@ impl<'a> CalculationBuilder<'a> {
         Self {
             geometry,
             basis_file,
+            basis_label: None,
             molecule_config: MoleculeConfig::default(),
             hf: HfConfig::default(),
             mp2: None,
@@ -63,6 +65,18 @@ impl<'a> CalculationBuilder<'a> {
     }
     pub fn get_basis_file(&self) -> &BasisFile {
         self.basis_file
+    }
+
+    /// Set a portable requested basis label; the loaded basis remains authoritative.
+    pub fn basis_label(&mut self, label: impl Into<String>) -> &mut Self {
+        self.basis_label = Some(label.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_basis_label(mut self, label: impl Into<String>) -> Self {
+        self.basis_label(label);
+        self
     }
     pub fn get_molecule_config(&self) -> &MoleculeConfig {
         &self.molecule_config
@@ -141,9 +155,17 @@ impl<'a> CalculationBuilder<'a> {
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<PreparedCalculation, CalculationError> {
-        let mut molecule = self.molecule_config.build(self.geometry.clone())?;
+        let mut requested_geometry = self.geometry.clone();
+        requested_geometry.comment.clear();
+        let mut molecule = self.molecule_config.build(requested_geometry.clone())?;
         molecule.convert_to(Units::Bohr);
-        let hf = (self.hf.clone(), self.hf.resolve_method(&molecule)?);
+        let method = self.hf.resolve_method(&molecule)?;
+        let mut resolved_hf = self.hf.clone();
+        resolved_hf.method.value = match method {
+            crate::config::ResolvedHfMethod::Rhf => crate::config::HfMethod::Rhf,
+            crate::config::ResolvedHfMethod::Uhf => crate::config::HfMethod::Uhf,
+        };
+        let hf = (resolved_hf, method);
         events(CalculationEvent::BasisStarted);
         let start = Instant::now();
         let basis = Basis::try_load(self.basis_file, &molecule)?;
@@ -151,8 +173,6 @@ impl<'a> CalculationBuilder<'a> {
             basis: &basis,
             elapsed: start.elapsed(),
         });
-        let mut requested_geometry = self.geometry.clone();
-        requested_geometry.comment = "Requested geometry".into();
         let request = CalculationRequest {
             geometry: requested_geometry,
             molecule: MoleculeConfig {
@@ -160,8 +180,11 @@ impl<'a> CalculationBuilder<'a> {
                 charge: self.molecule_config.charge.value.into(),
                 multiplicity: self.molecule_config.multiplicity.value.into(),
             },
-            basis_name: self.basis_file.name().to_owned(),
-            hf: request_hf_config(&self.hf),
+            basis_name: self
+                .basis_label
+                .clone()
+                .unwrap_or_else(|| self.basis_file.name().to_owned()),
+            hf: normalized_hf_config(&self.hf),
             mp2: self.mp2.map(|config| Mp2Config {
                 frozen_orbitals: config.frozen_orbitals.value.into(),
                 memory_limit: config.memory_limit.value.into(),
@@ -171,6 +194,7 @@ impl<'a> CalculationBuilder<'a> {
             request,
             molecule,
             basis,
+            basis_name: self.basis_file.name().to_owned(),
             hf,
             mp2: self.mp2,
             eri_cache: self.eri_cache.clone(),
@@ -178,7 +202,7 @@ impl<'a> CalculationBuilder<'a> {
     }
 }
 
-fn request_hf_config(config: &HfConfig) -> HfConfig {
+pub(super) fn normalized_hf_config(config: &HfConfig) -> HfConfig {
     HfConfig {
         method: config.method.value.into(),
         max_iterations: config.max_iterations,

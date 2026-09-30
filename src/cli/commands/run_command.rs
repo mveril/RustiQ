@@ -11,7 +11,9 @@ use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report};
 use crate::cli::{
     self,
     ux::{
-        calculation_presentation::{requested_heading, resolved_calculation},
+        calculation_presentation::{
+            requested_calculation, resolved_calculation, source_geometry_heading,
+        },
         calculation_report::CalculationReporter,
         json_output::CalculationOutput,
         source_text,
@@ -150,6 +152,7 @@ impl Runnable for RunCommand {
             .as_ref()
             .is_none_or(|hf| hf.format != HfOutputFormat::Nope);
         let calculation = CalculationBuilder::new(&geom, &basis_file)
+            .with_basis_label(&run.global.basis)
             .with_molecule_config(parsed.molecule_config)
             .with_mp2(parsed.mp2_config);
         let calculation = if run.cache.enabled {
@@ -176,11 +179,18 @@ impl Runnable for RunCommand {
             prepared.map_err(|error| with_source(error, &source_code))?
         };
         if !json_output {
-            println!("Requested calculation (TOML source)");
+            println!("Original calculation (TOML source)");
             source_text::print(&toml_content);
-            println!("{}", requested_heading(prepared.request().molecule().units));
+            println!(
+                "{}",
+                source_geometry_heading(prepared.request().molecule().units)
+            );
             source_text::print(&xyz_content);
-            println!("{}", resolved_calculation(&prepared));
+            println!(
+                "{}",
+                requested_calculation(prepared.request()).into_diagnostic()?
+            );
+            println!("{}", resolved_calculation(&prepared).into_diagnostic()?);
         }
         let result = {
             let stdout = io::stdout();

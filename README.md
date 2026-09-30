@@ -750,8 +750,16 @@ molecular state, and effective scientific options, without frontend source
 spans or geometry paths. In text mode, `run` prints the original TOML and XYZ
 sources verbatim so they can be copied back into files, preserving comments,
 paths, and coordinate precision. Relative geometry paths require the same file
-layout when reused. It then presents the resolved method, basis size, and XYZ
-in Bohr from the prepared calculation. TOML and XYZ are CLI
+layout when reused. It then renders the normalized request as canonical TOML
+with scientific defaults and XYZ in the requested units, followed by the
+resolved configuration and XYZ in Bohr. These canonical pairs can each be
+copied into `calculation.toml` and `molecule.xyz` to recreate the corresponding
+semantic input. Canonical XYZ retains enough coordinate digits for an exact
+floating-point round trip. Canonical TOML uses typed CLI adapters and
+`toml-spanner`, without cache or terminal options. The requested basis label is
+distinct from the resolved basis name and AO contents; only the resolved
+scientific state determines artifact compatibility. Source provenance is
+optional and never needed to render either semantic view. TOML and XYZ are CLI
 presentation adapters; future input frontends should adapt into the same
 scientific configuration and preparation path rather than introduce their
 syntax into `rustiq-core`.

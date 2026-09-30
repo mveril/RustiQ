@@ -21,6 +21,7 @@ pub struct PreparedCalculation {
     pub(super) request: CalculationRequest,
     pub(super) molecule: Molecule,
     pub(super) basis: Basis,
+    pub(super) basis_name: String,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
     pub(super) mp2: Option<Mp2Config>,
     pub(super) eri_cache: Option<EriCache>,
@@ -44,12 +45,19 @@ impl PreparedCalculation {
         self.hf.1
     }
 
-    pub fn hf_config(&self) -> &HfConfig {
-        &self.hf.0
+    /// Canonical label of the loaded basis; AO contents are exposed by `get_basis()`.
+    pub fn basis_name(&self) -> &str {
+        &self.basis_name
     }
 
+    /// Effective HF options with an explicit method and no frontend source spans.
+    pub fn hf_config(&self) -> HfConfig {
+        super::builder::normalized_hf_config(&self.hf.0)
+    }
+
+    /// MP2 options without frontend source spans; automatic memory resolves at execution.
     pub fn mp2_config(&self) -> Option<&Mp2Config> {
-        self.mp2.as_ref()
+        self.request.mp2()
     }
 }
 
