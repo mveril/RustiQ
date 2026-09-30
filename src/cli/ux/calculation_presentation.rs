@@ -346,6 +346,25 @@ mod tests {
     }
 
     #[test]
+    fn resolved_rendered_toml_includes_prepared_random_seed() {
+        let geometry = Geometry::from_source("input.xyz", "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
+        let prepared = prepare(
+            "[global]\nbasis = 'sto-3g'\n[hf.guess]\ntype = 'Random'\ndistribution = 'Uniform'\nmin = -1.0\nmax = 1.0\n",
+            &geometry,
+        );
+        let seed = match prepared.hf_config().guess.value {
+            config::DensityGuessConfig::Random { config } => {
+                config.random.seed.expect("preparation resolves the seed")
+            }
+            _ => panic!("expected random guess"),
+        };
+        let requested = requested_calculation(prepared.request()).unwrap().toml;
+        let resolved = resolved_calculation(&prepared).unwrap().configuration;
+        assert!(!requested.contains("seed ="));
+        assert!(resolved.contains(&format!("seed = {seed}")));
+    }
+
+    #[test]
     fn auto_remains_requested_and_resolves_to_uhf_for_a_doublet() {
         let geometry = Geometry::from_source("input.xyz", "2\nH2+\nH 0 0 0\nH 0 0 1.4\n").unwrap();
         let prepared = prepare("[global]\nbasis = 'sto-3g'\n[global.molecule]\ncharge = 1\nmultiplicity = 2\nmolecule_unit = 'Bohr'\n", &geometry);
