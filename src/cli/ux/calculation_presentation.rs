@@ -18,6 +18,9 @@ use crate::runfile::{
 
 /// CLI rendering schema, not a scientific persistence schema. The generated
 /// geometry filename belongs to this TOML/XYZ adapter, never to the core views.
+/// Resolved TOML includes the loaded basis label for CLI replay; replay assumes
+/// a compatible basis store, while `PreparedCalculation::get_basis()` is the
+/// authoritative resolved basis content.
 #[derive(Toml)]
 #[toml(ToToml)]
 struct CalculationToml {

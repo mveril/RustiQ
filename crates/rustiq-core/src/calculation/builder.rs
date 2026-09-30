@@ -155,17 +155,15 @@ impl<'a> CalculationBuilder<'a> {
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<PreparedCalculation, CalculationError> {
+        let request = self.normalized_request();
         let mut requested_geometry = self.geometry.clone();
         requested_geometry.comment.clear();
         let mut molecule = self.molecule_config.build(requested_geometry.clone())?;
         molecule.convert_to(Units::Bohr);
         let method = self.hf.resolve_method(&molecule)?;
-        let mut resolved_hf = self.hf.clone();
-        resolved_hf.method.value = match method {
-            crate::config::ResolvedHfMethod::Rhf => crate::config::HfMethod::Rhf,
-            crate::config::ResolvedHfMethod::Uhf => crate::config::HfMethod::Uhf,
-        };
-        let hf = (resolved_hf, method);
+        let mut execution_hf = self.hf.clone();
+        resolve_random_seeds(&mut execution_hf);
+        let hf = (execution_hf, method);
         events(CalculationEvent::BasisStarted);
         let start = Instant::now();
         let basis = Basis::try_load(self.basis_file, &molecule)?;
@@ -173,8 +171,22 @@ impl<'a> CalculationBuilder<'a> {
             basis: &basis,
             elapsed: start.elapsed(),
         });
-        let request = CalculationRequest {
-            geometry: requested_geometry,
+        Ok(PreparedCalculation {
+            request,
+            molecule,
+            basis,
+            basis_name: self.basis_file.name().to_owned(),
+            hf,
+            mp2: self.mp2,
+            eri_cache: self.eri_cache.clone(),
+        })
+    }
+
+    fn normalized_request(&self) -> CalculationRequest {
+        let mut geometry = self.geometry.clone();
+        geometry.comment.clear();
+        CalculationRequest {
+            geometry,
             molecule: MoleculeConfig {
                 units: self.molecule_config.units,
                 charge: self.molecule_config.charge.value.into(),
@@ -189,16 +201,29 @@ impl<'a> CalculationBuilder<'a> {
                 frozen_orbitals: config.frozen_orbitals.value.into(),
                 memory_limit: config.memory_limit.value.into(),
             }),
-        };
-        Ok(PreparedCalculation {
-            request,
-            molecule,
-            basis,
-            basis_name: self.basis_file.name().to_owned(),
-            hf,
-            mp2: self.mp2,
-            eri_cache: self.eri_cache.clone(),
-        })
+        }
+    }
+}
+
+fn resolve_random_seeds(config: &mut HfConfig) {
+    let guess = &mut config.guess.value;
+    match guess {
+        crate::config::DensityGuessConfig::Random { config } => {
+            resolve_seed(&mut config.random.seed);
+        }
+        crate::config::DensityGuessConfig::CoreHamiltonian { perturbation }
+        | crate::config::DensityGuessConfig::OneElectron { perturbation } => {
+            if let Some(perturbation) = perturbation {
+                resolve_seed(&mut perturbation.random.seed);
+            }
+        }
+        crate::config::DensityGuessConfig::Zero => {}
+    }
+}
+
+fn resolve_seed(seed: &mut Option<u64>) {
+    if seed.is_none() {
+        *seed = Some(rand::random());
     }
 }
 

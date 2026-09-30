@@ -45,14 +45,22 @@ impl PreparedCalculation {
         self.hf.1
     }
 
-    /// Canonical label of the loaded basis; AO contents are exposed by `get_basis()`.
+    /// Human-readable label of the loaded basis; this is not its scientific identity.
+    /// The resolved basis contents exposed by `get_basis()` are authoritative. Replaying
+    /// canonical TOML that uses this label assumes a compatible basis store.
     pub fn basis_name(&self) -> &str {
         &self.basis_name
     }
 
-    /// Effective HF options with an explicit method and no frontend source spans.
+    /// Resolved HF presentation options with an explicit method and no frontend source spans.
+    /// Random seeds resolved during preparation are retained here.
     pub fn hf_config(&self) -> HfConfig {
-        super::builder::normalized_hf_config(&self.hf.0)
+        let mut config = super::builder::normalized_hf_config(&self.hf.0);
+        config.method.value = match self.hf.1 {
+            ResolvedHfMethod::Rhf => crate::config::HfMethod::Rhf,
+            ResolvedHfMethod::Uhf => crate::config::HfMethod::Uhf,
+        };
+        config
     }
 
     /// MP2 options without frontend source spans; automatic memory resolves at execution.
