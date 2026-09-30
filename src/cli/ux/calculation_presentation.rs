@@ -98,27 +98,64 @@ impl CalculationToml {
     }
 }
 
-pub(crate) fn requested_calculation(request: &CalculationRequest) -> Result<String, ToTomlError> {
-    Ok(format!(
-        "Requested calculation (canonical TOML)\n{}\nRequested geometry (canonical XYZ, {})\n{}",
-        toml_spanner::to_string(&CalculationToml::requested(request))?,
-        unit_name(request.molecule().units),
-        geometry_xyz(request.geometry(), "Requested geometry"),
-    ))
+pub(crate) struct CanonicalPair {
+    pub(crate) toml: String,
+    pub(crate) xyz: String,
+    pub(crate) units: &'static str,
 }
 
-pub(crate) fn resolved_calculation(prepared: &PreparedCalculation) -> Result<String, ToTomlError> {
+impl CanonicalPair {
+    #[cfg(test)]
+    fn combined(&self) -> String {
+        format!(
+            "Requested calculation (canonical TOML)\n{}\nRequested geometry (canonical XYZ, {})\n{}",
+            self.toml, self.units, self.xyz
+        )
+    }
+}
+
+pub(crate) fn requested_calculation(
+    request: &CalculationRequest,
+) -> Result<CanonicalPair, ToTomlError> {
+    Ok(CanonicalPair {
+        toml: toml_spanner::to_string(&CalculationToml::requested(request))?,
+        xyz: geometry_xyz(request.geometry(), "Requested geometry"),
+        units: unit_name(request.molecule().units),
+    })
+}
+
+pub(crate) struct ResolvedCalculation {
+    pub(crate) summary: String,
+    pub(crate) configuration: String,
+    pub(crate) geometry: String,
+}
+
+impl ResolvedCalculation {
+    #[cfg(test)]
+    fn combined(&self) -> String {
+        format!(
+            "{}\n\nResolved configuration (canonical TOML)\n{}\nResolved geometry (canonical XYZ, Bohr)\n{}",
+            self.summary, self.configuration, self.geometry
+        )
+    }
+}
+
+pub(crate) fn resolved_calculation(
+    prepared: &PreparedCalculation,
+) -> Result<ResolvedCalculation, ToTomlError> {
     let molecule = prepared.get_molecule();
-    Ok(format!(
-        "Resolved calculation\n  Coordinates  Bohr\n  Charge       {}\n  Multiplicity {}\n  HF method    {}\n  Basis        {} ({} functions)\n\nResolved configuration (canonical TOML)\n{}\nResolved geometry (canonical XYZ, Bohr)\n{}",
-        molecule.charge(),
-        molecule.multiplicity().get(),
-        prepared.hf_method(),
-        prepared.basis_name(),
-        prepared.get_basis().nbasis(),
-        toml_spanner::to_string(&CalculationToml::resolved(prepared))?,
-        geometry_xyz(molecule.geometry(), "Resolved geometry"),
-    ))
+    Ok(ResolvedCalculation {
+        summary: format!(
+            "Resolved calculation\n  Coordinates  Bohr\n  Charge       {}\n  Multiplicity {}\n  HF method    {}\n  Basis        {} ({} functions)",
+            molecule.charge(),
+            molecule.multiplicity().get(),
+            prepared.hf_method(),
+            prepared.basis_name(),
+            prepared.get_basis().nbasis(),
+        ),
+        configuration: toml_spanner::to_string(&CalculationToml::resolved(prepared))?,
+        geometry: geometry_xyz(molecule.geometry(), "Resolved geometry"),
+    })
 }
 
 pub(crate) fn source_geometry_heading(unit: Units) -> String {
@@ -214,9 +251,11 @@ mod tests {
         }
         assert!(requested_calculation(prepared.request())
             .unwrap()
+            .toml
             .contains("method = \"Auto\""));
         assert!(resolved_calculation(&prepared)
             .unwrap()
+            .configuration
             .contains("method = \"Rhf\""));
     }
 
@@ -245,12 +284,16 @@ mod tests {
             );
             let explicit = prepare(&explicit_source, &equivalent);
             assert_eq!(
-                requested_calculation(implicit.request()).unwrap(),
-                requested_calculation(explicit.request()).unwrap()
+                requested_calculation(implicit.request())
+                    .unwrap()
+                    .combined(),
+                requested_calculation(explicit.request())
+                    .unwrap()
+                    .combined()
             );
             assert_eq!(
-                resolved_calculation(&implicit).unwrap(),
-                resolved_calculation(&explicit).unwrap()
+                resolved_calculation(&implicit).unwrap().combined(),
+                resolved_calculation(&explicit).unwrap().combined()
             );
             assert!(explicit.request().geometry().comment.is_empty());
             assert!(explicit.get_molecule().geometry().comment.is_empty());
@@ -287,7 +330,10 @@ mod tests {
                 toml_spanner::to_string(&reparsed.runfile.hf.unwrap().guess).unwrap(),
             );
             let restored = prepare(&rendered, &geometry);
-            assert_eq!(requested_calculation(prepared.request()).unwrap(), requested_calculation(restored.request()).unwrap());
+            assert_eq!(
+                requested_calculation(prepared.request()).unwrap().combined(),
+                requested_calculation(restored.request()).unwrap().combined()
+            );
             assert_eq!(prepared.request().hf().max_iterations.get(), 42);
             assert!(prepared.request().hf().eri_schwarz_threshold.is_none());
             assert_eq!(prepared.request().mp2().unwrap().frozen_orbitals.value, 1);
@@ -304,9 +350,11 @@ mod tests {
         assert_eq!(prepared.hf_config().method.value, config::HfMethod::Uhf);
         assert!(requested_calculation(prepared.request())
             .unwrap()
+            .toml
             .contains("method = \"Auto\""));
         assert!(resolved_calculation(&prepared)
             .unwrap()
+            .configuration
             .contains("method = \"Uhf\""));
     }
 }

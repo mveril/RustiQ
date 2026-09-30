@@ -11,12 +11,12 @@ use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report};
 use crate::cli::{
     self,
     ux::{
+        bat,
         calculation_presentation::{
             requested_calculation, resolved_calculation, source_geometry_heading,
         },
         calculation_report::CalculationReporter,
         json_output::CalculationOutput,
-        source_text,
     },
 };
 use crate::runfile::{hf::HfOutputFormat, parser::parse_runfile};
@@ -180,17 +180,25 @@ impl Runnable for RunCommand {
         };
         if !json_output {
             println!("Original calculation (TOML source)");
-            source_text::print(&toml_content);
+            bat::print_toml(&toml_content);
             println!(
                 "{}",
                 source_geometry_heading(prepared.request().molecule().units)
             );
-            source_text::print(&xyz_content);
-            println!(
-                "{}",
-                requested_calculation(prepared.request()).into_diagnostic()?
-            );
-            println!("{}", resolved_calculation(&prepared).into_diagnostic()?);
+            bat::print_xyz(&xyz_content);
+
+            let requested = requested_calculation(prepared.request()).into_diagnostic()?;
+            println!("\nRequested calculation (canonical TOML)");
+            bat::print_toml(&requested.toml);
+            println!("\nRequested geometry (canonical XYZ, {})", requested.units);
+            bat::print_xyz(&requested.xyz);
+
+            let resolved = resolved_calculation(&prepared).into_diagnostic()?;
+            println!("\n{}", resolved.summary);
+            println!("\nResolved configuration (canonical TOML)");
+            bat::print_toml(&resolved.configuration);
+            println!("\nResolved geometry (canonical XYZ, Bohr)");
+            bat::print_xyz(&resolved.geometry);
         }
         let result = {
             let stdout = io::stdout();

@@ -73,6 +73,27 @@ fn assert_error(output: &Output) {
     );
 }
 
+fn strip_ansi(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut visible = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"\x1b[") {
+            index += 2;
+            while index < bytes.len() && !(0x40..=0x7e).contains(&bytes[index]) {
+                index += 1;
+            }
+            index += usize::from(index < bytes.len());
+        } else {
+            let character = input[index..].chars().next().unwrap();
+            let end = index + character.len_utf8();
+            visible.extend_from_slice(&bytes[index..end]);
+            index = end;
+        }
+    }
+    String::from_utf8(visible).unwrap()
+}
+
 #[test]
 #[cfg(feature = "online")]
 fn test_online_basis_commands_are_available_with_default_features() {
@@ -165,7 +186,7 @@ fn test_cli_prints_original_toml_and_xyz_for_copying() {
         run_rustiq_with_data_home(&["run", calculation_path.to_str().unwrap()], &temp_root);
     assert_success(&output);
 
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stdout = strip_ansi(&String::from_utf8(output.stdout).unwrap());
     let toml_section = stdout
         .split_once("Original calculation (TOML source)\n")
         .unwrap()
@@ -173,7 +194,7 @@ fn test_cli_prints_original_toml_and_xyz_for_copying() {
         .split_once("Original geometry (XYZ source, Angstrom)\n")
         .unwrap()
         .0;
-    assert_eq!(toml_section, format!("{toml}\n"));
+    assert_eq!(toml_section, toml);
     let xyz_section = stdout
         .split_once("Original geometry (XYZ source, Angstrom)\n")
         .unwrap()
