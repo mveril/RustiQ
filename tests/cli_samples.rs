@@ -152,7 +152,7 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
 
     assert_success(&output);
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&String::from_utf8_lossy(&output.stdout));
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
