@@ -3,8 +3,7 @@ pub mod commands;
 pub(crate) mod directories;
 pub(crate) mod env;
 pub mod ux;
-use clap::Parser;
-use color::ColorMode;
+use clap::{ColorChoice, Parser};
 use commands::Commands;
 
 #[derive(Parser, Debug)]
@@ -12,7 +11,7 @@ use commands::Commands;
 pub struct Cli {
     /// Control ANSI colors in terminal output
     #[arg(long, value_enum, global = true, env = "RUSTIQ_COLOR")]
-    pub color: Option<ColorMode>,
+    pub color: Option<ColorChoice>,
     #[command(subcommand)]
     pub command: Commands,
 }
