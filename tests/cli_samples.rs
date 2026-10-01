@@ -73,6 +73,84 @@ fn assert_error(output: &Output) {
     );
 }
 
+#[test]
+fn color_options_and_environment_control_terminal_styling() {
+    let always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args([
+            "--color",
+            "always",
+            "geometry",
+            "info",
+            "samples/h2/molecule.xyz",
+        ])
+        .env("NO_COLOR", "1")
+        .env_remove("RUSTIQ_COLOR")
+        .output()
+        .unwrap();
+    assert_success(&always);
+    let stdout = String::from_utf8_lossy(&always.stdout);
+    assert!(
+        stdout.contains("\x1b["),
+        "--color always should force ANSI: {stdout}"
+    );
+
+    let never = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args([
+            "--color",
+            "never",
+            "geometry",
+            "info",
+            "samples/h2/molecule.xyz",
+        ])
+        .env("RUSTIQ_COLOR", "always")
+        .output()
+        .unwrap();
+    assert_success(&never);
+    assert!(!String::from_utf8_lossy(&never.stdout).contains("\x1b["));
+
+    let env_always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["geometry", "info", "samples/h2/molecule.xyz"])
+        .env("RUSTIQ_COLOR", "always")
+        .env_remove("NO_COLOR")
+        .output()
+        .unwrap();
+    assert_success(&env_always);
+    assert!(String::from_utf8_lossy(&env_always.stdout).contains("\x1b["));
+}
+
+#[test]
+fn color_option_applies_to_help_even_when_stdout_is_piped() {
+    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["--color", "always", "--help"])
+        .env_remove("NO_COLOR")
+        .env_remove("RUSTIQ_COLOR")
+        .output()
+        .unwrap();
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("\x1b["));
+}
+
+#[test]
+fn color_option_controls_runtime_diagnostics() {
+    let always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["--color", "always", "geometry", "info", "missing.xyz"])
+        .env_remove("NO_COLOR")
+        .env_remove("RUSTIQ_COLOR")
+        .output()
+        .unwrap();
+    assert_error(&always);
+    assert!(String::from_utf8_lossy(&always.stderr).contains("\x1b["));
+
+    let never = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["--color", "never", "geometry", "info", "missing.xyz"])
+        .env_remove("NO_COLOR")
+        .env_remove("RUSTIQ_COLOR")
+        .output()
+        .unwrap();
+    assert_error(&never);
+    assert!(!String::from_utf8_lossy(&never.stderr).contains("\x1b["));
+}
+
 fn strip_ansi(input: &str) -> String {
     let bytes = input.as_bytes();
     let mut visible = Vec::with_capacity(bytes.len());

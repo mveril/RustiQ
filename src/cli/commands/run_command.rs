@@ -142,14 +142,19 @@ impl Runnable for RunCommand {
             Geometry::from_source(source.geometry_path.display().to_string(), &source.geometry)
                 .into_diagnostic()?;
         if !json_output {
-            println!("Loading basis set...");
+            println!("{}", cli::color::title("Loading basis set..."));
         }
         let step_start = Instant::now();
         let basis_file = self.resolve_basis(&run.global.basis)?;
         if !json_output {
-            println!("{} {:?}", basis_file.name(), basis_file.function_types());
             println!(
-                "Basis file loaded in {}",
+                "{} {:?}",
+                cli::color::value(basis_file.name()),
+                basis_file.function_types()
+            );
+            println!(
+                "{} {}",
+                cli::color::title("Basis file loaded in"),
                 humantime::format_duration(step_start.elapsed())
             );
         }
@@ -186,9 +191,18 @@ impl Runnable for RunCommand {
         };
         if !json_output {
             let requested = requested_calculation(prepared.request()).into_diagnostic()?;
-            println!("\nRequested calculation (canonical TOML)");
+            println!(
+                "\n{}",
+                cli::color::title("Requested calculation (canonical TOML)")
+            );
             bat::print_toml(&requested.toml);
-            println!("\nRequested geometry (canonical XYZ, {})", requested.units);
+            println!(
+                "\n{}",
+                cli::color::title(format!(
+                    "Requested geometry (canonical XYZ, {})",
+                    requested.units
+                ))
+            );
             bat::print_xyz(&requested.xyz);
             println!(
                 "\n{}",

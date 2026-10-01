@@ -12,6 +12,10 @@ fn repo_root() -> PathBuf {
 }
 
 fn run_command(sample: &str, format: Option<&str>) -> Output {
+    run_command_with_color(sample, format, None)
+}
+
+fn run_command_with_color(sample: &str, format: Option<&str>, color: Option<&str>) -> Output {
     let data_home = TempDir::new().expect("temporary data home");
     let basis_store = data_home.path().join("RustiQ/basis_sets");
     fs::create_dir_all(&basis_store).expect("basis store directory");
@@ -26,7 +30,13 @@ fn run_command(sample: &str, format: Option<&str>) -> Output {
         .current_dir(repo_root())
         .env("RUSTIQ_DATA_HOME", data_home.path())
         .env("RUSTIQ_AUTO_DOWNLOAD", "0")
+        .env_remove("NO_COLOR")
         .args(["run", sample]);
+    if let Some(color) = color {
+        command.env("RUSTIQ_COLOR", color);
+    } else {
+        command.env_remove("RUSTIQ_COLOR");
+    }
     if let Some(format) = format {
         command.args(["--format", format]);
     }
@@ -56,6 +66,11 @@ fn mp2_human_memory_budget_reaches_cli_and_preserves_json() {
     let sample = path.to_str().unwrap();
     let output = json_output(sample);
     assert_v1_shape(&output);
+    let forced_color_json = run_command_with_color(sample, Some("json"), Some("always"));
+    assert!(forced_color_json.status.success());
+    assert!(!String::from_utf8_lossy(&forced_color_json.stdout).contains("\x1b["));
+    serde_json::from_slice::<serde_json::Value>(&forced_color_json.stdout)
+        .expect("forced colors must not contaminate JSON stdout");
     let text = run_command(sample, Some("text"));
     assert!(
         text.status.success(),

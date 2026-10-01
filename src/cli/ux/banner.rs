@@ -30,35 +30,47 @@ fn render_package_name(package_name: &str) -> String {
 }
 
 fn print_plain_banner(banner: &str, package_version: &str) {
-    print!("{banner}");
-    println!("v{package_version}");
+    print!("{}", crate::cli::color::title(banner));
+    println!(
+        "{}",
+        crate::cli::color::value(format!("v{package_version}"))
+    );
 }
 
 fn print_framed_banner(banner: &str, package_version: &str) {
     let width = banner_width(banner).max(package_version.len() + 2);
     let border = "=".repeat(width);
 
-    println!("{border}");
-    print!("{banner}");
-    println!("{:^width$}", format!("v{package_version}"));
-    println!("{border}");
+    println!("{}", crate::cli::color::title(&border));
+    print!("{}", crate::cli::color::title(banner));
+    println!(
+        "{}",
+        crate::cli::color::value(format!("{:^width$}", format!("v{package_version}")))
+    );
+    println!("{}", crate::cli::color::title(&border));
 }
 
 fn print_rule_banner(banner: &str, package_version: &str) {
-    print!("{banner}");
+    print!("{}", crate::cli::color::title(banner));
     println!(
         "{}",
         "-".repeat(banner_width(banner).max(package_version.len() + 2))
     );
-    println!("v{package_version}");
+    println!(
+        "{}",
+        crate::cli::color::value(format!("v{package_version}"))
+    );
 }
 
 fn print_compact_banner(banner: &str, package_version: &str) {
     for line in banner.lines() {
-        println!("  {line}");
+        println!("  {}", crate::cli::color::title(line));
     }
 
-    println!("  v{package_version}");
+    println!(
+        "  {}",
+        crate::cli::color::value(format!("v{package_version}"))
+    );
 }
 
 fn banner_width(banner: &str) -> usize {

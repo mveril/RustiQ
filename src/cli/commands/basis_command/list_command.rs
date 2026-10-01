@@ -1,7 +1,10 @@
 use bat::PrettyPrinter;
 use miette::IntoDiagnostic;
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use tabled::Table;
+use tabled::{
+    settings::{object::Rows, Color, Modify},
+    Table,
+};
 
 use crate::cli::{
     commands::{CommandResult, Runnable},
@@ -41,7 +44,7 @@ impl Runnable for ListCommand {
             let list = store.list_online_sync().into_diagnostic()?;
             if self.verbose {
                 let items = list.into_values().map(BasisTableItem::from);
-                pagin_print(&Table::new(items).to_string());
+                pagin_print(&render_table(items));
             } else {
                 let mut str = String::new();
                 for item in list.values() {
@@ -62,7 +65,7 @@ impl Runnable for ListCommand {
                         .map(BasisTableItem::from)
                 })
                 .collect();
-            pagin_print(&Table::new(v.into_diagnostic()?).to_string())
+            pagin_print(&render_table(v.into_diagnostic()?))
         } else {
             let mut str = String::new();
             for item in list {
@@ -78,4 +81,12 @@ impl Runnable for ListCommand {
         }
         Ok(())
     }
+}
+
+fn render_table(items: impl IntoIterator<Item = BasisTableItem>) -> String {
+    let mut table = Table::new(items);
+    if crate::cli::color::enabled() {
+        table.with(Modify::new(Rows::first()).with(Color::FG_CYAN | Color::BOLD));
+    }
+    table.to_string()
 }

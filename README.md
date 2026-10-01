@@ -516,6 +516,18 @@ Run an MP2 example:
 cargo run -- run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
+### Terminal colors
+
+Color output is automatic when standard output is an interactive terminal. Use
+the global `--color` option or `RUSTIQ_COLOR` to choose `auto`, `always`, or
+`never`. `NO_COLOR` disables automatic color output; an explicit option or
+`RUSTIQ_COLOR` value takes precedence.
+
+```sh
+cargo run -- --color always run samples/h2/sto-3g/calculation.toml
+RUSTIQ_COLOR=never cargo run -- run samples/h2/sto-3g/calculation.toml
+```
+
 ### Machine-readable JSON output
 
 For automation and scientific validation, request the versioned JSON result

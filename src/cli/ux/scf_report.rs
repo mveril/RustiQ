@@ -26,24 +26,32 @@ where
         if converged {
             writeln!(
                 self.writer,
-                "SCF converged after {} iterations.",
-                result.iterations
+                "{}",
+                crate::cli::color::success(format!(
+                    "SCF converged after {} iterations.",
+                    result.iterations
+                ))
             )?;
         } else {
             writeln!(
                 self.writer,
-                "SCF did not converge after {} iterations.",
-                result.iterations
+                "{}",
+                crate::cli::color::error(format!(
+                    "SCF did not converge after {} iterations.",
+                    result.iterations
+                ))
             )?;
         }
         writeln!(
             self.writer,
-            "SCF delta energy: {:.6e} Hartree",
+            "{} {:.6e} Hartree",
+            crate::cli::color::title("SCF delta energy:"),
             result.delta_energy
         )?;
         writeln!(
             self.writer,
-            "SCF residual norm: {:.6e}",
+            "{} {:.6e}",
+            crate::cli::color::title("SCF residual norm:"),
             result.residual_norm
         )?;
         writeln!(
@@ -58,8 +66,9 @@ where
         )?;
         writeln!(
             self.writer,
-            "Total Energy (including nuclear repulsion): {:.6} Hartree",
-            result.total_energy
+            "{} {} Hartree",
+            crate::cli::color::title("Total Energy (including nuclear repulsion):"),
+            crate::cli::color::value(format!("{:.6}", result.total_energy)),
         )?;
         if let Some(spin) = result.spin {
             let qualifier = if converged {
@@ -83,7 +92,11 @@ where
             result.orthogonalization.discarded_directions,
             result.orthogonalization.relative_threshold,
         )?;
-        writeln!(self.writer, "Energy Details:")?;
+        writeln!(
+            self.writer,
+            "{}",
+            crate::cli::color::title("Energy Details:")
+        )?;
         writeln!(
             self.writer,
             "  Kinetic Energy: {:.6} Hartree",
@@ -104,7 +117,7 @@ where
             "  Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
             result.electronic_energy
         )?;
-        writeln!(self.writer, "Timings:")?;
+        writeln!(self.writer, "{}", crate::cli::color::title("Timings:"))?;
         writeln!(
             self.writer,
             "  Setup total: {}",
@@ -163,7 +176,10 @@ where
             writeln!(
                 self.writer,
                 "{:>4} {:>18} {:>14} {:>14}",
-                "iter", "E_elec", "delta_E", "residual"
+                crate::cli::color::title("iter"),
+                crate::cli::color::title("E_elec"),
+                crate::cli::color::title("delta_E"),
+                crate::cli::color::title("residual")
             )?;
             self.header_written = true;
         }

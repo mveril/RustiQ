@@ -65,7 +65,10 @@ impl Runnable for ImportCommand {
             match Self::import_one(&store, path) {
                 Ok(name) => {
                     succeeded += 1;
-                    println!("Basis {name} imported.");
+                    println!(
+                        "{}",
+                        crate::cli::color::success(format!("Basis {name} imported."))
+                    );
                 }
                 Err(error) => {
                     errors.push(ImportFileError {

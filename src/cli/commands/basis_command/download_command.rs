@@ -15,7 +15,12 @@ impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) -> CommandResult {
         let store = crate::cli::directories::basis_store();
         let mut pb_cell = OnceCell::new(); // The ProgressBar is stored here and initialized only once.
-        let progress_style = ProgressStyle::with_template("{wide_bar:.cyan/blue} {percent}%")
+        let template = if crate::cli::color::enabled() {
+            "{wide_bar:.cyan/blue} {percent}%"
+        } else {
+            "{wide_bar} {percent}%"
+        };
+        let progress_style = ProgressStyle::with_template(template)
             .into_diagnostic()?
             .progress_chars("█▓▒░");
 
@@ -40,7 +45,10 @@ impl AsyncRunnable for DownloadCommand {
         if let Some(pb) = pb_cell.get_mut() {
             pb.finish_with_message(format!("Basis {} downloaded.", self.name));
         } else {
-            print!("Basis {} downloaded.", self.name);
+            print!(
+                "{}",
+                crate::cli::color::success(format!("Basis {} downloaded.", self.name))
+            );
         }
         Ok(())
     }

@@ -1,6 +1,5 @@
 use std::{
     fs, io,
-    io::IsTerminal,
     path::{Path, PathBuf},
     sync::OnceLock,
 };
@@ -16,6 +15,7 @@ static BAT_ASSET_CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 pub(crate) fn print_toml(content: &str) {
     if PrettyPrinter::new()
+        .colored_output(crate::cli::color::enabled())
         .input_from_bytes(content.as_bytes())
         .paging_mode(::bat::PagingMode::Never)
         .language("toml")
@@ -27,7 +27,7 @@ pub(crate) fn print_toml(content: &str) {
 }
 
 pub(crate) fn print_xyz(content: &str) {
-    if !io::stdout().is_terminal() {
+    if !crate::cli::color::enabled() {
         print!("{content}");
         return;
     }
@@ -41,8 +41,8 @@ fn print_highlighted_xyz(content: &str) -> Result<(), Box<dyn std::error::Error>
     let assets = HighlightingAssets::from_cache(bat_asset_cache_dir()?)?;
     let config = Config {
         language: Some("xyz"),
-        colored_output: true,
-        true_color: true,
+        colored_output: crate::cli::color::enabled(),
+        true_color: crate::cli::color::enabled(),
         paging_mode: ::bat::PagingMode::Never,
         ..Default::default()
     };

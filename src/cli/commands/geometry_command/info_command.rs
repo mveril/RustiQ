@@ -19,20 +19,37 @@ impl Runnable for InfoCommand {
             Some(path) => Geometry::from_path(path),
             None => Geometry::from_reader(std::io::BufReader::new(stdin().lock())),
         }?;
-        println!("Number of atoms: {}", geometry.atoms.len());
-        println!("Nuclear repulsion energy: {}", geometry.nucl_repulsion());
         println!(
-            "Center of mass: {}",
+            "{} {}",
+            crate::cli::color::title("Number of atoms:"),
+            geometry.atoms.len()
+        );
+        println!(
+            "{} {}",
+            crate::cli::color::title("Nuclear repulsion energy:"),
+            crate::cli::color::value(geometry.nucl_repulsion())
+        );
+        println!(
+            "{} {}",
+            crate::cli::color::title("Center of mass:"),
             geometry.mass_center().into_diagnostic()?
         );
-        println!("Center of charge: {}", geometry.charge_center());
-        println!("Center {}", geometry.center());
+        println!(
+            "{} {}",
+            crate::cli::color::title("Center of charge:"),
+            geometry.charge_center()
+        );
+        println!(
+            "{} {}",
+            crate::cli::color::title("Center"),
+            geometry.center()
+        );
         let mut counts = BTreeMap::new();
         for atom in &geometry.atoms {
             *counts.entry(atom.element.symbol).or_insert(0) += 1;
         }
         for (element, count) in counts {
-            println!("{}: {}", element, count);
+            println!("{}: {}", crate::cli::color::value(element), count);
         }
 
         Ok(())

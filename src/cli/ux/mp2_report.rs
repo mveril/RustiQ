@@ -23,8 +23,9 @@ where
         let total_energy = result.electronic_energy + scf_result.nuclear_repulsion_energy;
         writeln!(
             self.writer,
-            "{} correlation energy: {:.6} Hartree",
-            self.label, result.correlation_energy
+            "{} correlation energy: {} Hartree",
+            crate::cli::color::title(self.label),
+            crate::cli::color::value(format!("{:.6}", result.correlation_energy))
         )?;
         writeln!(
             self.writer,
@@ -33,8 +34,9 @@ where
         )?;
         writeln!(
             self.writer,
-            "{} total energy (including nuclear repulsion): {:.6} Hartree",
-            self.label, total_energy
+            "{} total energy (including nuclear repulsion): {} Hartree",
+            crate::cli::color::title(self.label),
+            crate::cli::color::value(format!("{total_energy:.6}"))
         )?;
         Ok(())
     }
