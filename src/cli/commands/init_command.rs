@@ -225,8 +225,8 @@ mod tests {
 
         command(&input, &output, &["--mp2"]).run().unwrap();
         let content = fs::read_to_string(&output).unwrap();
-        // Use the same parser and formatted TOML that RunCommand passes to bat.
         let parsed = parse_runfile("calculation.toml", &content).unwrap();
+        let expanded = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         for field in [
             "charge",
             "multiplicity",
@@ -238,8 +238,8 @@ mod tests {
         ] {
             assert!(!content.contains(field), "init must omit {field}");
             assert!(
-                parsed.formatted_toml.contains(field),
-                "run display must include {field}"
+                expanded.contains(field),
+                "expanded runfile must include {field}"
             );
         }
         let molecule = &parsed.runfile.global.molecule;

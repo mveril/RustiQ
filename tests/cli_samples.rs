@@ -73,6 +73,27 @@ fn assert_error(output: &Output) {
     );
 }
 
+fn strip_ansi(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut visible = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"\x1b[") {
+            index += 2;
+            while index < bytes.len() && !(0x40..=0x7e).contains(&bytes[index]) {
+                index += 1;
+            }
+            index += usize::from(index < bytes.len());
+        } else {
+            let character = input[index..].chars().next().unwrap();
+            let end = index + character.len_utf8();
+            visible.extend_from_slice(&bytes[index..end]);
+            index = end;
+        }
+    }
+    String::from_utf8(visible).unwrap()
+}
+
 #[test]
 #[cfg(feature = "online")]
 fn test_online_basis_commands_are_available_with_default_features() {
@@ -131,10 +152,65 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
 
     assert_success(&output);
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&String::from_utf8_lossy(&output.stdout));
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
+    assert!(stdout.contains("Calculation\n  Geometry      ../molecule.xyz"));
+    assert!(stdout.contains("  Atoms         2"));
+    assert!(stdout.contains("  Charge        0"));
+    assert!(stdout.contains("  Multiplicity  1"));
+    assert!(stdout.contains("  Coordinates   Bohr (input: Angstrom)"));
+    assert!(stdout.contains("  HF            RHF (requested: Auto)"));
+    assert!(stdout.contains("  Basis         STO-3G (2 functions)"));
+    assert!(stdout.contains("Requested calculation (canonical TOML)"));
+    assert!(stdout.contains("method = \"Auto\""));
+    assert!(stdout.contains("max_iterations = 100"));
+    assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
+    assert_eq!(stdout.matches("H 0 0 -0.37").count(), 1);
+    assert_eq!(stdout.matches("H 0 0 0.37").count(), 1);
+    for hidden_section in [
+        "Original calculation (TOML source)",
+        "Original geometry (XYZ source",
+        "Resolved configuration (canonical TOML)",
+        "Resolved geometry (canonical XYZ",
+    ] {
+        assert!(
+            !stdout.contains(hidden_section),
+            "unexpected {hidden_section}"
+        );
+    }
+}
+
+#[test]
+fn test_cli_shows_canonical_request_without_original_source_dump() {
+    let temp_root = temp_root("cli-original-input");
+    prepare_basis_store(&temp_root);
+    let input_dir = temp_root.join("input");
+    fs::create_dir_all(&input_dir).unwrap();
+    let toml = "# Keep the original path and formatting\n[global]\nbasis = 'sto-3g'\n\n[global.molecule]\ngeometry = 'molecule.xyz'  # relative to this file\n";
+    let xyz = "2\nHydrogen molecule -- original comment\nH  0  0  -0.370000000123456789\nH  0  0   0.370000000123456789\n";
+    let calculation_path = input_dir.join("calculation.toml");
+    fs::write(&calculation_path, toml).unwrap();
+    fs::write(input_dir.join("molecule.xyz"), xyz).unwrap();
+
+    let output =
+        run_rustiq_with_data_home(&["run", calculation_path.to_str().unwrap()], &temp_root);
+    assert_success(&output);
+
+    let stdout = strip_ansi(&String::from_utf8(output.stdout).unwrap());
+    assert!(stdout.contains("Requested calculation (canonical TOML)"));
+    assert!(stdout.contains("basis = \"sto-3g\""));
+    assert!(stdout.contains("geometry = \"molecule.xyz\""));
+    assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
+    assert!(stdout.contains("H 0 0 -0.3700000001234568"));
+    assert!(stdout.contains("Calculation\n"));
+    assert!(stdout.contains("Geometry      molecule.xyz"));
+    assert!(!stdout.contains("Keep the original path and formatting"));
+    assert!(!stdout.contains("Hydrogen molecule -- original comment"));
+    assert!(!stdout.contains("relative to this file"));
+    assert!(!stdout.contains("Resolved configuration (canonical TOML)"));
+    assert!(!stdout.contains("Resolved geometry (canonical XYZ"));
 }
 
 #[test]

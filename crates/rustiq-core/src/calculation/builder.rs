@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use super::{
     CalculationError, CalculationEvent, CalculationExecution, CalculationExecutionError,
-    CalculationResult, PreparedCalculation,
+    CalculationRequest, CalculationResult, PreparedCalculation,
 };
 
 /// Configure a calculation from explicitly loaded inputs.
@@ -40,6 +40,7 @@ use super::{
 pub struct CalculationBuilder<'a> {
     geometry: &'a Geometry,
     basis_file: &'a BasisFile,
+    basis_label: Option<String>,
     molecule_config: MoleculeConfig,
     hf: HfConfig,
     mp2: Option<Mp2Config>,
@@ -51,6 +52,7 @@ impl<'a> CalculationBuilder<'a> {
         Self {
             geometry,
             basis_file,
+            basis_label: None,
             molecule_config: MoleculeConfig::default(),
             hf: HfConfig::default(),
             mp2: None,
@@ -63,6 +65,18 @@ impl<'a> CalculationBuilder<'a> {
     }
     pub fn get_basis_file(&self) -> &BasisFile {
         self.basis_file
+    }
+
+    /// Set a portable requested basis label; the loaded basis remains authoritative.
+    pub fn basis_label(&mut self, label: impl Into<String>) -> &mut Self {
+        self.basis_label = Some(label.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_basis_label(mut self, label: impl Into<String>) -> Self {
+        self.basis_label(label);
+        self
     }
     pub fn get_molecule_config(&self) -> &MoleculeConfig {
         &self.molecule_config
@@ -141,9 +155,15 @@ impl<'a> CalculationBuilder<'a> {
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<PreparedCalculation, CalculationError> {
-        let mut molecule = self.molecule_config.build(self.geometry.clone())?;
+        let request = self.normalized_request();
+        let mut requested_geometry = self.geometry.clone();
+        requested_geometry.comment.clear();
+        let mut molecule = self.molecule_config.build(requested_geometry.clone())?;
         molecule.convert_to(Units::Bohr);
-        let hf = (self.hf.clone(), self.hf.resolve_method(&molecule)?);
+        let method = self.hf.resolve_method(&molecule)?;
+        let mut execution_hf = self.hf.clone();
+        resolve_random_seeds(&mut execution_hf);
+        let hf = (execution_hf, method);
         events(CalculationEvent::BasisStarted);
         let start = Instant::now();
         let basis = Basis::try_load(self.basis_file, &molecule)?;
@@ -152,12 +172,71 @@ impl<'a> CalculationBuilder<'a> {
             elapsed: start.elapsed(),
         });
         Ok(PreparedCalculation {
+            request,
             molecule,
             basis,
+            basis_name: self.basis_file.name().to_owned(),
             hf,
             mp2: self.mp2,
             eri_cache: self.eri_cache.clone(),
         })
+    }
+
+    fn normalized_request(&self) -> CalculationRequest {
+        let mut geometry = self.geometry.clone();
+        geometry.comment.clear();
+        CalculationRequest {
+            geometry,
+            molecule: MoleculeConfig {
+                units: self.molecule_config.units,
+                charge: self.molecule_config.charge.value.into(),
+                multiplicity: self.molecule_config.multiplicity.value.into(),
+            },
+            basis_name: self
+                .basis_label
+                .clone()
+                .unwrap_or_else(|| self.basis_file.name().to_owned()),
+            hf: normalized_hf_config(&self.hf),
+            mp2: self.mp2.map(|config| Mp2Config {
+                frozen_orbitals: config.frozen_orbitals.value.into(),
+                memory_limit: config.memory_limit.value.into(),
+            }),
+        }
+    }
+}
+
+fn resolve_random_seeds(config: &mut HfConfig) {
+    let guess = &mut config.guess.value;
+    match guess {
+        crate::config::DensityGuessConfig::Random { config } => {
+            resolve_seed(&mut config.random.seed);
+        }
+        crate::config::DensityGuessConfig::CoreHamiltonian { perturbation }
+        | crate::config::DensityGuessConfig::OneElectron { perturbation } => {
+            if let Some(perturbation) = perturbation {
+                resolve_seed(&mut perturbation.random.seed);
+            }
+        }
+        crate::config::DensityGuessConfig::Zero => {}
+    }
+}
+
+fn resolve_seed(seed: &mut Option<u64>) {
+    if seed.is_none() {
+        *seed = Some(rand::random());
+    }
+}
+
+pub(super) fn normalized_hf_config(config: &HfConfig) -> HfConfig {
+    HfConfig {
+        method: config.method.value.into(),
+        max_iterations: config.max_iterations,
+        convergence_threshold: config.convergence_threshold,
+        linear_dependency_threshold: config.linear_dependency_threshold.value.into(),
+        eri_schwarz_threshold: config.eri_schwarz_threshold,
+        guess: config.guess.value.into(),
+        diis: config.diis,
+        diis_size: config.diis_size,
     }
 }
 

@@ -184,6 +184,123 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
 }
 
 #[test]
+fn prepared_calculation_resolves_missing_random_seeds_and_preserves_auto_event_config() {
+    let geometry = geometry();
+    let file = basis_file();
+    let mut config = HfConfig {
+        guess: DensityGuessConfig::Random {
+            config: RandomGuessConfig {
+                random: RandomConfig {
+                    distribution: DistributionConfig::Uniform {
+                        config: UniformDistributionConfig {
+                            min: -1.0,
+                            max: 1.0,
+                        },
+                    },
+                    seed: None,
+                },
+            },
+        }
+        .into(),
+        ..Default::default()
+    };
+    config.method.value = HfMethod::Auto;
+    let prepared = CalculationBuilder::new(&geometry, &file)
+        .with_hf(config)
+        .prepare()
+        .unwrap();
+
+    let request_guess = prepared.request().hf().guess.value;
+    let resolved_guess = prepared.hf_config().guess.value;
+    let seed = |guess| match guess {
+        DensityGuessConfig::Random { config } => config.random.seed,
+        _ => panic!("expected random guess"),
+    };
+    assert_eq!(seed(request_guess), None);
+    let resolved_seed = seed(resolved_guess).expect("preparation resolves the missing seed");
+    assert_eq!(seed(prepared.hf_config().guess.value), Some(resolved_seed));
+    assert_eq!(prepared.hf_config().method.value, HfMethod::Rhf);
+
+    for _ in 0..2 {
+        let mut observed_auto = false;
+        let mut event_seed = None;
+        prepared
+            .run_hf_with_events(|event| {
+                if let CalculationEvent::HfStarted { method, config } = event {
+                    observed_auto =
+                        method == ResolvedHfMethod::Rhf && config.method.value == HfMethod::Auto;
+                    event_seed = Some(seed(config.guess.value));
+                }
+            })
+            .unwrap();
+        assert!(observed_auto);
+        assert_eq!(event_seed, Some(Some(resolved_seed)));
+    }
+}
+
+#[test]
+fn preparation_resolves_missing_perturbation_seeds_but_keeps_explicit_seeds() {
+    let geometry = geometry();
+    let file = basis_file();
+    for (guess, expected) in [
+        (
+            DensityGuessConfig::CoreHamiltonian {
+                perturbation: Some(Default::default()),
+            },
+            None,
+        ),
+        (
+            DensityGuessConfig::OneElectron {
+                perturbation: Some(Default::default()),
+            },
+            None,
+        ),
+    ] {
+        let prepared = CalculationBuilder::new(&geometry, &file)
+            .with_hf(HfConfig {
+                guess: guess.into(),
+                ..Default::default()
+            })
+            .prepare()
+            .unwrap();
+        let seed = |guess| match guess {
+            DensityGuessConfig::CoreHamiltonian { perturbation }
+            | DensityGuessConfig::OneElectron { perturbation } => perturbation.unwrap().random.seed,
+            _ => panic!("expected perturbed guess"),
+        };
+        assert_eq!(seed(prepared.request().hf().guess.value), expected);
+        assert!(seed(prepared.hf_config().guess.value).is_some());
+        let resolved_seed = seed(prepared.hf_config().guess.value);
+        assert!(resolved_seed.is_some());
+        assert_eq!(seed(prepared.hf_config().guess.value), resolved_seed);
+    }
+
+    let explicit = DensityGuessConfig::CoreHamiltonian {
+        perturbation: Some(rustiq_core::config::GuessPerturbationConfig {
+            random: RandomConfig {
+                distribution: DistributionConfig::Uniform {
+                    config: UniformDistributionConfig { min: 0.0, max: 1.0 },
+                },
+                seed: Some(8675309),
+            },
+        }),
+    };
+    let prepared = CalculationBuilder::new(&geometry, &file)
+        .with_hf(HfConfig {
+            guess: explicit.into(),
+            ..Default::default()
+        })
+        .prepare()
+        .unwrap();
+    match prepared.hf_config().guess.value {
+        DensityGuessConfig::CoreHamiltonian { perturbation } => {
+            assert_eq!(perturbation.unwrap().random.seed, Some(8675309));
+        }
+        _ => panic!("expected core Hamiltonian guess"),
+    }
+}
+
+#[test]
 fn builder_mutable_setters_keep_hf_mandatory_and_allow_disabling_mp2() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();

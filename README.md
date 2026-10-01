@@ -744,7 +744,25 @@ the CLI only loads inputs and presents them.
 The builder follows the `WSLCommand` conventions from WSLPlugins-rs: mutable
 setters, consuming `with_*` variants, getters, and `prepare()` / `execute()`.
 `PreparedCalculation` retains the validated molecule and basis and can be
-executed repeatedly through the shared `CalculationExecution` trait.
+executed repeatedly through the shared `CalculationExecution` trait. It also
+exposes a normalized `CalculationRequest` with requested coordinates, units,
+molecular state, and effective scientific options, without frontend source
+spans or geometry paths. In text mode, `run` prints the original TOML and XYZ
+sources verbatim so they can be copied back into files, preserving comments,
+paths, and coordinate precision. Relative geometry paths require the same file
+layout when reused. It then renders the normalized request as canonical TOML
+with scientific defaults and XYZ in the requested units, followed by the
+resolved configuration and XYZ in Bohr. These canonical pairs can each be
+copied into `calculation.toml` and `molecule.xyz` to recreate the corresponding
+semantic input. Canonical XYZ retains enough coordinate digits for an exact
+floating-point round trip. Canonical TOML uses typed CLI adapters and
+`toml-spanner`, without cache or terminal options. The requested basis label is
+distinct from the resolved basis name and AO contents; only the resolved
+scientific state determines artifact compatibility. Source provenance is
+optional and never needed to render either semantic view. TOML and XYZ are CLI
+presentation adapters; future input frontends should adapt into the same
+scientific configuration and preparation path rather than introduce their
+syntax into `rustiq-core`.
 `run_hf()` returns `HfOutcome::Converged(HfSolution<Converged>)` or
 `HfOutcome::Unconverged(HfSolution<Unconverged>)`. Both retain the HF summary,
 orbitals and integrals; only the converged type exposes `mp2()`. Cloning a

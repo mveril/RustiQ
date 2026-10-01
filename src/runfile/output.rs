@@ -155,10 +155,6 @@ mod tests {
             "frozen_orbitals",
         ] {
             assert!(full.contains(field), "missing {field}");
-            assert!(
-                parsed.formatted_toml.contains(field),
-                "display missing {field}"
-            );
             assert!(!compact.contains(field), "unexpected {field}");
         }
         assert!(compact.contains("[hf]"));

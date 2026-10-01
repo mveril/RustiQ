@@ -11,25 +11,61 @@ use crate::{
 };
 use std::cell::RefCell;
 
+use super::CalculationRequest;
+
 /// A validated molecule in Bohr and its basis, prepared together by the builder.
 ///
 /// Each execution starts fresh HF state and uses the same immutable inputs.
 /// This avoids self-referential SCF storage and allows reuse of the basis.
 pub struct PreparedCalculation {
+    pub(super) request: CalculationRequest,
     pub(super) molecule: Molecule,
     pub(super) basis: Basis,
+    pub(super) basis_name: String,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
     pub(super) mp2: Option<Mp2Config>,
     pub(super) eri_cache: Option<EriCache>,
 }
 
 impl PreparedCalculation {
+    /// Returns the normalized inputs as requested before scientific resolution.
+    pub fn request(&self) -> &CalculationRequest {
+        &self.request
+    }
+
     pub fn get_molecule(&self) -> &Molecule {
         &self.molecule
     }
 
     pub fn get_basis(&self) -> &Basis {
         &self.basis
+    }
+
+    pub fn hf_method(&self) -> ResolvedHfMethod {
+        self.hf.1
+    }
+
+    /// Human-readable label of the loaded basis; this is not its scientific identity.
+    /// The resolved basis contents exposed by `get_basis()` are authoritative. Replaying
+    /// canonical TOML that uses this label assumes a compatible basis store.
+    pub fn basis_name(&self) -> &str {
+        &self.basis_name
+    }
+
+    /// Resolved HF presentation options with an explicit method and no frontend source spans.
+    /// Random seeds resolved during preparation are retained here.
+    pub fn hf_config(&self) -> HfConfig {
+        let mut config = super::builder::normalized_hf_config(&self.hf.0);
+        config.method.value = match self.hf.1 {
+            ResolvedHfMethod::Rhf => crate::config::HfMethod::Rhf,
+            ResolvedHfMethod::Uhf => crate::config::HfMethod::Uhf,
+        };
+        config
+    }
+
+    /// MP2 options without frontend source spans; automatic memory resolves at execution.
+    pub fn mp2_config(&self) -> Option<&Mp2Config> {
+        self.request.mp2()
     }
 }
 

@@ -6,11 +6,16 @@ use std::{
 };
 
 use clap::{ArgAction, ValueEnum};
-use miette::{miette, IntoDiagnostic, NamedSource};
+use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report};
 
 use crate::cli::{
     self,
-    ux::{bat, calculation_report::CalculationReporter, json_output::CalculationOutput},
+    ux::{
+        bat,
+        calculation_presentation::{calculation_summary, requested_calculation, SourceProvenance},
+        calculation_report::CalculationReporter,
+        json_output::CalculationOutput,
+    },
 };
 use crate::runfile::{hf::HfOutputFormat, parser::parse_runfile};
 use rustiq_core::{
@@ -122,18 +127,20 @@ impl Runnable for RunCommand {
             ("<stdin>".to_string(), content)
         };
         let parsed = parse_runfile(source_name.clone(), &toml_content)?;
-        let source_code = NamedSource::new(source_name, toml_content);
-        let scientific_error =
-            |error| miette::Report::new(error).with_source_code(source_code.clone());
         let run = parsed.runfile;
-        if !json_output {
-            bat::print_toml(&parsed.formatted_toml);
-        }
         let molecule_path = &run.global.molecule.geometry;
-        let geom = Geometry::from_path(molecule_path).into_diagnostic()?;
-        if !json_output {
-            bat::print_xyz(&geom.to_string());
-        }
+        let xyz_content = fs::read_to_string(molecule_path).into_diagnostic()?;
+        let source = SourceProvenance::new(
+            source_name,
+            toml_content,
+            molecule_path.clone(),
+            xyz_content,
+        );
+        let source_code =
+            NamedSource::new(source.calculation_name.clone(), source.calculation.clone());
+        let geom =
+            Geometry::from_source(source.geometry_path.display().to_string(), &source.geometry)
+                .into_diagnostic()?;
         if !json_output {
             println!("Loading basis set...");
         }
@@ -151,6 +158,7 @@ impl Runnable for RunCommand {
             .as_ref()
             .is_none_or(|hf| hf.format != HfOutputFormat::Nope);
         let calculation = CalculationBuilder::new(&geom, &basis_file)
+            .with_basis_label(&run.global.basis)
             .with_molecule_config(parsed.molecule_config)
             .with_mp2(parsed.mp2_config);
         let calculation = if run.cache.enabled {
@@ -167,14 +175,34 @@ impl Runnable for RunCommand {
         } else {
             calculation
         };
-        let result = {
+        let prepared = {
             let stdout = io::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
-            let outcome = calculation.execute_with_events(|event| reporter.on_event(event));
+            let prepared = calculation.prepare_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
                 return Err(miette!("failed to write calculation report: {error}"));
             }
-            outcome.map_err(&scientific_error)?
+            prepared.map_err(|error| with_source(error, &source_code))?
+        };
+        if !json_output {
+            let requested = requested_calculation(prepared.request()).into_diagnostic()?;
+            println!("\nRequested calculation (canonical TOML)");
+            bat::print_toml(&requested.toml);
+            println!("\nRequested geometry (canonical XYZ, {})", requested.units);
+            bat::print_xyz(&requested.xyz);
+            println!(
+                "\n{}",
+                calculation_summary(&prepared, &source.geometry_path)
+            );
+        }
+        let result = {
+            let stdout = io::stdout();
+            let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
+            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            if let Some(error) = reporter.take_error() {
+                return Err(miette!("failed to write calculation report: {error}"));
+            }
+            outcome.map_err(|error| with_source(error, &source_code))?
         };
         if json_output {
             let stdout = io::stdout();
@@ -191,6 +219,13 @@ impl Runnable for RunCommand {
 
         Ok(())
     }
+}
+
+fn with_source<E>(error: E, source: &NamedSource<String>) -> Report
+where
+    E: Diagnostic + Send + Sync + 'static,
+{
+    Report::new(error).with_source_code(source.clone())
 }
 
 #[cfg(test)]
