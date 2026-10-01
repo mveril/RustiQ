@@ -156,22 +156,34 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
-    assert!(stdout.contains("Original calculation (TOML source)"));
-    assert!(stdout.contains("Original geometry (XYZ source, Angstrom)"));
+    assert!(stdout.contains("Calculation\n  Geometry      ../molecule.xyz"));
+    assert!(stdout.contains("  Atoms         2"));
+    assert!(stdout.contains("  Charge        0"));
+    assert!(stdout.contains("  Multiplicity  1"));
+    assert!(stdout.contains("  Coordinates   Bohr (input: Angstrom)"));
+    assert!(stdout.contains("  HF            RHF (requested: Auto)"));
+    assert!(stdout.contains("  Basis         STO-3G (2 functions)"));
     assert!(stdout.contains("Requested calculation (canonical TOML)"));
-    assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
     assert!(stdout.contains("method = \"Auto\""));
     assert!(stdout.contains("max_iterations = 100"));
-    assert!(stdout.contains("Resolved configuration (canonical TOML)"));
-    assert!(stdout.contains("method = \"Rhf\""));
-    assert!(stdout.contains("Resolved calculation"));
-    assert!(stdout.contains("Coordinates  Bohr"));
-    assert!(stdout.contains("HF method    RHF"));
-    assert!(stdout.contains("Basis        STO-3G (2 functions)"));
+    assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
+    assert_eq!(stdout.matches("H 0 0 -0.37").count(), 1);
+    assert_eq!(stdout.matches("H 0 0 0.37").count(), 1);
+    for hidden_section in [
+        "Original calculation (TOML source)",
+        "Original geometry (XYZ source",
+        "Resolved configuration (canonical TOML)",
+        "Resolved geometry (canonical XYZ",
+    ] {
+        assert!(
+            !stdout.contains(hidden_section),
+            "unexpected {hidden_section}"
+        );
+    }
 }
 
 #[test]
-fn test_cli_prints_original_toml_and_xyz_for_copying() {
+fn test_cli_shows_canonical_request_without_original_source_dump() {
     let temp_root = temp_root("cli-original-input");
     prepare_basis_store(&temp_root);
     let input_dir = temp_root.join("input");
@@ -187,66 +199,18 @@ fn test_cli_prints_original_toml_and_xyz_for_copying() {
     assert_success(&output);
 
     let stdout = strip_ansi(&String::from_utf8(output.stdout).unwrap());
-    let toml_section = stdout
-        .split_once("Original calculation (TOML source)\n")
-        .unwrap()
-        .1
-        .split_once("Original geometry (XYZ source, Angstrom)\n")
-        .unwrap()
-        .0;
-    assert_eq!(toml_section, toml);
-    let xyz_section = stdout
-        .split_once("Original geometry (XYZ source, Angstrom)\n")
-        .unwrap()
-        .1
-        .split_once("Requested calculation (canonical TOML)\n")
-        .unwrap()
-        .0;
-    assert_eq!(xyz_section, format!("{xyz}\n"));
-
-    // Both semantic TOML/XYZ pairs must also be usable as standalone inputs.
-    for (name, toml_heading, xyz_heading) in [
-        (
-            "requested",
-            "Requested calculation (canonical TOML)\n",
-            "Requested geometry (canonical XYZ, Angstrom)\n",
-        ),
-        (
-            "resolved",
-            "Resolved configuration (canonical TOML)\n",
-            "Resolved geometry (canonical XYZ, Bohr)\n",
-        ),
-    ] {
-        let after_heading = stdout.split_once(toml_heading).unwrap().1;
-        let (canonical_toml, after_xyz_heading) = after_heading.split_once(xyz_heading).unwrap();
-        let atom_count = after_xyz_heading
-            .lines()
-            .next()
-            .unwrap()
-            .parse::<usize>()
-            .unwrap();
-        let canonical_xyz = after_xyz_heading
-            .lines()
-            .take(atom_count + 2)
-            .collect::<Vec<_>>()
-            .join("\n");
-        let copied_dir = temp_root.join(name);
-        fs::create_dir_all(&copied_dir).unwrap();
-        let copied_toml = copied_dir.join("calculation.toml");
-        fs::write(&copied_toml, canonical_toml).unwrap();
-        fs::write(copied_dir.join("molecule.xyz"), canonical_xyz).unwrap();
-        let repeated =
-            run_rustiq_with_data_home(&["run", copied_toml.to_str().unwrap()], &temp_root);
-        assert_success(&repeated);
-        let repeated_stdout = String::from_utf8(repeated.stdout).unwrap();
-        let energy_line = |text: &str| {
-            text.lines()
-                .find(|line| line.starts_with("Total Energy (including nuclear repulsion):"))
-                .unwrap()
-                .to_owned()
-        };
-        assert_eq!(energy_line(&repeated_stdout), energy_line(&stdout));
-    }
+    assert!(stdout.contains("Requested calculation (canonical TOML)"));
+    assert!(stdout.contains("basis = \"sto-3g\""));
+    assert!(stdout.contains("geometry = \"molecule.xyz\""));
+    assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
+    assert!(stdout.contains("H 0 0 -0.3700000001234568"));
+    assert!(stdout.contains("Calculation\n"));
+    assert!(stdout.contains("Geometry      molecule.xyz"));
+    assert!(!stdout.contains("Keep the original path and formatting"));
+    assert!(!stdout.contains("Hydrogen molecule -- original comment"));
+    assert!(!stdout.contains("relative to this file"));
+    assert!(!stdout.contains("Resolved configuration (canonical TOML)"));
+    assert!(!stdout.contains("Resolved geometry (canonical XYZ"));
 }
 
 #[test]

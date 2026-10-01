@@ -1,4 +1,12 @@
-use std::{fmt::Write, num::NonZeroUsize};
+// Full canonical views are lazy capabilities for inspection and artifact reuse;
+// the normal `run` path uses only the concise summary below.
+#![allow(dead_code)]
+
+use std::{
+    fmt::Write,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+};
 
 use rustiq_core::{
     calculation::{CalculationRequest, PreparedCalculation},
@@ -107,6 +115,31 @@ pub(crate) struct CanonicalPair {
     pub(crate) units: &'static str,
 }
 
+/// Exact frontend input retained at the CLI boundary for diagnostics or an
+/// explicit source view. It is provenance only and never enters core state.
+pub(crate) struct SourceProvenance {
+    pub(crate) calculation_name: String,
+    pub(crate) calculation: String,
+    pub(crate) geometry_path: PathBuf,
+    pub(crate) geometry: String,
+}
+
+impl SourceProvenance {
+    pub(crate) fn new(
+        calculation_name: String,
+        calculation: String,
+        geometry_path: PathBuf,
+        geometry: String,
+    ) -> Self {
+        Self {
+            calculation_name,
+            calculation,
+            geometry_path,
+            geometry,
+        }
+    }
+}
+
 impl CanonicalPair {
     #[cfg(test)]
     fn combined(&self) -> String {
@@ -131,6 +164,38 @@ pub(crate) struct ResolvedCalculation {
     pub(crate) summary: String,
     pub(crate) configuration: String,
     pub(crate) geometry: String,
+}
+
+/// Concise text shown by the normal `run` command. Full canonical renderings
+/// remain available through the requested/resolved helpers above and below.
+pub(crate) fn calculation_summary(prepared: &PreparedCalculation, geometry_path: &Path) -> String {
+    let request = prepared.request();
+    let molecule = prepared.get_molecule();
+    let requested_method = match request.hf().method.value {
+        config::HfMethod::Auto => "Auto",
+        config::HfMethod::Rhf => "RHF",
+        config::HfMethod::Uhf => "UHF",
+    };
+    let method = prepared.hf_method().to_string();
+    let method = if requested_method == "Auto" {
+        format!("{method} (requested: {requested_method})")
+    } else {
+        method
+    };
+    let coordinates = match request.molecule().units {
+        Units::Angstrom => "Bohr (input: Angstrom)",
+        Units::Bohr => "Bohr",
+    };
+
+    format!(
+        "Calculation\n  Geometry      {}\n  Atoms         {}\n  Charge        {}\n  Multiplicity  {}\n  Coordinates   {coordinates}\n  HF            {method}\n  Basis         {} ({} functions)",
+        geometry_path.display(),
+        molecule.geometry().atoms.len(),
+        molecule.charge(),
+        molecule.multiplicity().get(),
+        prepared.basis_name(),
+        prepared.get_basis().nbasis(),
+    )
 }
 
 impl ResolvedCalculation {
@@ -161,10 +226,6 @@ pub(crate) fn resolved_calculation(
     })
 }
 
-pub(crate) fn source_geometry_heading(unit: Units) -> String {
-    format!("Original geometry (XYZ source, {})", unit_name(unit))
-}
-
 fn unit_name(unit: Units) -> &'static str {
     match unit {
         Units::Bohr => "Bohr",
@@ -190,7 +251,11 @@ fn geometry_xyz(geometry: &Geometry, comment: &str) -> String {
 mod tests {
     use super::*;
     use crate::runfile::parser::parse_runfile;
-    use rustiq_core::{basis::BasisFile, calculation::CalculationBuilder};
+    use approx::assert_abs_diff_eq;
+    use rustiq_core::{
+        basis::BasisFile,
+        calculation::{CalculationBuilder, CalculationExecution},
+    };
 
     fn basis() -> BasisFile {
         BasisFile::from_reader(&include_bytes!("../../../tests/data/sto-3g.json")[..]).unwrap()
@@ -206,6 +271,80 @@ mod tests {
             .with_mp2(parsed.mp2_config)
             .prepare()
             .unwrap()
+    }
+
+    #[test]
+    fn source_provenance_keeps_toml_and_xyz_text_exact() {
+        let toml = "# Original comment\n[global]\nbasis = 'sto-3g' # Original quote and spacing\n";
+        let xyz =
+            "2\nGeometry comment\nH  0 0 -0.370000000123456789\nH 0 0   0.370000000123456789\n";
+        let source = SourceProvenance::new(
+            "calculation.toml".into(),
+            toml.into(),
+            "../molecule.xyz".into(),
+            xyz.into(),
+        );
+
+        assert_eq!(source.calculation, toml);
+        assert_eq!(source.geometry, xyz);
+        assert_eq!(source.calculation_name, "calculation.toml");
+        assert_eq!(source.geometry_path, Path::new("../molecule.xyz"));
+    }
+
+    #[test]
+    fn summary_shows_effective_values_and_only_meaningful_requested_differences() {
+        let geometry =
+            Geometry::from_source("molecule.xyz", "2\nH2\nH 0 0 -0.37\nH 0 0 0.37\n").unwrap();
+        let prepared = prepare("[global]\nbasis = 'sto-3g'\n", &geometry);
+        let summary = calculation_summary(&prepared, Path::new("../molecule.xyz"));
+
+        assert!(summary.contains("Geometry      ../molecule.xyz"));
+        assert!(summary.contains("Atoms         2"));
+        assert!(summary.contains("Charge        0"));
+        assert!(summary.contains("Multiplicity  1"));
+        assert!(summary.contains("Coordinates   Bohr (input: Angstrom)"));
+        assert!(summary.contains("HF            RHF (requested: Auto)"));
+        assert!(summary.contains("Basis         STO-3G (2 functions)"));
+        assert!(!summary.contains("requested: 0"));
+        assert!(!summary.contains("requested: sto-3g"));
+        assert!(!summary.contains("H 0 0"));
+    }
+
+    #[test]
+    fn copied_canonical_requested_and_resolved_pairs_run_equivalently() {
+        let geometry =
+            Geometry::from_source("input.xyz", "2\nH2\nH 0 0 -0.37\nH 0 0 0.37\n").unwrap();
+        let prepared = prepare("[global]\nbasis = 'sto-3g'\n", &geometry);
+        let requested = requested_calculation(prepared.request()).unwrap();
+        let resolved = resolved_calculation(&prepared).unwrap();
+        let temp = tempfile::tempdir().unwrap();
+
+        let original_energy = prepared.execute().unwrap().hf.summary().scf.total_energy;
+        for (name, toml, xyz) in [
+            ("requested", requested.toml, requested.xyz),
+            ("resolved", resolved.configuration, resolved.geometry),
+        ] {
+            let directory = temp.path().join(name);
+            std::fs::create_dir(&directory).unwrap();
+            let toml_path = directory.join("calculation.toml");
+            let xyz_path = directory.join("molecule.xyz");
+            std::fs::write(&toml_path, toml).unwrap();
+            std::fs::write(&xyz_path, xyz).unwrap();
+
+            let input = std::fs::read_to_string(&toml_path).unwrap();
+            let parsed = parse_runfile(toml_path.display().to_string(), &input).unwrap();
+            let replay_geometry = Geometry::from_path(&xyz_path).unwrap();
+            let basis = basis();
+            let replay = CalculationBuilder::new(&replay_geometry, &basis)
+                .with_basis_label(parsed.runfile.global.basis)
+                .with_molecule_config(parsed.molecule_config)
+                .with_hf(parsed.hf_config.unwrap_or_default())
+                .with_mp2(parsed.mp2_config)
+                .prepare()
+                .unwrap();
+            let replay_energy = replay.execute().unwrap().hf.summary().scf.total_energy;
+            assert_abs_diff_eq!(replay_energy, original_energy, epsilon = 1e-10);
+        }
     }
 
     #[test]

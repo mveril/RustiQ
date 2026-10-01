@@ -12,9 +12,7 @@ use crate::cli::{
     self,
     ux::{
         bat,
-        calculation_presentation::{
-            requested_calculation, resolved_calculation, source_geometry_heading,
-        },
+        calculation_presentation::{calculation_summary, requested_calculation, SourceProvenance},
         calculation_report::CalculationReporter,
         json_output::CalculationOutput,
     },
@@ -129,12 +127,20 @@ impl Runnable for RunCommand {
             ("<stdin>".to_string(), content)
         };
         let parsed = parse_runfile(source_name.clone(), &toml_content)?;
-        let source_code = NamedSource::new(source_name, toml_content.clone());
         let run = parsed.runfile;
         let molecule_path = &run.global.molecule.geometry;
         let xyz_content = fs::read_to_string(molecule_path).into_diagnostic()?;
-        let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
-            .into_diagnostic()?;
+        let source = SourceProvenance::new(
+            source_name,
+            toml_content,
+            molecule_path.clone(),
+            xyz_content,
+        );
+        let source_code =
+            NamedSource::new(source.calculation_name.clone(), source.calculation.clone());
+        let geom =
+            Geometry::from_source(source.geometry_path.display().to_string(), &source.geometry)
+                .into_diagnostic()?;
         if !json_output {
             println!("Loading basis set...");
         }
@@ -179,26 +185,15 @@ impl Runnable for RunCommand {
             prepared.map_err(|error| with_source(error, &source_code))?
         };
         if !json_output {
-            println!("Original calculation (TOML source)");
-            bat::print_toml(&toml_content);
-            println!(
-                "{}",
-                source_geometry_heading(prepared.request().molecule().units)
-            );
-            bat::print_xyz(&xyz_content);
-
             let requested = requested_calculation(prepared.request()).into_diagnostic()?;
             println!("\nRequested calculation (canonical TOML)");
             bat::print_toml(&requested.toml);
             println!("\nRequested geometry (canonical XYZ, {})", requested.units);
             bat::print_xyz(&requested.xyz);
-
-            let resolved = resolved_calculation(&prepared).into_diagnostic()?;
-            println!("\n{}", resolved.summary);
-            println!("\nResolved configuration (canonical TOML)");
-            bat::print_toml(&resolved.configuration);
-            println!("\nResolved geometry (canonical XYZ, Bohr)");
-            bat::print_xyz(&resolved.geometry);
+            println!(
+                "\n{}",
+                calculation_summary(&prepared, &source.geometry_path)
+            );
         }
         let result = {
             let stdout = io::stdout();
