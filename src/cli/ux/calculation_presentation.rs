@@ -20,7 +20,7 @@ use toml_spanner::{ToTomlError, Toml};
 
 use crate::runfile::{
     global::{molecule_config::MoleculeConfig, Global},
-    hf::{DensityGuessConfig, HfMethod},
+    hf::{DensityGuessConfig, HfMethod, HfOutputFormat},
     mp2::Mp2Config,
 };
 
@@ -35,10 +35,11 @@ struct CalculationToml {
     global: Global,
     hf: HfSettings,
     mp2: Option<Mp2Config>,
+    cache: Option<crate::runfile::cache::CacheConfig>,
 }
 
 /// Scientific HF settings using the existing runfile spelling and serializers.
-/// Terminal/reporting options are not part of the semantic presentation.
+/// The canonical runfile includes terminal/reporting options for full replay.
 #[derive(Toml)]
 #[toml(ToToml)]
 struct HfSettings {
@@ -55,6 +56,7 @@ struct HfSettings {
     diis: bool,
     #[toml(with = crate::runfile::validated::diis_size)]
     diis_size: DiisSize,
+    format: HfOutputFormat,
 }
 
 impl From<&config::HfConfig> for HfSettings {
@@ -70,12 +72,17 @@ impl From<&config::HfConfig> for HfSettings {
             guess: value.guess.value.into(),
             diis: value.diis,
             diis_size: value.diis_size,
+            format: HfOutputFormat::default(),
         }
     }
 }
 
 impl CalculationToml {
-    fn requested(request: &CalculationRequest) -> Self {
+    fn requested(
+        request: &CalculationRequest,
+        cache_enabled: bool,
+        format: HfOutputFormat,
+    ) -> Self {
         Self {
             global: Global {
                 basis: request.basis_name().into(),
@@ -86,8 +93,14 @@ impl CalculationToml {
                     molecule_unit: request.molecule().units,
                 },
             },
-            hf: request.hf().into(),
+            hf: HfSettings {
+                format,
+                ..request.hf().into()
+            },
             mp2: request.mp2().map(Into::into),
+            cache: Some(crate::runfile::cache::CacheConfig {
+                enabled: cache_enabled,
+            }),
         }
     }
 
@@ -105,6 +118,7 @@ impl CalculationToml {
             },
             hf: (&prepared.hf_config()).into(),
             mp2: prepared.mp2_config().map(Into::into),
+            cache: None,
         }
     }
 }
@@ -152,9 +166,11 @@ impl CanonicalPair {
 
 pub(crate) fn requested_calculation(
     request: &CalculationRequest,
+    cache_enabled: bool,
+    format: HfOutputFormat,
 ) -> Result<CanonicalPair, ToTomlError> {
     Ok(CanonicalPair {
-        toml: toml_spanner::to_string(&CalculationToml::requested(request))?,
+        toml: toml_spanner::to_string(&CalculationToml::requested(request, cache_enabled, format))?,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
         units: unit_name(request.molecule().units),
     })
@@ -315,7 +331,8 @@ mod tests {
         let geometry =
             Geometry::from_source("input.xyz", "2\nH2\nH 0 0 -0.37\nH 0 0 0.37\n").unwrap();
         let prepared = prepare("[global]\nbasis = 'sto-3g'\n", &geometry);
-        let requested = requested_calculation(prepared.request()).unwrap();
+        let requested =
+            requested_calculation(prepared.request(), false, HfOutputFormat::default()).unwrap();
         let resolved = resolved_calculation(&prepared).unwrap();
         let temp = tempfile::tempdir().unwrap();
 
@@ -369,7 +386,7 @@ mod tests {
         assert_eq!(prepared.basis_name(), "STO-3G");
         for (rendered, expected, method) in [
             (
-                CalculationToml::requested(prepared.request()),
+                CalculationToml::requested(prepared.request(), false, HfOutputFormat::default()),
                 prepared.request().geometry(),
                 config::HfMethod::Auto,
             ),
@@ -382,8 +399,8 @@ mod tests {
             let toml = toml_spanner::to_string(&rendered).unwrap();
             let restored = parse_runfile("rendered.toml", &toml).unwrap();
             assert_eq!(restored.hf_config.unwrap().method.value, method);
-            assert!(!toml.contains("format ="));
-            assert!(!toml.contains("cache"));
+            assert!(toml.contains("format = \"Normal\""));
+            assert_eq!(toml.contains("[cache]"), rendered.cache.is_some());
             let xyz = geometry_xyz(expected, "Canonical geometry");
             let restored = Geometry::from_source("rendered.xyz", &xyz).unwrap();
             for (actual, expected) in restored.atoms.iter().zip(&expected.atoms) {
@@ -391,14 +408,28 @@ mod tests {
                 assert_eq!(actual.element.symbol, expected.element.symbol);
             }
         }
-        assert!(requested_calculation(prepared.request())
-            .unwrap()
-            .toml
-            .contains("method = \"Auto\""));
+        assert!(
+            requested_calculation(prepared.request(), false, HfOutputFormat::default())
+                .unwrap()
+                .toml
+                .contains("method = \"Auto\"")
+        );
         assert!(resolved_calculation(&prepared)
             .unwrap()
             .configuration
             .contains("method = \"Rhf\""));
+    }
+
+    #[test]
+    fn requested_canonical_toml_includes_cache_setting() {
+        let geometry = Geometry::from_source("input.xyz", "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
+        let prepared = prepare("[global]\nbasis = 'sto-3g'\n", &geometry);
+        let rendered = requested_calculation(prepared.request(), true, HfOutputFormat::default())
+            .unwrap()
+            .toml;
+        assert!(rendered.contains("[cache]\nenabled = true"));
+        let restored = parse_runfile("rendered.toml", &rendered).unwrap();
+        assert!(restored.runfile.cache.enabled);
     }
 
     #[test]
@@ -418,18 +449,22 @@ mod tests {
                 &format!("# omitted defaults\n[global]\nbasis = 'sto-3g'\n{post_hf}"),
                 &original,
             );
-            let explicit_source =
-                toml_spanner::to_string(&CalculationToml::requested(implicit.request())).unwrap();
+            let explicit_source = toml_spanner::to_string(&CalculationToml::requested(
+                implicit.request(),
+                false,
+                HfOutputFormat::default(),
+            ))
+            .unwrap();
             let explicit_source = format!(
                 "# explicitly written defaults\n{}\n[cache]\nenabled = true\n",
                 explicit_source.replace("molecule.xyz", "../different.xyz")
             );
             let explicit = prepare(&explicit_source, &equivalent);
             assert_eq!(
-                requested_calculation(implicit.request())
+                requested_calculation(implicit.request(), false, HfOutputFormat::default())
                     .unwrap()
                     .combined(),
-                requested_calculation(explicit.request())
+                requested_calculation(explicit.request(), false, HfOutputFormat::default())
                     .unwrap()
                     .combined()
             );
@@ -464,7 +499,7 @@ mod tests {
         ] {
             let source = format!("[global]\nbasis = 'sto-3g'\n[hf]\nmethod = 'Uhf'\nmax_iterations = 42\nconvergence_threshold = 1e-7\nlinear_dependency_threshold = 0.0\neri_schwarz_threshold = 0.0\ndiis = true\ndiis_size = 8\nformat = 'Nope'\n{guess}\n[mp2]\nfrozen_orbitals = 1\nmemory_limit = '9007199254740993 B'\n");
             let prepared = prepare(&source, &geometry);
-            let rendered = toml_spanner::to_string(&CalculationToml::requested(prepared.request())).unwrap();
+            let rendered = toml_spanner::to_string(&CalculationToml::requested(prepared.request(), false, HfOutputFormat::Nope)).unwrap();
             let original = parse_runfile("original.toml", &source).unwrap();
             let reparsed = parse_runfile("rendered.toml", &rendered).unwrap();
             assert_eq!(
@@ -473,14 +508,14 @@ mod tests {
             );
             let restored = prepare(&rendered, &geometry);
             assert_eq!(
-                requested_calculation(prepared.request()).unwrap().combined(),
-                requested_calculation(restored.request()).unwrap().combined()
+                requested_calculation(prepared.request(), false, HfOutputFormat::default()).unwrap().combined(),
+                requested_calculation(restored.request(), false, HfOutputFormat::default()).unwrap().combined()
             );
             assert_eq!(prepared.request().hf().max_iterations.get(), 42);
             assert!(prepared.request().hf().eri_schwarz_threshold.is_none());
             assert_eq!(prepared.request().mp2().unwrap().frozen_orbitals.value, 1);
             assert_eq!(prepared.request().mp2().unwrap().memory_limit.value, config::MemoryLimit::Fixed(bytesize::ByteSize::b(9_007_199_254_740_993)));
-            assert!(!rendered.contains("format ="));
+            assert!(rendered.contains("format = \"Nope\""));
         }
     }
 
@@ -497,7 +532,9 @@ mod tests {
             }
             _ => panic!("expected random guess"),
         };
-        let requested = requested_calculation(prepared.request()).unwrap().toml;
+        let requested = requested_calculation(prepared.request(), false, HfOutputFormat::default())
+            .unwrap()
+            .toml;
         let resolved = resolved_calculation(&prepared).unwrap().configuration;
         assert!(!requested.contains("seed ="));
         assert!(resolved.contains(&format!("seed = {seed}")));
@@ -509,10 +546,12 @@ mod tests {
         let prepared = prepare("[global]\nbasis = 'sto-3g'\n[global.molecule]\ncharge = 1\nmultiplicity = 2\nmolecule_unit = 'Bohr'\n", &geometry);
         assert_eq!(prepared.request().hf().method.value, config::HfMethod::Auto);
         assert_eq!(prepared.hf_config().method.value, config::HfMethod::Uhf);
-        assert!(requested_calculation(prepared.request())
-            .unwrap()
-            .toml
-            .contains("method = \"Auto\""));
+        assert!(
+            requested_calculation(prepared.request(), false, HfOutputFormat::default())
+                .unwrap()
+                .toml
+                .contains("method = \"Auto\"")
+        );
         assert!(resolved_calculation(&prepared)
             .unwrap()
             .configuration
