@@ -247,22 +247,23 @@ mod tests {
     #[test]
     fn scf_header_keeps_alignment_when_colored() {
         let render = |mode| {
-            color::configure(mode);
-            let mut output = Vec::new();
-            ScfReporter::new(&mut output)
-                .write_iteration(&ScfIteration {
-                    iteration: 1,
-                    electronic_energy: -1.0,
-                    delta_energy: 0.0,
-                    residual_norm: 0.0,
-                })
-                .unwrap();
-            String::from_utf8(output)
-                .unwrap()
-                .lines()
-                .next()
-                .unwrap()
-                .to_owned()
+            color::with_test_color(mode, || {
+                let mut output = Vec::new();
+                ScfReporter::new(&mut output)
+                    .write_iteration(&ScfIteration {
+                        iteration: 1,
+                        electronic_energy: -1.0,
+                        delta_energy: 0.0,
+                        residual_norm: 0.0,
+                    })
+                    .unwrap();
+                String::from_utf8(output)
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned()
+            })
         };
         let plain = render(ColorChoice::Never);
         let colored = render(ColorChoice::Always);

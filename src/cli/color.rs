@@ -12,6 +12,27 @@ use clap::ColorChoice;
 
 static COLOR_CHOICE: AtomicU8 = AtomicU8::new(2);
 
+#[cfg(test)]
+thread_local! {
+    static TEST_COLOR_CHOICE: std::cell::Cell<Option<ColorChoice>> = const {
+        std::cell::Cell::new(None)
+    };
+}
+
+#[cfg(test)]
+pub(crate) fn with_test_color<T>(mode: ColorChoice, render: impl FnOnce() -> T) -> T {
+    struct Restore(Option<ColorChoice>);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            TEST_COLOR_CHOICE.set(self.0);
+        }
+    }
+
+    let _restore = Restore(TEST_COLOR_CHOICE.replace(Some(mode)));
+    render()
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum OutputStream {
     Stdout,
@@ -68,7 +89,16 @@ pub(crate) fn configure(mode: ColorChoice) {
 }
 
 pub(crate) fn enabled_for(stream: OutputStream) -> bool {
-    match COLOR_CHOICE.load(Ordering::Relaxed) {
+    #[cfg(test)]
+    let choice = TEST_COLOR_CHOICE.get().map(|mode| match mode {
+        ColorChoice::Always => 0,
+        ColorChoice::Never => 1,
+        ColorChoice::Auto => 2,
+    });
+    #[cfg(not(test))]
+    let choice = None;
+
+    match choice.unwrap_or_else(|| COLOR_CHOICE.load(Ordering::Relaxed)) {
         0 => true,
         1 => false,
         _ => {
@@ -135,10 +165,7 @@ pub(crate) fn title<T: Display>(value: T) -> Styled<T> {
 }
 
 pub(crate) fn success<T: Display>(value: T) -> Styled<T> {
-    paint(
-        value,
-        Style::new().fg_color(Some(AnsiColor::Green.into())),
-    )
+    paint(value, Style::new().fg_color(Some(AnsiColor::Green.into())))
 }
 
 pub(crate) fn error<T: Display>(value: T) -> Styled<T> {
@@ -168,6 +195,31 @@ mod tests {
             let args = args.into_iter().map(OsString::from);
             assert_eq!(cli_mode_from_args(args), None);
         }
+    }
+
+    #[test]
+    fn test_color_override_is_thread_local_and_restored_after_panic() {
+        assert_eq!(TEST_COLOR_CHOICE.get(), None);
+        with_test_color(ColorChoice::Never, || {
+            std::thread::spawn(|| {
+                assert_eq!(TEST_COLOR_CHOICE.get(), None);
+                with_test_color(ColorChoice::Always, || assert!(enabled()));
+                assert_eq!(TEST_COLOR_CHOICE.get(), None);
+            })
+            .join()
+            .unwrap();
+            assert!(!enabled());
+
+            let result = std::panic::catch_unwind(|| {
+                with_test_color(ColorChoice::Always, || {
+                    assert!(enabled());
+                    panic!("exercise color override restoration");
+                });
+            });
+            assert!(result.is_err());
+            assert!(!enabled());
+        });
+        assert_eq!(TEST_COLOR_CHOICE.get(), None);
     }
 
     #[test]
