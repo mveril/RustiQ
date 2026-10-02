@@ -185,17 +185,10 @@ impl Runnable for RunCommand {
             prepared.map_err(|error| with_source(error, &source_code))?
         };
         if !json_output {
-            let output_format = run.hf.as_ref().map_or_else(
-                || crate::runfile::hf::HfOutputFormat::Normal,
-                |hf| match hf.format {
-                    crate::runfile::hf::HfOutputFormat::Normal => {
-                        crate::runfile::hf::HfOutputFormat::Normal
-                    }
-                    crate::runfile::hf::HfOutputFormat::Nope => {
-                        crate::runfile::hf::HfOutputFormat::Nope
-                    }
-                },
-            );
+            let output_format = run
+                .hf
+                .as_ref()
+                .map_or_else(crate::runfile::hf::HfOutputFormat::default, |hf| hf.format);
             let requested =
                 requested_calculation(prepared.request(), run.cache.enabled, output_format)
                     .into_diagnostic()?;
