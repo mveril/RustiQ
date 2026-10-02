@@ -3,7 +3,11 @@ use std::cell::OnceCell;
 use indicatif::{ProgressBar, ProgressStyle};
 use miette::IntoDiagnostic;
 
-use crate::cli::commands::{AsyncRunnable, CommandResult};
+use crate::cli::{
+    color::{self, OutputStream},
+    commands::{AsyncRunnable, CommandResult},
+    directories,
+};
 
 #[derive(clap::Args, Debug)]
 pub struct DownloadCommand {
@@ -13,9 +17,9 @@ pub struct DownloadCommand {
 
 impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) -> CommandResult {
-        let store = crate::cli::directories::basis_store();
+        let store = directories::basis_store();
         let mut pb_cell = OnceCell::new(); // The ProgressBar is stored here and initialized only once.
-        let template = if crate::cli::color::enabled() {
+        let template = if color::enabled_for(OutputStream::Stderr) {
             "{wide_bar:.cyan/blue} {percent}%"
         } else {
             "{wide_bar} {percent}%"
@@ -47,7 +51,7 @@ impl AsyncRunnable for DownloadCommand {
         } else {
             print!(
                 "{}",
-                crate::cli::color::success(format!("Basis {} downloaded.", self.name))
+                color::success(format!("Basis {} downloaded.", self.name))
             );
         }
         Ok(())

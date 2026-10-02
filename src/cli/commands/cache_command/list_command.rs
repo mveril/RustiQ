@@ -8,6 +8,7 @@ use tabled::{
 };
 
 use crate::cli::{
+    color::{self, OutputStream},
     commands::{CommandResult, Runnable},
     directories::cache_path,
 };
@@ -60,7 +61,7 @@ fn render_entries(entries: Vec<EriCacheEntry>) -> String {
             },
         }
     }));
-    if crate::cli::color::enabled() {
+    if color::enabled_for(OutputStream::Stdout) {
         table.with(Modify::new(Rows::first()).with(Color::FG_CYAN | Color::BOLD));
     }
     table.to_string()

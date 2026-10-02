@@ -111,7 +111,7 @@ fn color_options_and_environment_control_terminal_styling() {
     let env_always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
         .args(["geometry", "info", "samples/h2/molecule.xyz"])
         .env("RUSTIQ_COLOR", "always")
-        .env_remove("NO_COLOR")
+        .env("NO_COLOR", "1")
         .output()
         .unwrap();
     assert_success(&env_always);
