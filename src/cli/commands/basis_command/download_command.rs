@@ -1,4 +1,4 @@
-use std::cell::OnceCell;
+use std::{cell::OnceCell, io::Write};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use miette::IntoDiagnostic;
@@ -49,10 +49,13 @@ impl AsyncRunnable for DownloadCommand {
         if let Some(pb) = pb_cell.get_mut() {
             pb.finish_with_message(format!("Basis {} downloaded.", self.name));
         } else {
-            print!(
+            let mut stdout = color::stdout();
+            write!(
+                stdout,
                 "{}",
                 color::success(format!("Basis {} downloaded.", self.name))
-            );
+            )
+            .into_diagnostic()?;
         }
         Ok(())
     }

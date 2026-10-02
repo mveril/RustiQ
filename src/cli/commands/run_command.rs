@@ -1,6 +1,6 @@
 use std::{
     env, fs,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::PathBuf,
     time::Instant,
 };
@@ -113,7 +113,7 @@ impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
         let json_output = self.format == CalculationOutputFormat::Json;
         if !json_output {
-            cli::ux::print_startup_banner();
+            cli::ux::print_startup_banner().into_diagnostic()?;
         }
         let (source_name, toml_content) = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml).into_diagnostic()?;
@@ -142,21 +142,28 @@ impl Runnable for RunCommand {
             Geometry::from_source(source.geometry_path.display().to_string(), &source.geometry)
                 .into_diagnostic()?;
         if !json_output {
-            println!("{}", cli::color::title("Loading basis set..."));
+            let mut stdout = cli::color::stdout();
+            writeln!(stdout, "{}", cli::color::title("Loading basis set..."))
+                .into_diagnostic()?;
         }
         let step_start = Instant::now();
         let basis_file = self.resolve_basis(&run.global.basis)?;
         if !json_output {
-            println!(
+            let mut stdout = cli::color::stdout();
+            writeln!(
+                stdout,
                 "{} {:?}",
                 cli::color::value(basis_file.name()),
                 basis_file.function_types()
-            );
-            println!(
+            )
+            .into_diagnostic()?;
+            writeln!(
+                stdout,
                 "{} {}",
                 cli::color::title("Basis file loaded in"),
                 humantime::format_duration(step_start.elapsed())
-            );
+            )
+            .into_diagnostic()?;
         }
         let show_scf = run
             .hf
@@ -181,7 +188,7 @@ impl Runnable for RunCommand {
             calculation
         };
         let prepared = {
-            let stdout = io::stdout();
+            let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let prepared = calculation.prepare_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
@@ -191,18 +198,28 @@ impl Runnable for RunCommand {
         };
         if !json_output {
             let requested = requested_calculation(prepared.request()).into_diagnostic()?;
-            println!(
-                "\n{}",
-                cli::color::title("Requested calculation (canonical TOML)")
-            );
+            {
+                let mut stdout = cli::color::stdout();
+                writeln!(
+                    stdout,
+                    "\n{}",
+                    cli::color::title("Requested calculation (canonical TOML)")
+                )
+                .into_diagnostic()?;
+            }
             bat::print_toml(&requested.toml);
-            println!(
-                "\n{}",
-                cli::color::title(format!(
-                    "Requested geometry (canonical XYZ, {})",
-                    requested.units
-                ))
-            );
+            {
+                let mut stdout = cli::color::stdout();
+                writeln!(
+                    stdout,
+                    "\n{}",
+                    cli::color::title(format!(
+                        "Requested geometry (canonical XYZ, {})",
+                        requested.units
+                    ))
+                )
+                .into_diagnostic()?;
+            }
             bat::print_xyz(&requested.xyz);
             println!(
                 "\n{}",
@@ -210,7 +227,7 @@ impl Runnable for RunCommand {
             );
         }
         let result = {
-            let stdout = io::stdout();
+            let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {

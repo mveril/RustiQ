@@ -1,11 +1,12 @@
 use std::{
     env::{var, var_os},
     ffi::OsString,
-    fmt::Display,
+    fmt::{self, Display},
     io::{self, IsTerminal},
     sync::atomic::{AtomicU8, Ordering},
 };
 
+use anstream::{AutoStream, ColorChoice as StreamColorChoice};
 use anstyle::{AnsiColor, Style};
 use clap::ColorChoice;
 
@@ -84,35 +85,72 @@ pub(crate) fn enabled() -> bool {
     enabled_for(OutputStream::Stdout)
 }
 
-pub(crate) fn paint(text: impl Display, style: Style) -> String {
-    if enabled() {
-        format!("{style}{text}{}", style.render_reset())
+fn stream_choice(stream: OutputStream) -> StreamColorChoice {
+    if enabled_for(stream) {
+        StreamColorChoice::Always
     } else {
-        text.to_string()
+        StreamColorChoice::Never
     }
 }
 
-pub(crate) fn title(text: impl Display) -> String {
+pub(crate) fn stdout() -> AutoStream<io::Stdout> {
+    AutoStream::new(io::stdout(), stream_choice(OutputStream::Stdout))
+}
+
+pub(crate) struct Styled<T> {
+    value: T,
+    style: Style,
+    enabled: bool,
+}
+
+impl<T: Display> Display for Styled<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.enabled {
+            write!(
+                formatter,
+                "{}{}{}",
+                self.style,
+                self.value,
+                self.style.render_reset()
+            )
+        } else {
+            self.value.fmt(formatter)
+        }
+    }
+}
+
+fn paint<T: Display>(value: T, style: Style) -> Styled<T> {
+    Styled {
+        value,
+        style,
+        enabled: enabled(),
+    }
+}
+
+pub(crate) fn title<T: Display>(value: T) -> Styled<T> {
     paint(
-        text,
+        value,
         Style::new().bold().fg_color(Some(AnsiColor::Cyan.into())),
     )
 }
 
-pub(crate) fn success(text: impl Display) -> String {
-    paint(text, Style::new().fg_color(Some(AnsiColor::Green.into())))
+pub(crate) fn success<T: Display>(value: T) -> Styled<T> {
+    paint(
+        value,
+        Style::new().fg_color(Some(AnsiColor::Green.into())),
+    )
 }
 
-pub(crate) fn error(text: impl Display) -> String {
+pub(crate) fn error<T: Display>(value: T) -> Styled<T> {
     paint(
-        text,
+        value,
         Style::new().bold().fg_color(Some(AnsiColor::Red.into())),
     )
 }
 
-pub(crate) fn value(text: impl Display) -> String {
+pub(crate) fn value<T: Display>(value: T) -> Styled<T> {
     paint(
-        text,
+        value,
         Style::new().bold().fg_color(Some(AnsiColor::Yellow.into())),
     )
 }
@@ -130,5 +168,16 @@ mod tests {
             let args = args.into_iter().map(OsString::from);
             assert_eq!(cli_mode_from_args(args), None);
         }
+    }
+
+    #[test]
+    fn styled_display_defers_rendering_until_formatting() {
+        configure(ColorChoice::Never);
+        assert_eq!(title("RustiQ").to_string(), "RustiQ");
+
+        configure(ColorChoice::Always);
+        let styled = title("RustiQ").to_string();
+        assert!(styled.contains("\x1b["));
+        assert!(styled.contains("RustiQ"));
     }
 }

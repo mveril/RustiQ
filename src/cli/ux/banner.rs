@@ -1,22 +1,27 @@
+use std::io::{self, Write};
+
 use figlet_rs::FIGlet;
 use rand::RngExt;
 
+use crate::cli::color;
+
 const BANNER_STYLE_COUNT: u8 = 4;
 
-pub(crate) fn print_startup_banner() {
+pub(crate) fn print_startup_banner() -> io::Result<()> {
     let package_name = env!("CARGO_PKG_NAME");
     let package_version = env!("CARGO_PKG_VERSION");
     let banner = render_package_name(package_name);
     let style = rand::rng().random_range(0..BANNER_STYLE_COUNT);
+    let mut stdout = color::stdout().lock();
 
     match style {
-        0 => print_plain_banner(&banner, package_version),
-        1 => print_framed_banner(&banner, package_version),
-        2 => print_rule_banner(&banner, package_version),
-        _ => print_compact_banner(&banner, package_version),
+        0 => print_plain_banner(&mut stdout, &banner, package_version)?,
+        1 => print_framed_banner(&mut stdout, &banner, package_version)?,
+        2 => print_rule_banner(&mut stdout, &banner, package_version)?,
+        _ => print_compact_banner(&mut stdout, &banner, package_version)?,
     }
 
-    println!();
+    writeln!(stdout)
 }
 
 fn render_package_name(package_name: &str) -> String {
@@ -29,48 +34,61 @@ fn render_package_name(package_name: &str) -> String {
     }
 }
 
-fn print_plain_banner(banner: &str, package_version: &str) {
-    print!("{}", crate::cli::color::title(banner));
-    println!(
-        "{}",
-        crate::cli::color::value(format!("v{package_version}"))
-    );
+fn print_plain_banner(
+    writer: &mut impl Write,
+    banner: &str,
+    package_version: &str,
+) -> io::Result<()> {
+    write!(writer, "{}", color::title(banner))?;
+    writeln!(writer, "{}", color::value(format!("v{package_version}")))
 }
 
-fn print_framed_banner(banner: &str, package_version: &str) {
+fn print_framed_banner(
+    writer: &mut impl Write,
+    banner: &str,
+    package_version: &str,
+) -> io::Result<()> {
     let width = banner_width(banner).max(package_version.len() + 2);
     let border = "=".repeat(width);
 
-    println!("{}", crate::cli::color::title(&border));
-    print!("{}", crate::cli::color::title(banner));
-    println!(
+    writeln!(writer, "{}", color::title(&border))?;
+    write!(writer, "{}", color::title(banner))?;
+    writeln!(
+        writer,
         "{}",
-        crate::cli::color::value(format!("{:^width$}", format!("v{package_version}")))
-    );
-    println!("{}", crate::cli::color::title(&border));
+        color::value(format!("{:^width$}", format!("v{package_version}")))
+    )?;
+    writeln!(writer, "{}", color::title(&border))
 }
 
-fn print_rule_banner(banner: &str, package_version: &str) {
-    print!("{}", crate::cli::color::title(banner));
-    println!(
+fn print_rule_banner(
+    writer: &mut impl Write,
+    banner: &str,
+    package_version: &str,
+) -> io::Result<()> {
+    write!(writer, "{}", color::title(banner))?;
+    writeln!(
+        writer,
         "{}",
         "-".repeat(banner_width(banner).max(package_version.len() + 2))
-    );
-    println!(
-        "{}",
-        crate::cli::color::value(format!("v{package_version}"))
-    );
+    )?;
+    writeln!(writer, "{}", color::value(format!("v{package_version}")))
 }
 
-fn print_compact_banner(banner: &str, package_version: &str) {
+fn print_compact_banner(
+    writer: &mut impl Write,
+    banner: &str,
+    package_version: &str,
+) -> io::Result<()> {
     for line in banner.lines() {
-        println!("  {}", crate::cli::color::title(line));
+        writeln!(writer, "  {}", color::title(line))?;
     }
 
-    println!(
+    writeln!(
+        writer,
         "  {}",
-        crate::cli::color::value(format!("v{package_version}"))
-    );
+        color::value(format!("v{package_version}"))
+    )
 }
 
 fn banner_width(banner: &str) -> usize {

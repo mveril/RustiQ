@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 use miette::IntoDiagnostic;
 use rustiq_core::persistence::{EriCache, EriCacheEntry};
@@ -28,7 +28,9 @@ impl Runnable for ListCommand {
         let cache = EriCache::new(root);
         // A read-only cache remains inspectable even when aliases cannot be assigned.
         let _ = cache.assign_missing_names();
-        println!("{}", render_entries(cache.entries().into_diagnostic()?));
+        let mut stdout = color::stdout();
+        writeln!(stdout, "{}", render_entries(cache.entries().into_diagnostic()?))
+            .into_diagnostic()?;
         Ok(())
     }
 }

@@ -6,6 +6,7 @@ version = 4
 name = "RustiQ"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "anstream",
  "anstyle",
  "approx",
  "bat",
