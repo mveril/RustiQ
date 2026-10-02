@@ -172,11 +172,20 @@ mod tests {
 
     #[test]
     fn styled_display_defers_rendering_until_formatting() {
-        configure(ColorChoice::Never);
-        assert_eq!(title("RustiQ").to_string(), "RustiQ");
+        let style = Style::new().bold().fg_color(Some(AnsiColor::Cyan.into()));
+        let plain = Styled {
+            value: "RustiQ",
+            style,
+            enabled: false,
+        };
+        assert_eq!(plain.to_string(), "RustiQ");
 
-        configure(ColorChoice::Always);
-        let styled = title("RustiQ").to_string();
+        let styled = Styled {
+            value: "RustiQ",
+            style,
+            enabled: true,
+        }
+        .to_string();
         assert!(styled.contains("\x1b["));
         assert!(styled.contains("RustiQ"));
     }
