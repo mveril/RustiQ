@@ -143,8 +143,7 @@ impl Runnable for RunCommand {
                 .into_diagnostic()?;
         if !json_output {
             let mut stdout = cli::color::stdout();
-            writeln!(stdout, "{}", cli::color::title("Loading basis set..."))
-                .into_diagnostic()?;
+            writeln!(stdout, "{}", cli::color::title("Loading basis set...")).into_diagnostic()?;
         }
         let step_start = Instant::now();
         let basis_file = self.resolve_basis(&run.global.basis)?;

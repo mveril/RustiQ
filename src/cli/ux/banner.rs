@@ -84,11 +84,7 @@ fn print_compact_banner(
         writeln!(writer, "  {}", color::title(line))?;
     }
 
-    writeln!(
-        writer,
-        "  {}",
-        color::value(format!("v{package_version}"))
-    )
+    writeln!(writer, "  {}", color::value(format!("v{package_version}")))
 }
 
 fn banner_width(banner: &str) -> usize {
