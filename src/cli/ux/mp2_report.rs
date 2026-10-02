@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn test_mp2_reporter_writes_summary() {
         let mut output = Vec::new();
-        {
+        crate::cli::color::with_test_color(clap::ColorChoice::Never, || {
             let mut reporter = Mp2Reporter::new(&mut output, "RHF MP2");
             reporter
                 .write_summary(
@@ -76,7 +76,7 @@ mod tests {
                     },
                 )
                 .unwrap();
-        }
+        });
 
         let output = String::from_utf8(output).unwrap();
         assert!(output.contains("RHF MP2 correlation energy"));
