@@ -530,12 +530,10 @@ use the standard-output decision. Diagnostics from `miette` and progress output
 use the standard-error decision. JSON mode remains ANSI-free on standard
 output, including when colors are forced.
 
-On current Windows terminals, including Windows Terminal and consoles with
-Virtual Terminal support, ANSI styling is rendered normally. Older Windows
-console hosts may display ANSI escape sequences literally when colors are
-forced; use `--color never` (or `RUSTIQ_COLOR=never`) in those environments.
-Automatic mode avoids styling when the output stream is not an interactive
-terminal.
+On Windows, RustiQ uses adaptive terminal output. Virtual Terminal sequences
+are used when supported, while legacy console hosts are handled through
+`anstream` compatibility support. Automatic mode still disables styling when
+the corresponding output stream is not an interactive terminal.
 
 ```sh
 cargo run -- --color always run samples/h2/sto-3g/calculation.toml
