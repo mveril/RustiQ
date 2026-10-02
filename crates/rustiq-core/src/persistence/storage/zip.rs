@@ -50,7 +50,10 @@ pub(super) fn open(path: &Path) -> Result<ZipArchive<File>, StorageError> {
 }
 
 pub(super) fn options(path: &RelativePath) -> SimpleFileOptions {
-    let metadata = matches!(path.as_str(), "manifest.json" | "calculation.json");
+    let metadata = matches!(
+        path.as_str(),
+        "manifest.json" | "calculation.json" | "request.json"
+    );
     SimpleFileOptions::default()
         .compression_method(if metadata {
             CompressionMethod::Deflated

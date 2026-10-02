@@ -1,0 +1,40 @@
+{
+  "format": "rustiq-request",
+  "version": 1,
+  "units": "bohr",
+  "atoms": [
+    {
+      "atomic_number": 1,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "atomic_number": 1,
+      "position": [
+        1.4,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "charge": 0,
+  "multiplicity": 1,
+  "basis": "STO-3G",
+  "hf": {
+    "method": "auto",
+    "max_iterations": 100,
+    "convergence_threshold": 1e-08,
+    "linear_dependency_threshold": 1e-08,
+    "eri_schwarz_threshold": 1e-12,
+    "diis_size": 6,
+    "guess": {
+      "kind": "core_hamiltonian",
+      "perturbation": null
+    },
+    "diis": false
+  },
+  "mp2": null
+}

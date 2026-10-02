@@ -88,9 +88,23 @@ def test_numpy_reads_rust_portable_archive(tmp_path: Path) -> None:
         assert set(archive.namelist()) == {
             "manifest.json",
             "calculation.json",
+            "request.json",
+            "sources/0",
             "arrays/integrals/ao-eri.npy",
         }
         manifest = json.loads(archive.read("manifest.json"))
+        request_bytes = archive.read("request.json")
+        request = json.loads(request_bytes)
+        assert manifest["request"]["digest"] == digest(request_bytes)
+        assert manifest["request"]["size"] == len(request_bytes)
+        assert request["hf"]["method"] == "auto"
+        assert request["units"] == "bohr"
+        source_bytes = archive.read("sources/0")
+        assert source_bytes == bytes.fromhex(
+            (FIXTURE_DIR / "source-original-v1.toml.hex").read_text()
+        )
+        assert manifest["sources"][0]["digest"] == digest(source_bytes)
+        assert manifest["sources"][0]["original_name"] == "../../calculation.toml"
         snapshot_bytes = archive.read("calculation.json")
         snapshot = json.loads(snapshot_bytes)
         assert manifest["scientific_identity"]["digest"] == scientific_identity(
@@ -124,6 +138,14 @@ def test_python_portable_golden_fixtures() -> None:
         assert b"PK\x06\x06" in content
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             manifest = json.loads(archive.read("manifest.json"))
+            source_bytes = archive.read("sources/0")
+            assert source_bytes == bytes.fromhex(
+                (FIXTURE_DIR / "source-original-v1.toml.hex").read_text()
+            )
+            assert digest(source_bytes) == manifest["sources"][0]["digest"]
+            request_bytes = archive.read("request.json")
+            assert digest(request_bytes) == manifest["request"]["digest"]
+            assert json.loads(request_bytes)["hf"]["method"] == "auto"
             snapshot = json.loads(archive.read("calculation.json"))
             assert (
                 scientific_identity(snapshot)

@@ -26,6 +26,16 @@ fn data() -> RustiQData {
         .unwrap();
     data
 }
+fn source_fixture() -> Vec<u8> {
+    include_str!("../../../../tests/data/persistence/source-original-v1.toml.hex")
+        .trim()
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
 fn members(path: &Path) -> Vec<(String, Vec<u8>)> {
     let mut archive = ZipArchive::new(File::open(path).unwrap()).unwrap();
     (0..archive.len())
@@ -109,7 +119,20 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
     let pointer = restored.read_eri().unwrap() as *const CompactEri;
     assert_eq!(restored.read_eri().unwrap() as *const CompactEri, pointer);
     let zip = ZipArchive::new(File::open(&first).unwrap()).unwrap();
-    assert_eq!(zip.len(), 3);
+    assert_eq!(zip.len(), 4);
+    let request = members(&first)
+        .into_iter()
+        .find(|(n, _)| n == REQUEST_PATH)
+        .unwrap()
+        .1;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&request).unwrap(),
+        serde_json::from_str::<serde_json::Value>(include_str!(
+            "../../../../tests/data/persistence/request-h2-v1.json"
+        ))
+        .unwrap()
+    );
+    assert_eq!(restored.sources().len(), 0);
     let snapshot = members(&first)
         .into_iter()
         .find(|(n, _)| n == CALCULATION_PATH)
@@ -122,6 +145,205 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
         ))
         .unwrap()
     );
+}
+
+#[test]
+fn normalized_request_round_trip_keeps_auto_angstrom_defaults_and_requested_options() {
+    use crate::config::{DensityGuessConfig, MemoryLimit, RandomGuessConfig};
+    use crate::molecules::units::Units;
+    let geometry =
+        Geometry::from_source("input.xyz", "2\nignored comment\nH 0 0 0\nH 0.74 0 0\n").unwrap();
+    let basis = load_minimal_basis_file();
+    let defaulted = CalculationBuilder::new(&geometry, &basis)
+        .prepare()
+        .unwrap();
+    let explicit = CalculationBuilder::new(&geometry, &basis)
+        .with_hf(HfConfig::default())
+        .with_molecule_config(MoleculeConfig::default())
+        .prepare()
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(RequestSnapshot::from_request(defaulted.request())).unwrap(),
+        serde_json::to_value(RequestSnapshot::from_request(explicit.request())).unwrap()
+    );
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .with_basis_label("portable-basis-label")
+        .with_molecule_config(MoleculeConfig {
+            units: Units::Angstrom,
+            ..Default::default()
+        })
+        .with_hf(HfConfig {
+            guess: DensityGuessConfig::Random {
+                config: RandomGuessConfig::default(),
+            }
+            .into(),
+            ..Default::default()
+        })
+        .with_mp2(Mp2Config {
+            frozen_orbitals: 1.into(),
+            memory_limit: MemoryLimit::Fixed(bytesize::ByteSize::mib(42)).into(),
+        })
+        .prepare()
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("round-trip.rustiq");
+    RustiQData::from_calculation(&prepared)
+        .unwrap()
+        .write(&path)
+        .unwrap();
+    let restored = RustiQData::open(&path).unwrap();
+    let request = restored.request().unwrap();
+    assert_eq!(request.hf().method.value, HfMethod::Auto);
+    assert_eq!(request.molecule().units, Units::Angstrom);
+    assert_eq!(request.geometry().atoms[1].position[0], 0.74);
+    assert_eq!(request.basis_name(), "portable-basis-label");
+    assert_eq!(
+        request.mp2().unwrap().memory_limit.value,
+        prepared.request().mp2().unwrap().memory_limit.value
+    );
+    assert!(request.geometry().comment.is_empty());
+    let DensityGuessConfig::Random { config } = request.hf().guess.value else {
+        panic!()
+    };
+    assert_eq!(config.random.seed, None);
+    let context = restored.calculation().unwrap();
+    assert_eq!(context.hf_method(), crate::config::ResolvedHfMethod::Rhf);
+    assert!(context.atoms().nth(1).unwrap().1[0] > 1.0);
+    let DensityGuessConfig::Random { config } = context.density_guess() else {
+        panic!()
+    };
+    assert!(config.random.seed.is_some());
+    assert_eq!(
+        serde_json::to_value(RequestSnapshot::from_request(request)).unwrap(),
+        serde_json::to_value(RequestSnapshot::from_request(prepared.request())).unwrap()
+    );
+}
+
+#[test]
+fn opaque_sources_preserve_exact_bytes_without_affecting_scientific_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("source.rustiq");
+    let output = dir.path().join("copied.rustiq");
+    let mut original = data();
+    let sources: [(&str, &[u8]); 2] = [
+        (
+            "../../private/calculation.toml",
+            b"# preserve comments\r\n[hf]\r\nmethod = 'Auto'\r\n",
+        ),
+        (
+            "C:\\private\\molecule.xyz",
+            b"2\r\noriginal comment\r\nH 0.000 0 0\r\nH 1.4000 0 0\r\n\xff",
+        ),
+    ];
+    for (name, bytes) in sources {
+        original.add_source(name, bytes).unwrap();
+    }
+    original.write(&path).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
+    }
+    let mut restored = RustiQData::open(&path).unwrap();
+    assert!(restored.ao_eri.is_none());
+    assert!(restored.eri_is_compatible(&calculation()));
+    for (source, (name, bytes)) in restored.sources().zip(sources) {
+        assert_eq!(source.original_name(), name);
+        assert_eq!(source.bytes(), bytes);
+    }
+    let archive_members = members(&path);
+    assert!(archive_members.iter().any(|(name, _)| name == "sources/0"));
+    assert!(!archive_members
+        .iter()
+        .any(|(name, _)| name.contains("private")));
+    restored.write(&output).unwrap();
+    assert_eq!(members(&output), archive_members);
+    assert_eq!(members(&path), archive_members);
+}
+
+#[test]
+fn request_and_source_integrity_versions_and_limits_are_checked_on_open() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("good.rustiq");
+    let mut original = data();
+    original
+        .add_source("input.toml", b"original bytes".as_slice())
+        .unwrap();
+    original.write(&path).unwrap();
+    let original = members(&path);
+    let broken = dir.path().join("broken.rustiq");
+    for (target, field, value) in [
+        ("manifest.json", "/request", serde_json::Value::Null),
+        (
+            "manifest.json",
+            "/request/path",
+            serde_json::json!(CALCULATION_PATH),
+        ),
+        ("manifest.json", "/request/version", serde_json::json!(99)),
+        (
+            "manifest.json",
+            "/request/size",
+            serde_json::json!(MAX_REQUEST_BYTES + 1),
+        ),
+        (
+            "manifest.json",
+            "/sources/0/path",
+            serde_json::json!("../input.toml"),
+        ),
+        ("manifest.json", "/sources/0/version", serde_json::json!(99)),
+        (
+            "manifest.json",
+            "/sources/0/size",
+            serde_json::json!(MAX_SOURCE_BYTES + 1),
+        ),
+        (REQUEST_PATH, "/version", serde_json::json!(99)),
+        (REQUEST_PATH, "/units", serde_json::json!("invalid")),
+        (REQUEST_PATH, "/hf/method", serde_json::json!("invalid")),
+        (REQUEST_PATH, "/hf/max_iterations", serde_json::json!(0)),
+        (REQUEST_PATH, "/hf/diis_size", serde_json::json!(1)),
+        (
+            REQUEST_PATH,
+            "/hf/convergence_threshold",
+            serde_json::json!(-1),
+        ),
+        (
+            REQUEST_PATH,
+            "/atoms/0/atomic_number",
+            serde_json::json!(119),
+        ),
+        (REQUEST_PATH, "/atoms/0/position/0", serde_json::json!(12)),
+    ] {
+        let mut contents = original.clone();
+        edit_json(&mut contents, target, |json| {
+            *json.pointer_mut(field).unwrap() = value
+        });
+        if target == REQUEST_PATH {
+            let bytes = &contents
+                .iter()
+                .find(|(name, _)| name == REQUEST_PATH)
+                .unwrap()
+                .1;
+            let (size, digest) = (bytes.len(), sha256(bytes).to_string());
+            edit_json(&mut contents, "manifest.json", |m| {
+                m["request"]["size"] = size.into();
+                m["request"]["digest"] = digest.into();
+            });
+        }
+        write_members(&broken, &contents);
+        assert!(RustiQData::open(&broken).is_err(), "{target} {field}");
+    }
+    for name in [REQUEST_PATH, "sources/0"] {
+        let mut contents = original.clone();
+        contents.iter_mut().find(|(n, _)| n == name).unwrap().1[0] ^= 1;
+        write_members(&broken, &contents);
+        assert!(matches!(
+            RustiQData::open(&broken),
+            Err(PortableError::Artifact(ArtifactError::IntegrityMismatch(_)))
+        ));
+        contents.retain(|(n, _)| n != name);
+        write_members(&broken, &contents);
+        assert!(RustiQData::open(&broken).is_err());
+    }
 }
 
 #[test]
@@ -433,7 +655,10 @@ fn malformed_npy_is_rejected_even_with_correct_digest() {
 #[ignore = "writes a portable artifact for Python interoperability"]
 fn writes_archive_for_python_interoperability() {
     let path = std::env::var_os("RUSTIQ_ARCHIVE_TEST_OUTPUT").expect("output path");
-    data().write(path).unwrap();
+    let mut data = data();
+    data.add_source("../../calculation.toml", source_fixture())
+        .unwrap();
+    data.write(path).unwrap();
 }
 
 #[test]
@@ -606,7 +831,7 @@ fn settings_are_resolved_and_machine_policy_is_excluded() {
         assert_eq!(snapshot.identity(), restored.identity());
         assert_eq!(
             format!("{:?}", CalculationContext(restored).density_guess()),
-            format!("{guess:?}")
+            format!("{:?}", prepared.hf_config().guess.value)
         );
         assert!(data.calculation().unwrap().atoms().nth(1).unwrap().1[0] > 1.0);
     }

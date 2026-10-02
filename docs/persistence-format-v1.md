@@ -236,16 +236,23 @@ unchanged.
 ## Portable `.rustiq` V1
 
 A portable artifact is a ZIP archive, with ZIP64 support for large members and
-large offsets. It contains `manifest.json`, `calculation.json`, and zero or more
+large offsets. It contains `manifest.json`, independently versioned `request.json`
+and `calculation.json`, optional opaque `sources/` payloads, and zero or more
 indexed scientific artifacts. It is not an NPZ file. Readers access members by
 name without extracting files. The active directory cache remains a separate,
 disposable machine-local product with its existing format and behavior.
 
 The portable manifest uses `kind: "portable"`. Its format/version, producer,
 scientific identity and artifact envelope are the same as the logical format
-above. It additionally requires a calculation reference:
+above. It additionally requires separate `request` and `calculation` references:
 
 ```json
+"request": {
+  "path": "request.json",
+  "version": 1,
+  "size": 1234,
+  "digest": "sha256:..."
+},
 "calculation": {
   "path": "calculation.json",
   "version": 1,
@@ -255,9 +262,54 @@ above. It additionally requires a calculation reference:
 ```
 
 `size` and `digest` describe the exact uncompressed JSON bytes, including any
-whitespace. Cache manifests do not require this field. Producer version remains
+whitespace. Each reference version selects its own snapshot schema; it is not
+tied to the package version or the other snapshot version. Cache manifests omit
+both references and source provenance. Producer version remains
 provenance, not an invalidation rule. Archives may contain no numerical artifacts;
 the scientific context remains useful by itself.
+
+### Normalized request and optional source provenance
+
+The normative request schema is
+[`request-snapshot-v1.schema.json`](../schemas/request-snapshot-v1.schema.json),
+with an [H2 golden request](../crates/rustiq-core/tests/data/persistence/request-h2-v1.json).
+`request.json` is constructed from `PreparedCalculation::request()`, not source
+TOML/XYZ or the resolved snapshot. Its `format: "rustiq-request"` and `version: 1`
+identify the independent wire contract. Reopening reconstructs a typed
+`CalculationRequest`, without depending on original input files.
+
+The request preserves ordered atoms in the requested `bohr`/`angstrom` units,
+charge, multiplicity, a portable basis label, requested `auto`/`rhf`/`uhf` method,
+defaulted HF settings, and optional MP2 settings. DIIS enablement and history size
+remain distinct even when disabled. The requested MP2 memory limit is tagged
+`{"kind":"auto"}` or `{"kind":"fixed","bytes":...}`; no machine-resolved
+memory budget is stored. Random seeds omitted in the request remain absent even
+when preparation chooses a seed for the resolved calculation. Comments, source
+spans, source paths, cache configuration, and output/UI settings are excluded.
+The basis label is informational; resolved AO contents define scientific identity.
+
+Sources are optional opaque bytes, including non-UTF-8 content. They are never
+parsed to reconstruct either semantic snapshot and never enter compatibility.
+The optional manifest `sources` array contains records such as:
+
+```json
+{"original_name":"../input.toml","path":"sources/0","version":1,
+ "size":123,"digest":"sha256:..."}
+```
+
+`original_name` is informational provenance and may contain an original path.
+It is never used as an extraction or publication path. Writers assign safe member
+names (`sources/0`, `sources/1`, ...); readers accept safe relative members under
+`sources/` and reject duplicate references. Sources have size/SHA-256 checks and
+are read eagerly with a combined 64 MiB limit, at most 256 sources, and at most
+4096 UTF-8 bytes per original name. Missing sources are valid for direct Rust API
+use. `request.json` and `calculation.json` are required independently of sources.
+
+The reader validates request semantics and their consistency with the resolved
+molecule, method, scientific settings, and MP2 selection. Requested Angstrom
+coordinates resolve to Bohr and `auto` resolves to RHF/UHF; a missing requested
+random seed may resolve to a generated seed. Neither snapshot substitutes for
+the other.
 
 ### Resolved scientific snapshot
 
@@ -283,8 +335,9 @@ of domain Rust struct layouts and package versions.
   `null`/omitted DIIS size means DIIS disabled.
 - Density guesses are tagged as `core_hamiltonian`, `one_electron`, `random`, or
   `zero`. Perturbations and random guesses record distribution parameters and an
-  optional seed. An absent seed records an unseeded request, not the random
-  generator state or an exact continuation promise.
+  resolved seed. Seeds chosen during preparation are captured here, while an
+  initially absent seed stays absent in `request.json`. This does not capture
+  generator state or promise exact SCF continuation.
 - `mp2` is absent/null for HF-only requests, or contains `frozen_orbitals`.
   This records the request, not an MP2 result or proof of convergence.
 - `ao_eri_computation_version` states the scientific algorithm identity used for
@@ -306,7 +359,7 @@ restart state.
 
 ### Rust API
 
-`RustiQData::from_calculation(&PreparedCalculation)` captures resolved inputs
+`RustiQData::from_calculation(&PreparedCalculation)` captures requested and resolved inputs
 without executing HF. `set_eri` / `set::<AoEriArtifact>` supply an owned
 `CompactEri` whose dimension matches those inputs. The caller is responsible for
 supplying the ERIs computed for that calculation, rather than unrelated values
@@ -317,6 +370,8 @@ use rustiq_core::persistence::{CompactEri, RustiQData};
 
 // `prepared` is produced by CalculationBuilder; `eri` belongs to these inputs.
 let mut data = RustiQData::from_calculation(&prepared)?;
+// Optional: preserve exact source bytes separately from scientific state.
+data.add_source("calculation.toml", original_toml_bytes)?;
 data.set_eri(eri)?;
 data.write("water.rustiq")?;
 
@@ -331,12 +386,15 @@ if restored.eri_is_compatible(&prepared) {
 }
 ```
 
-`calculation()` exposes read-only typed context, including atoms, effective basis,
+`request()` exposes the reconstructed typed normalized request. `sources()`
+exposes exact captured bytes and informational original names. `calculation()`
+exposes read-only typed resolved context, including atoms, effective basis,
 HF settings and MP2 request. `producer()` exposes provenance, and
 `artifact_representations()` lists known and unknown artifacts without loading
 arrays. These inspections do not certify payload integrity.
 
-`open` validates the container index, manifest, snapshot digest/schema, scientific
+`open` requires only read access to the source. It validates the container index,
+manifest, both snapshot versions/digests/schemas, source sizes/digests, scientific
 identity, and declared artifact sizes. ERI dimensions and computation-version
 metadata must agree with the snapshot. It does not decode numerical arrays.
 The first typed read verifies SHA-256, bounded NPY header, f64 dtype, shape and
@@ -349,7 +407,8 @@ calculation without loading arrays. Changing an HF-only request to MP2 does not
 invalidate AO ERIs. Compatibility does not imply that the payload has already
 been verified. There is no CLI reuse orchestration in this API release.
 
-Writing a reopened archive preserves unloaded artifacts by verified streaming
+Writing a reopened archive preserves both semantic snapshots and exact captured
+source bytes. It preserves unloaded artifacts by verified streaming
 copy, including unknown representations and their attributes. Known ERI headers
 are checked before preservation; overwritten ERIs use the current representation.
 Errors use `PortableError` (including `AlreadyExists`, unsupported version,

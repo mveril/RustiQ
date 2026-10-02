@@ -27,6 +27,8 @@ pub enum PortableError {
     UnsupportedVersion,
     #[error("invalid resolved calculation: {0}")]
     InvalidCalculation(String),
+    #[error("invalid normalized request: {0}")]
+    InvalidRequest(String),
     #[error(transparent)]
     Artifact(#[from] ArtifactError),
 }

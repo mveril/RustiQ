@@ -23,6 +23,8 @@ pub struct RustiQData {
     pub(super) source: Option<Storage>,
     pub(super) ao_eri: Option<CompactEri>,
     pub(super) basis_functions: Option<usize>,
+    pub(super) request: Option<crate::calculation::CalculationRequest>,
+    pub(super) sources: Vec<super::super::SourceProvenance>,
     pub(super) context: Option<super::super::CalculationContext>,
 }
 
@@ -57,9 +59,13 @@ impl RustiQData {
                 },
                 artifacts: BTreeMap::new(),
                 calculation: None,
+                request: None,
+                sources: Vec::new(),
             },
             source: None,
             context: None,
+            request: None,
+            sources: Vec::new(),
             ao_eri: None,
             basis_functions: Some(basis_functions),
         }
@@ -96,6 +102,8 @@ impl RustiQData {
             manifest,
             source: Some(source),
             context: None,
+            request: None,
+            sources: Vec::new(),
             ao_eri: None,
             basis_functions,
         })
@@ -203,12 +211,46 @@ impl RustiQData {
                 RelativePath::new(super::super::calculation::CALCULATION_PATH),
                 &context.0,
             )?;
-            manifest.calculation = Some(super::super::manifest::CalculationManifest {
+            manifest.calculation = Some(super::super::manifest::SnapshotManifest {
                 path: super::super::calculation::CALCULATION_PATH.into(),
                 version: 1,
                 size: metadata.size,
                 digest: metadata.digest,
             });
+        }
+
+        if let Some(request) = &self.request {
+            let metadata = destination.write_json(
+                RelativePath::new(super::super::request::REQUEST_PATH),
+                &super::super::request::RequestSnapshot::from_request(request),
+            )?;
+            manifest.request = Some(super::super::manifest::SnapshotManifest {
+                path: super::super::request::REQUEST_PATH.into(),
+                version: 1,
+                size: metadata.size,
+                digest: metadata.digest,
+            });
+        }
+        manifest.sources.clear();
+        for (index, source) in self.sources.iter().enumerate() {
+            let path = format!("sources/{index}");
+            let metadata = destination.write_artifact::<PersistenceWriteError, _>(
+                RelativePath::new(&path),
+                |writer| {
+                    std::io::Write::write_all(writer, source.bytes())
+                        .map_err(StorageError::from)?;
+                    Ok(())
+                },
+            )?;
+            manifest
+                .sources
+                .push(super::super::manifest::SourceManifest {
+                    original_name: source.original_name().into(),
+                    path,
+                    version: 1,
+                    size: metadata.size,
+                    digest: metadata.digest,
+                });
         }
 
         for (name, artifact) in &self.manifest.artifacts {

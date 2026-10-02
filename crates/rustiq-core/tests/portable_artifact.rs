@@ -13,6 +13,9 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
         .prepare()
         .unwrap();
     let mut data = RustiQData::from_calculation(&prepared).unwrap();
+    let original = b"# source comments are provenance\r\n[hf]\r\nmethod = 'Auto'\r\n";
+    data.add_source("../calculation.toml", original.as_slice())
+        .unwrap();
     let values = vec![0.5, 1.5, 2.5, 3.5, 4.5, 5.5];
     let indices = [
         (0, 0, 0, 0),
@@ -39,6 +42,17 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
         Err(PortableError::AlreadyExists)
     ));
     let mut restored = RustiQData::open(&path).unwrap();
+    assert_eq!(
+        restored.request().unwrap().hf().method.value,
+        rustiq_core::config::HfMethod::Auto
+    );
+    assert_eq!(
+        restored.request().unwrap().molecule().units,
+        rustiq_core::molecules::units::Units::Bohr
+    );
+    let source = restored.sources().next().unwrap();
+    assert_eq!(source.original_name(), "../calculation.toml");
+    assert_eq!(source.bytes(), original);
     let context = restored.calculation().unwrap();
     assert_eq!(context.charge(), 0);
     assert_eq!(context.multiplicity(), 1);

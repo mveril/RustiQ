@@ -182,10 +182,10 @@ impl Storage {
     ) -> Result<ArtifactMetadata, ManifestError> {
         let mut bytes = serde_json::to_vec_pretty(value)?;
         bytes.push(b'\n');
-        let limit = if path.as_str() == super::calculation::CALCULATION_PATH {
-            super::calculation::MAX_CALCULATION_BYTES
-        } else {
-            1024 * 1024
+        let limit = match path.as_str() {
+            super::calculation::CALCULATION_PATH => super::calculation::MAX_CALCULATION_BYTES,
+            super::request::REQUEST_PATH => super::request::MAX_REQUEST_BYTES,
+            _ => 1024 * 1024,
         };
         if bytes.len() as u64 > limit {
             return Err(ManifestError::TooLarge);

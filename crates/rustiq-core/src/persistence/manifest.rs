@@ -55,12 +55,26 @@ pub(crate) struct Manifest {
     pub scientific_identity: ScientificIdentityManifest,
     pub artifacts: BTreeMap<String, ArtifactManifest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub calculation: Option<CalculationManifest>,
+    pub calculation: Option<SnapshotManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request: Option<SnapshotManifest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<SourceManifest>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct CalculationManifest {
+pub(crate) struct SourceManifest {
+    pub original_name: String,
+    pub path: String,
+    pub version: u32,
+    pub size: u64,
+    pub digest: Sha256Digest,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SnapshotManifest {
     pub path: String,
     pub version: u32,
     pub size: u64,
@@ -176,6 +190,8 @@ mod tests {
 
         let manifest = Manifest {
             calculation: None,
+            request: None,
+            sources: Vec::new(),
             format: FORMAT_NAME.to_string(),
             format_version: FORMAT_VERSION,
             kind: ManifestKind::IntegralCache,

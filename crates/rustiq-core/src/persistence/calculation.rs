@@ -155,7 +155,7 @@ struct Mp2 {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum Guess {
+pub(super) enum Guess {
     CoreHamiltonian { perturbation: Option<Random> },
     OneElectron { perturbation: Option<Random> },
     Random { random: Random },
@@ -163,11 +163,11 @@ enum Guess {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Random {
+pub(super) struct Random {
     seed: Option<u64>,
     distribution: Distribution,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Distribution {
     Uniform { min: f64, max: f64 },
@@ -229,20 +229,7 @@ impl Snapshot {
                 linear_dependency_threshold: hf.linear_dependency_threshold.value.into_inner(),
                 eri_schwarz_threshold: hf.eri_schwarz_threshold.map(|value| value.into_inner()),
                 diis_size: hf.diis.then(|| hf.diis_size.into_inner()),
-                guess: match hf.guess.value {
-                    DensityGuessConfig::CoreHamiltonian { perturbation } => {
-                        Guess::CoreHamiltonian {
-                            perturbation: perturbation.map(|p| p.random.into()),
-                        }
-                    }
-                    DensityGuessConfig::OneElectron { perturbation } => Guess::OneElectron {
-                        perturbation: perturbation.map(|p| p.random.into()),
-                    },
-                    DensityGuessConfig::Random { config } => Guess::Random {
-                        random: config.random.into(),
-                    },
-                    DensityGuessConfig::Zero => Guess::Zero,
-                },
+                guess: hf.guess.value.into(),
             },
             mp2: mp2.map(|mp2| Mp2 {
                 frozen_orbitals: mp2.frozen_orbitals.value,
@@ -317,23 +304,48 @@ impl Snapshot {
         {
             return Err(invalid("invalid HF settings"));
         }
-        let random = match &self.hf.guess {
-            Guess::CoreHamiltonian { perturbation } | Guess::OneElectron { perturbation } => {
-                perturbation.as_ref()
-            }
-            Guess::Random { random } => Some(random),
-            Guess::Zero => None,
-        };
-        if let Some(random) = random {
-            let valid = match random.distribution {
-                Distribution::Uniform { min, max } => {
-                    min.is_finite() && max.is_finite() && min < max && (max - min).is_finite()
-                }
-                Distribution::Normal { mean, std_dev } => mean.is_finite() && positive(std_dev),
-            };
-            if !valid {
-                return Err(invalid("invalid random distribution"));
-            }
+        self.hf.guess.validate()?;
+        Ok(())
+    }
+
+    pub(crate) fn validate_request(
+        &self,
+        request: &crate::calculation::CalculationRequest,
+    ) -> Result<(), PortableError> {
+        let invalid =
+            || PortableError::InvalidRequest("request disagrees with resolved calculation".into());
+        let mut molecule = request
+            .molecule()
+            .build(request.geometry().clone())
+            .map_err(|_| invalid())?;
+        molecule.convert_to(crate::molecules::units::Units::Bohr);
+        let method = request
+            .hf()
+            .resolve_method(&molecule)
+            .map_err(|_| invalid())?;
+        let hf = request.hf();
+        if molecule.charge() != self.charge
+            || molecule.multiplicity().get() != self.multiplicity
+            || molecule.atoms.len() != self.atoms.len()
+            || molecule.atoms.iter().zip(&self.atoms).any(|(a, b)| {
+                a.element.atomic_number != b.atomic_number
+                    || <[f64; 3]>::from(a.position) != b.position
+            })
+            || !matches!(
+                (method, self.hf.method),
+                (ResolvedHfMethod::Rhf, Method::Rhf) | (ResolvedHfMethod::Uhf, Method::Uhf)
+            )
+            || hf.max_iterations.get() != self.hf.max_iterations
+            || hf.convergence_threshold.into_inner() != self.hf.convergence_threshold
+            || hf.linear_dependency_threshold.value.into_inner()
+                != self.hf.linear_dependency_threshold
+            || hf.eri_schwarz_threshold.map(|v| v.into_inner()) != self.hf.eri_schwarz_threshold
+            || hf.diis.then(|| hf.diis_size.into_inner()) != self.hf.diis_size
+            || request.mp2().map(|v| v.frozen_orbitals.value)
+                != self.mp2.as_ref().map(|v| v.frozen_orbitals)
+            || !self.hf.guess.is_resolution_of(&hf.guess.value.into())
+        {
+            return Err(invalid());
         }
         Ok(())
     }
@@ -416,7 +428,56 @@ impl Random {
     }
 }
 impl Guess {
-    fn to_config(&self) -> DensityGuessConfig {
+    fn is_resolution_of(&self, requested: &Self) -> bool {
+        let random_matches = |resolved: &Random, requested: &Random| {
+            resolved.distribution == requested.distribution
+                && requested
+                    .seed
+                    .is_none_or(|seed| resolved.seed == Some(seed))
+        };
+        match (self, requested) {
+            (
+                Self::CoreHamiltonian { perturbation: a },
+                Self::CoreHamiltonian { perturbation: b },
+            )
+            | (Self::OneElectron { perturbation: a }, Self::OneElectron { perturbation: b }) => {
+                match (a, b) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => random_matches(a, b),
+                    _ => false,
+                }
+            }
+            (Self::Random { random: a }, Self::Random { random: b }) => random_matches(a, b),
+            (Self::Zero, Self::Zero) => true,
+            _ => false,
+        }
+    }
+
+    pub(super) fn validate(&self) -> Result<(), PortableError> {
+        let random = match self {
+            Guess::CoreHamiltonian { perturbation } | Guess::OneElectron { perturbation } => {
+                perturbation.as_ref()
+            }
+            Guess::Random { random } => Some(random),
+            Guess::Zero => None,
+        };
+        if let Some(random) = random {
+            let valid = match random.distribution {
+                Distribution::Uniform { min, max } => {
+                    min.is_finite() && max.is_finite() && min < max && (max - min).is_finite()
+                }
+                Distribution::Normal { mean, std_dev } => mean.is_finite() && positive(std_dev),
+            };
+            if !valid {
+                return Err(PortableError::InvalidCalculation(
+                    "invalid random distribution".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn to_config(&self) -> DensityGuessConfig {
         use crate::config::{GuessPerturbationConfig, RandomGuessConfig};
         match self {
             Self::CoreHamiltonian { perturbation } => DensityGuessConfig::CoreHamiltonian {
@@ -435,6 +496,23 @@ impl Guess {
                 },
             },
             Self::Zero => DensityGuessConfig::Zero,
+        }
+    }
+}
+
+impl From<DensityGuessConfig> for Guess {
+    fn from(config: DensityGuessConfig) -> Self {
+        match config {
+            DensityGuessConfig::CoreHamiltonian { perturbation } => Guess::CoreHamiltonian {
+                perturbation: perturbation.map(|p| p.random.into()),
+            },
+            DensityGuessConfig::OneElectron { perturbation } => Guess::OneElectron {
+                perturbation: perturbation.map(|p| p.random.into()),
+            },
+            DensityGuessConfig::Random { config } => Guess::Random {
+                random: config.random.into(),
+            },
+            DensityGuessConfig::Zero => Guess::Zero,
         }
     }
 }

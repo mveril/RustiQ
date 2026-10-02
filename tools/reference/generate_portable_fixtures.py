@@ -62,6 +62,8 @@ def digest(payload: bytes) -> str:
 
 def generate() -> None:
     snapshot = (FIXTURES / "calculation-h2-v1.json").read_bytes()
+    request = (FIXTURES / "request-h2-v1.json").read_bytes()
+    source = bytes.fromhex((FIXTURES / "source-original-v1.toml.hex").read_text())
     for suffix, npy_fixture in [
         ("little", "ao-eri-python-v1.npy.hex"),
         ("big", "ao-eri-python-big-endian-v1.npy.hex"),
@@ -76,12 +78,27 @@ def generate() -> None:
                 "version": 1,
                 "digest": scientific_identity(json.loads(snapshot)),
             },
+            "request": {
+                "path": "request.json",
+                "version": 1,
+                "size": len(request),
+                "digest": digest(request),
+            },
             "calculation": {
                 "path": "calculation.json",
                 "version": 1,
                 "size": len(snapshot),
                 "digest": digest(snapshot),
             },
+            "sources": [
+                {
+                    "original_name": "../../calculation.toml",
+                    "path": "sources/0",
+                    "version": 1,
+                    "size": len(source),
+                    "digest": digest(source),
+                }
+            ],
             "artifacts": {
                 "ao_eri": {
                     "path": "arrays/integrals/ao-eri.npy",
@@ -101,6 +118,8 @@ def generate() -> None:
                 for name, content in [
                     ("manifest.json", json.dumps(manifest, indent=2).encode() + b"\n"),
                     ("calculation.json", snapshot),
+                    ("request.json", request),
+                    ("sources/0", source),
                     ("arrays/integrals/ao-eri.npy", payload),
                 ]:
                     info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))

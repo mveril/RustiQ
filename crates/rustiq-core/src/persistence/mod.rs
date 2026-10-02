@@ -6,7 +6,10 @@
 
 mod cache_names;
 mod calculation;
+mod provenance;
+mod request;
 pub use calculation::{CalculationContext, ResolvedAo, ResolvedComponent};
+pub use provenance::SourceProvenance;
 mod checksum;
 mod data;
 mod eri_cache;
