@@ -1,10 +1,14 @@
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 use miette::IntoDiagnostic;
 use rustiq_core::persistence::{EriCache, EriCacheEntry};
-use tabled::{Table, Tabled};
+use tabled::{
+    settings::{object::Rows, Color, Modify},
+    Table, Tabled,
+};
 
 use crate::cli::{
+    color::{self, OutputStream},
     commands::{CommandResult, Runnable},
     directories::cache_path,
 };
@@ -24,7 +28,13 @@ impl Runnable for ListCommand {
         let cache = EriCache::new(root);
         // A read-only cache remains inspectable even when aliases cannot be assigned.
         let _ = cache.assign_missing_names();
-        println!("{}", render_entries(cache.entries().into_diagnostic()?));
+        let mut stdout = color::stdout();
+        writeln!(
+            stdout,
+            "{}",
+            render_entries(cache.entries().into_diagnostic()?)
+        )
+        .into_diagnostic()?;
         Ok(())
     }
 }
@@ -42,7 +52,7 @@ fn render_entries(entries: Vec<EriCacheEntry>) -> String {
     if entries.is_empty() {
         return "No cache entries found.".to_owned();
     }
-    Table::new(entries.into_iter().map(|entry| {
+    let mut table = Table::new(entries.into_iter().map(|entry| {
         CacheRow {
             name: entry.name.unwrap_or_else(|| "-".to_owned()),
             fingerprint: entry.fingerprint,
@@ -56,8 +66,11 @@ fn render_entries(entries: Vec<EriCacheEntry>) -> String {
                 "invalid"
             },
         }
-    }))
-    .to_string()
+    }));
+    if color::enabled_for(OutputStream::Stdout) {
+        table.with(Modify::new(Rows::first()).with(Color::FG_CYAN | Color::BOLD));
+    }
+    table.to_string()
 }
 
 #[cfg(test)]

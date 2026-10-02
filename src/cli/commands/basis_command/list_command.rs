@@ -1,17 +1,22 @@
 use bat::PrettyPrinter;
 use miette::IntoDiagnostic;
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use tabled::Table;
+use tabled::{
+    settings::{object::Rows, Color, Modify},
+    Table,
+};
 
 use crate::cli::{
+    color::{self, OutputStream},
     commands::{CommandResult, Runnable},
+    directories,
     ux::BasisTableItem,
 };
 use rustiq_core::basis::BasisEntry;
 
 fn pagin_print(content: &str) {
     if PrettyPrinter::new()
-        .colored_output(false)
+        .colored_output(color::enabled_for(OutputStream::Stdout))
         .strip_ansi(bat::StripAnsiMode::Never)
         .input_from_bytes(content.as_bytes())
         .paging_mode(bat::PagingMode::QuitIfOneScreen)
@@ -35,13 +40,13 @@ pub struct ListCommand {
 
 impl Runnable for ListCommand {
     fn run(&self) -> CommandResult {
-        let store = crate::cli::directories::basis_store();
+        let store = directories::basis_store();
         #[cfg(feature = "online")]
         if self.online {
             let list = store.list_online_sync().into_diagnostic()?;
             if self.verbose {
                 let items = list.into_values().map(BasisTableItem::from);
-                pagin_print(&Table::new(items).to_string());
+                pagin_print(&render_table(items));
             } else {
                 let mut str = String::new();
                 for item in list.values() {
@@ -62,7 +67,7 @@ impl Runnable for ListCommand {
                         .map(BasisTableItem::from)
                 })
                 .collect();
-            pagin_print(&Table::new(v.into_diagnostic()?).to_string())
+            pagin_print(&render_table(v.into_diagnostic()?))
         } else {
             let mut str = String::new();
             for item in list {
@@ -78,4 +83,12 @@ impl Runnable for ListCommand {
         }
         Ok(())
     }
+}
+
+fn render_table(items: impl IntoIterator<Item = BasisTableItem>) -> String {
+    let mut table = Table::new(items);
+    if color::enabled_for(OutputStream::Stdout) {
+        table.with(Modify::new(Rows::first()).with(Color::FG_CYAN | Color::BOLD));
+    }
+    table.to_string()
 }

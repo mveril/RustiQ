@@ -1,12 +1,16 @@
 use std::{
     fs::File,
+    io::Write,
     path::{Path, PathBuf},
 };
 
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use thiserror::Error;
 
-use crate::cli::commands::{CommandResult, Runnable};
+use crate::cli::{
+    color,
+    commands::{CommandResult, Runnable},
+};
 use rustiq_core::basis::BasisStore;
 
 #[derive(clap::Args, Debug)]
@@ -60,12 +64,18 @@ impl Runnable for ImportCommand {
 
         let mut succeeded = 0;
         let mut errors = Vec::new();
+        let mut stdout = color::stdout().lock();
 
         for path in &self.paths {
             match Self::import_one(&store, path) {
                 Ok(name) => {
                     succeeded += 1;
-                    println!("Basis {name} imported.");
+                    writeln!(
+                        stdout,
+                        "{}",
+                        color::success(format!("Basis {name} imported."))
+                    )
+                    .into_diagnostic()?;
                 }
                 Err(error) => {
                     errors.push(ImportFileError {

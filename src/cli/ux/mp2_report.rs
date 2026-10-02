@@ -23,8 +23,9 @@ where
         let total_energy = result.electronic_energy + scf_result.nuclear_repulsion_energy;
         writeln!(
             self.writer,
-            "{} correlation energy: {:.6} Hartree",
-            self.label, result.correlation_energy
+            "{} correlation energy: {} Hartree",
+            crate::cli::color::title(self.label),
+            crate::cli::color::value(format!("{:.6}", result.correlation_energy))
         )?;
         writeln!(
             self.writer,
@@ -33,8 +34,9 @@ where
         )?;
         writeln!(
             self.writer,
-            "{} total energy (including nuclear repulsion): {:.6} Hartree",
-            self.label, total_energy
+            "{} total energy (including nuclear repulsion): {} Hartree",
+            crate::cli::color::title(self.label),
+            crate::cli::color::value(format!("{total_energy:.6}"))
         )?;
         Ok(())
     }
@@ -47,7 +49,7 @@ mod tests {
     #[test]
     fn test_mp2_reporter_writes_summary() {
         let mut output = Vec::new();
-        {
+        crate::cli::color::with_test_color(clap::ColorChoice::Never, || {
             let mut reporter = Mp2Reporter::new(&mut output, "RHF MP2");
             reporter
                 .write_summary(
@@ -74,7 +76,7 @@ mod tests {
                     },
                 )
                 .unwrap();
-        }
+        });
 
         let output = String::from_utf8(output).unwrap();
         assert!(output.contains("RHF MP2 correlation energy"));

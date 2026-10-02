@@ -1,5 +1,7 @@
 use std::io::{self, Write};
 
+use crate::cli::color;
+
 use rustiq_core::calculation::{ScfIteration, ScfResult};
 
 pub(crate) struct ScfReporter<W> {
@@ -26,24 +28,32 @@ where
         if converged {
             writeln!(
                 self.writer,
-                "SCF converged after {} iterations.",
-                result.iterations
+                "{}",
+                color::success(format!(
+                    "SCF converged after {} iterations.",
+                    result.iterations
+                ))
             )?;
         } else {
             writeln!(
                 self.writer,
-                "SCF did not converge after {} iterations.",
-                result.iterations
+                "{}",
+                color::error(format!(
+                    "SCF did not converge after {} iterations.",
+                    result.iterations
+                ))
             )?;
         }
         writeln!(
             self.writer,
-            "SCF delta energy: {:.6e} Hartree",
+            "{} {:.6e} Hartree",
+            color::title("SCF delta energy:"),
             result.delta_energy
         )?;
         writeln!(
             self.writer,
-            "SCF residual norm: {:.6e}",
+            "{} {:.6e}",
+            color::title("SCF residual norm:"),
             result.residual_norm
         )?;
         writeln!(
@@ -58,8 +68,9 @@ where
         )?;
         writeln!(
             self.writer,
-            "Total Energy (including nuclear repulsion): {:.6} Hartree",
-            result.total_energy
+            "{} {} Hartree",
+            color::title("Total Energy (including nuclear repulsion):"),
+            color::value(format!("{:.6}", result.total_energy)),
         )?;
         if let Some(spin) = result.spin {
             let qualifier = if converged {
@@ -83,7 +94,7 @@ where
             result.orthogonalization.discarded_directions,
             result.orthogonalization.relative_threshold,
         )?;
-        writeln!(self.writer, "Energy Details:")?;
+        writeln!(self.writer, "{}", color::title("Energy Details:"))?;
         writeln!(
             self.writer,
             "  Kinetic Energy: {:.6} Hartree",
@@ -104,7 +115,7 @@ where
             "  Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
             result.electronic_energy
         )?;
-        writeln!(self.writer, "Timings:")?;
+        writeln!(self.writer, "{}", color::title("Timings:"))?;
         writeln!(
             self.writer,
             "  Setup total: {}",
@@ -160,11 +171,11 @@ where
 
     fn write_header(&mut self) -> io::Result<()> {
         if !self.header_written {
-            writeln!(
-                self.writer,
+            let header = format!(
                 "{:>4} {:>18} {:>14} {:>14}",
                 "iter", "E_elec", "delta_E", "residual"
-            )?;
+            );
+            writeln!(self.writer, "{}", color::title(header))?;
             self.header_written = true;
         }
         Ok(())
@@ -186,6 +197,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::ColorChoice;
     use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
 
     #[test]
@@ -230,5 +242,52 @@ mod tests {
         assert!(output.contains("Energy Details:"));
         assert!(output.contains("Overlap effective rank:"));
         assert!(output.contains("Timings:"));
+    }
+
+    #[test]
+    fn scf_header_keeps_alignment_when_colored() {
+        let render = |mode| {
+            color::with_test_color(mode, || {
+                let mut output = Vec::new();
+                ScfReporter::new(&mut output)
+                    .write_iteration(&ScfIteration {
+                        iteration: 1,
+                        electronic_energy: -1.0,
+                        delta_energy: 0.0,
+                        residual_norm: 0.0,
+                    })
+                    .unwrap();
+                String::from_utf8(output)
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned()
+            })
+        };
+        let plain = render(ColorChoice::Never);
+        let colored = render(ColorChoice::Always);
+        let strip_ansi = |text: &str| {
+            let mut visible = String::new();
+            let mut escape = false;
+            for ch in text.chars() {
+                if escape {
+                    if ch == 'm' {
+                        escape = false;
+                    }
+                } else if ch == '\x1b' {
+                    escape = true;
+                } else {
+                    visible.push(ch);
+                }
+            }
+            visible
+        };
+        assert_eq!(
+            plain,
+            "iter             E_elec        delta_E       residual"
+        );
+        assert!(colored.contains("\x1b["));
+        assert_eq!(strip_ansi(&colored), plain);
     }
 }

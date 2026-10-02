@@ -1,9 +1,13 @@
-use std::cell::OnceCell;
+use std::{cell::OnceCell, io::Write};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use miette::IntoDiagnostic;
 
-use crate::cli::commands::{AsyncRunnable, CommandResult};
+use crate::cli::{
+    color::{self, OutputStream},
+    commands::{AsyncRunnable, CommandResult},
+    directories,
+};
 
 #[derive(clap::Args, Debug)]
 pub struct DownloadCommand {
@@ -13,9 +17,14 @@ pub struct DownloadCommand {
 
 impl AsyncRunnable for DownloadCommand {
     async fn run_async(&self) -> CommandResult {
-        let store = crate::cli::directories::basis_store();
+        let store = directories::basis_store();
         let mut pb_cell = OnceCell::new(); // The ProgressBar is stored here and initialized only once.
-        let progress_style = ProgressStyle::with_template("{wide_bar:.cyan/blue} {percent}%")
+        let template = if color::enabled_for(OutputStream::Stderr) {
+            "{wide_bar:.cyan/blue} {percent}%"
+        } else {
+            "{wide_bar} {percent}%"
+        };
+        let progress_style = ProgressStyle::with_template(template)
             .into_diagnostic()?
             .progress_chars("█▓▒░");
 
@@ -40,7 +49,13 @@ impl AsyncRunnable for DownloadCommand {
         if let Some(pb) = pb_cell.get_mut() {
             pb.finish_with_message(format!("Basis {} downloaded.", self.name));
         } else {
-            print!("Basis {} downloaded.", self.name);
+            let mut stdout = color::stdout();
+            write!(
+                stdout,
+                "{}",
+                color::success(format!("Basis {} downloaded.", self.name))
+            )
+            .into_diagnostic()?;
         }
         Ok(())
     }

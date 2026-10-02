@@ -72,14 +72,21 @@ impl<W: Write> CalculationReporter<W> {
     }
 
     fn on_basis_start(&mut self) {
-        self.report(|scf| writeln!(scf.writer_mut(), "Constructing basis functions..."));
+        self.report(|scf| {
+            writeln!(
+                scf.writer_mut(),
+                "{}",
+                crate::cli::color::title("Constructing basis functions...")
+            )
+        });
     }
 
     fn on_basis_ready(&mut self, basis: &Basis, elapsed: Duration) {
         self.report(|scf| {
             writeln!(
                 scf.writer_mut(),
-                "Constructed {} basis functions in {}",
+                "{} {} basis functions in {}",
+                crate::cli::color::title("Constructed"),
                 basis.nbasis(),
                 humantime::format_duration(elapsed)
             )
@@ -89,10 +96,23 @@ impl<W: Write> CalculationReporter<W> {
     fn on_hf_start(&mut self, method: ResolvedHfMethod, config: &HfConfig) {
         self.report(|scf| {
             let writer = scf.writer_mut();
-            writeln!(writer, "Conv {}", config.convergence_threshold.into_inner())?;
+            writeln!(
+                writer,
+                "{} {}",
+                crate::cli::color::title("Conv"),
+                config.convergence_threshold.into_inner()
+            )?;
             writeln!(writer, "Max iter: {}", config.max_iterations.get())?;
-            writeln!(writer, "Preparing SCF calculation...")?;
-            writeln!(writer, "Resolved HF method: {method}")
+            writeln!(
+                writer,
+                "{}",
+                crate::cli::color::title("Preparing SCF calculation...")
+            )?;
+            writeln!(
+                writer,
+                "{} {method}",
+                crate::cli::color::title("Resolved HF method:")
+            )
         });
     }
 

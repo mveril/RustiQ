@@ -182,14 +182,20 @@ impl Runnable for InitCommand {
                 .into_diagnostic()
                 .wrap_err("Cannot create calculation file; use --force if it already exists")?;
         }
-        println!(
-            "Created {} (multiplicity {}, HF {:?} → {}{})",
-            self.output.display(),
-            multiplicity,
-            self.hf,
-            resolved,
-            if self.mp2 { ", MP2" } else { "" }
-        );
+        let mut stdout = crate::cli::color::stdout();
+        writeln!(
+            stdout,
+            "{}",
+            crate::cli::color::success(format!(
+                "Created {} (multiplicity {}, HF {:?} → {}{})",
+                self.output.display(),
+                multiplicity,
+                self.hf,
+                resolved,
+                if self.mp2 { ", MP2" } else { "" }
+            ))
+        )
+        .into_diagnostic()?;
         Ok(())
     }
 }
