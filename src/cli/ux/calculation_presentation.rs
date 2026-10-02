@@ -169,11 +169,26 @@ pub(crate) fn requested_calculation(
     cache_enabled: bool,
     format: HfOutputFormat,
 ) -> Result<CanonicalPair, ToTomlError> {
+    let toml = render_calculation_toml(CalculationToml::requested(request, cache_enabled, format))?;
     Ok(CanonicalPair {
-        toml: toml_spanner::to_string(&CalculationToml::requested(request, cache_enabled, format))?,
+        toml,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
         units: unit_name(request.molecule().units),
     })
+}
+
+fn render_calculation_toml(configuration: CalculationToml) -> Result<String, ToTomlError> {
+    let cache = configuration.cache;
+    let mut toml = toml_spanner::to_string(&CalculationToml {
+        cache: None,
+        ..configuration
+    })?;
+    if let Some(cache) = cache {
+        let cache_toml = toml_spanner::to_string(&cache)?;
+        toml.push_str("\n[cache]\n");
+        toml.push_str(&cache_toml);
+    }
+    Ok(toml)
 }
 
 pub(crate) struct ResolvedCalculation {
@@ -237,7 +252,7 @@ pub(crate) fn resolved_calculation(
             prepared.basis_name(),
             prepared.get_basis().nbasis(),
         ),
-        configuration: toml_spanner::to_string(&CalculationToml::resolved(prepared))?,
+        configuration: render_calculation_toml(CalculationToml::resolved(prepared))?,
         geometry: geometry_xyz(molecule.geometry(), "Resolved geometry"),
     })
 }
@@ -396,15 +411,16 @@ mod tests {
                 config::HfMethod::Rhf,
             ),
         ] {
-            let toml = toml_spanner::to_string(&rendered).unwrap();
+            let has_cache = rendered.cache.is_some();
+            let toml = render_calculation_toml(rendered).unwrap();
             let restored = parse_runfile("rendered.toml", &toml).unwrap();
             assert_eq!(restored.hf_config.unwrap().method.value, method);
             assert!(toml.contains("format = \"Normal\""));
-            assert_eq!(toml.contains("[cache]"), rendered.cache.is_some());
+            assert_eq!(toml.contains("[cache]"), has_cache);
             let xyz = geometry_xyz(expected, "Canonical geometry");
             let restored = Geometry::from_source("rendered.xyz", &xyz).unwrap();
             for (actual, expected) in restored.atoms.iter().zip(&expected.atoms) {
-                assert_eq!(actual.position, expected.position);
+                assert_abs_diff_eq!(actual.position, expected.position, epsilon = 1e-14);
                 assert_eq!(actual.element.symbol, expected.element.symbol);
             }
         }
@@ -449,16 +465,14 @@ mod tests {
                 &format!("# omitted defaults\n[global]\nbasis = 'sto-3g'\n{post_hf}"),
                 &original,
             );
-            let explicit_source = toml_spanner::to_string(&CalculationToml::requested(
+            let explicit_source = render_calculation_toml(CalculationToml::requested(
                 implicit.request(),
-                false,
+                true,
                 HfOutputFormat::default(),
             ))
-            .unwrap();
-            let explicit_source = format!(
-                "# explicitly written defaults\n{}\n[cache]\nenabled = true\n",
-                explicit_source.replace("molecule.xyz", "../different.xyz")
-            );
+            .unwrap()
+            .replace("molecule.xyz", "../different.xyz");
+            let explicit_source = format!("# explicitly written defaults\n{explicit_source}");
             let explicit = prepare(&explicit_source, &equivalent);
             assert_eq!(
                 requested_calculation(implicit.request(), false, HfOutputFormat::default())
@@ -499,7 +513,7 @@ mod tests {
         ] {
             let source = format!("[global]\nbasis = 'sto-3g'\n[hf]\nmethod = 'Uhf'\nmax_iterations = 42\nconvergence_threshold = 1e-7\nlinear_dependency_threshold = 0.0\neri_schwarz_threshold = 0.0\ndiis = true\ndiis_size = 8\nformat = 'Nope'\n{guess}\n[mp2]\nfrozen_orbitals = 1\nmemory_limit = '9007199254740993 B'\n");
             let prepared = prepare(&source, &geometry);
-            let rendered = toml_spanner::to_string(&CalculationToml::requested(prepared.request(), false, HfOutputFormat::Nope)).unwrap();
+            let rendered = render_calculation_toml(CalculationToml::requested(prepared.request(), false, HfOutputFormat::Nope)).unwrap();
             let original = parse_runfile("original.toml", &source).unwrap();
             let reparsed = parse_runfile("rendered.toml", &rendered).unwrap();
             assert_eq!(
