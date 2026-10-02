@@ -79,7 +79,7 @@ impl HfMethod {
     }
 }
 
-#[derive(Debug, Default, Toml, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, Toml, PartialEq, Eq, Hash)]
 #[toml(Toml)]
 pub enum HfOutputFormat {
     #[default]
