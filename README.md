@@ -518,14 +518,29 @@ cargo run -- run samples/h2/sto-3g/mp2_calculation.toml
 
 ### Terminal colors
 
-Color output is automatic when standard output is an interactive terminal. Use
-the global `--color` option or `RUSTIQ_COLOR` to choose `auto`, `always`, or
-`never`. `NO_COLOR` disables automatic color output; an explicit option or
-`RUSTIQ_COLOR` value takes precedence.
+RustiQ uses the same color choices as Clap throughout its terminal-oriented
+output. The global `--color` option and `RUSTIQ_COLOR` accept `auto`, `always`,
+or `never`, with the precedence `--color` > `RUSTIQ_COLOR` > automatic
+detection. In `auto` mode, `NO_COLOR` disables styling and terminal detection
+is performed independently for standard output and standard error. Explicit
+`always` and `never` choices take precedence over `NO_COLOR`.
+
+Human-readable reports, tables, banners, and syntax-highlighted `bat` output
+use the standard-output decision. Diagnostics from `miette` and progress output
+use the standard-error decision. JSON mode remains ANSI-free on standard
+output, including when colors are forced.
+
+On current Windows terminals, including Windows Terminal and consoles with
+Virtual Terminal support, ANSI styling is rendered normally. Older Windows
+console hosts may display ANSI escape sequences literally when colors are
+forced; use `--color never` (or `RUSTIQ_COLOR=never`) in those environments.
+Automatic mode avoids styling when the output stream is not an interactive
+terminal.
 
 ```sh
 cargo run -- --color always run samples/h2/sto-3g/calculation.toml
 RUSTIQ_COLOR=never cargo run -- run samples/h2/sto-3g/calculation.toml
+RUSTIQ_COLOR=always cargo run -- run samples/h2/sto-3g/calculation.toml
 ```
 
 ### Machine-readable JSON output
