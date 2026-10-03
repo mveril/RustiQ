@@ -624,7 +624,7 @@ a prediction of the ground state; use `--multiplicity` to specify another state.
 Incompatible charge, multiplicity, or RHF choices are rejected before writing.
 `--mp2` adds an MP2 calculation with no frozen orbitals. Other HF settings use the
 existing calculation defaults. Generated TOML omits default-valued parameters,
-keeping the required basis and geometry plus `[hf]` and, when requested, `[mp2]`.
+keeping the required molecule and basis plus `[method.hf]` and, when requested, `[method.mp2]`.
 Non-default values, including an automatically selected doublet, are written explicitly.
 The TOML display in `run` still includes the effective default settings; both
 outputs use the same calculation model with a context-specific formatting policy.
@@ -634,38 +634,45 @@ basis; basis availability and numerical MP2 requirements are checked by `run`.
 A minimal calculation file looks like this:
 
 ```toml
-[global]
-basis = "sto-3g"
-
-[global.molecule]
+[molecule]
 geometry = "./molecule.xyz"
 charge = 0
 multiplicity = 1
-molecule_unit = "Angstrom"
+units = "Angstrom"
 
-[hf]
+[basis]
+name = "sto-3g"
+
+[integrals]
+schwarz_threshold = 1e-12
+
+[method.hf]
 method = "Rhf"
 max_iterations = 100
 convergence_threshold = 1e-8
-eri_schwarz_threshold = 1e-12
-diis = true
-diis_size = 8
 
-[hf.guess]
+[method.hf.orthogonalization]
+linear_dependency_threshold = 1e-8
+
+[method.hf.diis]
+enabled = true
+max_history = 8
+
+[method.hf.guess]
 type = "CoreHamiltonian"
 ```
 
-`eri_schwarz_threshold` controls Schwarz screening of electron-repulsion
+`integrals.schwarz_threshold` controls Schwarz screening of electron-repulsion
 integrals. Increasing it discards more small integrals, reducing ERI computation
 time but potentially changing energies and SCF convergence;
 decreasing it retains more integrals at greater cost. The default `1e-12`
-preserves the previous behavior. Set `eri_schwarz_threshold = 0` to disable
+preserves the previous behavior. Set `schwarz_threshold = 0` in `[integrals]` to disable
 Schwarz screening.
 
 An MP2 calculation adds:
 
 ```toml
-[mp2]
+[method.mp2]
 memory_limit = "auto"
 frozen_orbitals = 0
 ```
