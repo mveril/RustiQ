@@ -114,7 +114,7 @@ use crate::{
     },
     hf::{
         scf::ScfCalculation,
-        scf_setup::{prepare_scf_setup_with_eri_threshold, ScfPreparationError},
+        scf_setup::{prepare_configured_scf_setup, ScfPreparationError},
         uhf::{alpha_beta_occupied_orbitals, UhfCalculation},
     },
     molecules::molecule::{Molecule, MoleculeError},
@@ -244,7 +244,7 @@ impl<'a> HfCalculation<'a> {
                 occupied.alpha.max(occupied.beta)
             }
         };
-        let prepared = prepare_scf_setup_with_eri_threshold(
+        let prepared = prepare_configured_scf_setup(
             molecule,
             basis,
             required_occupied_orbitals,
