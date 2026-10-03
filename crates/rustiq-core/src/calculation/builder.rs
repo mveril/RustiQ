@@ -30,12 +30,12 @@ use super::{
 /// let calculation = CalculationBuilder::new(geometry, basis_file)
 ///     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
 ///     .with_hf(HfConfig {
-        diis: rustiq_core::config::DiisConfig {
-            enabled: true,
-            ..Default::default()
-        },
-        ..Default::default()
-    })
+///         diis: rustiq_core::config::DiisConfig {
+///             enabled: true,
+///             ..Default::default()
+///         },
+///         ..Default::default()
+///     })
 ///     .with_mp2(Mp2Config::default());
 /// let prepared = calculation.prepare()?;
 /// let result = prepared.execute()?;
