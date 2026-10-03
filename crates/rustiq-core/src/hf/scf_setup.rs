@@ -76,7 +76,7 @@ pub(crate) fn prepare_scf_setup(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare_scf_setup_with_eri_threshold(
+pub(crate) fn prepare_configured_scf_setup(
     molecule: &Molecule,
     basis: &Basis,
     required_occupied_orbitals: usize,
