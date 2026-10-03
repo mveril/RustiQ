@@ -115,7 +115,7 @@ fn humanized_runfile_error(
     match path {
         "basis.name" => (
             "The basis set must be written as a string.".to_string(),
-            "expected a basis set name, for example basis = \"sto-3g\"".to_string(),
+            "expected a basis set name, for example name = \"sto-3g\"".to_string(),
         ),
         "molecule.geometry" => (
             "The molecule geometry path must be a non-empty string.".to_string(),
@@ -159,7 +159,7 @@ fn humanized_runfile_error(
         ),
         "output.scf" => (
             "The HF output format must be one of the supported format names.".to_string(),
-            "expected Normal or Nope".to_string(),
+            "expected Normal or Quiet".to_string(),
         ),
         "method.mp2.frozen_orbitals" => (
             "The MP2 frozen orbital count must be a non-negative integer.".to_string(),
