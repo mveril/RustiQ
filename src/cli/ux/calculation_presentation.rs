@@ -28,11 +28,17 @@ use crate::runfile::{
 #[derive(Toml)]
 #[toml(ToToml)]
 struct CalculationToml {
+    #[toml(style = Header)]
     molecule: MoleculeConfig,
+    #[toml(style = Header)]
     basis: BasisConfig,
+    #[toml(style = Implicit)]
     method: MethodConfig,
+    #[toml(style = Header)]
     integrals: IntegralConfig,
+    #[toml(style = Header)]
     cache: Option<CacheConfig>,
+    #[toml(style = Header)]
     output: OutputConfig,
 }
 
