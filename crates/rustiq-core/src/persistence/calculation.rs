@@ -8,8 +8,9 @@ use crate::{
     calculation::PreparedCalculation,
     config::{
         random_config::{DistributionConfig, RandomConfig},
-        DensityGuessConfig, ResolvedHfMethod,
+        DensityGuessConfig, HfMethod, ResolvedHfMethod,
     },
+    molecules::molecule::Molecule,
 };
 
 pub(crate) const CALCULATION_PATH: &str = "calculation.json";
@@ -362,10 +363,8 @@ impl Snapshot {
             .molecule()
             .build(request.geometry().clone())
             .map_err(|_| invalid())?;
-        let method = request
-            .hf()
-            .resolve_method(&molecule)
-            .map_err(|_| invalid())?;
+        let method =
+            resolve_hf_method_v1(request.hf().method.value, &molecule).ok_or_else(invalid)?;
         let hf = request.hf();
         if molecule.charge() != self.charge
             || molecule.multiplicity().get() != self.multiplicity
@@ -443,6 +442,25 @@ impl Snapshot {
         bytes.finish_ao_eri(self.hf.eri_schwarz_threshold)
     }
 }
+/// Resolves the HF request according to the frozen V1 persistence contract.
+///
+/// V1 predates any future method that may become eligible for `Auto`, so archive
+/// validation must not inherit changes to the current domain-level resolver.
+pub(super) fn resolve_hf_method_v1(
+    method: HfMethod,
+    molecule: &Molecule,
+) -> Option<ResolvedHfMethod> {
+    let closed_shell_singlet =
+        molecule.multiplicity().get() == 1 && molecule.total_electrons().is_multiple_of(2);
+    match method {
+        HfMethod::Rhf if closed_shell_singlet => Some(ResolvedHfMethod::Rhf),
+        HfMethod::Rhf => None,
+        HfMethod::Uhf => Some(ResolvedHfMethod::Uhf),
+        HfMethod::Auto if closed_shell_singlet => Some(ResolvedHfMethod::Rhf),
+        HfMethod::Auto => Some(ResolvedHfMethod::Uhf),
+    }
+}
+
 // V1 pins this decimal value (CODATA 2018 Bohr radius in Angstrom), rather
 // than inheriting a future physical_constants release. Parse as binary64 and divide.
 const V1_BOHR_IN_ANGSTROM: f64 = 0.529_177_210_903;
@@ -638,8 +656,60 @@ mod tests {
 #[cfg(test)]
 mod v1_contract_tests {
     use super::*;
-    use crate::molecules::units::Units;
+    use crate::molecules::{atom::Atom, geometry::Geometry, units::Units};
+    use nalgebra::point;
     use serde_json::{json, Value};
+    use std::num::NonZeroU8;
+
+    fn molecule(symbols: &[&str], multiplicity: u8) -> Molecule {
+        let elements = periodic_table::periodic_table();
+        let atoms = symbols
+            .iter()
+            .enumerate()
+            .map(|(index, symbol)| {
+                let element = elements
+                    .iter()
+                    .find(|element| element.symbol == *symbol)
+                    .unwrap();
+                Atom::new(element, point![0.0, 0.0, index as f64])
+            })
+            .collect();
+        Molecule::try_new(
+            Geometry::new("v1-method-resolution".into(), atoms),
+            Units::Bohr,
+            0,
+            NonZeroU8::new(multiplicity).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn hf_method_resolution_is_frozen_for_v1() {
+        let closed_shell = molecule(&["H", "H"], 1);
+        let open_shell = molecule(&["H"], 2);
+
+        assert_eq!(
+            resolve_hf_method_v1(HfMethod::Auto, &closed_shell),
+            Some(ResolvedHfMethod::Rhf)
+        );
+        assert_eq!(
+            resolve_hf_method_v1(HfMethod::Auto, &open_shell),
+            Some(ResolvedHfMethod::Uhf)
+        );
+        assert_eq!(
+            resolve_hf_method_v1(HfMethod::Rhf, &closed_shell),
+            Some(ResolvedHfMethod::Rhf)
+        );
+        assert_eq!(resolve_hf_method_v1(HfMethod::Rhf, &open_shell), None);
+        assert_eq!(
+            resolve_hf_method_v1(HfMethod::Uhf, &closed_shell),
+            Some(ResolvedHfMethod::Uhf)
+        );
+        assert_eq!(
+            resolve_hf_method_v1(HfMethod::Uhf, &open_shell),
+            Some(ResolvedHfMethod::Uhf)
+        );
+    }
 
     #[test]
     fn conversion_comparison_is_bounded_in_binary64_steps() {

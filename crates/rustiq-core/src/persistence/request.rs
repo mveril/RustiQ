@@ -3,7 +3,10 @@ use std::num::{NonZeroU8, NonZeroUsize};
 
 use serde::{Deserialize, Serialize};
 
-use super::{calculation::Guess, PortableError};
+use super::{
+    calculation::{resolve_hf_method_v1, Guess},
+    PortableError,
+};
 use crate::{
     calculation::CalculationRequest,
     config::{
@@ -229,10 +232,8 @@ impl RequestSnapshot {
             .molecule()
             .build(request.geometry().clone())
             .map_err(|error| PortableError::InvalidRequest(error.to_string()))?;
-        request
-            .hf()
-            .resolve_method(&molecule)
-            .map_err(|error| PortableError::InvalidRequest(error.to_string()))?;
+        resolve_hf_method_v1(request.hf().method.value, &molecule)
+            .ok_or_else(|| PortableError::InvalidRequest("invalid V1 HF method resolution".into()))?;
         Ok(request)
     }
 }

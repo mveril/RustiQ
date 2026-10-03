@@ -317,9 +317,12 @@ Both values and the converted result must be finite. Bohr requests compare
 numerically exactly, treating signed zeros as equal. This V1 rule is independent
 of domain conversion constants or dependency updates. `calculation.json` remains
 authoritative for resolved coordinates and scientific identity; validation never
-replaces or rounds them. `auto` resolves to RHF/UHF; a missing requested
-random seed may resolve to a generated seed. Neither snapshot substitutes for
-the other.
+replaces or rounds them. HF method resolution is also frozen by V1 rather than
+delegated to the current RustiQ domain policy: `auto` resolves to RHF for a
+closed-shell singlet (multiplicity 1 with an even electron count) and to UHF
+otherwise; explicit RHF is valid only for a closed-shell singlet, while explicit
+UHF remains UHF. A missing requested random seed may resolve to a generated seed.
+Neither snapshot substitutes for the other.
 
 ### Resolved scientific snapshot
 
