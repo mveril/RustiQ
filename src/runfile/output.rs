@@ -159,20 +159,20 @@ mod tests {
         let full = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
         for field in [
-            "charge",
-            "multiplicity",
-            "units",
-            "method",
-            "max_iterations",
-            "convergence_threshold",
-            "linear_dependency_threshold",
-            "schwarz_threshold",
-            "enabled",
-            "max_history",
-            "guess",
-            "frozen_orbitals",
-            "memory_limit",
-            "scf",
+            "charge =",
+            "multiplicity =",
+            "units =",
+            "method =",
+            "max_iterations =",
+            "convergence_threshold =",
+            "linear_dependency_threshold =",
+            "schwarz_threshold =",
+            "enabled =",
+            "max_history =",
+            "type =",
+            "frozen_orbitals =",
+            "memory_limit =",
+            "scf =",
         ] {
             assert!(full.contains(field), "missing {field}");
             assert!(!compact.contains(field), "unexpected {field}");
