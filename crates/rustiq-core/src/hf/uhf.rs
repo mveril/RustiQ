@@ -5,8 +5,8 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::{
-    config::DiisConfig,
     basis::gaussian::basis::Basis,
+    config::DiisConfig,
     eri::{index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
