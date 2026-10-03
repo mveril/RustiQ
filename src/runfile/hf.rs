@@ -167,9 +167,8 @@ mod tests {
 
     #[test]
     fn invalid_diis_history_is_rejected_at_parse_time() {
-        assert!(toml_spanner::from_str::<HfConfig>(
-            "[diis]\nenabled = true\nmax_history = 1"
-        )
-        .is_err());
+        assert!(
+            toml_spanner::from_str::<HfConfig>("[diis]\nenabled = true\nmax_history = 1").is_err()
+        );
     }
 }
