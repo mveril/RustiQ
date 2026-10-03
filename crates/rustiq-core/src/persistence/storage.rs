@@ -10,9 +10,13 @@ use sha2::{Digest, Sha256};
 
 use super::{sha256_reader, ManifestError, Sha256Digest, StorageError};
 
+mod zip;
+
 #[derive(Debug)]
 pub(crate) enum Storage {
     Folder(PathBuf),
+    ZipReader(Box<::zip::ZipArchive<File>>),
+    ZipWriter(Box<::zip::ZipWriter<BufWriter<File>>>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,6 +70,26 @@ impl<W: Write> Write for DigestWriter<W> {
 }
 
 impl Storage {
+    pub(crate) fn open_zip(path: &std::path::Path) -> Result<Self, StorageError> {
+        Ok(Self::ZipReader(Box::new(zip::open(path)?)))
+    }
+
+    pub(crate) fn create_zip(file: File) -> Self {
+        Self::ZipWriter(Box::new(zip::writer(file)))
+    }
+
+    pub(crate) fn artifact_size(&mut self, path: &RelativePath) -> Result<u64, StorageError> {
+        validate_path(path)?;
+        match self {
+            Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_size(path),
+            Self::ZipReader(archive) => Ok(archive
+                .by_name(path.as_str())
+                .map_err(zip::zip_error)?
+                .size()),
+            Self::ZipWriter(_) => Err(zip::invalid("cannot read an archive writer")),
+        }
+    }
+
     pub(crate) fn folder(root: impl Into<PathBuf>) -> Self {
         Self::Folder(root.into())
     }
@@ -76,6 +100,17 @@ impl Storage {
     ) -> Result<ArtifactMetadata, StorageError> {
         match self {
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_metadata(path),
+            Self::ZipReader(archive) => {
+                let size = archive
+                    .by_name(path.as_str())
+                    .map_err(zip::zip_error)?
+                    .size();
+                let digest = zip::with_member::<_, StorageError, _>(archive, path, |reader| {
+                    Ok(sha256_reader(reader)?)
+                })?;
+                Ok(ArtifactMetadata { size, digest })
+            }
+            Self::ZipWriter(_) => Err(zip::invalid("cannot read an archive writer")),
         }
     }
 
@@ -86,6 +121,8 @@ impl Storage {
     {
         match self {
             Self::Folder(root) => FolderStorage { root: root.clone() }.with_artifact(path, read),
+            Self::ZipReader(archive) => zip::with_member(archive, path, read),
+            Self::ZipWriter(_) => Err(E::from(zip::invalid("cannot read an archive writer"))),
         }
     }
 
@@ -100,6 +137,18 @@ impl Storage {
     {
         match self {
             Self::Folder(root) => FolderStorage { root: root.clone() }.write_artifact(path, write),
+            Self::ZipWriter(archive) => {
+                validate_path(path).map_err(E::from)?;
+                archive
+                    .start_file(path.as_str(), zip::options(path))
+                    .map_err(zip::zip_error)
+                    .map_err(E::from)?;
+                let mut writer = DigestWriter::new(archive.as_mut());
+                write(&mut writer)?;
+                let (_, metadata) = writer.finish();
+                Ok(metadata)
+            }
+            Self::ZipReader(_) => Err(E::from(zip::invalid("cannot write an archive reader"))),
         }
     }
 
@@ -108,15 +157,21 @@ impl Storage {
         path: &RelativePath,
         max_size: u64,
     ) -> Result<T, ManifestError> {
-        let size = match self {
-            Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_size(path)?,
-        };
+        let size = self.artifact_size(path)?;
         if size > max_size {
             return Err(ManifestError::TooLarge);
         }
 
         self.with_artifact(path, |reader| {
-            serde_json::from_reader(reader).map_err(ManifestError::from)
+            let mut bytes = Vec::new();
+            reader
+                .take(max_size + 1)
+                .read_to_end(&mut bytes)
+                .map_err(StorageError::from)?;
+            if u64::try_from(bytes.len()).map_err(|_| ManifestError::TooLarge)? > max_size {
+                return Err(ManifestError::TooLarge);
+            }
+            serde_json::from_slice(&bytes).map_err(ManifestError::from)
         })
     }
 
@@ -124,18 +179,32 @@ impl Storage {
         &mut self,
         path: &RelativePath,
         value: &T,
-    ) -> Result<(), ManifestError> {
+    ) -> Result<ArtifactMetadata, ManifestError> {
+        let mut bytes = serde_json::to_vec_pretty(value)?;
+        bytes.push(b'\n');
+        let limit = match path.as_str() {
+            super::calculation::CALCULATION_PATH => super::calculation::MAX_CALCULATION_BYTES,
+            super::request::REQUEST_PATH => super::request::MAX_REQUEST_BYTES,
+            _ => 1024 * 1024,
+        };
+        if u64::try_from(bytes.len()).map_err(|_| ManifestError::TooLarge)? > limit {
+            return Err(ManifestError::TooLarge);
+        }
         self.write_artifact::<ManifestError, _>(path, |writer| {
-            serde_json::to_writer_pretty(&mut *writer, value)?;
-            writer.write_all(b"\n").map_err(StorageError::from)?;
+            writer.write_all(&bytes).map_err(StorageError::from)?;
             Ok(())
-        })?;
-        Ok(())
+        })
     }
 
     pub(crate) fn finish(self) -> Result<(), StorageError> {
         match self {
-            Self::Folder(_) => Ok(()),
+            Self::Folder(_) | Self::ZipReader(_) => Ok(()),
+            Self::ZipWriter(archive) => {
+                let mut file = archive.finish().map_err(zip::zip_error)?;
+                file.flush()?;
+                file.get_ref().sync_all()?;
+                Ok(())
+            }
         }
     }
 }

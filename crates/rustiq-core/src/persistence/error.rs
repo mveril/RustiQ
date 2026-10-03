@@ -4,12 +4,61 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub(crate) enum StorageError {
+    #[error("invalid portable archive: {0}")]
+    Archive(String),
     #[error("storage I/O failed: {0}")]
     Io(#[from] io::Error),
     #[error("unsafe storage path: {0}")]
     InvalidPath(String),
     #[error("storage entry has an unexpected type: {0}")]
     UnexpectedEntryType(String),
+}
+
+/// Portable persistence failures, independent of the physical container library.
+#[derive(Debug, Error)]
+pub enum PortableError {
+    #[error("portable artifact I/O failed: {0}")]
+    Io(#[from] io::Error),
+    #[error("the destination already exists")]
+    AlreadyExists,
+    #[error("invalid portable artifact: {0}")]
+    InvalidArchive(String),
+    #[error("unsupported portable calculation format or version")]
+    UnsupportedVersion,
+    #[error("invalid resolved calculation: {0}")]
+    InvalidCalculation(String),
+    #[error("invalid normalized request: {0}")]
+    InvalidRequest(String),
+    #[error(transparent)]
+    Artifact(#[from] ArtifactError),
+}
+
+impl From<StorageError> for PortableError {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::Io(error) => Self::Io(error),
+            other => Self::InvalidArchive(other.to_string()),
+        }
+    }
+}
+
+impl From<PersistenceReadError> for PortableError {
+    fn from(error: PersistenceReadError) -> Self {
+        match error {
+            PersistenceReadError::Artifact(error) => Self::Artifact(error),
+            other => Self::InvalidArchive(other.to_string()),
+        }
+    }
+}
+
+impl From<PersistenceWriteError> for PortableError {
+    fn from(error: PersistenceWriteError) -> Self {
+        match error {
+            PersistenceWriteError::Artifact(error) => Self::Artifact(error),
+            PersistenceWriteError::Storage(error) => error.into(),
+            other => Self::InvalidArchive(other.to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Error)]

@@ -1,7 +1,7 @@
 # RustiQ logical persistence format V1
 
 This document specifies the storage-independent logical format used by RustiQ
-scientific persistence. It does not specify an archive container.
+scientific persistence, including the portable `.rustiq` ZIP/ZIP64 container.
 
 ## Active AO ERI cache
 
@@ -89,8 +89,8 @@ untouched. Names and fingerprints are validated rather than interpreted as paths
 
 The core Rust API exposes `persistence::RustiQData` as a typed scientific
 facade. Physical storage selection is an internal persistence concern: the
-directory-backed ERI cache resolves folder storage internally, and the future
-portable `.rustiq` API will resolve ZIP/ZIP64 internally rather than exposing a
+directory-backed ERI cache resolves folder storage internally, and the
+portable `.rustiq` API resolves ZIP/ZIP64 internally rather than exposing a
 generic storage backend. Internal readers load the bounded manifest first and
 open scientific artifacts on demand. `read_eri` validates and decodes the AO ERI
 NPY on first access and keeps the resulting `CompactEri` for subsequent accesses.
@@ -232,3 +232,273 @@ as the AO ERI artifact attribute `attributes.computation_version`. Bumping that
 version changes the fingerprint and causes older ERI artifacts to be reported as
 `invalid`, even when their inputs and storage representation are otherwise
 unchanged.
+
+## Portable `.rustiq` V1
+
+A portable artifact is a ZIP archive, with ZIP64 support for large members and
+large offsets. It contains `manifest.json`, independently versioned `request.json`
+and `calculation.json`, optional opaque `sources/` payloads, and zero or more
+indexed scientific artifacts. It is not an NPZ file. Readers access members by
+name without extracting files. The active directory cache remains a separate,
+disposable machine-local product with its existing format and behavior.
+
+The portable manifest uses `kind: "portable"`. Its format/version, producer,
+scientific identity and artifact envelope are the same as the logical format
+above. It additionally requires separate `request` and `calculation` references:
+
+```json
+"request": {
+  "path": "request.json",
+  "version": 1,
+  "size": 1234,
+  "digest": "sha256:..."
+},
+"calculation": {
+  "path": "calculation.json",
+  "version": 1,
+  "size": 1234,
+  "digest": "sha256:..."
+}
+```
+
+`size` and `digest` describe the exact uncompressed JSON bytes, including any
+whitespace. Each reference version selects its own snapshot schema; it is not
+tied to the package version or the other snapshot version. Cache manifests omit
+both references and source provenance. Producer version remains
+provenance, not an invalidation rule. Archives may contain no numerical artifacts;
+the scientific context remains useful by itself.
+
+### Normalized request and optional source provenance
+
+The normative request schema is
+[`request-snapshot-v1.schema.json`](../schemas/request-snapshot-v1.schema.json),
+with an [H2 golden request](../crates/rustiq-core/tests/data/persistence/request-h2-v1.json).
+`request.json` is constructed from `PreparedCalculation::request()`, not source
+TOML/XYZ or the resolved snapshot. Its `format: "rustiq-request"` and `version: 1`
+identify the independent wire contract. Reopening reconstructs a typed
+`CalculationRequest`, without depending on original input files.
+
+The request preserves ordered atoms in the requested `bohr`/`angstrom` units,
+charge, multiplicity, a portable basis label, requested `auto`/`rhf`/`uhf` method,
+defaulted HF settings, and optional MP2 settings. The requested history size
+`diis_size` is required and remains present even when DIIS is disabled.
+`diis` and `diis_size` are independent requested values. The requested MP2 memory limit is tagged
+`{"kind":"auto"}` or `{"kind":"fixed","bytes":...}`; no machine-resolved
+memory budget is stored. A random seed may remain unspecified in the request;
+this deliberately asks preparation to choose a fresh seed. The unresolved request
+keeps that state while `calculation.json` records the concrete seed actually used.
+Comments, source
+spans, source paths, cache configuration, and output/UI settings are excluded.
+The basis label is informational; resolved AO contents define scientific identity.
+
+Sources are optional opaque bytes, including non-UTF-8 content. They are never
+parsed to reconstruct either semantic snapshot and never enter compatibility.
+The optional manifest `sources` array contains records such as:
+
+```json
+{"original_name":"../input.toml","path":"sources/0","version":1,
+ "size":123,"digest":"sha256:..."}
+```
+
+`original_name` is informational provenance and may contain an original path.
+It is never used as an extraction or publication path. Writers assign safe member
+names (`sources/0`, `sources/1`, ...); readers accept safe relative members under
+`sources/` and reject duplicate references. Sources have size/SHA-256 checks and
+are read eagerly with a combined 64 MiB limit, at most 256 sources, and at most
+4096 UTF-8 bytes per original name. Missing sources are valid for direct Rust API
+use. `request.json` and `calculation.json` are required independently of sources.
+
+The reader validates request semantics and their consistency with the resolved
+molecule, method, scientific settings, and MP2 selection. Requested Angstrom
+coordinates are checked using the V1 constant `0.529177210903` Angstrom per
+Bohr, rounded to binary64, and binary64 division. A resolved coordinate may differ
+from that result by at most four adjacent binary64 values (ULPs), allowing final
+rounding differences between independent implementations. This includes at most
+four subnormal steps near zero; there is no absolute chemistry-level tolerance.
+Both values and the converted result must be finite. Bohr requests compare
+numerically exactly, treating signed zeros as equal. This V1 rule is independent
+of domain conversion constants or dependency updates. `calculation.json` remains
+authoritative for resolved coordinates and scientific identity; validation never
+replaces or rounds them. HF method resolution is also frozen by V1 rather than
+delegated to the current RustiQ domain policy: `auto` resolves to RHF for a
+closed-shell singlet (multiplicity 1 with an even electron count) and to UHF
+otherwise; explicit RHF is valid only for a closed-shell singlet, while explicit
+UHF remains UHF. A missing requested random seed may resolve to a generated seed.
+Neither snapshot substitutes for the other.
+
+### Resolved scientific snapshot
+
+The normative structural schema is
+[`calculation-snapshot-v1.schema.json`](../schemas/calculation-snapshot-v1.schema.json).
+The [H2 golden snapshot](../crates/rustiq-core/tests/data/persistence/calculation-h2-v1.json)
+provides a complete example. Wire records are explicitly defined, independently
+of domain Rust struct layouts and package versions. Iteration limits, DIIS sizes,
+and frozen-orbital counts use unsigned 64-bit JSON integers (maximum
+18446744073709551615). Domain conversions are checked in both directions;
+a reader rejects values exceeding its host integer range.
+
+- `format: "rustiq-calculation"`, `version: 1`, `units: "bohr"` identify the
+  snapshot contract and coordinate unit.
+- `atoms` contains ordered atomic numbers and positions; `charge` and
+  `multiplicity` define the molecular electronic state.
+- `basis` contains effective AOs in integral-engine order. Each has a center,
+  ordered Cartesian components with three angular-momentum integers, and ordered
+  primitives with positive exponents and effective normalized coefficients.
+  These include any spherical-component weights already applied by the engine.
+  Consumers must not normalize them again. A basis name or source file is not
+  needed to interpret the stored AO representation.
+- `hf` contains the resolved `rhf`/`uhf` method, iteration limit, convergence and
+  linear-dependency thresholds, Schwarz threshold, DIIS history size, and density
+  guess. `null`/omitted Schwarz threshold means screening disabled;
+  `null`/omitted DIIS size means DIIS disabled.
+- Density guesses are tagged as `core_hamiltonian`, `one_electron`, `random`, or
+  `zero`. Perturbations and random guesses record distribution parameters and a
+  required concrete resolved seed. A missing or null seed is invalid in
+  `calculation.json`. Seeds chosen during preparation are captured here, while an
+  initially unspecified seed stays unspecified in `request.json`. This does not capture
+  generator state or promise exact SCF continuation.
+- `mp2` is absent/null for HF-only requests, or contains `frozen_orbitals`.
+  This records the request, not an MP2 result or proof of convergence.
+- `ao_eri_computation_version` states the scientific algorithm identity used for
+  AO ERIs; the snapshot independently reproduces `scientific-identity-v1`.
+
+Coordinates and all floating parameters must be finite. Exponents and positive
+thresholds must be greater than zero. Electron counts, multiplicity and RHF method
+must be mutually consistent. Random uniform bounds must be finite, ordered, and
+have a finite width; normal standard deviation must be positive. Arrays must be
+nonempty where the schema requires them. Cross-field scientific checks supplement
+the structural JSON schema. Unsupported snapshot versions and unknown fields in
+known snapshot records are errors.
+
+The snapshot excludes cache locations, source paths/spans, output presentation,
+and memory budgets. Floating-point JSON parsing preserves binary64 round trips,
+so reparsing a snapshot cannot change its canonical scientific identity.
+The snapshot does not yet provide direct archive execution or reconstruct an SCF
+restart state.
+
+### Rust API
+
+`RustiQData::from_calculation(&PreparedCalculation)` captures requested and resolved inputs
+without executing HF. `set_eri` / `set::<AoEriArtifact>` supply an owned
+`CompactEri` whose dimension matches those inputs. The caller is responsible for
+supplying the ERIs computed for that calculation, rather than unrelated values
+of the same shape.
+
+```rust,ignore
+use rustiq_core::persistence::{CompactEri, RustiQData};
+
+// `prepared` is produced by CalculationBuilder; `eri` belongs to these inputs.
+let mut data = RustiQData::from_calculation(&prepared)?;
+// Optional: preserve exact source bytes separately from scientific state.
+data.add_source("calculation.toml", original_toml_bytes)?;
+data.set_eri(eri)?;
+data.write("water.rustiq")?;
+
+let mut restored = RustiQData::open("water.rustiq")?;
+let context = restored.calculation().expect("portable context");
+println!("{:?}: {} AOs", context.hf_method(), context.basis().len());
+for (name, representation) in restored.artifact_representations() {
+    println!("{name}: {representation}");
+}
+if restored.eri_is_compatible(&prepared) {
+    let eri: &CompactEri = restored.read_eri()?;
+}
+```
+
+`request()` exposes the reconstructed typed normalized request. `sources()`
+exposes exact captured bytes and informational original names. `calculation()`
+exposes read-only typed resolved context, including atoms, effective basis,
+HF settings and MP2 request. `producer()` exposes provenance, and
+`artifact_representations()` lists known and unknown artifacts without loading
+arrays. These inspections do not certify payload integrity.
+
+`open` requires only read access to the source. It validates the container index,
+manifest, both snapshot versions/digests/schemas, source sizes/digests, scientific
+identity, and declared artifact sizes. ERI dimensions and computation-version
+metadata must agree with the snapshot. It does not decode numerical arrays.
+The first typed read verifies SHA-256, bounded NPY header, f64 dtype, shape and
+exact payload length before decoding. Further reads return the same object.
+Missing ERIs are represented by `get::<AoEriArtifact>() == Ok(None)`; an
+unsupported representation is never silently treated as usable scientific data.
+
+`eri_is_compatible` compares effective integral inputs with another prepared
+calculation without loading arrays. Changing an HF-only request to MP2 does not
+invalidate AO ERIs. Compatibility does not imply that the payload has already
+been verified. There is no CLI reuse orchestration in this API release.
+
+Every new archive written by RustiQ records producer name `RustiQ` and the
+current package version, including when rewriting an older or foreign archive.
+Producer provenance does not change scientific identity.
+
+Writing a reopened archive preserves both semantic snapshots and exact captured
+source bytes. It preserves unloaded artifacts by verified streaming
+copy, including unknown representations and their attributes. Known ERI headers
+are checked before preservation; overwritten ERIs use the current representation.
+Errors use `PortableError` (including `AlreadyExists`, unsupported version,
+invalid context/archive, I/O and artifact errors), without public ZIP types.
+
+### Publication and container policy
+
+Writing creates a sibling temporary file, writes snapshot and artifacts with
+SHA-256 metadata, writes the manifest, finalizes the ZIP, syncs the file, and
+reopens it to validate the final index/context. Publication uses an atomic
+no-clobber operation. **An existing destination is never replaced**, including
+when two producers race to create it. Unix additionally syncs the parent
+directory after publication. Failures before publication leave the destination
+untouched and clean up the temporary file. A directory-sync error after
+publication can leave a complete output file and is still reported as an error.
+
+Writers use `Stored` for numerical/opaque artifacts and `Deflated` for all three
+JSON members (`manifest.json`, `request.json`, and `calculation.json`). Streaming
+payloads reserve ZIP64 local-header fields even for small arrays, allowing growth
+past 4 GiB without buffering. ZIP64 central/end
+records are emitted when required. Timestamps are fixed to 1980-01-01 00:00:00,
+permissions to regular files with mode 0644, and member order is deterministic.
+Repeated writes of the same data by the same implementation produce identical
+bytes; compression-library changes are not promised byte-identical output and
+never change scientific identity.
+
+### Defensive reading limits
+
+Portable V1 accepts only single-disk ZIP archives with regular file members;
+directory entries are unnecessary and rejected. Supported compression is Stored
+or Deflated. Encryption, links, devices and other special entry types are errors.
+The reader validates original central-directory records before the ZIP library
+indexes them, so duplicate names cannot be silently collapsed.
+
+Limits applied before parsing or allocating payloads:
+
+| Structure | Limit |
+| --- | ---: |
+| Uncompressed manifest | 1 MiB |
+| Uncompressed calculation snapshot | 64 MiB |
+| Members | 4,096 |
+| Central directory | 16 MiB |
+| ZIP64 end-record body | 64 KiB |
+| NPY header body | 64 KiB |
+
+All member paths obey the logical path rules above. File/ancestor conflicts and
+case-insensitive collisions are rejected; metadata paths are reserved. Names must
+be valid UTF-8; non-ASCII names require the ZIP UTF-8 flag. Alternative Unicode
+path extra fields and duplicate extra fields are rejected to avoid competing
+names. Local/central names, flags and compression must agree. Invalid offsets,
+overlapping payloads, truncated directory records, and inconsistent ZIP64 fields
+are rejected. ZIP metadata names are not extracted onto the filesystem.
+
+Actual decompressed length and ZIP CRC are checked, in addition to independent
+SHA-256 digests. Streamed members cannot exceed their declared uncompressed size.
+NPY object/pickle arrays, unsupported dtype/rank, dimension overflow, extra bytes,
+and incomplete arrays are rejected. Large legitimate ERIs still require memory
+for the decoded `CompactEri`; there is no artificial 4 GiB payload limit.
+
+### Interoperability fixtures
+
+`tools/reference/generate_portable_fixtures.py` regenerates Python-produced
+ZIP64 fixtures using only standard-library modules and the existing NumPy byte
+fixtures. Both little- and big-endian f64 payloads are covered. The Python tests
+independently reproduce the scientific identity and verify ZIP/JSON/NumPy output
+written by Rust. Rust tests also exercise a sparse archive with offsets beyond
+4 GiB without allocating a multi-gigabyte payload.
+
+Run `uv run --locked pytest tools/reference` for interoperability and scientific
+reference comparisons, separately from the Cargo suite.
