@@ -109,8 +109,8 @@ pub use request::CalculationRequest;
 
 use crate::{
     config::{
-        HfConfig, HfConfigError, HfMethodResolutionError, MoleculeConfigError, Mp2Config,
-        ResolvedHfMethod,
+        HfConfig, HfConfigError, HfMethodResolutionError, IntegralConfig, MoleculeConfigError,
+        Mp2Config, ResolvedHfMethod,
     },
     hf::{
         scf::ScfCalculation,
@@ -203,24 +203,35 @@ impl<'a> HfCalculation<'a> {
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
+        integrals: &IntegralConfig,
     ) -> Result<Self, CalculationError> {
-        Self::new_with_progress(molecule, basis, config, None, |_| {})
+        Self::new_with_progress(molecule, basis, config, integrals, None, |_| {})
     }
 
     pub(crate) fn new_with_progress(
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
+        integrals: &IntegralConfig,
         eri_cache: Option<&'a EriCache>,
         progress: impl FnMut(ScfSetupStep),
     ) -> Result<Self, CalculationError> {
-        Self::new_with_progress_and_cache(molecule, basis, config, eri_cache, progress, |_| {})
+        Self::new_with_progress_and_cache(
+            molecule,
+            basis,
+            config,
+            integrals,
+            eri_cache,
+            progress,
+            |_| {},
+        )
     }
 
     pub(crate) fn new_with_progress_and_cache(
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
+        integrals: &IntegralConfig,
         eri_cache: Option<&'a EriCache>,
         mut progress: impl FnMut(ScfSetupStep),
         mut cache_event: impl FnMut(EriCacheEvent),
@@ -237,8 +248,12 @@ impl<'a> HfCalculation<'a> {
             molecule,
             basis,
             required_occupied_orbitals,
-            config.linear_dependency_threshold.value.into_inner(),
-            config.eri_schwarz_threshold,
+            config
+                .orthogonalization
+                .linear_dependency_threshold
+                .value
+                .into_inner(),
+            integrals.schwarz_threshold.value,
             eri_cache,
             &mut progress,
             &mut cache_event,
@@ -249,7 +264,7 @@ impl<'a> HfCalculation<'a> {
                 ScfPreparationError::Numerical(
                     NumericalError::InsufficientOverlapRank { .. }
                     | NumericalError::InvalidLinearDependencyThreshold { .. },
-                ) => config.linear_dependency_threshold.span,
+                ) => config.orthogonalization.linear_dependency_threshold.span,
                 ScfPreparationError::ElectronRepulsion(_) | ScfPreparationError::Numerical(_) => {
                     None
                 }
@@ -275,9 +290,7 @@ impl<'a> HfCalculation<'a> {
                     span: setup_span(&error, config),
                     error: error.into(),
                 })?;
-                if config.diis {
-                    scf.enable_diis(config.diis_size);
-                }
+                scf.configure_diis(&config.diis);
                 HfState::Rhf(scf)
             }
             ResolvedHfMethod::Uhf => {
@@ -298,9 +311,7 @@ impl<'a> HfCalculation<'a> {
                     },
                     error: error.into(),
                 })?;
-                if config.diis {
-                    scf.enable_diis(config.diis_size.into_inner())?;
-                }
+                scf.configure_diis(&config.diis);
                 HfState::Uhf(scf)
             }
         };
@@ -377,7 +388,7 @@ fn setup_span(error: &ScfSetupError<DensityGuessError>, config: &HfConfig) -> Op
         ScfSetupError::Numerical(
             NumericalError::InsufficientOverlapRank { .. }
             | NumericalError::InvalidLinearDependencyThreshold { .. },
-        ) => config.linear_dependency_threshold.span,
+        ) => config.orthogonalization.linear_dependency_threshold.span,
         _ => None,
     }
 }
