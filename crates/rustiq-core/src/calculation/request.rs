@@ -1,5 +1,5 @@
 use crate::{
-    config::{HfConfig, MoleculeConfig, Mp2Config},
+    config::{HfConfig, IntegralConfig, MoleculeConfig, Mp2Config},
     molecules::geometry::Geometry,
 };
 
@@ -14,6 +14,7 @@ pub struct CalculationRequest {
     pub(crate) molecule: MoleculeConfig,
     pub(crate) basis_name: String,
     pub(crate) hf: HfConfig,
+    pub(crate) integrals: IntegralConfig,
     pub(crate) mp2: Option<Mp2Config>,
 }
 
@@ -34,6 +35,10 @@ impl CalculationRequest {
 
     pub fn hf(&self) -> &HfConfig {
         &self.hf
+    }
+
+    pub fn integrals(&self) -> &IntegralConfig {
+        &self.integrals
     }
 
     pub fn mp2(&self) -> Option<&Mp2Config> {
