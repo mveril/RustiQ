@@ -264,7 +264,10 @@ mod tests {
         assert_eq!(hf.method, HfMethod::Auto);
         assert_eq!(hf.max_iterations.get(), 100);
         assert_eq!(hf.convergence_threshold.into_inner(), 1e-8);
-        assert_eq!(parsed.runfile.method.mp2.as_ref().unwrap().frozen_orbitals, 0);
+        assert_eq!(
+            parsed.runfile.method.mp2.as_ref().unwrap().frozen_orbitals,
+            0
+        );
         assert_eq!(fs::read_to_string(&output).unwrap(), content);
     }
 
