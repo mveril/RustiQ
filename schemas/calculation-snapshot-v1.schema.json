@@ -210,20 +210,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "seed",
         "distribution"
       ],
       "properties": {
         "seed": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 18446744073709551615
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
         },
         "distribution": {
           "$ref": "#/$defs/distribution"

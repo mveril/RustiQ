@@ -180,7 +180,7 @@ struct Hf {
     linear_dependency_threshold: f64,
     eri_schwarz_threshold: Option<f64>,
     diis_size: Option<u64>,
-    guess: Guess,
+    guess: ResolvedGuess,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -199,6 +199,24 @@ pub(super) enum Guess {
 #[serde(deny_unknown_fields)]
 pub(super) struct Random {
     seed: Option<u64>,
+    distribution: Distribution,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum ResolvedGuess {
+    CoreHamiltonian {
+        perturbation: Option<ResolvedRandom>,
+    },
+    OneElectron {
+        perturbation: Option<ResolvedRandom>,
+    },
+    Random { random: ResolvedRandom },
+    Zero,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResolvedRandom {
+    seed: u64,
     distribution: Distribution,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -268,7 +286,7 @@ impl Snapshot {
                     .then(|| u64::try_from(hf.diis_size.into_inner()))
                     .transpose()
                     .map_err(invalid)?,
-                guess: hf.guess.value.into(),
+                guess: ResolvedGuess::from_config(hf.guess.value)?,
             },
             mp2: mp2
                 .map(|mp2| {
@@ -537,32 +555,121 @@ impl Random {
         }
     }
 }
-impl Guess {
-    fn is_resolution_of(&self, requested: &Self) -> bool {
-        let random_matches = |resolved: &Random, requested: &Random| {
+impl ResolvedRandom {
+    fn from_config(config: RandomConfig) -> Result<Self, PortableError> {
+        let requested = Random::from(config);
+        let seed = requested.seed.ok_or_else(|| {
+            PortableError::InvalidCalculation(
+                "resolved random configuration is missing its seed".into(),
+            )
+        })?;
+        Ok(Self {
+            seed,
+            distribution: requested.distribution,
+        })
+    }
+
+    fn to_config(&self) -> RandomConfig {
+        Random {
+            seed: Some(self.seed),
+            distribution: self.distribution.clone(),
+        }
+        .to_config()
+    }
+}
+
+impl ResolvedGuess {
+    fn from_config(config: DensityGuessConfig) -> Result<Self, PortableError> {
+        Ok(match config {
+            DensityGuessConfig::CoreHamiltonian { perturbation } => Self::CoreHamiltonian {
+                perturbation: perturbation
+                    .map(|value| ResolvedRandom::from_config(value.random))
+                    .transpose()?,
+            },
+            DensityGuessConfig::OneElectron { perturbation } => Self::OneElectron {
+                perturbation: perturbation
+                    .map(|value| ResolvedRandom::from_config(value.random))
+                    .transpose()?,
+            },
+            DensityGuessConfig::Random { config } => Self::Random {
+                random: ResolvedRandom::from_config(config.random)?,
+            },
+            DensityGuessConfig::Zero => Self::Zero,
+        })
+    }
+
+    fn is_resolution_of(&self, requested: &Guess) -> bool {
+        let random_matches = |resolved: &ResolvedRandom, requested: &Random| {
             resolved.distribution == requested.distribution
-                && requested
-                    .seed
-                    .is_none_or(|seed| resolved.seed == Some(seed))
+                && requested.seed.is_none_or(|seed| resolved.seed == seed)
         };
         match (self, requested) {
             (
                 Self::CoreHamiltonian { perturbation: a },
-                Self::CoreHamiltonian { perturbation: b },
+                Guess::CoreHamiltonian { perturbation: b },
             )
-            | (Self::OneElectron { perturbation: a }, Self::OneElectron { perturbation: b }) => {
-                match (a, b) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => random_matches(a, b),
-                    _ => false,
-                }
-            }
-            (Self::Random { random: a }, Self::Random { random: b }) => random_matches(a, b),
-            (Self::Zero, Self::Zero) => true,
+            | (
+                Self::OneElectron { perturbation: a },
+                Guess::OneElectron { perturbation: b },
+            ) => match (a, b) {
+                (None, None) => true,
+                (Some(a), Some(b)) => random_matches(a, b),
+                _ => false,
+            },
+            (Self::Random { random: a }, Guess::Random { random: b }) => random_matches(a, b),
+            (Self::Zero, Guess::Zero) => true,
             _ => false,
         }
     }
 
+    fn validate(&self) -> Result<(), PortableError> {
+        let random = match self {
+            Self::CoreHamiltonian { perturbation } | Self::OneElectron { perturbation } => {
+                perturbation.as_ref()
+            }
+            Self::Random { random } => Some(random),
+            Self::Zero => None,
+        };
+        if let Some(random) = random {
+            let valid = match random.distribution {
+                Distribution::Uniform { min, max } => {
+                    min.is_finite() && max.is_finite() && min < max && (max - min).is_finite()
+                }
+                Distribution::Normal { mean, std_dev } => mean.is_finite() && positive(std_dev),
+            };
+            if !valid {
+                return Err(PortableError::InvalidCalculation(
+                    "invalid random distribution".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn to_config(&self) -> DensityGuessConfig {
+        use crate::config::{GuessPerturbationConfig, RandomGuessConfig};
+        match self {
+            Self::CoreHamiltonian { perturbation } => DensityGuessConfig::CoreHamiltonian {
+                perturbation: perturbation.as_ref().map(|value| GuessPerturbationConfig {
+                    random: value.to_config(),
+                }),
+            },
+            Self::OneElectron { perturbation } => DensityGuessConfig::OneElectron {
+                perturbation: perturbation.as_ref().map(|value| GuessPerturbationConfig {
+                    random: value.to_config(),
+                }),
+            },
+            Self::Random { random } => DensityGuessConfig::Random {
+                config: RandomGuessConfig {
+                    random: random.to_config(),
+                },
+            },
+            Self::Zero => DensityGuessConfig::Zero,
+        }
+    }
+}
+
+impl Guess {
     pub(super) fn validate(&self) -> Result<(), PortableError> {
         let random = match self {
             Guess::CoreHamiltonian { perturbation } | Guess::OneElectron { perturbation } => {
@@ -709,6 +816,45 @@ mod v1_contract_tests {
             resolve_hf_method_v1(HfMethod::Uhf, &open_shell),
             Some(ResolvedHfMethod::Uhf)
         );
+    }
+
+    #[test]
+    fn resolved_random_seed_is_required_by_v1() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../../schemas/calculation-snapshot-v1.schema.json"
+        ))
+        .unwrap();
+        assert!(schema["$defs"]["random"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("seed")));
+        assert_eq!(
+            schema["$defs"]["random"]["properties"]["seed"]["type"],
+            json!("integer")
+        );
+
+        let mut value: Value = serde_json::from_str(include_str!(
+            "../../tests/data/persistence/calculation-h2-v1.json"
+        ))
+        .unwrap();
+        value["hf"]["guess"] = json!({
+            "kind": "random",
+            "random": {
+                "seed": 42,
+                "distribution": {"kind": "uniform", "min": -1.0, "max": 1.0}
+            }
+        });
+        let snapshot: Snapshot = serde_json::from_value(value.clone()).unwrap();
+        snapshot.validate().unwrap();
+
+        value["hf"]["guess"]["random"]
+            .as_object_mut()
+            .unwrap()
+            .remove("seed");
+        assert!(serde_json::from_value::<Snapshot>(value.clone()).is_err());
+
+        value["hf"]["guess"]["random"]["seed"] = Value::Null;
+        assert!(serde_json::from_value::<Snapshot>(value).is_err());
     }
 
     #[test]

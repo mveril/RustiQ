@@ -232,8 +232,9 @@ impl RequestSnapshot {
             .molecule()
             .build(request.geometry().clone())
             .map_err(|error| PortableError::InvalidRequest(error.to_string()))?;
-        resolve_hf_method_v1(request.hf().method.value, &molecule)
-            .ok_or_else(|| PortableError::InvalidRequest("invalid V1 HF method resolution".into()))?;
+        resolve_hf_method_v1(request.hf().method.value, &molecule).ok_or_else(|| {
+            PortableError::InvalidRequest("invalid V1 HF method resolution".into())
+        })?;
         Ok(request)
     }
 }

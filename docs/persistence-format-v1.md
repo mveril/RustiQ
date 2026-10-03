@@ -284,8 +284,10 @@ defaulted HF settings, and optional MP2 settings. The requested history size
 `diis_size` is required and remains present even when DIIS is disabled.
 `diis` and `diis_size` are independent requested values. The requested MP2 memory limit is tagged
 `{"kind":"auto"}` or `{"kind":"fixed","bytes":...}`; no machine-resolved
-memory budget is stored. Random seeds omitted in the request remain absent even
-when preparation chooses a seed for the resolved calculation. Comments, source
+memory budget is stored. A random seed may remain unspecified in the request;
+this deliberately asks preparation to choose a fresh seed. The unresolved request
+keeps that state while `calculation.json` records the concrete seed actually used.
+Comments, source
 spans, source paths, cache configuration, and output/UI settings are excluded.
 The basis label is informational; resolved AO contents define scientific identity.
 
@@ -350,9 +352,10 @@ a reader rejects values exceeding its host integer range.
   guess. `null`/omitted Schwarz threshold means screening disabled;
   `null`/omitted DIIS size means DIIS disabled.
 - Density guesses are tagged as `core_hamiltonian`, `one_electron`, `random`, or
-  `zero`. Perturbations and random guesses record distribution parameters and an
-  resolved seed. Seeds chosen during preparation are captured here, while an
-  initially absent seed stays absent in `request.json`. This does not capture
+  `zero`. Perturbations and random guesses record distribution parameters and a
+  required concrete resolved seed. A missing or null seed is invalid in
+  `calculation.json`. Seeds chosen during preparation are captured here, while an
+  initially unspecified seed stays unspecified in `request.json`. This does not capture
   generator state or promise exact SCF continuation.
 - `mp2` is absent/null for HF-only requests, or contains `frozen_orbitals`.
   This records the request, not an MP2 result or proof of convergence.
