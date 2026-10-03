@@ -38,11 +38,7 @@ struct CalculationToml {
 }
 
 impl CalculationToml {
-    fn requested(
-        request: &CalculationRequest,
-        cache_enabled: bool,
-        scf_output: ScfOutput,
-    ) -> Self {
+    fn requested(request: &CalculationRequest, cache_enabled: bool, scf_output: ScfOutput) -> Self {
         Self {
             molecule: MoleculeConfig {
                 geometry: "molecule.xyz".into(),
@@ -134,8 +130,11 @@ pub(crate) fn requested_calculation(
     cache_enabled: bool,
     scf_output: ScfOutput,
 ) -> Result<CanonicalPair, ToTomlError> {
-    let toml =
-        render_calculation_toml(CalculationToml::requested(request, cache_enabled, scf_output))?;
+    let toml = render_calculation_toml(CalculationToml::requested(
+        request,
+        cache_enabled,
+        scf_output,
+    ))?;
     Ok(CanonicalPair {
         toml,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
@@ -328,8 +327,7 @@ mod tests {
 
     #[test]
     fn canonical_toml_keeps_component_sections_separate() {
-        let geometry =
-            Geometry::from_source("input.xyz", "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
+        let geometry = Geometry::from_source("input.xyz", "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
         let prepared = prepare(
             "[molecule]\n[basis]\nname = 'sto-3g'\n[method.hf]\n[method.hf.diis]\nenabled = true\nmax_history = 8\n[integrals]\nschwarz_threshold = 0.0\n",
             &geometry,
