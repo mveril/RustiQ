@@ -25,11 +25,11 @@ pub struct HfConfig {
     #[toml(default = default_conv_threshold())]
     #[toml(with = crate::runfile::validated::positive_finite_f64)]
     pub convergence_threshold: PositiveFiniteF64,
-    #[toml(default)]
+    #[toml(default, style = Header)]
     pub guess: DensityGuessConfig,
-    #[toml(default)]
+    #[toml(default, style = Header)]
     pub diis: DiisConfig,
-    #[toml(default)]
+    #[toml(default, style = Header)]
     pub orthogonalization: OrthogonalizationConfig,
 }
 
