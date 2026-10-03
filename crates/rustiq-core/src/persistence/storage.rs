@@ -168,7 +168,7 @@ impl Storage {
                 .take(max_size + 1)
                 .read_to_end(&mut bytes)
                 .map_err(StorageError::from)?;
-            if bytes.len() as u64 > max_size {
+            if u64::try_from(bytes.len()).map_err(|_| ManifestError::TooLarge)? > max_size {
                 return Err(ManifestError::TooLarge);
             }
             serde_json::from_slice(&bytes).map_err(ManifestError::from)
@@ -187,7 +187,7 @@ impl Storage {
             super::request::REQUEST_PATH => super::request::MAX_REQUEST_BYTES,
             _ => 1024 * 1024,
         };
-        if bytes.len() as u64 > limit {
+        if u64::try_from(bytes.len()).map_err(|_| ManifestError::TooLarge)? > limit {
             return Err(ManifestError::TooLarge);
         }
         self.write_artifact::<ManifestError, _>(path, |writer| {

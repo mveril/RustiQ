@@ -205,6 +205,12 @@ impl RustiQData {
         eri: Option<&CompactEri>,
     ) -> Result<(), PersistenceWriteError> {
         let mut manifest = self.manifest.clone();
+        if manifest.kind == ManifestKind::Portable {
+            manifest.producer = Producer {
+                name: "RustiQ".into(),
+                version: env!("CARGO_PKG_VERSION").into(),
+            };
+        }
 
         if let Some(context) = &self.context {
             let metadata = destination.write_json(
@@ -222,7 +228,8 @@ impl RustiQData {
         if let Some(request) = &self.request {
             let metadata = destination.write_json(
                 RelativePath::new(super::super::request::REQUEST_PATH),
-                &super::super::request::RequestSnapshot::from_request(request),
+                &super::super::request::RequestSnapshot::from_request(request)
+                    .map_err(|error| ArtifactError::InvalidMetadata(error.to_string()))?,
             )?;
             manifest.request = Some(super::super::manifest::SnapshotManifest {
                 path: super::super::request::REQUEST_PATH.into(),

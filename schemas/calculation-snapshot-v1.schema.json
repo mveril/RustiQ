@@ -325,7 +325,8 @@
         },
         "max_iterations": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 18446744073709551615
         },
         "convergence_threshold": {
           "type": "number",
@@ -350,7 +351,8 @@
           "anyOf": [
             {
               "type": "integer",
-              "minimum": 2
+              "minimum": 2,
+              "maximum": 18446744073709551615
             },
             {
               "type": "null"
@@ -371,7 +373,8 @@
       "properties": {
         "frozen_orbitals": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 18446744073709551615
         }
       }
     }

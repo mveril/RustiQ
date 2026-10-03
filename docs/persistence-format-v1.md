@@ -280,8 +280,9 @@ identify the independent wire contract. Reopening reconstructs a typed
 
 The request preserves ordered atoms in the requested `bohr`/`angstrom` units,
 charge, multiplicity, a portable basis label, requested `auto`/`rhf`/`uhf` method,
-defaulted HF settings, and optional MP2 settings. DIIS enablement and history size
-remain distinct even when disabled. The requested MP2 memory limit is tagged
+defaulted HF settings, and optional MP2 settings. The requested history size
+`diis_size` is required and remains present even when DIIS is disabled.
+`diis` and `diis_size` are independent requested values. The requested MP2 memory limit is tagged
 `{"kind":"auto"}` or `{"kind":"fixed","bytes":...}`; no machine-resolved
 memory budget is stored. Random seeds omitted in the request remain absent even
 when preparation chooses a seed for the resolved calculation. Comments, source
@@ -307,7 +308,16 @@ use. `request.json` and `calculation.json` are required independently of sources
 
 The reader validates request semantics and their consistency with the resolved
 molecule, method, scientific settings, and MP2 selection. Requested Angstrom
-coordinates resolve to Bohr and `auto` resolves to RHF/UHF; a missing requested
+coordinates are checked using the V1 constant `0.529177210903` Angstrom per
+Bohr, rounded to binary64, and binary64 division. A resolved coordinate may differ
+from that result by at most four adjacent binary64 values (ULPs), allowing final
+rounding differences between independent implementations. This includes at most
+four subnormal steps near zero; there is no absolute chemistry-level tolerance.
+Both values and the converted result must be finite. Bohr requests compare
+numerically exactly, treating signed zeros as equal. This V1 rule is independent
+of domain conversion constants or dependency updates. `calculation.json` remains
+authoritative for resolved coordinates and scientific identity; validation never
+replaces or rounds them. `auto` resolves to RHF/UHF; a missing requested
 random seed may resolve to a generated seed. Neither snapshot substitutes for
 the other.
 
@@ -317,7 +327,10 @@ The normative structural schema is
 [`calculation-snapshot-v1.schema.json`](../schemas/calculation-snapshot-v1.schema.json).
 The [H2 golden snapshot](../crates/rustiq-core/tests/data/persistence/calculation-h2-v1.json)
 provides a complete example. Wire records are explicitly defined, independently
-of domain Rust struct layouts and package versions.
+of domain Rust struct layouts and package versions. Iteration limits, DIIS sizes,
+and frozen-orbital counts use unsigned 64-bit JSON integers (maximum
+18446744073709551615). Domain conversions are checked in both directions;
+a reader rejects values exceeding its host integer range.
 
 - `format: "rustiq-calculation"`, `version: 1`, `units: "bohr"` identify the
   snapshot contract and coordinate unit.
@@ -407,6 +420,10 @@ calculation without loading arrays. Changing an HF-only request to MP2 does not
 invalidate AO ERIs. Compatibility does not imply that the payload has already
 been verified. There is no CLI reuse orchestration in this API release.
 
+Every new archive written by RustiQ records producer name `RustiQ` and the
+current package version, including when rewriting an older or foreign archive.
+Producer provenance does not change scientific identity.
+
 Writing a reopened archive preserves both semantic snapshots and exact captured
 source bytes. It preserves unloaded artifacts by verified streaming
 copy, including unknown representations and their attributes. Known ERI headers
@@ -425,9 +442,10 @@ directory after publication. Failures before publication leave the destination
 untouched and clean up the temporary file. A directory-sync error after
 publication can leave a complete output file and is still reported as an error.
 
-Writers use `Stored` for numerical/opaque artifacts and `Deflated` for the two
-JSON members. Streaming payloads reserve ZIP64 local-header fields even for
-small arrays, allowing growth past 4 GiB without buffering. ZIP64 central/end
+Writers use `Stored` for numerical/opaque artifacts and `Deflated` for all three
+JSON members (`manifest.json`, `request.json`, and `calculation.json`). Streaming
+payloads reserve ZIP64 local-header fields even for small arrays, allowing growth
+past 4 GiB without buffering. ZIP64 central/end
 records are emitted when required. Timestamps are fixed to 1980-01-01 00:00:00,
 permissions to regular files with mode 0644, and member order is deterministic.
 Repeated writes of the same data by the same implementation produce identical

@@ -17,9 +17,42 @@ pub(crate) const MAX_CALCULATION_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Read-only, resolved scientific context. Coordinates and centers are in Bohr.
 #[derive(Clone, Debug)]
-pub struct CalculationContext(pub(crate) Snapshot);
+pub struct CalculationContext(pub(crate) Snapshot, DomainCounts);
+
+// Checked once at the wire boundary; public accessors retain their domain types.
+#[derive(Clone, Debug)]
+struct DomainCounts {
+    max_iterations: usize,
+    diis_size: Option<usize>,
+    frozen_orbitals: Option<usize>,
+}
+impl DomainCounts {
+    fn from_snapshot(snapshot: &Snapshot) -> Result<Self, PortableError> {
+        let invalid =
+            |_| PortableError::InvalidCalculation("integer exceeds host usize range".into());
+        Ok(Self {
+            max_iterations: usize::try_from(snapshot.hf.max_iterations).map_err(invalid)?,
+            diis_size: snapshot
+                .hf
+                .diis_size
+                .map(usize::try_from)
+                .transpose()
+                .map_err(invalid)?,
+            frozen_orbitals: snapshot
+                .mp2
+                .as_ref()
+                .map(|v| usize::try_from(v.frozen_orbitals))
+                .transpose()
+                .map_err(invalid)?,
+        })
+    }
+}
 
 impl CalculationContext {
+    pub(crate) fn from_snapshot(snapshot: Snapshot) -> Result<Self, PortableError> {
+        let counts = DomainCounts::from_snapshot(&snapshot)?;
+        Ok(Self(snapshot, counts))
+    }
     pub fn atoms(&self) -> impl ExactSizeIterator<Item = (u32, [f64; 3])> + '_ {
         self.0
             .atoms
@@ -42,7 +75,7 @@ impl CalculationContext {
         }
     }
     pub fn max_iterations(&self) -> usize {
-        self.0.hf.max_iterations
+        self.1.max_iterations
     }
     pub fn convergence_threshold(&self) -> f64 {
         self.0.hf.convergence_threshold
@@ -54,11 +87,11 @@ impl CalculationContext {
         self.0.hf.eri_schwarz_threshold
     }
     pub fn diis_size(&self) -> Option<usize> {
-        self.0.hf.diis_size
+        self.1.diis_size
     }
     /// `None` means HF only; `Some(n)` requests MP2 with n frozen orbitals.
     pub fn mp2_frozen_orbitals(&self) -> Option<usize> {
-        self.0.mp2.as_ref().map(|mp2| mp2.frozen_orbitals)
+        self.1.frozen_orbitals
     }
     /// The initial density strategy; random settings do not promise an exact restart.
     pub fn density_guess(&self) -> crate::config::DensityGuessConfig {
@@ -141,17 +174,17 @@ enum Method {
 #[serde(deny_unknown_fields)]
 struct Hf {
     method: Method,
-    max_iterations: usize,
+    max_iterations: u64,
     convergence_threshold: f64,
     linear_dependency_threshold: f64,
     eri_schwarz_threshold: Option<f64>,
-    diis_size: Option<usize>,
+    diis_size: Option<u64>,
     guess: Guess,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Mp2 {
-    frozen_orbitals: usize,
+    frozen_orbitals: u64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -178,6 +211,7 @@ impl Snapshot {
     pub(crate) fn from_calculation(
         calculation: &PreparedCalculation,
     ) -> Result<Self, PortableError> {
+        let invalid = |_| PortableError::InvalidCalculation("integer exceeds V1 u64 range".into());
         let molecule = calculation.get_molecule();
         let basis = calculation.get_basis();
         let hf = calculation.hf_config();
@@ -224,16 +258,25 @@ impl Snapshot {
                     ResolvedHfMethod::Rhf => Method::Rhf,
                     ResolvedHfMethod::Uhf => Method::Uhf,
                 },
-                max_iterations: hf.max_iterations.get(),
+                max_iterations: u64::try_from(hf.max_iterations.get()).map_err(invalid)?,
                 convergence_threshold: hf.convergence_threshold.into_inner(),
                 linear_dependency_threshold: hf.linear_dependency_threshold.value.into_inner(),
                 eri_schwarz_threshold: hf.eri_schwarz_threshold.map(|value| value.into_inner()),
-                diis_size: hf.diis.then(|| hf.diis_size.into_inner()),
+                diis_size: hf
+                    .diis
+                    .then(|| u64::try_from(hf.diis_size.into_inner()))
+                    .transpose()
+                    .map_err(invalid)?,
                 guess: hf.guess.value.into(),
             },
-            mp2: mp2.map(|mp2| Mp2 {
-                frozen_orbitals: mp2.frozen_orbitals.value,
-            }),
+            mp2: mp2
+                .map(|mp2| {
+                    Ok::<_, PortableError>(Mp2 {
+                        frozen_orbitals: u64::try_from(mp2.frozen_orbitals.value)
+                            .map_err(invalid)?,
+                    })
+                })
+                .transpose()?,
             ao_eri_computation_version: AO_ERI_COMPUTATION_VERSION,
         };
         snapshot.validate()?;
@@ -304,6 +347,7 @@ impl Snapshot {
         {
             return Err(invalid("invalid HF settings"));
         }
+        DomainCounts::from_snapshot(self)?;
         self.hf.guess.validate()?;
         Ok(())
     }
@@ -314,11 +358,10 @@ impl Snapshot {
     ) -> Result<(), PortableError> {
         let invalid =
             || PortableError::InvalidRequest("request disagrees with resolved calculation".into());
-        let mut molecule = request
+        let molecule = request
             .molecule()
             .build(request.geometry().clone())
             .map_err(|_| invalid())?;
-        molecule.convert_to(crate::molecules::units::Units::Bohr);
         let method = request
             .hf()
             .resolve_method(&molecule)
@@ -329,19 +372,34 @@ impl Snapshot {
             || molecule.atoms.len() != self.atoms.len()
             || molecule.atoms.iter().zip(&self.atoms).any(|(a, b)| {
                 a.element.atomic_number != b.atomic_number
-                    || <[f64; 3]>::from(a.position) != b.position
+                    || !<[f64; 3]>::from(a.position)
+                        .into_iter()
+                        .zip(b.position)
+                        .all(|(requested, resolved)| {
+                            coordinate_matches_v1(requested, resolved, request.molecule().units)
+                        })
             })
             || !matches!(
                 (method, self.hf.method),
                 (ResolvedHfMethod::Rhf, Method::Rhf) | (ResolvedHfMethod::Uhf, Method::Uhf)
             )
-            || hf.max_iterations.get() != self.hf.max_iterations
+            || u64::try_from(hf.max_iterations.get()).map_err(|_| invalid())?
+                != self.hf.max_iterations
             || hf.convergence_threshold.into_inner() != self.hf.convergence_threshold
             || hf.linear_dependency_threshold.value.into_inner()
                 != self.hf.linear_dependency_threshold
             || hf.eri_schwarz_threshold.map(|v| v.into_inner()) != self.hf.eri_schwarz_threshold
-            || hf.diis.then(|| hf.diis_size.into_inner()) != self.hf.diis_size
-            || request.mp2().map(|v| v.frozen_orbitals.value)
+            || hf
+                .diis
+                .then(|| u64::try_from(hf.diis_size.into_inner()))
+                .transpose()
+                .map_err(|_| invalid())?
+                != self.hf.diis_size
+            || request
+                .mp2()
+                .map(|v| u64::try_from(v.frozen_orbitals.value))
+                .transpose()
+                .map_err(|_| invalid())?
                 != self.mp2.as_ref().map(|v| v.frozen_orbitals)
             || !self.hf.guess.is_resolution_of(&hf.guess.value.into())
         {
@@ -385,6 +443,40 @@ impl Snapshot {
         bytes.finish_ao_eri(self.hf.eri_schwarz_threshold)
     }
 }
+// V1 pins this decimal value (CODATA 2018 Bohr radius in Angstrom), rather
+// than inheriting a future physical_constants release. Parse as binary64 and divide.
+const V1_BOHR_IN_ANGSTROM: f64 = 0.529_177_210_903;
+
+fn coordinate_matches_v1(
+    requested: f64,
+    resolved: f64,
+    units: crate::molecules::units::Units,
+) -> bool {
+    use crate::molecules::units::Units;
+    let expected = match units {
+        Units::Bohr => requested,
+        Units::Angstrom => requested / V1_BOHR_IN_ANGSTROM,
+    };
+    if !expected.is_finite() || !resolved.is_finite() {
+        return false;
+    }
+    if units == Units::Bohr {
+        return expected == resolved;
+    }
+    // Four adjacent binary64 values cover division versus reciprocal multiplication
+    // and final rounding of independently produced conversions. There is no absolute
+    // chemistry-level floor: even near zero only four subnormal steps are allowed.
+    fn ordered(value: f64) -> u64 {
+        let bits = if value == 0.0 { 0 } else { value.to_bits() };
+        if bits >> 63 == 0 {
+            bits | (1 << 63)
+        } else {
+            (!bits) + 1
+        }
+    }
+    ordered(expected).abs_diff(ordered(resolved)) <= 4
+}
+
 fn positive(value: f64) -> bool {
     value.is_finite() && value > 0.0
 }
@@ -539,6 +631,86 @@ mod tests {
             let restored: Snapshot = serde_json::from_slice(&bytes).unwrap();
             restored.validate().unwrap();
             prop_assert_eq!(snapshot.identity(), restored.identity());
+        }
+    }
+}
+
+#[cfg(test)]
+mod v1_contract_tests {
+    use super::*;
+    use crate::molecules::units::Units;
+    use serde_json::{json, Value};
+
+    #[test]
+    fn conversion_comparison_is_bounded_in_binary64_steps() {
+        for requested in [0.74, -0.74, 1e-200, -1e-200, 1e200] {
+            let expected = requested / V1_BOHR_IN_ANGSTROM;
+            let four = f64::from_bits(expected.to_bits() + 4);
+            let five = f64::from_bits(expected.to_bits() + 5);
+            assert!(coordinate_matches_v1(requested, four, Units::Angstrom));
+            assert!(!coordinate_matches_v1(requested, five, Units::Angstrom));
+            assert!(!coordinate_matches_v1(requested, four, Units::Bohr));
+        }
+        assert!(coordinate_matches_v1(0.0, -0.0, Units::Angstrom));
+        assert!(coordinate_matches_v1(
+            0.0,
+            f64::from_bits(4),
+            Units::Angstrom
+        ));
+        assert!(!coordinate_matches_v1(
+            0.0,
+            f64::from_bits(5),
+            Units::Angstrom
+        ));
+        assert!(!coordinate_matches_v1(0.0, 1e-15, Units::Angstrom));
+        assert!(!coordinate_matches_v1(f64::MAX, f64::MAX, Units::Angstrom));
+        assert!(!coordinate_matches_v1(0.74, f64::NAN, Units::Angstrom));
+        assert!(!coordinate_matches_v1(0.74, f64::INFINITY, Units::Angstrom));
+    }
+
+    #[test]
+    fn resolved_counts_use_u64_wire_and_checked_host_values() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../../schemas/calculation-snapshot-v1.schema.json"
+        ))
+        .unwrap();
+        for (definition, field) in [
+            ("hf", "max_iterations"),
+            ("hf", "diis_size"),
+            ("mp2", "frozen_orbitals"),
+        ] {
+            let property = &schema["$defs"][definition]["properties"][field];
+            let integer = if field == "diis_size" {
+                &property["anyOf"][0]
+            } else {
+                property
+            };
+            assert_eq!(integer["maximum"], json!(u64::MAX));
+            let mut value: Value = serde_json::from_str(include_str!(
+                "../../tests/data/persistence/calculation-h2-v1.json"
+            ))
+            .unwrap();
+            value["mp2"] = json!({"frozen_orbitals":0});
+            value[definition][field] = json!(u64::MAX);
+            let snapshot: Snapshot = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(
+                snapshot.validate().is_ok(),
+                usize::try_from(u64::MAX).is_ok()
+            );
+            assert_eq!(
+                CalculationContext::from_snapshot(snapshot.clone()).is_ok(),
+                usize::try_from(u64::MAX).is_ok()
+            );
+            assert_eq!(
+                serde_json::to_value(snapshot).unwrap()[definition][field],
+                json!(u64::MAX)
+            );
+            for invalid in ["-1", "18446744073709551616"] {
+                let encoded = serde_json::to_string(&value)
+                    .unwrap()
+                    .replace("18446744073709551615", invalid);
+                assert!(serde_json::from_str::<Snapshot>(&encoded).is_err());
+            }
         }
     }
 }

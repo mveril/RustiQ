@@ -56,19 +56,19 @@ enum RequestedMethod {
 #[serde(deny_unknown_fields)]
 struct RequestedHf {
     method: RequestedMethod,
-    max_iterations: usize,
+    max_iterations: u64,
     convergence_threshold: f64,
     linear_dependency_threshold: f64,
     eri_schwarz_threshold: Option<f64>,
     diis: bool,
-    diis_size: usize,
+    diis_size: u64,
     guess: Guess,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RequestedMp2 {
-    frozen_orbitals: usize,
+    frozen_orbitals: u64,
     memory_limit: RequestedMemory,
 }
 
@@ -80,9 +80,10 @@ enum RequestedMemory {
 }
 
 impl RequestSnapshot {
-    pub(crate) fn from_request(request: &CalculationRequest) -> Self {
+    pub(crate) fn from_request(request: &CalculationRequest) -> Result<Self, PortableError> {
+        let invalid = || PortableError::InvalidRequest("integer exceeds V1 u64 range".into());
         let hf = request.hf();
-        Self {
+        Ok(Self {
             format: "rustiq-request".into(),
             version: 1,
             units: match request.molecule().units {
@@ -107,24 +108,30 @@ impl RequestSnapshot {
                     HfMethod::Rhf => RequestedMethod::Rhf,
                     HfMethod::Uhf => RequestedMethod::Uhf,
                 },
-                max_iterations: hf.max_iterations.get(),
+                max_iterations: u64::try_from(hf.max_iterations.get()).map_err(|_| invalid())?,
                 convergence_threshold: hf.convergence_threshold.into_inner(),
                 linear_dependency_threshold: hf.linear_dependency_threshold.value.into_inner(),
                 eri_schwarz_threshold: hf.eri_schwarz_threshold.map(|v| v.into_inner()),
                 diis: hf.diis,
-                diis_size: hf.diis_size.into_inner(),
+                diis_size: u64::try_from(hf.diis_size.into_inner()).map_err(|_| invalid())?,
                 guess: hf.guess.value.into(),
             },
-            mp2: request.mp2().map(|mp2| RequestedMp2 {
-                frozen_orbitals: mp2.frozen_orbitals.value,
-                memory_limit: match mp2.memory_limit.value {
-                    MemoryLimit::Auto => RequestedMemory::Auto,
-                    MemoryLimit::Fixed(bytes) => RequestedMemory::Fixed {
-                        bytes: bytes.as_u64(),
-                    },
-                },
-            }),
-        }
+            mp2: request
+                .mp2()
+                .map(|mp2| {
+                    Ok::<_, PortableError>(RequestedMp2 {
+                        frozen_orbitals: u64::try_from(mp2.frozen_orbitals.value)
+                            .map_err(|_| invalid())?,
+                        memory_limit: match mp2.memory_limit.value {
+                            MemoryLimit::Auto => RequestedMemory::Auto,
+                            MemoryLimit::Fixed(bytes) => RequestedMemory::Fixed {
+                                bytes: bytes.as_u64(),
+                            },
+                        },
+                    })
+                })
+                .transpose()?,
+        })
     }
 
     pub(crate) fn to_request(&self) -> Result<CalculationRequest, PortableError> {
@@ -161,7 +168,10 @@ impl RequestSnapshot {
                 RequestedMethod::Uhf => HfMethod::Uhf,
             }
             .into(),
-            max_iterations: NonZeroUsize::new(self.hf.max_iterations).ok_or_else(invalid)?,
+            max_iterations: NonZeroUsize::new(
+                usize::try_from(self.hf.max_iterations).map_err(|_| invalid())?,
+            )
+            .ok_or_else(invalid)?,
             convergence_threshold: PositiveFiniteF64::try_new(self.hf.convergence_threshold)
                 .map_err(|_| invalid())?,
             linear_dependency_threshold: NonNegativeFiniteF64::try_new(
@@ -177,7 +187,10 @@ impl RequestSnapshot {
                 .map_err(|_| invalid())?,
             guess: self.hf.guess.to_config().into(),
             diis: self.hf.diis,
-            diis_size: DiisSize::try_new(self.hf.diis_size).map_err(|_| invalid())?,
+            diis_size: DiisSize::try_new(
+                usize::try_from(self.hf.diis_size).map_err(|_| invalid())?,
+            )
+            .map_err(|_| invalid())?,
         };
         let request = CalculationRequest {
             geometry: Geometry::new(String::new(), atoms),
@@ -193,16 +206,24 @@ impl RequestSnapshot {
             },
             basis_name: self.basis.clone(),
             hf,
-            mp2: self.mp2.as_ref().map(|mp2| Mp2Config {
-                frozen_orbitals: mp2.frozen_orbitals.into(),
-                memory_limit: match mp2.memory_limit {
-                    RequestedMemory::Auto => MemoryLimit::Auto,
-                    RequestedMemory::Fixed { bytes } => {
-                        MemoryLimit::Fixed(bytesize::ByteSize(bytes))
-                    }
-                }
-                .into(),
-            }),
+            mp2: self
+                .mp2
+                .as_ref()
+                .map(|mp2| {
+                    Ok::<_, PortableError>(Mp2Config {
+                        frozen_orbitals: usize::try_from(mp2.frozen_orbitals)
+                            .map_err(|_| invalid())?
+                            .into(),
+                        memory_limit: match mp2.memory_limit {
+                            RequestedMemory::Auto => MemoryLimit::Auto,
+                            RequestedMemory::Fixed { bytes } => {
+                                MemoryLimit::Fixed(bytesize::ByteSize(bytes))
+                            }
+                        }
+                        .into(),
+                    })
+                })
+                .transpose()?,
         };
         let molecule = request
             .molecule()
@@ -213,5 +234,87 @@ impl RequestSnapshot {
             .resolve_method(&molecule)
             .map_err(|error| PortableError::InvalidRequest(error.to_string()))?;
         Ok(request)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    fn golden() -> Value {
+        serde_json::from_str(include_str!(
+            "../../tests/data/persistence/request-h2-v1.json"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn schema_and_decoder_require_diis_size_even_when_disabled() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../../schemas/request-snapshot-v1.schema.json"
+        ))
+        .unwrap();
+        assert!(schema["$defs"]["hf"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("diis_size")));
+        for enabled in [false, true] {
+            let mut value = golden();
+            value["hf"]["diis"] = json!(enabled);
+            value["hf"]["diis_size"] = json!(17);
+            let snapshot: RequestSnapshot = serde_json::from_value(value.clone()).unwrap();
+            let request = snapshot.to_request().unwrap();
+            assert_eq!(request.hf().diis, enabled);
+            assert_eq!(request.hf().diis_size.into_inner(), 17);
+            assert_eq!(
+                serde_json::to_value(RequestSnapshot::from_request(&request).unwrap()).unwrap()
+                    ["hf"]["diis_size"],
+                json!(17)
+            );
+            value["hf"].as_object_mut().unwrap().remove("diis_size");
+            assert!(serde_json::from_value::<RequestSnapshot>(value).is_err());
+        }
+    }
+
+    #[test]
+    fn unsigned_wire_limits_and_checked_domain_conversions() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../../schemas/request-snapshot-v1.schema.json"
+        ))
+        .unwrap();
+        for (definition, field) in [
+            ("hf", "max_iterations"),
+            ("hf", "diis_size"),
+            ("mp2", "frozen_orbitals"),
+        ] {
+            assert_eq!(
+                schema["$defs"][definition]["properties"][field]["maximum"],
+                json!(u64::MAX)
+            );
+            let mut value = golden();
+            value["mp2"] = json!({"frozen_orbitals":0,"memory_limit":{"kind":"auto"}});
+            value[definition][field] = json!(u64::MAX);
+            let snapshot: RequestSnapshot = serde_json::from_value(value.clone()).unwrap();
+            let decoded = snapshot.to_request();
+            assert_eq!(decoded.is_ok(), usize::try_from(u64::MAX).is_ok());
+            if let Ok(request) = decoded {
+                assert_eq!(
+                    serde_json::to_value(RequestSnapshot::from_request(&request).unwrap()).unwrap()
+                        [definition][field],
+                    json!(u64::MAX)
+                );
+            }
+            for invalid in ["-1", "18446744073709551616"] {
+                let encoded = serde_json::to_string(&value)
+                    .unwrap()
+                    .replace("18446744073709551615", invalid);
+                assert!(serde_json::from_str::<RequestSnapshot>(&encoded).is_err());
+            }
+            // A 32-bit reader must reject this valid V1 integer, not truncate it.
+            value[definition][field] = json!(u64::from(u32::MAX) + 1);
+            let snapshot: RequestSnapshot = serde_json::from_value(value).unwrap();
+            assert_eq!(snapshot.to_request().is_ok(), usize::BITS > 32);
+        }
     }
 }

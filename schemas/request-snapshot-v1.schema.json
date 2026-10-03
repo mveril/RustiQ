@@ -239,7 +239,8 @@
         "convergence_threshold",
         "linear_dependency_threshold",
         "guess",
-        "diis"
+        "diis",
+        "diis_size"
       ],
       "properties": {
         "method": {
@@ -251,7 +252,8 @@
         },
         "max_iterations": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 18446744073709551615
         },
         "convergence_threshold": {
           "type": "number",
@@ -274,7 +276,8 @@
         },
         "diis_size": {
           "type": "integer",
-          "minimum": 2
+          "minimum": 2,
+          "maximum": 18446744073709551615
         },
         "guess": {
           "$ref": "#/$defs/guess"
@@ -294,7 +297,8 @@
       "properties": {
         "frozen_orbitals": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 18446744073709551615
         },
         "memory_limit": {
           "oneOf": [

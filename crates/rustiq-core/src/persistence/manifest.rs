@@ -104,11 +104,38 @@ pub(crate) enum ArtifactAttributes {
     Unknown(BTreeMap<String, Value>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AoEriAttributes {
     pub basis_functions: usize,
     pub computation_version: u32,
+}
+
+// Keep the folder-cache/domain API while defining a pointer-width-independent wire record.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AoEriAttributesV1 {
+    basis_functions: u64,
+    computation_version: u32,
+}
+impl Serialize for AoEriAttributes {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        AoEriAttributesV1 {
+            basis_functions: u64::try_from(self.basis_functions)
+                .map_err(serde::ser::Error::custom)?,
+            computation_version: self.computation_version,
+        }
+        .serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for AoEriAttributes {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = AoEriAttributesV1::deserialize(deserializer)?;
+        Ok(Self {
+            basis_functions: usize::try_from(wire.basis_functions)
+                .map_err(serde::de::Error::custom)?,
+            computation_version: wire.computation_version,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -340,5 +367,29 @@ mod tests {
         }"#;
 
         assert!(serde_json::from_str::<Manifest>(json).is_err());
+    }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+
+    #[test]
+    fn ao_dimension_wire_is_u64_with_checked_host_conversion() {
+        let encoded = format!(
+            r#"{{"basis_functions":{},"computation_version":1}}"#,
+            u64::MAX
+        );
+        let result = serde_json::from_str::<AoEriAttributes>(&encoded);
+        assert_eq!(result.is_ok(), usize::try_from(u64::MAX).is_ok());
+        if let Ok(attributes) = result {
+            assert_eq!(serde_json::to_string(&attributes).unwrap(), encoded);
+        }
+        for invalid in ["-1", "18446744073709551616"] {
+            assert!(serde_json::from_str::<AoEriAttributes>(
+                &encoded.replace("18446744073709551615", invalid)
+            )
+            .is_err());
+        }
     }
 }

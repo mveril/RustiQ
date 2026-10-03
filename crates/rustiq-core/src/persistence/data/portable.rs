@@ -18,13 +18,15 @@ impl RustiQData {
     /// Add known artifacts with the typed setters before calling [`Self::write`].
     pub fn from_calculation(calculation: &PreparedCalculation) -> Result<Self, PortableError> {
         let snapshot = Snapshot::from_calculation(calculation)?;
+        RequestSnapshot::from_request(calculation.request())?;
+        snapshot.validate_request(calculation.request())?;
         let mut data = Self::new_with_identity(
             snapshot.identity(),
             snapshot.basis_functions(),
             ManifestKind::Portable,
         );
         data.request = Some(calculation.request().clone());
-        data.context = Some(CalculationContext(snapshot));
+        data.context = Some(CalculationContext::from_snapshot(snapshot)?);
         Ok(data)
     }
 
@@ -94,7 +96,10 @@ impl RustiQData {
             let bytes = source.with_artifact::<_, PortableError, _>(path, |reader| {
                 let mut bytes = Vec::new();
                 reader.take(reference.size + 1).read_to_end(&mut bytes)?;
-                if bytes.len() as u64 != reference.size {
+                if u64::try_from(bytes.len()).map_err(|_| {
+                    PortableError::InvalidArchive("source size exceeds V1 range".into())
+                })? != reference.size
+                {
                     return Err(ArtifactError::IntegrityMismatch(reference.path.clone()).into());
                 }
                 Ok(bytes)
@@ -144,7 +149,7 @@ impl RustiQData {
             }
         }
         data.basis_functions = Some(snapshot.basis_functions());
-        data.context = Some(CalculationContext(snapshot));
+        data.context = Some(CalculationContext::from_snapshot(snapshot)?);
         Ok(data)
     }
 
@@ -174,9 +179,14 @@ impl RustiQData {
         let total = self
             .sources
             .iter()
-            .map(|s| s.bytes().len() as u64)
-            .sum::<u64>()
-            + bytes.len() as u64;
+            .map(|source| source.bytes().len())
+            .chain(std::iter::once(bytes.len()))
+            .try_fold(0_u64, |total, length| {
+                u64::try_from(length)
+                    .ok()
+                    .and_then(|size| total.checked_add(size))
+            })
+            .ok_or_else(|| PortableError::InvalidArchive("source size exceeds V1 range".into()))?;
         if self.sources.len() >= MAX_SOURCES
             || total > MAX_SOURCE_BYTES
             || original_name.len() > MAX_SOURCE_NAME_BYTES

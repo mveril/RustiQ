@@ -163,8 +163,8 @@ fn normalized_request_round_trip_keeps_auto_angstrom_defaults_and_requested_opti
         .prepare()
         .unwrap();
     assert_eq!(
-        serde_json::to_value(RequestSnapshot::from_request(defaulted.request())).unwrap(),
-        serde_json::to_value(RequestSnapshot::from_request(explicit.request())).unwrap()
+        serde_json::to_value(RequestSnapshot::from_request(defaulted.request()).unwrap()).unwrap(),
+        serde_json::to_value(RequestSnapshot::from_request(explicit.request()).unwrap()).unwrap()
     );
     let prepared = CalculationBuilder::new(&geometry, &basis)
         .with_basis_label("portable-basis-label")
@@ -214,8 +214,8 @@ fn normalized_request_round_trip_keeps_auto_angstrom_defaults_and_requested_opti
     };
     assert!(config.random.seed.is_some());
     assert_eq!(
-        serde_json::to_value(RequestSnapshot::from_request(request)).unwrap(),
-        serde_json::to_value(RequestSnapshot::from_request(prepared.request())).unwrap()
+        serde_json::to_value(RequestSnapshot::from_request(request).unwrap()).unwrap(),
+        serde_json::to_value(RequestSnapshot::from_request(prepared.request()).unwrap()).unwrap()
     );
 }
 
@@ -830,7 +830,12 @@ fn settings_are_resolved_and_machine_policy_is_excluded() {
         restored.validate().unwrap();
         assert_eq!(snapshot.identity(), restored.identity());
         assert_eq!(
-            format!("{:?}", CalculationContext(restored).density_guess()),
+            format!(
+                "{:?}",
+                CalculationContext::from_snapshot(restored)
+                    .unwrap()
+                    .density_guess()
+            ),
             format!("{:?}", prepared.hf_config().guess.value)
         );
         assert!(data.calculation().unwrap().atoms().nth(1).unwrap().1[0] > 1.0);
@@ -853,4 +858,173 @@ fn unsupported_representation_is_inspectable_but_not_scientifically_usable() {
     assert!(!restored.eri_is_compatible(&calculation()));
     assert!(restored.read_eri().is_err());
     restored.write(dir.path().join("copy.rustiq")).unwrap();
+}
+
+#[test]
+fn rewriting_foreign_producer_updates_provenance_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = dir.path().join("first.rustiq");
+    data().write(&first).unwrap();
+    let mut contents = members(&first);
+    edit_json(&mut contents, "manifest.json", |m| {
+        m["producer"] = serde_json::json!({"name":"Python","version":"old"});
+    });
+    let foreign = dir.path().join("foreign.rustiq");
+    write_members(&foreign, &contents);
+    let mut restored = RustiQData::open(&foreign).unwrap();
+    assert_eq!(restored.producer(), ("Python", "old"));
+    let output = dir.path().join("rewritten.rustiq");
+    restored.write(&output).unwrap();
+    assert!(restored.ao_eri.is_none());
+    let mut rewritten = RustiQData::open(&output).unwrap();
+    assert_eq!(rewritten.producer(), ("RustiQ", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        rewritten.manifest.scientific_identity,
+        restored.manifest.scientific_identity
+    );
+    assert_eq!(rewritten.manifest.artifacts, restored.manifest.artifacts);
+    assert!(rewritten.eri_is_compatible(&calculation()));
+    assert_eq!(
+        rewritten.read_eri().unwrap().ordered_values(),
+        &[0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+    );
+    assert_eq!(members(&foreign), contents);
+    // Producer changes do not disturb reproducibility for the current writer.
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&output).unwrap());
+}
+
+#[test]
+fn independently_rounded_python_angstrom_conversion_is_accepted() {
+    let fixture =
+        include_str!("../../../../tests/data/persistence/portable-python-angstrom-v1.rustiq.hex");
+    let bytes: Vec<u8> = fixture
+        .trim()
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("python.rustiq");
+    fs::write(&path, bytes).unwrap();
+    let mut restored = RustiQData::open(&path).unwrap();
+    let requested = restored.request().unwrap().geometry().atoms[1].position[0];
+    let resolved = restored.calculation().unwrap().atoms().nth(1).unwrap().1[0];
+    // Python Decimal divided the exact binary64 request by the decimal V1
+    // constant, rounding only the final result. It differs by one ULP from
+    // dividing by the rounded binary64 constant, so exact equality would fail.
+    assert_eq!(requested, 0.74);
+    assert_ne!(requested / 0.529_177_210_903, resolved);
+    assert_eq!(
+        (requested / 0.529_177_210_903)
+            .to_bits()
+            .abs_diff(resolved.to_bits()),
+        1
+    );
+    let identity = restored.manifest.scientific_identity.clone();
+    let rewritten = dir.path().join("rewritten.rustiq");
+    restored.write(&rewritten).unwrap();
+    assert_eq!(
+        RustiQData::open(&rewritten)
+            .unwrap()
+            .manifest
+            .scientific_identity,
+        identity
+    );
+    let mut contents = members(&path);
+    edit_json(&mut contents, REQUEST_PATH, |r| {
+        r["atoms"][1]["position"][0] = (requested + 1e-10).into()
+    });
+    let request = &contents.iter().find(|(n, _)| n == REQUEST_PATH).unwrap().1;
+    let (size, digest) = (request.len(), sha256(request).to_string());
+    edit_json(&mut contents, "manifest.json", |m| {
+        m["request"]["size"] = size.into();
+        m["request"]["digest"] = digest.into();
+    });
+    let invalid = dir.path().join("changed.rustiq");
+    write_members(&invalid, &contents);
+    assert!(matches!(
+        RustiQData::open(&invalid),
+        Err(PortableError::InvalidRequest(_))
+    ));
+}
+
+#[test]
+fn published_required_fields_match_v1_decoders() {
+    use serde_json::{json, Value};
+    let cases = [
+        (
+            include_str!("../../../../../../schemas/request-snapshot-v1.schema.json"),
+            include_str!("../../../../tests/data/persistence/request-h2-v1.json"),
+            true,
+            vec![
+                ("", ""),
+                ("/hf", "hf"),
+                ("/atoms/0", "atom"),
+                ("/mp2", "mp2"),
+            ],
+        ),
+        (
+            include_str!("../../../../../../schemas/calculation-snapshot-v1.schema.json"),
+            include_str!("../../../../tests/data/persistence/calculation-h2-v1.json"),
+            false,
+            vec![
+                ("", ""),
+                ("/hf", "hf"),
+                ("/atoms/0", "atom"),
+                ("/mp2", "mp2"),
+                ("/basis/0", "ao"),
+                ("/basis/0/components/0", "component"),
+                ("/basis/0/components/0/primitives/0", "primitive"),
+            ],
+        ),
+    ];
+    for (schema, fixture, is_request, records) in cases {
+        let schema: Value = serde_json::from_str(schema).unwrap();
+        let mut value: Value = serde_json::from_str(fixture).unwrap();
+        value["mp2"] = if is_request {
+            json!({"frozen_orbitals":0,"memory_limit":{"kind":"auto"}})
+        } else {
+            json!({"frozen_orbitals":0})
+        };
+        for (path, definition) in records {
+            let record_schema = if definition.is_empty() {
+                &schema
+            } else {
+                &schema["$defs"][definition]
+            };
+            let required = record_schema["required"].as_array().unwrap();
+            let properties = record_schema["properties"].as_object().unwrap();
+            let decode = |candidate: Value| {
+                if is_request {
+                    serde_json::from_value::<RequestSnapshot>(candidate).is_ok()
+                } else {
+                    serde_json::from_value::<Snapshot>(candidate).is_ok()
+                }
+            };
+            for field in properties.keys() {
+                let mut candidate = value.clone();
+                candidate
+                    .pointer_mut(path)
+                    .unwrap()
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(field);
+                assert_eq!(
+                    decode(candidate),
+                    !required.contains(&json!(field)),
+                    "{is_request} {definition} {field}"
+                );
+            }
+            let mut candidate = value.clone();
+            candidate
+                .pointer_mut(path)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert("unknown_v1_field".into(), json!(0));
+            assert!(!decode(candidate), "unknown field in {definition}");
+        }
+    }
 }

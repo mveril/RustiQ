@@ -57,7 +57,7 @@ impl NpyConvert for CompactEri {
     }
 
     fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
-        let shape = [self.len() as u64];
+        let shape = [u64::try_from(self.len()).map_err(|_| NpyError::DimensionOverflow)?];
         let mut writer = npyz::WriteOptions::new()
             .default_dtype()
             .shape(&shape)
@@ -89,7 +89,7 @@ impl NpyConvert for DMatrix<f64> {
     }
 
     fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
-        let shape = [self.nrows() as u64, self.ncols() as u64];
+        let shape = Self::npy_shape((self.nrows(), self.ncols()))?;
         let mut writer = npyz::WriteOptions::new()
             .default_dtype()
             .order(npyz::Order::Fortran)
@@ -134,7 +134,8 @@ pub(crate) fn checked_eri_prefix(
     reader
         .read_exact(&mut length[..length_bytes])
         .map_err(NpyError::Read)?;
-    let header_len = u32::from_le_bytes(length) as usize;
+    let header_len =
+        usize::try_from(u32::from_le_bytes(length)).map_err(|_| NpyError::DimensionOverflow)?;
     if header_len > 65536 {
         return Err(NpyError::Read(std::io::Error::new(
             std::io::ErrorKind::InvalidData,

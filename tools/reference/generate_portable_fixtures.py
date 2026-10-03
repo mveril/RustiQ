@@ -139,5 +139,61 @@ def generate() -> None:
         )
 
 
+def generate_angstrom() -> None:
+    """Produce coordinates independently, rounding only after Decimal division."""
+    from decimal import Decimal, localcontext
+
+    request = json.loads((FIXTURES / "request-h2-v1.json").read_bytes())
+    snapshot = json.loads((FIXTURES / "calculation-h2-v1.json").read_bytes())
+    request["units"] = "angstrom"
+    request["atoms"][1]["position"] = [0.74, -0.13, 0.0]
+    with localcontext() as context:
+        context.prec = 100
+        coordinates = [
+            float(Decimal.from_float(x) / Decimal("0.529177210903"))
+            for x in request["atoms"][1]["position"]
+        ]
+    snapshot["atoms"][1]["position"] = coordinates
+    snapshot["basis"][1]["center"] = coordinates
+    request_bytes = json.dumps(request, indent=2).encode() + b"\n"
+    snapshot_bytes = json.dumps(snapshot, indent=2).encode() + b"\n"
+    manifest = {
+        "format": "rustiq-persistence",
+        "format_version": 1,
+        "kind": "portable",
+        "producer": {"name": "Python Decimal interoperability fixture", "version": "1"},
+        "scientific_identity": {"version": 1, "digest": scientific_identity(snapshot)},
+        "request": {
+            "path": "request.json",
+            "version": 1,
+            "size": len(request_bytes),
+            "digest": digest(request_bytes),
+        },
+        "calculation": {
+            "path": "calculation.json",
+            "version": 1,
+            "size": len(snapshot_bytes),
+            "digest": digest(snapshot_bytes),
+        },
+        "artifacts": {},
+    }
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", allowZip64=True) as archive:
+        for name, content in [
+            ("manifest.json", json.dumps(manifest, indent=2).encode() + b"\n"),
+            ("request.json", request_bytes),
+            ("calculation.json", snapshot_bytes),
+        ]:
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.create_system = 3
+            info.external_attr = 0o100644 << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, content)
+    (FIXTURES / "portable-python-angstrom-v1.rustiq.hex").write_text(
+        output.getvalue().hex() + "\n", encoding="ascii"
+    )
+
+
 if __name__ == "__main__":
     generate()
+    generate_angstrom()

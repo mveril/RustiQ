@@ -154,3 +154,39 @@ def test_python_portable_golden_fixtures() -> None:
             payload = archive.read("arrays/integrals/ao-eri.npy")
             assert digest(payload) == manifest["artifacts"]["ao_eri"]["digest"]
             _assert_ao_eri_values(np.load(io.BytesIO(payload), allow_pickle=False))
+
+
+def test_python_angstrom_conversion_fixture() -> None:
+    import json
+    import zipfile
+    from decimal import Decimal, localcontext
+
+    from generate_portable_fixtures import digest, scientific_identity
+
+    content = bytes.fromhex(
+        (FIXTURE_DIR / "portable-python-angstrom-v1.rustiq.hex").read_text()
+    )
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        request_bytes = archive.read("request.json")
+        snapshot_bytes = archive.read("calculation.json")
+        request = json.loads(request_bytes)
+        snapshot = json.loads(snapshot_bytes)
+        assert request["units"] == "angstrom"
+        assert snapshot["units"] == "bohr"
+        assert digest(request_bytes) == manifest["request"]["digest"]
+        assert digest(snapshot_bytes) == manifest["calculation"]["digest"]
+        assert (
+            scientific_identity(snapshot) == manifest["scientific_identity"]["digest"]
+        )
+        with localcontext() as context:
+            context.prec = 100
+            for requested, resolved in zip(
+                request["atoms"][1]["position"],
+                snapshot["atoms"][1]["position"],
+                strict=True,
+            ):
+                assert resolved == float(
+                    Decimal.from_float(requested) / Decimal("0.529177210903")
+                )
+        assert snapshot["atoms"][1]["position"][0] != 0.74 / 0.529177210903

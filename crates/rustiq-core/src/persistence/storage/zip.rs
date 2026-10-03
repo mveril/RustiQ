@@ -85,7 +85,8 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
     let length = file.metadata()?.len();
     let tail_len = length.min(22 + u64::from(u16::MAX));
     file.seek(SeekFrom::Start(length - tail_len))?;
-    let mut tail = vec![0; tail_len as usize];
+    let mut tail =
+        vec![0; usize::try_from(tail_len).map_err(|_| invalid("tail size exceeds host range"))?];
     file.read_exact(&mut tail)?;
     let end = (0..tail.len().saturating_sub(21))
         .rev()
@@ -95,7 +96,8 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
         })
         .ok_or_else(|| invalid("missing or truncated ZIP end record"))?;
     let eocd = &tail[end..];
-    let end_offset = length - tail_len + end as u64;
+    let end_offset = length - tail_len
+        + u64::try_from(end).map_err(|_| invalid("end offset exceeds V1 range"))?;
     if u16_at(eocd, 4) != 0 || u16_at(eocd, 6) != 0 || u16_at(eocd, 8) != u16_at(eocd, 10) {
         return Err(invalid("multi-disk archives are unsupported"));
     }
@@ -158,14 +160,15 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
     {
         return Err(invalid("missing ZIP64 end record"));
     }
-    if count > MAX_MEMBERS as u64
+    if count > u64::try_from(MAX_MEMBERS).map_err(|_| invalid("member limit exceeds V1 range"))?
         || size > MAX_DIRECTORY_BYTES
         || offset.checked_add(size) != Some(directory_end)
     {
         return Err(invalid("oversized or inconsistent ZIP directory"));
     }
     file.seek(SeekFrom::Start(offset))?;
-    let mut directory = vec![0; size as usize];
+    let mut directory =
+        vec![0; usize::try_from(size).map_err(|_| invalid("directory size exceeds host range"))?];
     file.read_exact(&mut directory)?;
     let mut cursor = 0_usize;
     let mut paths = BTreeSet::new();
@@ -242,7 +245,7 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
             || u16_at(&local, 8) != method
             || local_name_len != name_len
             || local_offset
-                .checked_add(30 + name_len as u64 + local_extra_len)
+                .checked_add(30 + u64::from(u16_at(header, 28)) + local_extra_len)
                 .is_none_or(|end| end > offset)
         {
             return Err(invalid("inconsistent local header"));
@@ -252,7 +255,11 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
         if local_name != name_bytes {
             return Err(invalid("local/central member names differ"));
         }
-        let mut local_extra = vec![0; local_extra_len as usize];
+        let mut local_extra = vec![
+            0;
+            usize::try_from(local_extra_len)
+                .map_err(|_| invalid("extra field exceeds host range"))?
+        ];
         file.read_exact(&mut local_extra)?;
         validate_extras(&local_extra)?;
         cursor = next;
@@ -260,7 +267,10 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
     if cursor != directory.len() {
         return Err(invalid("unindexed central-directory records"));
     }
-    Ok((count as usize, offset))
+    Ok((
+        usize::try_from(count).map_err(|_| invalid("member count exceeds host range"))?,
+        offset,
+    ))
 }
 fn validate_extras(mut extra: &[u8]) -> Result<(), StorageError> {
     let mut kinds = BTreeSet::new();
