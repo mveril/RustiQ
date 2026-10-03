@@ -177,6 +177,8 @@ mod tests {
             assert!(full.contains(field), "missing {field}");
             assert!(!compact.contains(field), "unexpected {field}");
         }
+        assert!(full.contains("[method.hf.guess]"));
+        assert!(!compact.contains("[method.hf.guess]"));
         assert!(compact.contains("[method.hf]"));
         assert!(compact.contains("[method.mp2]"));
         let restored = parse_runfile("compact", &compact).unwrap();

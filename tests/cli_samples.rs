@@ -682,8 +682,8 @@ type = "CoreHamiltonian"
 }
 
 #[test]
-fn test_cli_h2_sample_can_disable_hf_formatting() {
-    let temp_root = temp_root("cli-sample-no-format");
+fn test_cli_h2_sample_can_quiet_scf_output() {
+    let temp_root = temp_root("cli-sample-quiet-scf");
     prepare_basis_store(&temp_root);
 
     let toml_path = temp_root.join("calculation.toml");
@@ -703,8 +703,8 @@ name = "sto-3g"
 [molecule]
 geometry = "{molecule_path}"
 
-[method.hf]
-format = "Nope"
+[output]
+scf = "Quiet"
 "#
         ),
     )

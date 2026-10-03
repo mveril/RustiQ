@@ -349,5 +349,9 @@ mod tests {
         assert!(rendered.contains("[output]"));
         assert!(rendered.contains("scf = \"Quiet\""));
         assert!(rendered.contains("[cache]\nenabled = true"));
+        let replay = parse_runfile("canonical.toml", &rendered).unwrap();
+        assert!(replay.integral_config.schwarz_threshold.value.is_none());
+        assert!(replay.runfile.cache.enabled);
+        assert_eq!(replay.runfile.output.scf, ScfOutput::Quiet);
     }
 }
