@@ -1,13 +1,13 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../molecule.xyz"
 charge = 1
 multiplicity = 2
 
-[hf]
+[method.hf]
 method = "Uhf"
 
-[hf.guess]
+[method.hf.guess]
 type = "OneElectron"
