@@ -1,11 +1,11 @@
 //! Explicit conversions between CLI TOML representations and scientific options.
-use super::{hf, mp2, random_config};
+use super::{hf, integrals, molecule, mp2, random_config};
 use rustiq_core::config as core;
 
-impl From<&super::global::molecule_config::MoleculeConfig> for core::MoleculeConfig {
-    fn from(value: &super::global::molecule_config::MoleculeConfig) -> Self {
+impl From<&molecule::MoleculeConfig> for core::MoleculeConfig {
+    fn from(value: &molecule::MoleculeConfig) -> Self {
         Self {
-            units: value.molecule_unit,
+            units: value.units,
             charge: value.charge.into(),
             multiplicity: value.multiplicity.into(),
         }
@@ -28,11 +28,17 @@ impl From<&hf::HfConfig> for core::HfConfig {
             method: core::HfMethod::from(&value.method).into(),
             max_iterations: value.max_iterations,
             convergence_threshold: value.convergence_threshold,
-            linear_dependency_threshold: value.linear_dependency_threshold.into(),
-            eri_schwarz_threshold: value.eri_schwarz_threshold,
             guess: core::DensityGuessConfig::from(value.guess).into(),
-            diis: value.diis,
-            diis_size: value.diis_size,
+            diis: core::DiisConfig {
+                enabled: value.diis.enabled,
+                max_history: value.diis.max_history.into(),
+            },
+            orthogonalization: core::OrthogonalizationConfig {
+                linear_dependency_threshold: value
+                    .orthogonalization
+                    .linear_dependency_threshold
+                    .into(),
+            },
         }
     }
 }
@@ -46,6 +52,14 @@ impl From<&mp2::Mp2Config> for core::Mp2Config {
                 mp2::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
             }
             .into(),
+        }
+    }
+}
+
+impl From<&integrals::IntegralConfig> for core::IntegralConfig {
+    fn from(value: &integrals::IntegralConfig) -> Self {
+        Self {
+            schwarz_threshold: value.schwarz_threshold.into(),
         }
     }
 }
@@ -106,6 +120,14 @@ impl From<random_config::RandomConfig> for core::random_config::RandomConfig {
         Self {
             distribution,
             seed: value.seed,
+        }
+    }
+}
+
+impl From<&core::IntegralConfig> for integrals::IntegralConfig {
+    fn from(value: &core::IntegralConfig) -> Self {
+        Self {
+            schwarz_threshold: value.schwarz_threshold.value,
         }
     }
 }
