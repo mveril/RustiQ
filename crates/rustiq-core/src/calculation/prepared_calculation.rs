@@ -5,7 +5,7 @@ use super::{
 use crate::hf::scf_result::ScfOutcome;
 use crate::{
     basis::Basis,
-    config::{HfConfig, Mp2Config, ResolvedHfMethod},
+    config::{HfConfig, IntegralConfig, Mp2Config, ResolvedHfMethod},
     molecules::molecule::Molecule,
     persistence::EriCache,
 };
@@ -23,6 +23,7 @@ pub struct PreparedCalculation {
     pub(super) basis: Basis,
     pub(super) basis_name: String,
     pub(super) hf: (HfConfig, ResolvedHfMethod),
+    pub(super) integrals: IntegralConfig,
     pub(super) mp2: Option<Mp2Config>,
     pub(super) eri_cache: Option<EriCache>,
 }
@@ -63,6 +64,10 @@ impl PreparedCalculation {
         config
     }
 
+    pub fn integral_config(&self) -> IntegralConfig {
+        super::builder::normalized_integral_config(&self.integrals)
+    }
+
     /// MP2 options without frontend source spans; automatic memory resolves at execution.
     pub fn mp2_config(&self) -> Option<&Mp2Config> {
         self.request.mp2()
@@ -89,6 +94,7 @@ impl PreparedCalculation {
             &self.molecule,
             &self.basis,
             config,
+            &self.integrals,
             self.eri_cache.as_ref(),
             |step| events.borrow_mut()(CalculationEvent::ScfSetup(step)),
             |event| events.borrow_mut()(CalculationEvent::EriCache(event)),
