@@ -26,15 +26,17 @@ use toml_spanner::Toml;
 #[derive(Debug, Toml)]
 #[toml(Toml, recoverable)]
 pub struct RunFile {
+    #[toml(default, style = Header)]
     pub molecule: MoleculeConfig,
+    #[toml(style = Header)]
     pub basis: BasisConfig,
-    #[toml(default)]
+    #[toml(default, style = Implicit)]
     pub method: MethodConfig,
-    #[toml(default)]
+    #[toml(default, style = Header)]
     pub integrals: IntegralConfig,
-    #[toml(default)]
+    #[toml(default, style = Header)]
     pub cache: CacheConfig,
-    #[toml(default)]
+    #[toml(default, style = Header)]
     pub output: OutputConfig,
 }
 
