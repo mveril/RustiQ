@@ -124,6 +124,27 @@ impl From<random_config::RandomConfig> for core::random_config::RandomConfig {
     }
 }
 
+impl From<&core::HfConfig> for hf::HfConfig {
+    fn from(value: &core::HfConfig) -> Self {
+        Self {
+            method: value.method.value.into(),
+            max_iterations: value.max_iterations,
+            convergence_threshold: value.convergence_threshold,
+            guess: value.guess.value.into(),
+            diis: hf::DiisConfig {
+                enabled: value.diis.enabled,
+                max_history: value.diis.max_history.value,
+            },
+            orthogonalization: hf::OrthogonalizationConfig {
+                linear_dependency_threshold: value
+                    .orthogonalization
+                    .linear_dependency_threshold
+                    .value,
+            },
+        }
+    }
+}
+
 impl From<&core::IntegralConfig> for integrals::IntegralConfig {
     fn from(value: &core::IntegralConfig) -> Self {
         Self {
