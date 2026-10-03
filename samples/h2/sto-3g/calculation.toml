@@ -1,8 +1,8 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../molecule.xyz"
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
