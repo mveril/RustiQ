@@ -297,10 +297,10 @@ mod tests {
             assert_eq!(
                 lines,
                 [
-                    "[basis]",
-                    "name = \"sto-3g\"",
                     "[molecule]",
                     "geometry = \"molecule.xyz\"",
+                    "[basis]",
+                    "name = \"sto-3g\"",
                     "[method.hf]"
                 ]
             );
@@ -312,8 +312,8 @@ mod tests {
         assert!(content.contains("[method.mp2]"));
         assert!(!content.contains("frozen_orbitals"));
         let run = parse_runfile("generated", &content).unwrap().runfile;
-        assert!(run.hf.is_some());
-        assert_eq!(run.mp2.unwrap().frozen_orbitals, 0);
+        assert!(run.method.hf.is_some());
+        assert_eq!(run.method.mp2.unwrap().frozen_orbitals, 0);
     }
 
     #[test]
@@ -353,10 +353,10 @@ mod tests {
             command(&input, &output, &extra).run().unwrap();
             let content = fs::read_to_string(&output).unwrap();
             let run = parse_runfile("generated", &content).unwrap().runfile;
-            assert_eq!(run.global.basis, "sto-3g");
-            assert_eq!(run.global.molecule.geometry, Path::new("../molecule.xyz"));
-            assert_eq!(run.global.molecule.charge, charge);
-            assert_eq!(run.global.molecule.multiplicity.get(), multiplicity);
+            assert_eq!(run.basis.name, "sto-3g");
+            assert_eq!(run.molecule.geometry, Path::new("../molecule.xyz"));
+            assert_eq!(run.molecule.charge, charge);
+            assert_eq!(run.molecule.multiplicity.get(), multiplicity);
             assert_eq!(
                 run.molecule.units,
                 if charge == -1 {
@@ -365,9 +365,9 @@ mod tests {
                     Units::Angstrom
                 }
             );
-            assert_eq!(run.hf.unwrap().method, expected_method);
-            assert_eq!(run.mp2.is_some(), mp2);
-            if let Some(config) = run.mp2 {
+            assert_eq!(run.method.hf.unwrap().method, expected_method);
+            assert_eq!(run.method.mp2.is_some(), mp2);
+            if let Some(config) = run.method.mp2 {
                 assert_eq!(config.frozen_orbitals, 0);
             }
         }
@@ -445,7 +445,7 @@ mod tests {
         let run = parse_runfile("generated", &fs::read_to_string(&output).unwrap())
             .unwrap()
             .runfile;
-        assert_eq!(temp.path().join(run.global.molecule.geometry), input);
+        assert_eq!(temp.path().join(run.molecule.geometry), input);
         let link = temp.path().join("link.toml");
         std::os::unix::fs::symlink(&output, &link).unwrap();
         assert!(command(&input, &link, &["--force"]).run().is_err());
