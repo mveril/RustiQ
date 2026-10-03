@@ -463,9 +463,9 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
                 .with_hf(HfConfig {
                     method: method.into(),
                     diis: DiisConfig {
-                enabled: true,
-                ..Default::default()
-            },
+                        enabled: true,
+                        ..Default::default()
+                    },
                     convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
                     ..Default::default()
                 })
