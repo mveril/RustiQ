@@ -154,22 +154,25 @@ mod tests {
 
     #[test]
     fn output_context_controls_defaults_without_changing_the_model() {
-        let source = "[global]\nbasis = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
+        let source = "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
         let parsed = parse_runfile("test", source).unwrap();
         let full = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
         for field in [
             "charge",
             "multiplicity",
-            "molecule_unit",
+            "units",
             "method",
             "max_iterations",
             "convergence_threshold",
             "linear_dependency_threshold",
-            "eri_schwarz_threshold",
-            "diis",
+            "schwarz_threshold",
+            "enabled",
+            "max_history",
             "guess",
             "frozen_orbitals",
+            "memory_limit",
+            "scf",
         ] {
             assert!(full.contains(field), "missing {field}");
             assert!(!compact.contains(field), "unexpected {field}");
@@ -190,22 +193,30 @@ mod tests {
     #[test]
     fn compact_output_preserves_non_default_and_tagged_configuration() {
         let source = r#"
-[global]
-basis = "cc-pvdz"
 [molecule]
 charge = -1
 multiplicity = 2
-molecule_unit = "Bohr"
+units = "Bohr"
+
+[basis]
+name = "cc-pvdz"
+
 [method.hf]
 method = "Uhf"
 max_iterations = 42
-diis = true
-[hf.guess]
+
+[method.hf.diis]
+enabled = true
+max_history = 8
+
+[method.hf.guess]
 type = "OneElectron"
-[hf.guess.perturbation]
+
+[method.hf.guess.perturbation]
 distribution = "Normal"
 mean = 0.0
 std_dev = 0.01
+
 [method.mp2]
 frozen_orbitals = 1
 "#;
