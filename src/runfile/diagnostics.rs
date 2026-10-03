@@ -113,59 +113,59 @@ fn humanized_runfile_error(
     };
 
     match path {
-        "global.basis" => (
+        "basis.name" => (
             "The basis set must be written as a string.".to_string(),
             "expected a basis set name, for example basis = \"sto-3g\"".to_string(),
         ),
-        "global.molecule.geometry" => (
+        "molecule.geometry" => (
             "The molecule geometry path must be a non-empty string.".to_string(),
             "expected a geometry file path".to_string(),
         ),
-        "global.molecule.charge" => (
+        "molecule.charge" => (
             "The molecule charge must be an integer.".to_string(),
             "expected an integer charge".to_string(),
         ),
-        "global.molecule.multiplicity" => (
+        "molecule.multiplicity" => (
             "The molecule multiplicity must be an integer greater than zero.".to_string(),
             "expected a positive spin multiplicity".to_string(),
         ),
-        "global.molecule.molecule_unit" => (
+        "molecule.units" => (
             "The molecule unit must be one of the supported unit names.".to_string(),
             "expected Bohr or Angstrom".to_string(),
         ),
-        "hf.max_iterations" => (
+        "method.hf.max_iterations" => (
             "The HF iteration limit must be an integer greater than zero.".to_string(),
             "expected a positive iteration count".to_string(),
         ),
-        "hf.convergence_threshold" => (
+        "method.hf.convergence_threshold" => (
             "The HF convergence threshold must be a positive finite number.".to_string(),
             "expected a positive finite threshold".to_string(),
         ),
-        "hf.linear_dependency_threshold" => (
+        "method.hf.orthogonalization.linear_dependency_threshold" => (
             "The HF linear dependency threshold must be a non-negative finite number.".to_string(),
             "expected a non-negative finite threshold".to_string(),
         ),
-        "hf.eri_schwarz_threshold" => (
+        "integrals.schwarz_threshold" => (
             "The ERI Schwarz threshold must be a non-negative finite number.".to_string(),
             "expected a non-negative finite threshold".to_string(),
         ),
-        "hf.diis" => (
+        "method.hf.diis.enabled" => (
             "The DIIS flag must be a boolean.".to_string(),
             "expected true or false".to_string(),
         ),
-        "hf.diis_size" => (
+        "method.hf.diis.max_history" => (
             "The DIIS history size must be an integer greater than or equal to 2.".to_string(),
             "expected a DIIS history size of at least 2".to_string(),
         ),
-        "hf.format" => (
+        "output.scf" => (
             "The HF output format must be one of the supported format names.".to_string(),
             "expected Normal or Nope".to_string(),
         ),
-        "mp2.frozen_orbitals" => (
+        "method.mp2.frozen_orbitals" => (
             "The MP2 frozen orbital count must be a non-negative integer.".to_string(),
             "expected a count of frozen orbitals".to_string(),
         ),
-        "hf.guess" => (
+        "method.hf.guess" => (
             "The HF density guess must be configured as a table.".to_string(),
             "expected a density guess configuration".to_string(),
         ),
@@ -209,14 +209,14 @@ mod tests {
         let result = parse_runfile(
             "calculation.toml",
             r#"
-            [global]
-            basis = 4
+            [basis]
+            name = 4
 
-            [hf]
+            [method.hf]
             max_iterations = 0
             convergence_threshold = 0.0
 
-            [mp2]
+            [method.mp2]
             frozen_orbitals = "one"
             "#,
         );
@@ -240,10 +240,10 @@ mod tests {
         let result = parse_runfile(
             "calculation.toml",
             r#"
-            [global]
-            basis = 4
+            [basis]
+            name = 4
 
-            [hf]
+            [method.hf]
             max_iterations = 0
             convergence_threshold = 0.0
             "#,
