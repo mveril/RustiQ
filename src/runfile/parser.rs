@@ -90,12 +90,19 @@ name = "sto-3g"
 [method.hf]
 method = "Rhf"
 
+[method.hf.guess]
+type = "CoreHamiltonian"
+
 [method.hf.orthogonalization]
 linear_dependency_threshold = 1.0
 
 [method.hf.diis]
 enabled = true
 max_history = 8
+
+[method.mp2]
+frozen_orbitals = 1
+memory_limit = "auto"
 
 [integrals]
 schwarz_threshold = 1e-10
@@ -108,6 +115,7 @@ schwarz_threshold = 1e-10
             &source[method_span.offset()..method_span.offset() + method_span.len()],
             "\"Rhf\""
         );
+        assert!(hf.guess.span.is_some());
         assert!(hf
             .orthogonalization
             .linear_dependency_threshold
@@ -117,13 +125,16 @@ schwarz_threshold = 1e-10
         assert!(parsed.integral_config.schwarz_threshold.span.is_some());
         assert!(parsed.molecule_config.charge.span.is_some());
         assert!(parsed.molecule_config.multiplicity.span.is_some());
+        let mp2 = parsed.mp2_config.unwrap();
+        assert!(mp2.frozen_orbitals.span.is_some());
+        assert!(mp2.memory_limit.span.is_some());
     }
 
     #[test]
     fn omitted_defaults_have_no_source_span() {
         let parsed = parse_runfile(
             "defaults.toml",
-            "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n",
+            "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n",
         )
         .unwrap();
         let hf = parsed.hf_config.unwrap();
@@ -136,5 +147,8 @@ schwarz_threshold = 1e-10
             .span
             .is_none());
         assert!(parsed.integral_config.schwarz_threshold.span.is_none());
+        let mp2 = parsed.mp2_config.unwrap();
+        assert!(mp2.frozen_orbitals.span.is_none());
+        assert!(mp2.memory_limit.span.is_none());
     }
 }

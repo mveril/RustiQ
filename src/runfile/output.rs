@@ -232,4 +232,34 @@ frozen_orbitals = 1
         assert!(compact.contains("OneElectron"));
         assert!(!compact.contains("linear_dependency_threshold"));
     }
+
+    #[test]
+    fn schwarz_threshold_zero_survives_compaction_and_omission_restores_default() {
+        let parsed = parse_runfile(
+            "zero.toml",
+            "[molecule]\n[basis]\nname = \"sto-3g\"\n[integrals]\nschwarz_threshold = 0\n",
+        )
+        .unwrap();
+        assert!(parsed.integral_config.schwarz_threshold.value.is_none());
+        let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
+        assert!(compact.contains("schwarz_threshold = 0"));
+        let restored = parse_runfile("compact.toml", &compact).unwrap();
+        assert!(restored.integral_config.schwarz_threshold.value.is_none());
+
+        let omitted = parse_runfile(
+            "omitted.toml",
+            "[molecule]\n[basis]\nname = \"sto-3g\"\n[integrals]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            omitted
+                .integral_config
+                .schwarz_threshold
+                .value
+                .unwrap()
+                .into_inner(),
+            rustiq_core::config::DEFAULT_ERI_SCHWARZ_THRESHOLD
+        );
+        assert!(omitted.integral_config.schwarz_threshold.span.is_none());
+    }
 }

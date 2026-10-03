@@ -22,6 +22,40 @@ impl From<&hf::HfMethod> for core::HfMethod {
     }
 }
 
+impl From<&hf::DiisConfig> for core::DiisConfig {
+    fn from(value: &hf::DiisConfig) -> Self {
+        Self {
+            enabled: value.enabled,
+            max_history: value.max_history.into(),
+        }
+    }
+}
+
+impl From<&core::DiisConfig> for hf::DiisConfig {
+    fn from(value: &core::DiisConfig) -> Self {
+        Self {
+            enabled: value.enabled,
+            max_history: value.max_history.value,
+        }
+    }
+}
+
+impl From<&hf::OrthogonalizationConfig> for core::OrthogonalizationConfig {
+    fn from(value: &hf::OrthogonalizationConfig) -> Self {
+        Self {
+            linear_dependency_threshold: value.linear_dependency_threshold.into(),
+        }
+    }
+}
+
+impl From<&core::OrthogonalizationConfig> for hf::OrthogonalizationConfig {
+    fn from(value: &core::OrthogonalizationConfig) -> Self {
+        Self {
+            linear_dependency_threshold: value.linear_dependency_threshold.value,
+        }
+    }
+}
+
 impl From<&hf::HfConfig> for core::HfConfig {
     fn from(value: &hf::HfConfig) -> Self {
         Self {
@@ -29,16 +63,8 @@ impl From<&hf::HfConfig> for core::HfConfig {
             max_iterations: value.max_iterations,
             convergence_threshold: value.convergence_threshold,
             guess: core::DensityGuessConfig::from(value.guess).into(),
-            diis: core::DiisConfig {
-                enabled: value.diis.enabled,
-                max_history: value.diis.max_history.into(),
-            },
-            orthogonalization: core::OrthogonalizationConfig {
-                linear_dependency_threshold: value
-                    .orthogonalization
-                    .linear_dependency_threshold
-                    .into(),
-            },
+            diis: (&value.diis).into(),
+            orthogonalization: (&value.orthogonalization).into(),
         }
     }
 }
@@ -131,16 +157,8 @@ impl From<&core::HfConfig> for hf::HfConfig {
             max_iterations: value.max_iterations,
             convergence_threshold: value.convergence_threshold,
             guess: value.guess.value.into(),
-            diis: hf::DiisConfig {
-                enabled: value.diis.enabled,
-                max_history: value.diis.max_history.value,
-            },
-            orthogonalization: hf::OrthogonalizationConfig {
-                linear_dependency_threshold: value
-                    .orthogonalization
-                    .linear_dependency_threshold
-                    .value,
-            },
+            diis: (&value.diis).into(),
+            orthogonalization: (&value.orthogonalization).into(),
         }
     }
 }
@@ -233,6 +251,65 @@ mod tests {
     use rustiq_core::config::{DensityGuessConfig, RandomGuessConfig};
     use std::mem::discriminant;
     use toml_spanner::Toml;
+
+    #[test]
+    fn component_configs_convert_in_both_directions() {
+        let frontend_diis = crate::runfile::hf::DiisConfig {
+            enabled: true,
+            max_history: crate::runfile::validated::DiisSize::try_new(9).unwrap(),
+        };
+        let core_diis = rustiq_core::config::DiisConfig::from(&frontend_diis);
+        assert!(core_diis.enabled);
+        assert_eq!(core_diis.max_history.value.into_inner(), 9);
+        let core_diis = rustiq_core::config::DiisConfig {
+            max_history: rustiq_core::config::Located {
+                value: core_diis.max_history.value,
+                span: Some((12usize, 2usize).into()),
+            },
+            ..core_diis
+        };
+        let frontend_diis = crate::runfile::hf::DiisConfig::from(&core_diis);
+        assert!(frontend_diis.enabled);
+        assert_eq!(frontend_diis.max_history.into_inner(), 9);
+        assert_eq!(core_diis.max_history.span.unwrap().offset(), 12);
+
+        let frontend_orthogonalization =
+            crate::runfile::hf::OrthogonalizationConfig {
+                linear_dependency_threshold:
+                    crate::runfile::validated::NonNegativeFiniteF64::try_new(1e-7).unwrap(),
+            };
+        let core_orthogonalization =
+            rustiq_core::config::OrthogonalizationConfig::from(&frontend_orthogonalization);
+        assert_eq!(
+            core_orthogonalization
+                .linear_dependency_threshold
+                .value
+                .into_inner(),
+            1e-7
+        );
+        let core_orthogonalization = rustiq_core::config::OrthogonalizationConfig {
+            linear_dependency_threshold: rustiq_core::config::Located {
+                value: core_orthogonalization.linear_dependency_threshold.value,
+                span: Some((20usize, 3usize).into()),
+            },
+        };
+        let frontend_orthogonalization =
+            crate::runfile::hf::OrthogonalizationConfig::from(&core_orthogonalization);
+        assert_eq!(
+            frontend_orthogonalization
+                .linear_dependency_threshold
+                .into_inner(),
+            1e-7
+        );
+        assert_eq!(
+            core_orthogonalization
+                .linear_dependency_threshold
+                .span
+                .unwrap()
+                .offset(),
+            20
+        );
+    }
     #[test]
     fn test_density_guess_type_deserialization() {
         #[derive(Toml)]

@@ -248,12 +248,8 @@ impl<'a> HfCalculation<'a> {
             molecule,
             basis,
             required_occupied_orbitals,
-            config
-                .orthogonalization
-                .linear_dependency_threshold
-                .value
-                .into_inner(),
-            integrals.schwarz_threshold.value,
+            &config.orthogonalization,
+            integrals,
             eri_cache,
             &mut progress,
             &mut cache_event,
