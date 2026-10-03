@@ -576,16 +576,11 @@ fn setup_errors_retain_threshold_and_guess_locations() {
         let mut config = HfConfig {
             method: method.into(),
             orthogonalization: OrthogonalizationConfig {
-                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0)
-                    .unwrap()
-                    .into(),
+                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
             },
             ..Default::default()
         };
-        config
-            .orthogonalization
-            .linear_dependency_threshold
-            .span = Some(span);
+        config.orthogonalization.linear_dependency_threshold.span = Some(span);
         let error = CalculationBuilder::new(&geometry, &file)
             .with_hf(config.clone())
             .execute()
@@ -636,9 +631,7 @@ fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
         let config = HfConfig {
             method: method.into(),
             orthogonalization: OrthogonalizationConfig {
-                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0)
-                    .unwrap()
-                    .into(),
+                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
             },
             ..Default::default()
         };
