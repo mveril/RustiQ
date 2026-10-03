@@ -241,13 +241,13 @@ mod tests {
         let parsed = parse_runfile("calculation.toml", &content).unwrap();
         let expanded = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         for field in [
-            "charge",
-            "multiplicity",
-            "units",
-            "method",
-            "max_iterations",
-            "convergence_threshold",
-            "frozen_orbitals",
+            "charge =",
+            "multiplicity =",
+            "units =",
+            "method =",
+            "max_iterations =",
+            "convergence_threshold =",
+            "frozen_orbitals =",
         ] {
             assert!(!content.contains(field), "init must omit {field}");
             assert!(
