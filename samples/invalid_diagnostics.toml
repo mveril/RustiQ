@@ -1,9 +1,9 @@
-[global]
-basis = 4
+[basis]
+name = 4
 
-[hf]
+[method.hf]
 max_iterations = 0
 convergence_threshold = 0.0
 
-[mp2]
+[method.mp2]
 frozen_orbitals = "one"

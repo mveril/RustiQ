@@ -1,96 +1,48 @@
 //! CLI TOML frontend. Convert these representations to `rustiq_core::config`
 //! before invoking scientific code; parsing is never needed for direct Rust use.
 mod adapter;
+pub mod basis;
 pub mod cache;
 mod diagnostics;
-pub mod global;
 pub mod hf;
+pub mod integrals;
+pub mod method;
+pub mod molecule;
 pub mod mp2;
 pub mod output;
-mod units;
-use global::Global;
 pub mod parser;
 pub mod random_config;
+mod units;
 pub mod validated;
+
+use basis::BasisConfig;
+use cache::CacheConfig;
+use integrals::IntegralConfig;
+use method::MethodConfig;
+use molecule::MoleculeConfig;
+use output::OutputConfig;
 use toml_spanner::Toml;
 
 #[derive(Debug, Toml)]
 #[toml(Toml, recoverable)]
 pub struct RunFile {
-    pub global: Global,
-    pub hf: Option<hf::HfConfig>,
-    #[toml(default)]
-    pub mp2: Option<mp2::Mp2Config>,
-    #[toml(default)]
-    pub cache: cache::CacheConfig,
-}
-
-#[cfg(test)]
-mod mp2_tests {
-    use super::*;
-
-    #[test]
-    fn test_runfile_defaults_mp2_to_none() {
-        let run: RunFile = toml_spanner::from_str(
-            r#"
-            [global]
-            basis = "sto-3g"
-            "#,
-        )
-        .unwrap();
-
-        assert!(run.mp2.is_none());
-    }
-
-    #[test]
-    fn test_runfile_defaults_cache_to_disabled() {
-        let run: RunFile = toml_spanner::from_str(
-            r#"
-            [global]
-            basis = "sto-3g"
-            "#,
-        )
-        .unwrap();
-
-        assert!(!run.cache.enabled);
-    }
-
-    #[test]
-    fn test_runfile_deserializes_enabled_cache() {
-        let run: RunFile = toml_spanner::from_str(
-            r#"
-            [global]
-            basis = "sto-3g"
-
-            [cache]
-            enabled = true
-            "#,
-        )
-        .unwrap();
-
-        assert!(run.cache.enabled);
-    }
-
-    #[test]
-    fn test_runfile_deserializes_mp2_section() {
-        let run: RunFile = toml_spanner::from_str(
-            r#"
-            [global]
-            basis = "sto-3g"
-
-            [mp2]
-            frozen_orbitals = 1
-            "#,
-        )
-        .unwrap();
-
-        assert_eq!(run.mp2.unwrap().frozen_orbitals, 1);
-    }
+    #[toml(default, style = Header)]
+    pub molecule: MoleculeConfig,
+    #[toml(style = Header)]
+    pub basis: BasisConfig,
+    #[toml(default, style = Implicit)]
+    pub method: MethodConfig,
+    #[toml(default, style = Header)]
+    pub integrals: IntegralConfig,
+    #[toml(default, style = Header)]
+    pub cache: CacheConfig,
+    #[toml(default, style = Header)]
+    pub output: OutputConfig,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::RunFile;
+    use super::*;
     use std::{fs, path::Path};
 
     fn collect_toml_files(dir: &Path, files: &mut Vec<std::path::PathBuf>) {
@@ -108,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sample_runfiles_parse_with_toml_spanner() {
+    fn sample_runfiles_parse() {
         let mut files = Vec::new();
         collect_toml_files(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("samples"),

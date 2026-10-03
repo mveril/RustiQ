@@ -1,7 +1,7 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../h2o.xyz"
 
-[hf]
+[method.hf]

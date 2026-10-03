@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use crate::{
-    config::validated::DiisSize,
+    config::{validated::DiisSize, DiisConfig},
     eri::{index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
 };
@@ -230,6 +230,12 @@ impl<'a> ScfCalculation<'a> {
 
     pub fn enable_diis(&mut self, diis_size: DiisSize) {
         self.diis = Some(DiisAccelerator::new(diis_size));
+    }
+
+    pub(crate) fn configure_diis(&mut self, config: &DiisConfig) {
+        self.diis = config
+            .enabled
+            .then(|| DiisAccelerator::new(config.max_history.value));
     }
 
     fn sort_orbitals(

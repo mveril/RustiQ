@@ -6,6 +6,7 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
+    config::DiisConfig,
     eri::{index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
@@ -267,6 +268,12 @@ impl<'a> UhfCalculation<'a> {
     pub fn enable_diis(&mut self, diis_size: usize) -> Result<(), DiisError> {
         self.diis = Some(DiisAccelerator::try_new(diis_size)?);
         Ok(())
+    }
+
+    pub(crate) fn configure_diis(&mut self, config: &DiisConfig) {
+        self.diis = config
+            .enabled
+            .then(|| DiisAccelerator::new(config.max_history.value));
     }
 
     #[allow(dead_code)]

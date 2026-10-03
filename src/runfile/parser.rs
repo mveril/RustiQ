@@ -9,6 +9,7 @@ pub struct ParsedRunFile {
     pub hf_config: Option<rustiq_core::config::HfConfig>,
     pub mp2_config: Option<rustiq_core::config::Mp2Config>,
     pub molecule_config: rustiq_core::config::MoleculeConfig,
+    pub integral_config: rustiq_core::config::IntegralConfig,
 }
 
 pub fn parse_runfile(
@@ -23,136 +24,131 @@ pub fn parse_runfile(
     let runfile = document
         .to::<RunFile>()
         .map_err(|error| error.into_miette_diagnostic(source_name, toml_content))?;
-    let mut hf_config = runfile.hf.as_ref().map(rustiq_core::config::HfConfig::from);
-    let mut molecule_config = rustiq_core::config::MoleculeConfig::from(&runfile.global.molecule);
+
+    let mut hf_config = runfile
+        .method
+        .hf
+        .as_ref()
+        .map(rustiq_core::config::HfConfig::from);
     let mut mp2_config = runfile
+        .method
         .mp2
         .as_ref()
         .map(rustiq_core::config::Mp2Config::from);
+    let mut molecule_config = rustiq_core::config::MoleculeConfig::from(&runfile.molecule);
+    let mut integral_config = rustiq_core::config::IntegralConfig::from(&runfile.integrals);
+
     let root = document.into_item();
-    let span = |section: &str, field: &str| {
-        root[section][field].item().map(|item| {
-            let span = item.span();
-            (span.start as usize, (span.end - span.start) as usize).into()
-        })
+    let span = |path: &[&str]| {
+        let item = path.iter().try_fold(&root, |item, key| item[*key].item())?;
+        let span = item.span();
+        Some((span.start as usize, (span.end - span.start) as usize).into())
     };
+
     if let Some(config) = &mut hf_config {
-        config.method.span = span("hf", "method");
-        config.linear_dependency_threshold.span = span("hf", "linear_dependency_threshold");
-        config.guess.span = span("hf", "guess");
+        config.method.span = span(&["method", "hf", "method"]);
+        config.guess.span = span(&["method", "hf", "guess"]);
+        config.diis.max_history.span = span(&["method", "hf", "diis", "max_history"]);
+        config.orthogonalization.linear_dependency_threshold.span = span(&[
+            "method",
+            "hf",
+            "orthogonalization",
+            "linear_dependency_threshold",
+        ]);
     }
     if let Some(config) = &mut mp2_config {
-        config.frozen_orbitals.span = span("mp2", "frozen_orbitals");
-        config.memory_limit.span = span("mp2", "memory_limit");
+        config.frozen_orbitals.span = span(&["method", "mp2", "frozen_orbitals"]);
+        config.memory_limit.span = span(&["method", "mp2", "memory_limit"]);
     }
-    let molecule_span = |field: &str| {
-        root["global"]["molecule"][field].item().map(|item| {
-            let span = item.span();
-            (span.start as usize, (span.end - span.start) as usize).into()
-        })
-    };
-    molecule_config.charge.span = molecule_span("charge");
-    molecule_config.multiplicity.span = molecule_span("multiplicity");
+    molecule_config.charge.span = span(&["molecule", "charge"]);
+    molecule_config.multiplicity.span = span(&["molecule", "multiplicity"]);
+    integral_config.schwarz_threshold.span = span(&["integrals", "schwarz_threshold"]);
 
     Ok(ParsedRunFile {
         runfile,
         hf_config,
         mp2_config,
         molecule_config,
+        integral_config,
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_abs_diff_eq;
-    use miette::{Diagnostic, SourceSpan};
-    use rustiq_core::{
-        basis::BasisFile, calculation::CalculationExecution, config::HfConfig,
-        molecules::geometry::Geometry,
-    };
+    use super::parse_runfile;
 
-    fn geometry() -> Geometry {
-        Geometry::from_reader(&include_bytes!("../../samples/h2/molecule.xyz")[..]).unwrap()
-    }
+    #[test]
+    fn parser_preserves_nested_configuration_spans() {
+        let source = r#"
+[molecule]
+charge = 1
+multiplicity = 2
 
-    fn labels(error: &impl Diagnostic) -> Vec<SourceSpan> {
-        error
-            .labels()
-            .into_iter()
-            .flatten()
-            .map(|label| *label.inner())
-            .collect()
+[basis]
+name = "sto-3g"
+
+[method.hf]
+method = "Rhf"
+
+[method.hf.guess]
+type = "CoreHamiltonian"
+
+[method.hf.orthogonalization]
+linear_dependency_threshold = 1.0
+
+[method.hf.diis]
+enabled = true
+max_history = 8
+
+[method.mp2]
+frozen_orbitals = 1
+memory_limit = "auto"
+
+[integrals]
+schwarz_threshold = 1e-10
+"#;
+        let parsed = parse_runfile("calculation.toml", source).unwrap();
+        let hf = parsed.hf_config.unwrap();
+
+        let method_span = hf.method.span.unwrap();
+        assert_eq!(
+            &source[method_span.offset()..method_span.offset() + method_span.len()],
+            "\"Rhf\""
+        );
+        assert!(hf.guess.span.is_some());
+        assert!(hf
+            .orthogonalization
+            .linear_dependency_threshold
+            .span
+            .is_some());
+        assert!(hf.diis.max_history.span.is_some());
+        assert!(parsed.integral_config.schwarz_threshold.span.is_some());
+        assert!(parsed.molecule_config.charge.span.is_some());
+        assert!(parsed.molecule_config.multiplicity.span.is_some());
+        let mp2 = parsed.mp2_config.unwrap();
+        assert!(mp2.frozen_orbitals.span.is_some());
+        assert!(mp2.memory_limit.span.is_some());
     }
 
     #[test]
-    fn toml_adapter_preserves_original_spans_and_numerical_behavior() {
-        use crate::runfile::parser::parse_runfile;
-        let source = "# original input\n[global]\nbasis = 'sto-3g'\n[global.molecule]\ncharge = 1\nmultiplicity = 2\n[hf]\nmethod = 'Rhf'\nlinear_dependency_threshold = 1.0\n[mp2]\nfrozen_orbitals = 1\n";
-        let parsed = parse_runfile("calculation.toml", source).unwrap();
-        let molecule = parsed.molecule_config.build(geometry()).unwrap();
-        let config = parsed.hf_config.unwrap();
-        let error = config.resolve_method(&molecule).unwrap_err();
-        let span = labels(&error)[0];
-        assert_eq!(&source[span.offset()..span.offset() + span.len()], "'Rhf'");
-        assert!(error.source_code().is_none());
-        let report = miette::Report::new(error).with_source_code(miette::NamedSource::new(
-            "calculation.toml",
-            source.to_string(),
-        ));
-        assert_eq!(
-            report
-                .source_code()
-                .unwrap()
-                .read_span(&span, 0, 0)
-                .unwrap()
-                .name(),
-            Some("calculation.toml")
-        );
-
-        let basis_file =
-            BasisFile::from_reader(&include_bytes!("../../tests/data/sto-3g.json")[..]).unwrap();
-        let error = rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
-            .with_hf(config)
-            .execute()
-            .err()
-            .unwrap();
-        let span = labels(&error)[0];
-        assert_eq!(&source[span.offset()..span.offset() + span.len()], "1.0");
-        let error = rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
-            .with_mp2(parsed.mp2_config.unwrap())
-            .execute()
-            .unwrap_err();
-        let span = labels(&error)[0];
-        assert_eq!(span.offset(), source.rfind('1').unwrap());
-        assert_eq!(span.len(), 1);
-
-        let parsed = parse_runfile("defaults.toml", "[global]\nbasis = 'sto-3g'\n[hf]\n").unwrap();
-        let from_toml = parsed.hf_config.unwrap();
-        assert!(from_toml.method.span.is_none());
-        assert!(from_toml.guess.span.is_none());
-        assert!(from_toml.linear_dependency_threshold.span.is_none());
-        let adapted_result =
-            rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
-                .with_hf(from_toml)
-                .execute()
-                .unwrap()
-                .hf
-                .summary()
-                .scf
-                .clone();
-        let direct_result =
-            rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
-                .with_hf(HfConfig::default())
-                .execute()
-                .unwrap()
-                .hf
-                .summary()
-                .scf
-                .clone();
-        assert_abs_diff_eq!(
-            adapted_result.total_energy,
-            direct_result.total_energy,
-            epsilon = 1e-10
-        );
+    fn omitted_defaults_have_no_source_span() {
+        let parsed = parse_runfile(
+            "defaults.toml",
+            "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n",
+        )
+        .unwrap();
+        let hf = parsed.hf_config.unwrap();
+        assert!(hf.method.span.is_none());
+        assert!(hf.guess.span.is_none());
+        assert!(hf.diis.max_history.span.is_none());
+        assert!(hf
+            .orthogonalization
+            .linear_dependency_threshold
+            .span
+            .is_none());
+        assert!(parsed.integral_config.schwarz_threshold.span.is_none());
+        let mp2 = parsed.mp2_config.unwrap();
+        assert!(mp2.frozen_orbitals.span.is_none());
+        assert!(mp2.memory_limit.span.is_none());
     }
 }

@@ -6,7 +6,10 @@ use thiserror::Error;
 use crate::calculation::EriCacheEvent;
 use crate::{
     basis::gaussian::basis::Basis,
-    config::{validated::PositiveFiniteF64, DEFAULT_ERI_SCHWARZ_THRESHOLD},
+    config::{
+        validated::PositiveFiniteF64, IntegralConfig, OrthogonalizationConfig,
+        DEFAULT_ERI_SCHWARZ_THRESHOLD,
+    },
     eri::EriError,
     molecules::molecule::Molecule,
     persistence::EriCache,
@@ -57,7 +60,7 @@ pub(crate) fn prepare_scf_setup(
     linear_dependency_threshold: f64,
     progress: impl FnMut(ScfSetupStep),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
-    prepare_scf_setup_with_eri_threshold(
+    prepare_scf_setup_with_thresholds(
         molecule,
         basis,
         required_occupied_orbitals,
@@ -73,7 +76,33 @@ pub(crate) fn prepare_scf_setup(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare_scf_setup_with_eri_threshold(
+pub(crate) fn prepare_configured_scf_setup(
+    molecule: &Molecule,
+    basis: &Basis,
+    required_occupied_orbitals: usize,
+    orthogonalization: &OrthogonalizationConfig,
+    integrals: &IntegralConfig,
+    eri_cache: Option<&EriCache>,
+    progress: impl FnMut(ScfSetupStep),
+    cache_event: impl FnMut(EriCacheEvent),
+) -> Result<PreparedScfSetup, ScfPreparationError> {
+    prepare_scf_setup_with_thresholds(
+        molecule,
+        basis,
+        required_occupied_orbitals,
+        orthogonalization
+            .linear_dependency_threshold
+            .value
+            .into_inner(),
+        integrals.schwarz_threshold.value,
+        eri_cache,
+        progress,
+        cache_event,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_scf_setup_with_thresholds(
     molecule: &Molecule,
     basis: &Basis,
     required_occupied_orbitals: usize,

@@ -1,17 +1,19 @@
-[global]
-basis = "cc-pvdz"
+[basis]
+name = "cc-pvdz"
 
-[global.molecule]
+[molecule]
 geometry = "../ethanol.xyz"
 charge = 0
 multiplicity = 1
-molecule_unit = "Angstrom"
+units = "Angstrom"
 
-[hf]
+[method.hf]
 max_iterations = 120
 convergence_threshold = 1e-10
-diis = true
-diis_size = 10
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
+
+[method.hf.diis]
+enabled = true
+max_history = 10

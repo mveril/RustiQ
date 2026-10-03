@@ -1,11 +1,14 @@
-[global]
-basis = "6-31g"
+[basis]
+name = "6-31g"
 
-[global.molecule]
+[molecule]
 geometry = "../h2o.xyz"
 
-[hf]
-diis = true
+[method.hf]
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
+
+[method.hf.diis]
+enabled = true
+max_history = 6

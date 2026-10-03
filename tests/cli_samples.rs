@@ -266,7 +266,7 @@ fn test_cli_shows_canonical_request_without_original_source_dump() {
     prepare_basis_store(&temp_root);
     let input_dir = temp_root.join("input");
     fs::create_dir_all(&input_dir).unwrap();
-    let toml = "# Keep the original path and formatting\n[global]\nbasis = 'sto-3g'\n\n[global.molecule]\ngeometry = 'molecule.xyz'  # relative to this file\n";
+    let toml = "# Keep the original path and formatting\n[basis]\nname = 'sto-3g'\n\n[molecule]\ngeometry = 'molecule.xyz'  # relative to this file\n";
     let xyz = "2\nHydrogen molecule -- original comment\nH  0  0  -0.370000000123456789\nH  0  0   0.370000000123456789\n";
     let calculation_path = input_dir.join("calculation.toml");
     fs::write(&calculation_path, toml).unwrap();
@@ -278,7 +278,7 @@ fn test_cli_shows_canonical_request_without_original_source_dump() {
 
     let stdout = strip_ansi(&String::from_utf8(output.stdout).unwrap());
     assert!(stdout.contains("Requested calculation (canonical TOML)"));
-    assert!(stdout.contains("basis = \"sto-3g\""));
+    assert!(stdout.contains("name = \"sto-3g\""));
     assert!(stdout.contains("geometry = \"molecule.xyz\""));
     assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
     assert!(stdout.contains("H 0 0 -0.3700000001234568"));
@@ -496,20 +496,20 @@ fn test_cli_h2_mp2_fails_when_hf_does_not_converge() {
         &toml_path,
         format!(
             r#"
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "{molecule_path}"
 
-[hf]
+[method.hf]
 method = "Rhf"
 max_iterations = 1
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 
-[mp2]
+[method.mp2]
 "#
         ),
     )
@@ -541,14 +541,14 @@ fn test_cli_hf_outcomes_preserve_text_and_json_output() {
                 &path,
                 format!(
                     r#"
-[global]
-basis = "sto-3g"
-[global.molecule]
+[basis]
+name = "sto-3g"
+[molecule]
 geometry = "molecule.xyz"
-[hf]
+[method.hf]
 method = "{method}"
 max_iterations = {iterations}
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 "#
                 ),
@@ -650,21 +650,21 @@ fn test_cli_uhf_mp2_fails_when_hf_does_not_converge() {
         &toml_path,
         format!(
             r#"
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "{molecule_path}"
 multiplicity = 2
 
-[hf]
+[method.hf]
 method = "Uhf"
 max_iterations = 1
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 
-[mp2]
+[method.mp2]
 "#
         ),
     )
@@ -682,8 +682,8 @@ type = "CoreHamiltonian"
 }
 
 #[test]
-fn test_cli_h2_sample_can_disable_hf_formatting() {
-    let temp_root = temp_root("cli-sample-no-format");
+fn test_cli_h2_sample_can_quiet_scf_output() {
+    let temp_root = temp_root("cli-sample-quiet-scf");
     prepare_basis_store(&temp_root);
 
     let toml_path = temp_root.join("calculation.toml");
@@ -697,14 +697,14 @@ fn test_cli_h2_sample_can_disable_hf_formatting() {
         &toml_path,
         format!(
             r#"
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "{molecule_path}"
 
-[hf]
-format = "Nope"
+[output]
+scf = "Quiet"
 "#
         ),
     )
@@ -745,25 +745,25 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
     let path = directory.path().join("scientific-input.toml");
     for (fields, expected, label, source_line) in [
         (
-            "[global.molecule]\ncharge = 1\nmultiplicity = 2\n[hf]\nmethod = 'Rhf'\n",
+            "[molecule]\ncharge = 1\nmultiplicity = 2\n[method.hf]\nmethod = 'Rhf'\n",
             "RHF requires a closed-shell singlet",
             "requested HF method",
             "method = 'Rhf'",
         ),
         (
-            "[hf]\nlinear_dependency_threshold = 1.0\n",
+            "[method.hf.orthogonalization]\nlinear_dependency_threshold = 1.0\n",
             "effective overlap rank",
             "SCF configuration",
             "linear_dependency_threshold = 1.0",
         ),
         (
-            "[hf]\n[mp2]\nfrozen_orbitals = 2\n",
+            "[method.hf]\n[method.mp2]\nfrozen_orbitals = 2\n",
             "frozen orbitals (2)",
             "frozen orbital count",
             "frozen_orbitals = 2",
         ),
         (
-            "[global.molecule]\ncharge = 1\nmultiplicity = 1\n[hf]\n",
+            "[molecule]\ncharge = 1\nmultiplicity = 1\n[method.hf]\n",
             "invalid electron configuration",
             "spin multiplicity",
             "multiplicity = 1",
@@ -771,7 +771,7 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
     ] {
         fs::write(
             &path,
-            format!("# user source\n[global]\nbasis = 'sto-3g'\n{fields}"),
+            format!("# user source\n[basis]\nname = 'sto-3g'\n{fields}"),
         )
         .unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
@@ -803,7 +803,7 @@ fn test_cli_uses_default_hf_when_requesting_mp2_without_hf_section() {
     )
     .unwrap();
     let path = directory.path().join("mp2-without-hf.toml");
-    fs::write(&path, "[global]\nbasis = 'sto-3g'\n[mp2]\n").unwrap();
+    fs::write(&path, "[basis]\nname = 'sto-3g'\n[method.mp2]\n").unwrap();
     let output = run_rustiq_with_data_home(
         &["run", path.to_str().unwrap(), "--format", "json"],
         directory.path(),
@@ -831,10 +831,10 @@ fn test_cli_run_reports_grouped_geometry_diagnostics() {
         &toml_path,
         format!(
             r#"
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "{geometry_path}"
 "#
         ),
@@ -861,10 +861,10 @@ fn test_cli_run_reports_geometry_atom_count_diagnostic() {
         &toml_path,
         format!(
             r#"
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "{geometry_path}"
 "#
         ),
@@ -1171,7 +1171,7 @@ fn run_accepts_bare_filename_in_current_directory() {
     .unwrap();
     fs::write(
         root.path().join("calculation.toml"),
-        "[global]\nbasis = \"sto-3g\"\n[global.molecule]\ngeometry = \"molecule.xyz\"\n[hf]\n",
+        "[basis]\nname = \"sto-3g\"\n[molecule]\ngeometry = \"molecule.xyz\"\n[method.hf]\n",
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))

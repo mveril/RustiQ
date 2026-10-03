@@ -1,18 +1,21 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../oh.xyz"
 charge = 0
 multiplicity = 2
 
-[hf]
+[method.hf]
 method = "Auto"
 convergence_threshold = 1e-5
-diis = true
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 
-[mp2]
+[method.mp2]
 frozen_orbitals = 0
+
+[method.hf.diis]
+enabled = true
+max_history = 6

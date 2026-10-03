@@ -10,9 +10,6 @@ use crate::{
     molecules::molecule::Molecule,
 };
 
-/// Default Schwarz screening threshold for electron-repulsion integrals.
-pub const DEFAULT_ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
-
 mod density_guess_config;
 mod guess_perturbation_config;
 mod random_guess_config;
@@ -26,14 +23,9 @@ pub struct HfConfig {
     pub method: Located<HfMethod>,
     pub max_iterations: NonZeroUsize,
     pub convergence_threshold: PositiveFiniteF64,
-    pub linear_dependency_threshold: Located<NonNegativeFiniteF64>,
-    /// Schwarz screening cutoff for ERIs. Larger values discard more small
-    /// integrals, reducing ERI computation time at the cost of accuracy;
-    /// `None` disables screening.
-    pub eri_schwarz_threshold: Option<PositiveFiniteF64>,
     pub guess: Located<DensityGuessConfig>,
-    pub diis: bool,
-    pub diis_size: DiisSize,
+    pub diis: DiisConfig,
+    pub orthogonalization: OrthogonalizationConfig,
 }
 
 impl Default for HfConfig {
@@ -42,11 +34,37 @@ impl Default for HfConfig {
             method: HfMethod::default().into(),
             max_iterations: default_max_iter(),
             convergence_threshold: default_conv_threshold(),
-            linear_dependency_threshold: default_linear_dependency_threshold().into(),
-            eri_schwarz_threshold: Some(default_eri_schwarz_threshold()),
             guess: DensityGuessConfig::default().into(),
-            diis: false,
-            diis_size: default_diis_size(),
+            diis: DiisConfig::default(),
+            orthogonalization: OrthogonalizationConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DiisConfig {
+    pub enabled: bool,
+    pub max_history: Located<DiisSize>,
+}
+
+impl Default for DiisConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_history: default_diis_size().into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OrthogonalizationConfig {
+    pub linear_dependency_threshold: Located<NonNegativeFiniteF64>,
+}
+
+impl Default for OrthogonalizationConfig {
+    fn default() -> Self {
+        Self {
+            linear_dependency_threshold: default_linear_dependency_threshold().into(),
         }
     }
 }
@@ -82,7 +100,6 @@ pub enum HfMethodResolutionError {
     RhfRequiresClosedShellSinglet { electrons: usize, multiplicity: u8 },
 }
 
-/// Error while resolving the HF method from its configuration.
 #[derive(Debug, Error, Diagnostic)]
 #[error("{error}")]
 pub struct HfConfigError {
@@ -138,11 +155,6 @@ fn default_conv_threshold() -> PositiveFiniteF64 {
 fn default_linear_dependency_threshold() -> NonNegativeFiniteF64 {
     NonNegativeFiniteF64::try_new(1e-8)
         .expect("default linear dependency threshold is non-negative and finite")
-}
-
-fn default_eri_schwarz_threshold() -> PositiveFiniteF64 {
-    PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD)
-        .expect("default ERI Schwarz threshold is positive and finite")
 }
 
 fn default_max_iter() -> NonZeroUsize {

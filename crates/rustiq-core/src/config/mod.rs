@@ -1,5 +1,6 @@
 //! Scientific configuration independent of source formats and environment defaults.
 pub mod hf;
+mod integrals;
 mod molecule;
 pub mod random_config;
 pub mod validated;
@@ -26,9 +27,10 @@ impl<T> Located<T> {
     }
 }
 pub use hf::{
-    DensityGuessConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
-    HfMethodResolutionError, RandomGuessConfig, ResolvedHfMethod, DEFAULT_ERI_SCHWARZ_THRESHOLD,
+    DensityGuessConfig, DiisConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
+    HfMethodResolutionError, OrthogonalizationConfig, RandomGuessConfig, ResolvedHfMethod,
 };
+pub use integrals::{IntegralConfig, DEFAULT_ERI_SCHWARZ_THRESHOLD};
 
 /// MP2 options shared by restricted and unrestricted calculations.
 #[derive(Debug, Clone, Copy)]
