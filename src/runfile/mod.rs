@@ -10,9 +10,9 @@ pub mod method;
 pub mod molecule;
 pub mod mp2;
 pub mod output;
-mod units;
 pub mod parser;
 pub mod random_config;
+mod units;
 pub mod validated;
 
 use basis::BasisConfig;
@@ -48,7 +48,10 @@ mod tests {
             let path = entry.unwrap().path();
             if path.is_dir() {
                 collect_toml_files(&path, files);
-            } else if path.extension().is_some_and(|extension| extension == "toml") {
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "toml")
+            {
                 files.push(path);
             }
         }
