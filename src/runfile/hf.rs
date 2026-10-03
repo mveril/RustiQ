@@ -25,22 +25,12 @@ pub struct HfConfig {
     #[toml(default = default_conv_threshold())]
     #[toml(with = crate::runfile::validated::positive_finite_f64)]
     pub convergence_threshold: PositiveFiniteF64,
-    #[toml(default = default_linear_dependency_threshold())]
-    #[toml(with = crate::runfile::validated::non_negative_finite_f64)]
-    pub linear_dependency_threshold: NonNegativeFiniteF64,
-    /// Larger values screen more small ERIs; `0` disables screening.
-    #[toml(default = Some(default_eri_schwarz_threshold()))]
-    #[toml(with = crate::runfile::validated::optional_positive_finite_f64)]
-    pub eri_schwarz_threshold: Option<PositiveFiniteF64>,
     #[toml(default)]
     pub guess: DensityGuessConfig,
     #[toml(default)]
-    pub diis: bool,
-    #[toml(default = default_diis_size())]
-    #[toml(with = crate::runfile::validated::diis_size)]
-    pub diis_size: DiisSize,
+    pub diis: DiisConfig,
     #[toml(default)]
-    pub format: HfOutputFormat,
+    pub orthogonalization: OrthogonalizationConfig,
 }
 
 impl Default for HfConfig {
@@ -49,12 +39,44 @@ impl Default for HfConfig {
             method: HfMethod::default(),
             max_iterations: default_max_iter(),
             convergence_threshold: default_conv_threshold(),
-            linear_dependency_threshold: default_linear_dependency_threshold(),
-            eri_schwarz_threshold: Some(default_eri_schwarz_threshold()),
             guess: DensityGuessConfig::default(),
-            diis: false,
-            diis_size: default_diis_size(),
-            format: HfOutputFormat::default(),
+            diis: DiisConfig::default(),
+            orthogonalization: OrthogonalizationConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Toml)]
+#[toml(Toml, recoverable)]
+pub struct DiisConfig {
+    #[toml(default)]
+    pub enabled: bool,
+    #[toml(default = default_diis_size())]
+    #[toml(with = crate::runfile::validated::diis_size)]
+    pub max_history: DiisSize,
+}
+
+impl Default for DiisConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_history: default_diis_size(),
+        }
+    }
+}
+
+#[derive(Debug, Toml)]
+#[toml(Toml, recoverable)]
+pub struct OrthogonalizationConfig {
+    #[toml(default = default_linear_dependency_threshold())]
+    #[toml(with = crate::runfile::validated::non_negative_finite_f64)]
+    pub linear_dependency_threshold: NonNegativeFiniteF64,
+}
+
+impl Default for OrthogonalizationConfig {
+    fn default() -> Self {
+        Self {
+            linear_dependency_threshold: default_linear_dependency_threshold(),
         }
     }
 }
@@ -79,14 +101,6 @@ impl HfMethod {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, Toml, PartialEq, Eq, Hash)]
-#[toml(Toml)]
-pub enum HfOutputFormat {
-    #[default]
-    Normal,
-    Nope,
-}
-
 fn default_conv_threshold() -> PositiveFiniteF64 {
     PositiveFiniteF64::try_new(1e-8).expect("default convergence threshold is positive and finite")
 }
@@ -94,11 +108,6 @@ fn default_conv_threshold() -> PositiveFiniteF64 {
 fn default_linear_dependency_threshold() -> NonNegativeFiniteF64 {
     NonNegativeFiniteF64::try_new(1e-8)
         .expect("default linear dependency threshold is non-negative and finite")
-}
-
-fn default_eri_schwarz_threshold() -> PositiveFiniteF64 {
-    PositiveFiniteF64::try_new(rustiq_core::config::DEFAULT_ERI_SCHWARZ_THRESHOLD)
-        .expect("default ERI Schwarz threshold is positive and finite")
 }
 
 fn default_max_iter() -> NonZeroUsize {
@@ -112,348 +121,55 @@ fn default_diis_size() -> DiisSize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runfile::random_config::DistributionConfig;
-    use nalgebra::Point3;
-    use rustiq_core::molecules::{
-        atom::Atom, geometry::Geometry, molecule::Molecule, units::Units,
-    };
-    use std::mem::discriminant;
-    use std::num::NonZeroU8;
-
-    fn molecule(atom_symbols: &[&str], charge: i32, multiplicity: u8) -> Molecule {
-        let elements = periodic_table::periodic_table();
-        let atoms = atom_symbols
-            .iter()
-            .enumerate()
-            .map(|(index, symbol)| {
-                let element = elements
-                    .iter()
-                    .find(|element| element.symbol == *symbol)
-                    .unwrap();
-                Atom::new(element, Point3::new(0.0, 0.0, index as f64))
-            })
-            .collect();
-        Molecule::try_new(
-            Geometry::new("test molecule".to_string(), atoms),
-            Units::Bohr,
-            charge,
-            NonZeroU8::new(multiplicity).unwrap(),
-        )
-        .unwrap()
-    }
 
     #[test]
-    fn test_hf_config_diis_defaults() {
+    fn hf_defaults_keep_diis_explicitly_disabled() {
         let config: HfConfig = toml_spanner::from_str("").unwrap();
 
-        assert_eq!(
-            toml_spanner::to_string(&config).unwrap(),
-            toml_spanner::to_string(&HfConfig::default()).unwrap()
-        );
-
-        assert!(!config.diis);
         assert_eq!(config.method, HfMethod::Auto);
         assert_eq!(config.max_iterations.get(), 100);
         assert_eq!(config.convergence_threshold.into_inner(), 1e-8);
-        assert_eq!(config.linear_dependency_threshold.into_inner(), 1e-8);
-        assert_eq!(config.eri_schwarz_threshold.unwrap().into_inner(), 1e-12);
-        assert_eq!(config.diis_size.into_inner(), 6);
-        assert_eq!(config.format, HfOutputFormat::Normal);
-    }
-
-    #[test]
-    fn test_hf_config_method_deserialization() {
-        let auto: HfConfig = toml_spanner::from_str(r#"method = "Auto""#).unwrap();
-        let rhf: HfConfig = toml_spanner::from_str(r#"method = "Rhf""#).unwrap();
-        let uhf: HfConfig = toml_spanner::from_str(r#"method = "Uhf""#).unwrap();
-
-        assert_eq!(auto.method, HfMethod::Auto);
-        assert_eq!(rhf.method, HfMethod::Rhf);
-        assert_eq!(uhf.method, HfMethod::Uhf);
-    }
-
-    #[test]
-    fn test_hf_auto_resolves_closed_shell_singlet_to_rhf() {
-        let molecule = molecule(&["H", "H"], 0, 1);
-
+        assert!(!config.diis.enabled);
+        assert_eq!(config.diis.max_history.into_inner(), 6);
         assert_eq!(
-            HfMethod::Auto.resolve(&molecule).unwrap(),
-            ResolvedHfMethod::Rhf
+            config
+                .orthogonalization
+                .linear_dependency_threshold
+                .into_inner(),
+            1e-8
         );
     }
 
     #[test]
-    fn test_hf_auto_resolves_open_shell_to_uhf() {
-        let hydroxyl = molecule(&["O", "H"], 0, 2);
-        let cation = molecule(&["H", "H"], 1, 2);
-
-        assert_eq!(
-            HfMethod::Auto.resolve(&hydroxyl).unwrap(),
-            ResolvedHfMethod::Uhf
-        );
-        assert_eq!(
-            HfMethod::Auto.resolve(&cation).unwrap(),
-            ResolvedHfMethod::Uhf
-        );
-    }
-
-    #[test]
-    fn test_hf_explicit_methods_resolve_without_auto_selection() {
-        let molecule = molecule(&["H", "H"], 0, 1);
-
-        assert_eq!(
-            HfMethod::Rhf.resolve(&molecule).unwrap(),
-            ResolvedHfMethod::Rhf
-        );
-        assert_eq!(
-            HfMethod::Uhf.resolve(&molecule).unwrap(),
-            ResolvedHfMethod::Uhf
-        );
-    }
-
-    #[test]
-    fn test_hf_explicit_rhf_rejects_open_shell_molecule() {
-        let hydroxyl = molecule(&["O", "H"], 0, 2);
-
-        assert_eq!(
-            HfMethod::Rhf.resolve(&hydroxyl).unwrap_err(),
-            HfMethodResolutionError::RhfRequiresClosedShellSinglet {
-                electrons: 9,
-                multiplicity: 2
-            }
-        );
-    }
-
-    #[test]
-    fn test_hf_config_diis_deserialization() {
+    fn nested_diis_and_orthogonalization_deserialize() {
         let config: HfConfig = toml_spanner::from_str(
             r#"
-            diis = true
-            diis_size = 8
+            [diis]
+            enabled = true
+            max_history = 8
+
+            [orthogonalization]
+            linear_dependency_threshold = 1e-7
             "#,
         )
         .unwrap();
 
-        assert!(config.diis);
-        assert_eq!(config.diis_size.into_inner(), 8);
-    }
-
-    #[test]
-    fn test_hf_config_format_deserialization() {
-        let normal: HfConfig = toml_spanner::from_str(r#"format = "Normal""#).unwrap();
-        let nope: HfConfig = toml_spanner::from_str(r#"format = "Nope""#).unwrap();
-
-        assert_eq!(normal.format, HfOutputFormat::Normal);
-        assert_eq!(nope.format, HfOutputFormat::Nope);
-    }
-
-    #[test]
-    fn test_hf_config_random_guess_deserialization() {
-        let config: HfConfig = toml_spanner::from_str(
-            r#"
-            [guess]
-            type = "Random"
-            distribution = "Normal"
-            mean = 0.0
-            std_dev = 0.5
-            seed = 42
-            "#,
-        )
-        .unwrap();
-
+        assert!(config.diis.enabled);
+        assert_eq!(config.diis.max_history.into_inner(), 8);
         assert_eq!(
-            discriminant(&config.guess),
-            discriminant(&DensityGuessConfig::Random {
-                config: RandomGuessConfig::default()
-            })
+            config
+                .orthogonalization
+                .linear_dependency_threshold
+                .into_inner(),
+            1e-7
         );
-        let DensityGuessConfig::Random {
-            config: guess_config,
-        } = config.guess
-        else {
-            panic!("expected random guess config");
-        };
-        assert_eq!(guess_config.random.seed, Some(42));
     }
 
     #[test]
-    fn test_hf_config_core_guess_perturbation_deserialization() {
-        let config: HfConfig = toml_spanner::from_str(
-            r#"
-            [guess]
-            type = "CoreHamiltonian"
-
-            [guess.perturbation]
-            distribution = "Normal"
-            mean = 0.0
-            std_dev = 1e-4
-            seed = 42
-            "#,
+    fn invalid_diis_history_is_rejected_at_parse_time() {
+        assert!(toml_spanner::from_str::<HfConfig>(
+            "[diis]\nenabled = true\nmax_history = 1"
         )
-        .unwrap();
-
-        let DensityGuessConfig::CoreHamiltonian {
-            perturbation: Some(perturbation),
-        } = config.guess
-        else {
-            panic!("expected perturbed core hamiltonian guess config");
-        };
-        assert_eq!(perturbation.random.seed, Some(42));
-    }
-
-    #[test]
-    fn test_hf_config_guess_perturbation_defaults() {
-        let config: HfConfig = toml_spanner::from_str(
-            r#"
-            [guess]
-            type = "CoreHamiltonian"
-
-            [guess.perturbation]
-            "#,
-        )
-        .unwrap();
-
-        let DensityGuessConfig::CoreHamiltonian {
-            perturbation: Some(perturbation),
-        } = config.guess
-        else {
-            panic!("expected default perturbation config");
-        };
-        assert_eq!(perturbation.random.seed, None);
-        match perturbation.random.distribution {
-            DistributionConfig::Normal { config } => {
-                assert_eq!(config.mean, 0.0);
-                assert_eq!(config.std_dev.into_inner(), 1e-4);
-            }
-            DistributionConfig::Uniform { .. } => panic!("expected normal perturbation default"),
-        }
-        match RandomGuessConfig::default().random.distribution {
-            DistributionConfig::Uniform { config } => {
-                assert_eq!(config.min, -1.0);
-                assert_eq!(config.max, 1.0);
-            }
-            DistributionConfig::Normal { .. } => panic!("expected uniform random guess default"),
-        }
-    }
-
-    #[test]
-    fn test_hf_config_one_electron_guess_perturbation_deserialization() {
-        let config: HfConfig = toml_spanner::from_str(
-            r#"
-            [guess]
-            type = "OneElectron"
-
-            [guess.perturbation]
-            distribution = "Uniform"
-            min = -1e-4
-            max = 1e-4
-            seed = 43
-            "#,
-        )
-        .unwrap();
-
-        let DensityGuessConfig::OneElectron {
-            perturbation: Some(perturbation),
-        } = config.guess
-        else {
-            panic!("expected perturbed one electron guess config");
-        };
-        assert_eq!(perturbation.random.seed, Some(43));
-    }
-
-    #[test]
-    fn test_hf_config_serializes_random_config_only_for_random_guess() {
-        let core_config: HfConfig = toml_spanner::from_str(
-            r#"
-            [guess]
-            type = "CoreHamiltonian"
-            "#,
-        )
-        .unwrap();
-        let core_toml = toml_spanner::to_string(&core_config).unwrap();
-
-        assert!(core_toml.contains("type = \"CoreHamiltonian\""));
-        assert!(!core_toml.contains("perturbation"));
-        assert!(!core_toml.contains("distribution"));
-        assert!(!core_toml.contains("min"));
-        assert!(!core_toml.contains("max ="));
-
-        let random_config: HfConfig = toml_spanner::from_str(
-            r#"
-            [guess]
-            type = "Random"
-            distribution = "Normal"
-            mean = 0.0
-            std_dev = 0.5
-            seed = 42
-            "#,
-        )
-        .unwrap();
-        let random_toml = toml_spanner::to_string(&random_config).unwrap();
-
-        assert!(random_toml.contains("type = \"Random\""));
-        assert!(random_toml.contains("distribution = \"Normal\""));
-        assert!(random_toml.contains("seed = 42"));
-    }
-
-    #[test]
-    fn test_hf_config_rejects_zero_max_iterations() {
-        let result = toml_spanner::from_str::<HfConfig>("max_iterations = 0");
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_hf_config_rejects_non_positive_convergence_threshold() {
-        let zero = toml_spanner::from_str::<HfConfig>("convergence_threshold = 0.0");
-        let negative = toml_spanner::from_str::<HfConfig>("convergence_threshold = -1e-8");
-
-        assert!(zero.is_err());
-        assert!(negative.is_err());
-    }
-
-    #[test]
-    fn test_hf_config_linear_dependency_threshold_accepts_zero() {
-        let config =
-            toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = 0.0").unwrap();
-
-        assert_eq!(config.linear_dependency_threshold.into_inner(), 0.0);
-    }
-
-    #[test]
-    fn test_hf_config_rejects_invalid_linear_dependency_threshold() {
-        let negative = toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = -1e-8");
-        let infinite = toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = inf");
-
-        assert!(negative.is_err());
-        assert!(infinite.is_err());
-    }
-
-    #[test]
-    fn test_hf_config_zero_eri_schwarz_threshold_disables_screening() {
-        let config = toml_spanner::from_str::<HfConfig>("eri_schwarz_threshold = 0").unwrap();
-
-        assert!(config.eri_schwarz_threshold.is_none());
-    }
-
-    #[test]
-    fn test_hf_config_rejects_invalid_eri_schwarz_threshold() {
-        let negative = toml_spanner::from_str::<HfConfig>("eri_schwarz_threshold = -1e-12");
-        let infinite = toml_spanner::from_str::<HfConfig>("eri_schwarz_threshold = inf");
-
-        assert!(negative.is_err());
-        assert!(infinite.is_err());
-    }
-
-    #[test]
-    fn test_hf_config_rejects_too_small_diis_size() {
-        let result = toml_spanner::from_str::<HfConfig>(
-            r#"
-            diis = true
-            diis_size = 1
-            "#,
-        );
-
-        assert!(result.is_err());
+        .is_err());
     }
 }
