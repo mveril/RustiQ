@@ -1,3 +1,20 @@
+use toml_spanner::Toml;
+
+#[derive(Debug, Default, Toml)]
+#[toml(Toml, recoverable)]
+pub struct OutputConfig {
+    #[toml(default)]
+    pub scf: ScfOutput,
+}
+
+#[derive(Debug, Default, Clone, Copy, Toml, PartialEq, Eq, Hash)]
+#[toml(Toml)]
+pub enum ScfOutput {
+    #[default]
+    Normal,
+    Quiet,
+}
+
 use toml_spanner::{Arena, FromToml, Item, TableStyle, ToToml, ToTomlError};
 
 use super::RunFile;
@@ -137,7 +154,7 @@ mod tests {
 
     #[test]
     fn output_context_controls_defaults_without_changing_the_model() {
-        let source = "[global]\nbasis = \"sto-3g\"\n[hf]\n[mp2]\n";
+        let source = "[global]\nbasis = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
         let parsed = parse_runfile("test", source).unwrap();
         let full = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
@@ -157,8 +174,8 @@ mod tests {
             assert!(full.contains(field), "missing {field}");
             assert!(!compact.contains(field), "unexpected {field}");
         }
-        assert!(compact.contains("[hf]"));
-        assert!(compact.contains("[mp2]"));
+        assert!(compact.contains("[method.hf]"));
+        assert!(compact.contains("[method.mp2]"));
         let restored = parse_runfile("compact", &compact).unwrap();
         assert_eq!(
             full,
@@ -175,11 +192,11 @@ mod tests {
         let source = r#"
 [global]
 basis = "cc-pvdz"
-[global.molecule]
+[molecule]
 charge = -1
 multiplicity = 2
 molecule_unit = "Bohr"
-[hf]
+[method.hf]
 method = "Uhf"
 max_iterations = 42
 diis = true
@@ -189,7 +206,7 @@ type = "OneElectron"
 distribution = "Normal"
 mean = 0.0
 std_dev = 0.01
-[mp2]
+[method.mp2]
 frozen_orbitals = 1
 "#;
         let parsed = parse_runfile("test", source).unwrap();
