@@ -17,7 +17,7 @@ use crate::cli::{
         json_output::CalculationOutput,
     },
 };
-use crate::runfile::{hf::HfOutputFormat, parser::parse_runfile};
+use crate::runfile::{output::ScfOutput, parser::parse_runfile};
 use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
@@ -128,7 +128,7 @@ impl Runnable for RunCommand {
         };
         let parsed = parse_runfile(source_name.clone(), &toml_content)?;
         let run = parsed.runfile;
-        let molecule_path = &run.global.molecule.geometry;
+        let molecule_path = &run.molecule.geometry;
         let xyz_content = fs::read_to_string(molecule_path).into_diagnostic()?;
         let source = SourceProvenance::new(
             source_name,
@@ -146,7 +146,7 @@ impl Runnable for RunCommand {
             writeln!(stdout, "{}", cli::color::title("Loading basis set...")).into_diagnostic()?;
         }
         let step_start = Instant::now();
-        let basis_file = self.resolve_basis(&run.global.basis)?;
+        let basis_file = self.resolve_basis(&run.basis.name)?;
         if !json_output {
             let mut stdout = cli::color::stdout();
             writeln!(
@@ -164,13 +164,11 @@ impl Runnable for RunCommand {
             )
             .into_diagnostic()?;
         }
-        let show_scf = run
-            .hf
-            .as_ref()
-            .is_none_or(|hf| hf.format != HfOutputFormat::Nope);
+        let show_scf = run.output.scf != ScfOutput::Quiet;
         let calculation = CalculationBuilder::new(&geom, &basis_file)
-            .with_basis_label(&run.global.basis)
+            .with_basis_label(&run.basis.name)
             .with_molecule_config(parsed.molecule_config)
+            .with_integrals(parsed.integral_config)
             .with_mp2(parsed.mp2_config);
         let calculation = if run.cache.enabled {
             let cache_root = self
@@ -196,10 +194,7 @@ impl Runnable for RunCommand {
             prepared.map_err(|error| with_source(error, &source_code))?
         };
         if !json_output {
-            let output_format = run
-                .hf
-                .as_ref()
-                .map_or_else(crate::runfile::hf::HfOutputFormat::default, |hf| hf.format);
+            let output_format = run.output.scf;
             let requested =
                 requested_calculation(prepared.request(), run.cache.enabled, output_format)
                     .into_diagnostic()?;
