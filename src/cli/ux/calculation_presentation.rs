@@ -17,7 +17,6 @@ use toml_spanner::{ToTomlError, Toml};
 use crate::runfile::{
     basis::BasisConfig,
     cache::CacheConfig,
-    hf::HfConfig,
     integrals::IntegralConfig,
     method::MethodConfig,
     molecule::MoleculeConfig,
