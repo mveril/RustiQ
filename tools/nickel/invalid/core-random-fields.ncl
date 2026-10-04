@@ -1,6 +1,4 @@
 let ResolveInput = import "../resolve.ncl" in
 ResolveInput { basis.name = "sto-3g", method.hf.guess = {
-  type = "OneElectron", perturbation = {
-    distribution = "Normal", mean = 0, std_dev = 0,
-  },
+  type = "CoreHamiltonian", distribution = "Uniform", min = -1, max = 1,
 } }

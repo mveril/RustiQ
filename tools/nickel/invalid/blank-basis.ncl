@@ -1,2 +1,2 @@
 let ResolveInput = import "../resolve.ncl" in
-ResolveInput { method.hf = {} }
+ResolveInput { basis.name = "" }

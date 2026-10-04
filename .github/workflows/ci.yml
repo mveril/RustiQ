@@ -34,6 +34,10 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Nickel CLI for the POC
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo install nickel-lang-cli --version 1.17.0 --locked
+
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
@@ -48,6 +52,13 @@ jobs:
 
       - name: Test without online feature
         run: cargo test --workspace --all-targets --no-default-features
+
+      - name: Test Nickel POC with the CLI
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          nickel --version
+          cargo test --no-default-features --example nickel_poc -- --ignored
+          cargo test --no-default-features --bin RustiQ nickel_poc_matches_current_runfile_defaults -- --ignored
 
       - name: Check the standalone core
         run: |
@@ -112,6 +123,13 @@ jobs:
 
       - name: Check the Rust development shell
         run: nix develop .#rust --command rust-analyzer --version
+
+      - name: Run Nickel POC tests
+        if: matrix.system == 'x86_64-linux'
+        run: |
+          nix develop .#rust --command cargo test --offline --no-default-features --example nickel_poc
+          nix develop .#rust --command cargo test --offline --no-default-features --example nickel_poc -- --ignored
+          nix develop .#rust --command cargo test --offline --no-default-features --bin RustiQ nickel_poc_matches_current_runfile_defaults -- --ignored
 
       - name: Check the minimal PySCF shell
         run: nix develop .#mini-pyscf --command python -c "import pyscf; print('PySCF', pyscf.__version__)"

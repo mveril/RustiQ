@@ -1,2 +1,2 @@
-let Calculation = import "../calculation.ncl" in
-{ basis.name = "sto-3g", method.hf.guess.type = "Bogus" } | Calculation
+let ResolveInput = import "../resolve.ncl" in
+ResolveInput { basis.name = "sto-3g", method.hf.guess.type = "Bogus" }

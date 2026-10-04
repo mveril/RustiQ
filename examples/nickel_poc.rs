@@ -4,7 +4,7 @@ use std::{io::Read, num::NonZeroU8, path::PathBuf};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Calculation {
+struct ResolvedCalculationConfig {
     molecule: Molecule,
     basis: Basis,
     method: Method,
@@ -136,34 +136,16 @@ enum ScfOutput {
     Quiet,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum CalculationSet {
-    Single(Calculation),
-    Multiple(Vec<Calculation>),
-}
-
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct ResolvedInput {
-    calculations: Vec<Calculation>,
-}
-
-impl From<CalculationSet> for ResolvedInput {
-    fn from(value: CalculationSet) -> Self {
-        Self {
-            calculations: match value {
-                CalculationSet::Single(calculation) => vec![calculation],
-                CalculationSet::Multiple(calculations) => calculations,
-            },
-        }
-    }
+    calculations: Vec<ResolvedCalculationConfig>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut json = String::new();
     std::io::stdin().read_to_string(&mut json)?;
-    let calculations: CalculationSet = serde_json::from_str(&json)?;
-    let resolved: ResolvedInput = calculations.into();
+    let resolved: ResolvedInput = serde_json::from_str(&json)?;
     println!("{}", serde_json::to_string_pretty(&resolved)?);
     Ok(())
 }
@@ -220,20 +202,16 @@ mod tests {
                 "{name}: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
-            let dto: CalculationSet = serde_json::from_slice(&output.stdout)
+            let dto: ResolvedInput = serde_json::from_slice(&output.stdout)
                 .unwrap_or_else(|error| panic!("{name}: {error}"));
-            let roundtrip = serde_json::to_value(&ResolvedInput::from(dto)).unwrap();
-            let mut json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-            if json.is_object() {
-                json = serde_json::json!({ "calculations": [json] });
-            } else {
-                json = serde_json::json!({ "calculations": json });
-            }
+            let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            let roundtrip = serde_json::to_value(&dto).unwrap();
             assert_equivalent(&roundtrip, &json);
             if name == "multiple.ncl" {
                 assert_eq!(json["calculations"].as_array().unwrap().len(), 3);
             }
             if name == "import-toml.ncl" {
+                assert_eq!(json["calculations"].as_array().unwrap().len(), 1);
                 assert_eq!(
                     json["calculations"][0]["molecule"]["geometry"],
                     "../molecule.xyz"
@@ -263,5 +241,42 @@ mod tests {
                 "{stderr}"
             );
         }
+    }
+
+    fn evaluate_in_process(path: &Path) -> Result<ResolvedInput, String> {
+        let source = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+        let mut context =
+            nickel_lang::Context::new().with_source_name(path.to_string_lossy().into_owned());
+        let expr = context
+            .eval_deep(&source)
+            .map_err(|error| format_nickel_error(&error))?;
+        let json = context
+            .expr_to_json(&expr)
+            .map_err(|error| format_nickel_error(&error))?;
+        serde_json::from_str(&json).map_err(|error| error.to_string())
+    }
+
+    fn format_nickel_error(error: &nickel_lang::Error) -> String {
+        let mut diagnostic = Vec::new();
+        error
+            .format(&mut diagnostic, nickel_lang::ErrorFormat::Text)
+            .expect("format Nickel diagnostic");
+        String::from_utf8_lossy(&diagnostic).into_owned()
+    }
+
+    #[test]
+    fn nickel_library_evaluates_contract_defaults_and_reports_errors() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/nickel");
+        let resolved = evaluate_in_process(&root.join("single.ncl")).unwrap();
+        assert_eq!(resolved.calculations.len(), 1);
+        let calculation = &resolved.calculations[0];
+        assert_eq!(calculation.basis.name, "sto-3g");
+        assert_eq!(calculation.molecule.multiplicity.get(), 1);
+        assert_eq!(calculation.method.hf.diis.max_history, 6);
+
+        let error = evaluate_in_process(&root.join("invalid/zero-perturbation.ncl"))
+            .expect_err("Zero must reject perturbation");
+        assert!(error.contains("contract"), "{error}");
+        assert!(error.contains("zero-perturbation.ncl"), "{error}");
     }
 }

@@ -3,7 +3,7 @@
 This isolated experiment follows the current `src/runfile` format. It does not
 change the CLI or execute scientific calculations. It uses the Nickel CLI only
 to evaluate the examples and export JSON; the Rust example deserializes that JSON
-into a DTO. Tested with Nickel 1.18.0.
+into a DTO. The CLI is Nickel 1.18.0; the embedded library is `nickel-lang` 2.2.
 
 This CLI-based flow demonstrates the configuration contract and normalized
 shape. The Rust DTO normalizes either input shape to
@@ -49,6 +49,7 @@ present after resolution.
 ## Verification
 
 ```sh
+cargo test --offline --no-default-features --example nickel_poc
 cargo test --offline --no-default-features --example nickel_poc -- --ignored
 cargo test --offline --no-default-features --bin RustiQ nickel_poc_matches_current_runfile_defaults -- --ignored
 ```
@@ -56,11 +57,14 @@ cargo test --offline --no-default-features --bin RustiQ nickel_poc_matches_curre
 Set `NICKEL_BIN` to an absolute executable path if Nickel is not on `PATH`.
 The POC tests are explicitly invoked because normal Cargo builds do not require
 Nickel.
-The first test verifies JSON-to-DTO round trips and rejects every file in
-`invalid/`. The second imports every valid current sample in Nickel and compares
-the entire normalized result with the full TOML serialized by the current Rust
-frontend, after removing JSON nulls (TOML has no null). This checks default parity
-without duplicating expected values in a snapshot.
+The CLI test verifies normalized JSON-to-DTO round trips and rejects every file
+in `invalid/`. A separate in-process test uses the `nickel-lang` Rust library to
+load the same Nickel configuration and contract, force evaluation, decode
+`ResolvedInput`, and check a source-bearing contract diagnostic. The library is
+a dev-dependency for this POC only. The parity test imports every valid current
+sample in Nickel and compares the normalized result with the full TOML serialized
+by the current Rust frontend, after removing JSON nulls (TOML has no null). This
+checks default parity without duplicating expected values in a snapshot.
 
 To inspect a deliberately invalid configuration:
 

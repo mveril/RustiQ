@@ -72,6 +72,7 @@ tempfile.workspace = true
 
 [dev-dependencies]
 approx.workspace = true
+nickel-lang = "2.2"
 rstest = "0.27"
 proptest.workspace = true
 temp-env.workspace = true
