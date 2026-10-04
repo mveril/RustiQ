@@ -74,8 +74,8 @@ nickel export --format json tools/nickel/invalid/uniform.ncl
 
 Invalid examples cover missing basis, unknown fields, zero multiplicity,
 negative convergence threshold, unknown guess, reversed uniform bounds,
-invalid DIIS history, wrong field types, and zero normal standard deviation.
-They must exit unsuccessfully with a Nickel diagnostic.
+invalid DIIS history, wrong field types, zero normal standard deviation, and
+empty calculation batches. They must exit unsuccessfully with a Nickel diagnostic.
 
 ## Boundaries
 
