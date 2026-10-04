@@ -1,0 +1,11 @@
+let Calculation = import "calculation.ncl" in
+std.array.map (fun guess => {
+  basis.name = "sto-3g",
+  method.hf.guess = guess,
+} | Calculation) [
+  { type = "CoreHamiltonian", perturbation = {} },
+  { type = "OneElectron", perturbation = { seed = 42 } },
+  { type = "Random" },
+  { type = "Random", distribution = "Normal", mean = 0, std_dev = 0.1, seed = 42 },
+  { type = "Zero" },
+]

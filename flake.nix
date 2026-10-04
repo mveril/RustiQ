@@ -177,6 +177,7 @@
             jq
             nixd
             nixfmt
+            nickel
             ripgrep
             time
           ];
