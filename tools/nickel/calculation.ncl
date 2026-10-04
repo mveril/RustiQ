@@ -3,6 +3,7 @@ let IntegerBetween = fun min max => std.contract.from_predicate (fun x =>
   std.is_number x && std.number.is_integer x && x >= min && x <= max) in
 let Positive = std.contract.from_predicate (fun x => std.is_number x && x > 0) in
 let NonNegative = std.contract.from_predicate (fun x => std.is_number x && x >= 0) in
+let NonEmpty = std.contract.from_predicate (fun x => std.is_string x && x != "") in
 let NonBlank = std.contract.from_predicate (fun x =>
   std.is_string x && std.string.trim x != "") in
 let Choice = fun choices => std.contract.from_predicate (fun x =>
@@ -67,7 +68,7 @@ let Hf = {
 } in
 {
   molecule | {
-    geometry | NonBlank | default = "./molecule.xyz",
+    geometry | NonEmpty | default = "./molecule.xyz",
     charge | IntegerBetween (-2147483648) 2147483647 | default = 0,
     multiplicity | IntegerBetween 1 255 | default = 1,
     units | Choice ["Angstrom", "Bohr"] | default = "Angstrom",
