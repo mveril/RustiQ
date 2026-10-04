@@ -35,7 +35,6 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install Nickel CLI for the POC
-        if: matrix.os == 'ubuntu-latest'
         run: cargo install nickel-lang-cli --version 1.17.0 --locked
 
       - name: Cache cargo
@@ -54,7 +53,6 @@ jobs:
         run: cargo test --workspace --all-targets --no-default-features
 
       - name: Test Nickel POC with the CLI
-        if: matrix.os == 'ubuntu-latest'
         run: |
           nickel --version
           cargo test --no-default-features --example nickel_poc -- --ignored
@@ -125,7 +123,6 @@ jobs:
         run: nix develop .#rust --command rust-analyzer --version
 
       - name: Run Nickel POC tests
-        if: matrix.system == 'x86_64-linux'
         run: |
           nix develop .#rust --command cargo test --offline --no-default-features --example nickel_poc
           nix develop .#rust --command cargo test --offline --no-default-features --example nickel_poc -- --ignored
