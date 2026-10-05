@@ -73,6 +73,8 @@ tempfile.workspace = true
 [dev-dependencies]
 approx.workspace = true
 nickel-lang = "2.2"
+nickel-lang-core = { version = "0.18", default-features = false }
+codespan-reporting = { version = "0.13", default-features = false }
 rstest = "0.27"
 proptest.workspace = true
 temp-env.workspace = true

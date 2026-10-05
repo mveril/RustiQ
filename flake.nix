@@ -178,6 +178,7 @@
             nixd
             nixfmt
             nickel
+            nls
             ripgrep
             time
           ];

@@ -80,24 +80,27 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires Nickel; verifies the isolated POC against current Rust defaults"]
     fn nickel_poc_matches_current_runfile_defaults() {
-        use std::{io::Write, process::Command};
+        use std::io::Write;
 
         fn export(path: &Path) -> serde_json::Value {
-            let output =
-                Command::new(std::env::var_os("NICKEL_BIN").unwrap_or_else(|| "nickel".into()))
-                    .args(["export", "--format", "json"])
-                    .arg(path)
-                    .output()
-                    .expect("install Nickel or set NICKEL_BIN");
-            assert!(
-                output.status.success(),
-                "{}: {}",
-                path.display(),
-                String::from_utf8_lossy(&output.stderr)
-            );
-            serde_json::from_slice(&output.stdout).unwrap()
+            let source = format!("import {}", serde_json::to_string(path).unwrap());
+            let mut context = nickel_lang::Context::new();
+            let expr = context
+                .eval_deep_for_export(&source)
+                .unwrap_or_else(|error| {
+                    let mut diagnostic = Vec::new();
+                    error
+                        .format(&mut diagnostic, nickel_lang::ErrorFormat::Text)
+                        .unwrap();
+                    panic!(
+                        "{}: {}",
+                        path.display(),
+                        String::from_utf8_lossy(&diagnostic)
+                    );
+                });
+            let json = context.expr_to_json(&expr).unwrap();
+            serde_json::from_str(&json).unwrap()
         }
 
         fn align_with_resolved_input(value: &mut serde_json::Value) {
@@ -125,6 +128,7 @@ mod tests {
 
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let contract = root.join("tools/nickel/calculation.ncl");
+        let rebuild = root.join("tools/nickel/rebuild-data.ncl");
         let mut sources = Vec::new();
         collect_toml_files(&root.join("samples"), &mut sources);
         sources.retain(|path| {
@@ -141,7 +145,8 @@ mod tests {
             let mut program = tempfile::Builder::new().suffix(".ncl").tempfile().unwrap();
             write!(
                 program,
-                "let Calculation = import {} in (import {}) | Calculation",
+                "let Rebuild = import {} in let Calculation = import {} in (Rebuild (import {})) | Calculation",
+                serde_json::to_string(&rebuild).unwrap(),
                 serde_json::to_string(&contract).unwrap(),
                 serde_json::to_string(&path).unwrap()
             )

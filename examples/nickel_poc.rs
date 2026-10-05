@@ -248,7 +248,7 @@ mod tests {
         let mut context =
             nickel_lang::Context::new().with_source_name(path.to_string_lossy().into_owned());
         let expr = context
-            .eval_deep(&source)
+            .eval_deep_for_export(&source)
             .map_err(|error| format_nickel_error(&error))?;
         let json = context
             .expr_to_json(&expr)
@@ -262,6 +262,121 @@ mod tests {
             .format(&mut diagnostic, nickel_lang::ErrorFormat::Text)
             .expect("format Nickel diagnostic");
         String::from_utf8_lossy(&diagnostic).into_owned()
+    }
+
+    #[test]
+    fn nickel_library_deserializes_every_valid_fixture() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/nickel");
+        let mut count = 0;
+        for entry in std::fs::read_dir(&root).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|extension| extension != "ncl")
+                || matches!(
+                    path.file_name().unwrap().to_str().unwrap(),
+                    "calculation.ncl" | "resolve.ncl" | "rebuild-data.ncl"
+                )
+            {
+                continue;
+            }
+            let resolved = evaluate_in_process(&path)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+            assert!(!resolved.calculations.is_empty(), "{}", path.display());
+            count += 1;
+        }
+        assert!(count >= 4, "expected the four POC input fixtures");
+    }
+
+    #[test]
+    fn nickel_library_rebuilds_nested_data_and_preserves_contract_checks() {
+        let rebuild = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/nickel/rebuild-data.ncl");
+        let rebuild = serde_json::to_string(&rebuild).unwrap();
+        for (data, succeeds) in [
+            (r#"[{"nested":{"inner":{"x":1}}}]"#, true),
+            (r#"[{"nested":{"inner":{"x":"wrong"}}}]"#, false),
+            (r#"[{"nested":{"inner":{"x":1,"extra":2}}}]"#, false),
+        ] {
+            let source = format!(
+                "let Rebuild = import {rebuild} in \
+                 (Rebuild (std.deserialize 'Json {})) | \
+                 Array {{ nested | {{ inner | {{ x | Number }} }} }}",
+                serde_json::to_string(data).unwrap()
+            );
+            let mut context = nickel_lang::Context::new();
+            let result = context.eval_deep_for_export(&source);
+            if succeeds {
+                let expr = result.unwrap_or_else(|error| panic!("{}", format_nickel_error(&error)));
+                let json = context.expr_to_json(&expr).unwrap();
+                let actual: serde_json::Value = serde_json::from_str(&json).unwrap();
+                let expected: serde_json::Value = serde_json::from_str(data).unwrap();
+                assert_eq!(actual, expected);
+            } else {
+                let error = result
+                    .err()
+                    .expect("rebuilt data must still satisfy contracts");
+                let diagnostic = format_nickel_error(&error);
+                assert!(diagnostic.contains("contract"), "{diagnostic}");
+            }
+        }
+    }
+
+    #[test]
+    fn nickel_library_rejects_every_invalid_fixture() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/nickel/invalid");
+        let mut count = 0;
+        for entry in std::fs::read_dir(root).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|extension| extension != "ncl") {
+                continue;
+            }
+            let error =
+                evaluate_in_process(&path).expect_err(&format!("{} must fail", path.display()));
+            assert!(
+                error.contains("contract") || error.contains("missing definition"),
+                "{}: {error}",
+                path.display()
+            );
+            count += 1;
+        }
+        assert!(count > 0, "invalid fixtures must not silently disappear");
+    }
+
+    #[test]
+    fn nickel_library_resolves_batches_and_guess_variants() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/nickel");
+        let batch = evaluate_in_process(&root.join("multiple.ncl")).unwrap();
+        assert_eq!(batch.calculations.len(), 3);
+        for (calculation, basis) in batch
+            .calculations
+            .iter()
+            .zip(["sto-3g", "6-31g", "cc-pvdz"])
+        {
+            assert_eq!(calculation.basis.name, basis);
+            let mp2 = calculation.method.mp2.as_ref().expect("MP2 was requested");
+            assert_eq!(mp2.frozen_orbitals, 0);
+            assert_eq!(mp2.memory_limit, "auto");
+        }
+
+        let variants = evaluate_in_process(&root.join("variants.ncl")).unwrap();
+        let guesses: Vec<_> = variants
+            .calculations
+            .iter()
+            .map(|calculation| {
+                assert!(calculation.method.mp2.is_none());
+                serde_json::to_value(&calculation.method.hf.guess).unwrap()
+            })
+            .collect();
+        let expected = serde_json::json!([
+            {"type": "CoreHamiltonian", "perturbation": {
+                "distribution": "Normal", "mean": 0.0, "std_dev": 0.0001, "seed": null
+            }},
+            {"type": "OneElectron", "perturbation": {
+                "distribution": "Normal", "mean": 0.0, "std_dev": 0.0001, "seed": 42
+            }},
+            {"type": "Random", "distribution": "Uniform", "min": -1.0, "max": 1.0, "seed": null},
+            {"type": "Random", "distribution": "Normal", "mean": 0.0, "std_dev": 0.1, "seed": 42},
+            {"type": "Zero"}
+        ]);
+        assert_equivalent(&serde_json::to_value(guesses).unwrap(), &expected);
     }
 
     #[test]
