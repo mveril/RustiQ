@@ -102,9 +102,9 @@ Before the portable format is considered stable:
 
 #### Portable manifest is multi-calculation from V1
 
-A portable `.rustiq` represents a collection of one or more calculations.
-A normal single calculation is therefore the common case where the collection
-contains exactly one entry.
+A portable `.rustiq` represents a **non-empty** collection of one or more
+calculations (`1..N`). A normal single calculation is therefore the common
+case where the collection contains exactly one entry.
 
 This is a container-level capability only. It must not introduce a scientific
 `BatchConfig`, `SingleOrBatch`, or other batch abstraction into
@@ -154,7 +154,25 @@ labels, or an aggregate batch hash part of scientific compatibility.
 
 ### 2. Make Nickel the canonical configuration frontend (#94)
 
-Once the portable storage boundary is clear, stabilize the frontend boundary.
+The exploratory POC in #96 has validated the key frontend decisions before the
+production migration starts:
+
+- real RustiQ TOML inputs can be normalized through Nickel contracts/defaults;
+- tagged guess/distribution variants can remain closed and preserve current
+  semantics;
+- one calculation and Nickel-generated batches normalize to a non-empty
+  `ResolvedInput { calculations: Vec<_> }` boundary;
+- `nickel-lang` can evaluate the configuration in-process, so users do not need
+  an external Nickel executable;
+- Nickel diagnostics can be adapted to RustiQ's source-aware reporting.
+
+The POC also exposed a Nickel 2.2 debug-assertion bug when applying nested record
+contracts to imported/deserialized data. #94 must track an upstream-safe
+resolution or keep any temporary workaround private to the frontend; the
+workaround must not become part of RustiQ's public configuration contract.
+
+With those feasibility questions answered, stabilize the production frontend
+boundary after the portable V1 container shape is fixed.
 
 The target flow is:
 
@@ -174,8 +192,8 @@ Implement #94 incrementally:
 3. implement Nickel contracts/defaults/validation in shadow mode;
 4. switch TOML resolution to the Nickel-backed schema;
 5. add native `.ncl` support;
-6. normalize both one-calculation and multi-calculation inputs to
-   `ResolvedInput { calculations: Vec<_> }`;
+6. normalize both one-calculation and multi-calculation inputs to a non-empty
+   `ResolvedInput { calculations: Vec<_> }` and reject empty batches;
 7. separate source mapping from configuration validation;
 8. migrate canonical TOML generation and `rustiq init`;
 9. remove `toml-spanner` once it has no remaining responsibility.
