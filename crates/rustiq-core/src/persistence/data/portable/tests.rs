@@ -30,6 +30,27 @@ fn data() -> RustiQData {
         .unwrap();
     data
 }
+
+#[test]
+fn borrowed_eri_writer_rejects_multi_calculation_input() {
+    let first = RustiQData::from_calculation(&calculation()).unwrap();
+    let second = RustiQData::from_calculation(&calculation()).unwrap();
+    let mut calculations = [first, second];
+    let directory = tempfile::tempdir().unwrap();
+    let destination = directory.path().join("invalid.rustiq");
+
+    let error = super::super::bundle::write_bundle_with_eri(
+        &mut calculations,
+        &[],
+        &destination,
+        Some(&CompactEri::Zeroed(2)),
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, PortableError::InvalidArchive(_)));
+    assert!(!destination.exists());
+}
+
 fn source_fixture() -> Vec<u8> {
     include_str!("../../../../tests/data/persistence/source-original-v1.toml.hex")
         .trim()

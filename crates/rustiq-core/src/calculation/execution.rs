@@ -28,13 +28,13 @@ pub struct EriCacheEvent {
     pub fingerprint: String,
 }
 
-/// Per-artifact reuse decision. Ignoring an artifact never means deleting it.
+/// Per-artifact reuse decision.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArtifactReuseDecision {
     Reused,
     Missing,
     Incompatible,
-    Ignored,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

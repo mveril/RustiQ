@@ -28,6 +28,8 @@ impl ArtifactReuse {
         })
     }
 
+    /// Resolve cached values through cheap `Clone`; artifact implementations document this
+    /// invariant because large payloads must not be duplicated during reuse.
     pub(super) fn resolve<A: Artifact>(
         &self,
         calculation: &PreparedCalculation,

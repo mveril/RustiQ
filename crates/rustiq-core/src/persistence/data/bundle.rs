@@ -203,6 +203,11 @@ pub(super) fn write_bundle_with_eri(
     if calculations.is_empty() {
         return Err(invalid("portable bundles require at least one calculation"));
     }
+    if eri.is_some() && calculations.len() != 1 {
+        return Err(invalid(
+            "a borrowed AO ERI can only be written with a single calculation",
+        ));
+    }
     validate_sources(sources)?;
     match std::fs::symlink_metadata(path) {
         Ok(_) => return Err(PortableError::AlreadyExists),

@@ -6,6 +6,11 @@ pub(crate) mod private {
 }
 
 /// A known scientific artifact. Only RustiQ's declared artifact markers implement this trait.
+///
+/// Values for reusable heavy artifacts must be cheap to clone: use shared immutable backing
+/// storage or another representation that avoids copying the payload. The resolver may clone
+/// values while moving them between the source, resolved state, and execution. Implementing
+/// `Clone` as a deep copy for a large artifact is incorrect for this architecture.
 pub trait Artifact: private::Sealed {
     type Value;
 
