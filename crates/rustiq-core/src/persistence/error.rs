@@ -17,6 +17,8 @@ pub(crate) enum StorageError {
 /// Portable persistence failures, independent of the physical container library.
 #[derive(Debug, Error)]
 pub enum PortableError {
+    #[error("AO ERI is incompatible with the prepared calculation")]
+    IncompatibleEri,
     #[error("portable artifact I/O failed: {0}")]
     Io(#[from] io::Error),
     #[error("the destination already exists")]

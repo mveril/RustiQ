@@ -122,6 +122,12 @@ impl RustiQData {
 
     /// Replaces the AO ERI artifact after checking its compact length.
     pub fn set_eri(&mut self, eri: CompactEri) -> Result<(), ArtifactError> {
+        self.validate_eri(&eri)?;
+        self.ao_eri = Some(eri);
+        Ok(())
+    }
+
+    pub(super) fn validate_eri(&self, eri: &CompactEri) -> Result<(), ArtifactError> {
         if self
             .context
             .as_ref()
@@ -131,10 +137,7 @@ impl RustiQData {
                 "AO ERI computation version".into(),
             ));
         }
-        let basis_functions = self.basis_functions.ok_or(ArtifactError::Missing)?;
-        validate_eri_len(&eri, basis_functions)?;
-        self.ao_eri = Some(eri);
-        Ok(())
+        validate_eri_len(eri, self.basis_functions.ok_or(ArtifactError::Missing)?)
     }
 
     /// Validates and decodes the AO ERI on first access, then reuses the object.
@@ -200,12 +203,20 @@ impl RustiQData {
         result
     }
 
-    pub(crate) fn write_with_eri(
+    pub(crate) fn write_storage_with_eri(
         &mut self,
         destination: Storage,
         eri: &CompactEri,
     ) -> Result<(), PersistenceWriteError> {
         self.write_inner(destination, Some(eri), true).map(|_| ())
+    }
+
+    pub(crate) fn write_entry_with_eri(
+        &mut self,
+        destination: Storage,
+        eri: &CompactEri,
+    ) -> Result<Manifest, PersistenceWriteError> {
+        self.write_inner(destination, Some(eri), false)
     }
 
     pub(crate) fn write_entry(
@@ -313,7 +324,7 @@ impl RustiQData {
 
         if let Some(eri) = eri {
             let basis_functions = self.basis_functions.ok_or(ArtifactError::Missing)?;
-            validate_eri_len(eri, basis_functions)?;
+            self.validate_eri(eri)?;
             let path = RelativePath::new(AO_ERI_PATH);
             let metadata = destination
                 .write_artifact::<PersistenceWriteError, _>(path, |writer| {

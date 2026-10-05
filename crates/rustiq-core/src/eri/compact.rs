@@ -1,4 +1,7 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    sync::Arc,
+};
 
 use rayon::prelude::*;
 use thiserror::Error;
@@ -11,9 +14,10 @@ pub(crate) enum CompactEriBuildError {
     InvalidLength { expected: usize, actual: usize },
 }
 
-#[derive(Debug)]
+/// Compact AO ERI values. Clones share storage until a value is modified.
+#[derive(Debug, Clone)]
 pub struct CompactEri {
-    storage: Box<[f64]>,
+    storage: Arc<[f64]>,
 }
 
 impl CompactEri {
@@ -64,7 +68,7 @@ impl CompactEri {
             return Err(CompactEriBuildError::InvalidLength { expected, actual });
         }
         Ok(Self {
-            storage: values.into_boxed_slice(),
+            storage: values.into(),
         })
     }
 
@@ -92,9 +96,11 @@ impl CompactEri {
             });
         }
 
-        let storage = par_iter.collect();
+        let storage: Vec<f64> = par_iter.collect();
 
-        Ok(Self { storage })
+        Ok(Self {
+            storage: storage.into(),
+        })
     }
 }
 
@@ -108,7 +114,7 @@ impl Index<EriIndex> for CompactEri {
 
 impl IndexMut<EriIndex> for CompactEri {
     fn index_mut(&mut self, index: EriIndex) -> &mut Self::Output {
-        &mut self.storage[index.0]
+        &mut Arc::make_mut(&mut self.storage)[index.0]
     }
 }
 
@@ -124,7 +130,7 @@ impl Index<(usize, usize, usize, usize)> for CompactEri {
 impl IndexMut<(usize, usize, usize, usize)> for CompactEri {
     fn index_mut(&mut self, index: (usize, usize, usize, usize)) -> &mut Self::Output {
         let (mu, nu, lambda, sigma) = index;
-        &mut self.storage[EriIndex::new(mu, nu, lambda, sigma).0]
+        &mut self[EriIndex::new(mu, nu, lambda, sigma)]
     }
 }
 
@@ -134,6 +140,22 @@ mod tests {
     use crate::eri::index::PairIndex;
     use ndarray::Array4;
     use proptest::prelude::*;
+
+    #[test]
+    fn clones_share_values_and_detach_on_mutation() {
+        let mut original = CompactEri::Zeroed(2);
+        original[(0, 0, 0, 0)] = 1.0;
+        let mut cloned = original.clone();
+        assert_eq!(
+            original.ordered_values().as_ptr(),
+            cloned.ordered_values().as_ptr()
+        );
+        cloned[EriIndex::new(0, 0, 0, 0)] = 2.0;
+        assert_eq!(original[(0, 0, 0, 0)], 1.0);
+        assert_eq!(cloned[(0, 0, 0, 0)], 2.0);
+        original[(0, 0, 0, 0)] = 3.0;
+        assert_eq!(cloned[(0, 0, 0, 0)], 2.0);
+    }
 
     #[test]
     fn test_compact_eri_allocates_unique_quartets() {

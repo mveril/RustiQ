@@ -48,6 +48,14 @@ pub enum HfOutcome {
 }
 
 impl HfOutcome {
+    /// Borrows the AO ERI tensor, including when HF did not converge.
+    pub fn ao_eri(&self) -> &CompactEri {
+        match self {
+            Self::Converged(hf) => hf.ao_eri(),
+            Self::Unconverged(hf) => hf.ao_eri(),
+        }
+    }
+
     /// Returns the resolved Hartree-Fock method, even when HF did not converge.
     pub fn method(&self) -> ResolvedHfMethod {
         self.summary().method
@@ -73,6 +81,11 @@ impl HfOutcome {
 }
 
 impl<State> HfSolution<State> {
+    /// Borrows the retained AO ERI tensor without copying it.
+    pub fn ao_eri(&self) -> &CompactEri {
+        &self.0.integrals
+    }
+
     pub(super) fn from_state(summary: HfCalculationResult, state: HfState<'_>) -> Self {
         let (orbitals, integrals) = match state {
             HfState::Rhf(scf) => (

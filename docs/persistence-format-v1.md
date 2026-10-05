@@ -563,3 +563,84 @@ written by Rust. Rust tests also exercise a sparse archive with offsets beyond
 
 Run `uv run --locked pytest tools/reference` for interoperability and scientific
 reference comparisons, separately from the Cargo suite.
+
+## Single-calculation execution APIs
+
+Portable V1 can contain multiple calculations. The current convenience execution
+API operates on one calculation, so `RustiQData` represents exactly one entry and
+`RustiQData::open` rejects multi-calculation archives. Newly written single-entry
+archives use `calculation-0` within the normal V1 bundle layout. Callers should
+neither depend on nor manipulate the numeric index.
+
+```rust
+// Calculation -> .rustiq
+let prepared = CalculationBuilder::new(&geometry, &basis_file).prepare()?;
+let hf = prepared.run_hf()?;
+let mut data = RustiQData::from_calculation(&prepared)?;
+data.write_with_eri("water.rustiq", hf.ao_eri())?;
+```
+
+The writer borrows the retained AO ERI without cloning or recomputing it.
+`set_eri` remains available when the caller owns the tensor.
+
+```rust
+// .rustiq -> Calculation
+let data = RustiQData::open("water.rustiq")?;
+let prepared = data.prepare_calculation()?;
+let result = prepared.execute()?;
+let eri = result.hf.ao_eri();
+```
+
+`prepare_calculation` consumes the data facade and restores the resolved molecule,
+AO basis, and scientific options. It retains the archive as a read-only artifact
+source. Payloads are decoded lazily when execution needs them. Compatible AO ERIs
+are verified and reused automatically by `execute`, `execute_with_events`, and
+`run_hf`; missing or incompatible artifacts fall back to the enabled local cache
+and then computation. Corrupt or unsupported compatible payloads fail explicitly.
+The source archive is never modified.
+
+A new calculation can also reuse a previous archive with different requested options:
+
+```rust
+let prepared = CalculationBuilder::new(&geometry, &basis_file)
+    .with_mp2(Mp2Config::default())
+    .prepare()?
+    .with_reuse_data(RustiQData::open("water-hf.rustiq")?)?;
+let result = prepared.execute()?;
+```
+
+The execution interface is independent of the input source. An internal enum
+distinguishes configuration-only execution from portable artifact reuse. The
+resolver uses the existing sealed `Artifact` markers for presence, compatibility,
+and loading, rather than archive paths or a public storage/backend trait. Future
+HF solution and restart markers can participate at their respective stages through
+the same resolver; those representations are not implemented yet.
+
+`CalculationEvent::ArtifactReuse` reports per-artifact reused, missing, or
+incompatible decisions. Its decision type also distinguishes intentionally ignored
+state for future selection policies. Computed and reused values are retained in a
+separate in-memory typed data facade for subsequent executions. Compact ERI clones
+share immutable storage; mutation detaches that storage. Neither ordinary reuse nor
+this memory retention rewrites the source snapshot or stores runtime scratch data.
+
+For callers managing tensors explicitly, `take_compatible_eri`,
+`execute_with_eri`, and `run_hf_with_eri` remain available. This explicit path
+rejects missing, incompatible, corrupt, or unsupported artifacts, and validates
+tensor dimensions. ERIs remain accessible in the HF solution and are reused by MP2.
+
+A complete H2/STO-3G example set is in
+[`crates/rustiq-core/examples`](../crates/rustiq-core/examples). Each file shows
+one workflow. `calculate_from_rustiq` uses only the archive; the other examples
+load geometry and basis from repository sample and test data:
+
+```sh
+cargo run -p rustiq-core --example hf_calculation
+cargo run -p rustiq-core --example write_rustiq
+cargo run -p rustiq-core --example read_rustiq
+cargo run -p rustiq-core --example calculate_from_rustiq
+cargo run -p rustiq-core --example copy_rustiq
+```
+
+The examples read and write archives in the ignored
+`crates/rustiq-core/examples/data/` directory. The read examples expect
+`h2.rustiq` to have been created by `write_rustiq`.

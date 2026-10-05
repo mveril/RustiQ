@@ -203,6 +203,7 @@ impl<'a> CalculationBuilder<'a> {
             integrals: self.integrals,
             mp2: self.mp2,
             eri_cache: self.eri_cache.clone(),
+            source: super::artifact_reuse::CalculationSource::Configuration,
         })
     }
 

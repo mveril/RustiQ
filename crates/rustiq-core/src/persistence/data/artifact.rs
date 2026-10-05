@@ -9,6 +9,17 @@ pub(crate) mod private {
 pub trait Artifact: private::Sealed {
     type Value;
 
+    /// Stable logical artifact name, independent of its storage path.
+    const NAME: &'static str;
+
+    #[doc(hidden)]
+    fn is_present(data: &RustiQData) -> bool;
+    #[doc(hidden)]
+    fn is_compatible(
+        data: &RustiQData,
+        calculation: &crate::calculation::PreparedCalculation,
+    ) -> bool;
+
     #[doc(hidden)]
     fn get(data: &mut RustiQData) -> Result<Option<&Self::Value>, ArtifactError>;
     #[doc(hidden)]

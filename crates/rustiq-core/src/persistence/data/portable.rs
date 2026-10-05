@@ -119,6 +119,26 @@ impl RustiQData {
         self.request.as_ref()
     }
 
+    /// Rebuilds an executable calculation from the resolved context in this portable archive.
+    /// The archive becomes a read-only source of typed artifacts for normal execution.
+    /// Payloads are loaded and verified only when their scientific stage needs them.
+    /// Missing or incompatible artifacts fall back to computation; corrupt compatible
+    /// artifacts produce an execution error. The source archive is never modified.
+    pub fn prepare_calculation(self) -> Result<PreparedCalculation, PortableError> {
+        let context = self.context.as_ref().ok_or_else(|| {
+            PortableError::InvalidCalculation(
+                "calculation preparation requires portable calculation context".into(),
+            )
+        })?;
+        let request = self.request.as_ref().ok_or_else(|| {
+            PortableError::InvalidCalculation(
+                "calculation preparation requires a portable request".into(),
+            )
+        })?;
+        let prepared = PreparedCalculation::from_portable_context(request.clone(), context);
+        prepared.with_reuse_data(self)
+    }
+
     /// Captured sources are opaque provenance and never affect scientific compatibility.
     pub fn sources(&self) -> impl ExactSizeIterator<Item = &SourceProvenance> {
         self.sources.iter()
@@ -209,7 +229,7 @@ impl RustiQData {
             && self.matches_eri_identity(calculation)
     }
 
-    fn matches_eri_identity(&self, calculation: &PreparedCalculation) -> bool {
+    pub(super) fn matches_eri_identity(&self, calculation: &PreparedCalculation) -> bool {
         let identity = super::super::ao_eri_identity(
             calculation.get_molecule(),
             calculation.get_basis(),
@@ -235,6 +255,50 @@ impl RustiQData {
             super::bundle::write_bundle(std::slice::from_mut(self), &sources, path.as_ref());
         self.sources = sources;
         result
+    }
+
+    /// Writes a single-calculation V1 bundle with a borrowed AO ERI tensor.
+    pub fn write_with_eri(
+        &mut self,
+        path: impl AsRef<Path>,
+        eri: &crate::eri::CompactEri,
+    ) -> Result<(), PortableError> {
+        self.validate_eri(eri)?;
+        let sources = std::mem::take(&mut self.sources);
+        let result = super::bundle::write_bundle_with_eri(
+            std::slice::from_mut(self),
+            &sources,
+            path.as_ref(),
+            Some(eri),
+        );
+        self.sources = sources;
+        result
+    }
+
+    /// Validates compatibility and lazily decodes the ERI, then transfers ownership.
+    /// Missing, unsupported, incompatible, or corrupt artifacts are errors.
+    pub fn take_compatible_eri(
+        &mut self,
+        calculation: &PreparedCalculation,
+    ) -> Result<crate::eri::CompactEri, PortableError> {
+        if self.ao_eri.is_none() {
+            let artifact = self
+                .manifest
+                .artifacts
+                .get(AO_ERI_ARTIFACT)
+                .ok_or(ArtifactError::Missing)?;
+            if artifact.representation != COMPACT_ERI_REPRESENTATION {
+                return Err(ArtifactError::UnsupportedRepresentation(
+                    artifact.representation.clone(),
+                )
+                .into());
+            }
+        }
+        if !self.eri_is_compatible(calculation) {
+            return Err(PortableError::IncompatibleEri);
+        }
+        self.read_eri()?;
+        Ok(self.take_eri().expect("validated ERI is loaded"))
     }
 
     pub(crate) fn validate_unloaded_eri(&mut self) -> Result<(), PortableError> {

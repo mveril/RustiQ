@@ -146,3 +146,151 @@ fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() 
         .unwrap()
         .is_some());
 }
+
+#[test]
+fn borrowed_output_and_owned_input_preserve_eri_and_mp2() {
+    use rustiq_core::{
+        calculation::CalculationExecution, config::Mp2Config, persistence::EriCache,
+    };
+    let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
+    let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .with_mp2(Mp2Config::default())
+        .prepare()
+        .unwrap();
+    let ordinary = prepared.execute().unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("h2.rustiq");
+    let mut data = RustiQData::from_calculation(&prepared).unwrap();
+    data.add_source("input.xyz", b"provenance".as_slice())
+        .unwrap();
+    let tensor = ordinary.hf.ao_eri();
+    let pointer = &tensor[(0, 0, 0, 0)] as *const f64;
+    data.write_with_eri(&path, tensor).unwrap();
+    assert_eq!(pointer, &ordinary.hf.ao_eri()[(0, 0, 0, 0)] as *const f64);
+    assert!(data.get::<AoEriArtifact>().unwrap().is_none());
+    let mut restored = RustiQData::open(&path).unwrap();
+    assert_eq!(restored.sources().len(), 1);
+    assert_eq!(restored.calculation().unwrap().charge(), 0);
+    let cache_root = directory.path().join("unused-cache");
+    let cached = CalculationBuilder::new(&geometry, &basis)
+        .with_mp2(Mp2Config::default())
+        .with_eri_cache(EriCache::new(&cache_root))
+        .prepare()
+        .unwrap();
+    let eri = restored.take_compatible_eri(&cached).unwrap();
+    let pointer = &eri[(0, 0, 0, 0)] as *const f64;
+    let supplied = cached.execute_with_eri(eri).unwrap();
+    assert_eq!(pointer, &supplied.hf.ao_eri()[(0, 0, 0, 0)] as *const f64);
+    assert!(!cache_root.exists());
+    assert_eq!(
+        ordinary.hf.summary().scf.electronic_energy,
+        supplied.hf.summary().scf.electronic_energy
+    );
+    assert_eq!(
+        ordinary.mp2.unwrap().correlation_energy,
+        supplied.mp2.unwrap().correlation_energy
+    );
+    assert!(cached.execute_with_eri(CompactEri::Zeroed(3)).is_err());
+    let zero = cached.run_hf_with_eri(CompactEri::Zeroed(2)).unwrap();
+    assert_eq!(zero.ao_eri()[(0, 0, 0, 0)], 0.0);
+    assert!(!cache_root.exists());
+}
+
+#[test]
+fn explicit_input_rejects_missing_incompatible_and_multiple_calculations() {
+    use rustiq_core::{
+        config::IntegralConfig,
+        persistence::{ArtifactError, RustiQBundle},
+    };
+    let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
+    let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .prepare()
+        .unwrap();
+    let mut data = RustiQData::from_calculation(&prepared).unwrap();
+    assert!(matches!(
+        data.take_compatible_eri(&prepared),
+        Err(PortableError::Artifact(ArtifactError::Missing))
+    ));
+    data.set_eri(CompactEri::Zeroed(2)).unwrap();
+    let changed = CalculationBuilder::new(&geometry, &basis)
+        .with_integrals(IntegralConfig {
+            schwarz_threshold: None.into(),
+        })
+        .prepare()
+        .unwrap();
+    assert!(matches!(
+        data.take_compatible_eri(&changed),
+        Err(PortableError::IncompatibleEri)
+    ));
+    assert!(data.read_eri().is_ok());
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("multi.rustiq");
+    RustiQBundle::new(vec![data, RustiQData::from_calculation(&prepared).unwrap()])
+        .unwrap()
+        .write(&path)
+        .unwrap();
+    assert!(RustiQData::open(path).is_err());
+}
+
+#[test]
+fn explicit_input_reports_corrupt_and_unsupported_eri() {
+    use rustiq_core::persistence::ArtifactError;
+    use std::{
+        fs::File,
+        io::{Read, Write},
+    };
+    use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
+    let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
+    let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .prepare()
+        .unwrap();
+    let hf = prepared.run_hf().unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let original = directory.path().join("original.rustiq");
+    RustiQData::from_calculation(&prepared)
+        .unwrap()
+        .write_with_eri(&original, hf.ao_eri())
+        .unwrap();
+    for unsupported in [false, true] {
+        let path = directory
+            .path()
+            .join(format!("changed-{unsupported}.rustiq"));
+        let mut archive = ZipArchive::new(File::open(&original).unwrap()).unwrap();
+        let mut writer = ZipWriter::new(File::create(&path).unwrap());
+        for index in 0..archive.len() {
+            let mut member = archive.by_index(index).unwrap();
+            let name = member.name().to_owned();
+            let mut bytes = Vec::new();
+            member.read_to_end(&mut bytes).unwrap();
+            if unsupported && name == "manifest.json" {
+                let mut manifest: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                manifest["calculations"][0]["artifacts"]["ao_eri"]["representation"] =
+                    "future-eri-v2".into();
+                bytes = serde_json::to_vec(&manifest).unwrap();
+            } else if !unsupported && name.ends_with("ao-eri.npy") {
+                *bytes.last_mut().unwrap() ^= 1;
+            }
+            writer
+                .start_file(name, SimpleFileOptions::default())
+                .unwrap();
+            writer.write_all(&bytes).unwrap();
+        }
+        writer.finish().unwrap();
+        let mut data = RustiQData::open(path).unwrap();
+        let error = data.take_compatible_eri(&prepared).unwrap_err();
+        if unsupported {
+            assert!(matches!(
+                error,
+                PortableError::Artifact(ArtifactError::UnsupportedRepresentation(_))
+            ));
+        } else {
+            assert!(matches!(
+                error,
+                PortableError::Artifact(ArtifactError::IntegrityMismatch(_))
+            ));
+        }
+    }
+}

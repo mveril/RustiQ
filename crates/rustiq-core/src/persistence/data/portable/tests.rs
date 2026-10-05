@@ -463,7 +463,18 @@ fn corrupt_payload_is_lazy_but_cannot_be_read_or_republished() {
         .unwrap() ^= 1;
     let corrupt = dir.path().join("corrupt.rustiq");
     write_members(&corrupt, &contents);
+    let portable_calculation = RustiQData::open(&corrupt)
+        .unwrap()
+        .prepare_calculation()
+        .unwrap();
+    use crate::calculation::{CalculationError, CalculationExecution};
+    let error = portable_calculation.execute().unwrap_err();
+    assert!(matches!(
+        error.cause(),
+        CalculationError::Artifact(ArtifactError::IntegrityMismatch(_))
+    ));
     let mut restored = RustiQData::open(&corrupt).unwrap();
+    assert!(restored.take_compatible_eri(&calculation()).is_err());
     assert!(restored.read_eri().is_err());
     let output = dir.path().join("output.rustiq");
     assert!(restored.write(&output).is_err());
@@ -666,6 +677,7 @@ fn malformed_npy_is_rejected_even_with_correct_digest() {
         let bad = dir.path().join("bad.rustiq");
         write_members(&bad, &contents);
         let mut restored = RustiQData::open(&bad).unwrap();
+        assert!(restored.take_compatible_eri(&calculation()).is_err());
         assert!(restored.read_eri().is_err());
         assert!(restored.write(dir.path().join("copy.rustiq")).is_err());
     }
@@ -881,6 +893,7 @@ fn unsupported_representation_is_inspectable_but_not_scientifically_usable() {
     let mut restored = RustiQData::open(&unknown).unwrap();
     assert!(restored.calculation().is_some());
     assert!(!restored.eri_is_compatible(&calculation()));
+    assert!(restored.take_compatible_eri(&calculation()).is_err());
     assert!(restored.read_eri().is_err());
     restored.write(dir.path().join("copy.rustiq")).unwrap();
 }

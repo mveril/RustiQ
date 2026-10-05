@@ -191,6 +191,15 @@ pub(super) fn write_bundle(
     sources: &[SourceProvenance],
     path: &Path,
 ) -> Result<(), PortableError> {
+    write_bundle_with_eri(calculations, sources, path, None)
+}
+
+pub(super) fn write_bundle_with_eri(
+    calculations: &mut [RustiQData],
+    sources: &[SourceProvenance],
+    path: &Path,
+    eri: Option<&crate::eri::CompactEri>,
+) -> Result<(), PortableError> {
     if calculations.is_empty() {
         return Err(invalid("portable bundles require at least one calculation"));
     }
@@ -205,10 +214,11 @@ pub(super) fn write_bundle(
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let temporary = tempfile::NamedTempFile::new_in(parent)?;
-    write_snapshot(
+    write_snapshot_inner(
         calculations,
         sources,
         Storage::create_zip(temporary.reopen()?),
+        eri,
     )?;
     drop(RustiQBundle::open(temporary.path())?);
     temporary.persist_noclobber(path).map_err(|error| {
@@ -227,6 +237,15 @@ pub(super) fn write_snapshot(
     calculations: &mut [RustiQData],
     sources: &[SourceProvenance],
     destination: Storage,
+) -> Result<(), PortableError> {
+    write_snapshot_inner(calculations, sources, destination, None)
+}
+
+fn write_snapshot_inner(
+    calculations: &mut [RustiQData],
+    sources: &[SourceProvenance],
+    destination: Storage,
+    eri: Option<&crate::eri::CompactEri>,
 ) -> Result<(), PortableError> {
     let storage = Arc::new(Mutex::new(destination));
     let mut manifest = PortableManifest {
@@ -261,7 +280,7 @@ pub(super) fn write_snapshot(
         if data.context.is_none() || data.request.is_none() {
             return Err(invalid("missing calculation snapshots"));
         }
-        if data.ao_eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
+        if eri.is_none() && data.ao_eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
             artifact.representation == COMPACT_ERI_REPRESENTATION && matches!(&artifact.attributes,
                 ArtifactAttributes::AoEri(attributes) if attributes.computation_version == crate::persistence::AO_ERI_COMPUTATION_VERSION)) {
             data.validate_unloaded_eri()?;
@@ -269,7 +288,11 @@ pub(super) fn write_snapshot(
         let id = format!("calculation-{index}");
         let prefix = format!("calculations/{id}");
         let saved_sources = std::mem::take(&mut data.sources);
-        let result = data.write_entry(Storage::scoped(storage.clone(), prefix.clone()));
+        let destination = Storage::scoped(storage.clone(), prefix.clone());
+        let result = match eri {
+            Some(eri) => data.write_entry_with_eri(destination, eri),
+            None => data.write_entry(destination),
+        };
         data.sources = saved_sources;
         let entry = result?;
         let mut request = entry
