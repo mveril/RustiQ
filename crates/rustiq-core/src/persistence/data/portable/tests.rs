@@ -8,11 +8,15 @@ use crate::{
     test_utils::load_minimal_basis_file,
 };
 use std::{
-    fs,
+    fs::{self, File},
     io::{Read, Write},
     num::NonZeroU8,
 };
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
+
+const CALCULATION_PATH: &str = "calculations/calculation-0/calculation.json";
+const REQUEST_PATH: &str = "calculations/calculation-0/request.json";
+const AO_ERI_PATH: &str = "calculations/calculation-0/arrays/integrals/ao-eri.npy";
 
 fn calculation() -> PreparedCalculation {
     let geometry = Geometry::from_source("private.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
@@ -81,16 +85,16 @@ fn refresh_snapshot_digest(members: &mut [(String, Vec<u8>)]) {
         .1;
     let (size, digest) = (snapshot.len(), sha256(snapshot).to_string());
     edit_json(members, "manifest.json", |m| {
-        m["calculation"]["size"] = size.into();
-        m["calculation"]["digest"] = digest.into();
+        m["calculations"][0]["calculation"]["size"] = size.into();
+        m["calculations"][0]["calculation"]["digest"] = digest.into();
     });
 }
 fn refresh_eri_digest(members: &mut [(String, Vec<u8>)]) {
     let payload = &members.iter().find(|(n, _)| n == AO_ERI_PATH).unwrap().1;
     let (size, digest) = (payload.len(), sha256(payload).to_string());
     edit_json(members, "manifest.json", |m| {
-        m["artifacts"]["ao_eri"]["size"] = size.into();
-        m["artifacts"]["ao_eri"]["digest"] = digest.into();
+        m["calculations"][0]["artifacts"]["ao_eri"]["size"] = size.into();
+        m["calculations"][0]["artifacts"]["ao_eri"]["digest"] = digest.into();
     });
 }
 
@@ -273,16 +277,24 @@ fn request_and_source_integrity_versions_and_limits_are_checked_on_open() {
     let original = members(&path);
     let broken = dir.path().join("broken.rustiq");
     for (target, field, value) in [
-        ("manifest.json", "/request", serde_json::Value::Null),
         (
             "manifest.json",
-            "/request/path",
+            "/calculations/0/request",
+            serde_json::Value::Null,
+        ),
+        (
+            "manifest.json",
+            "/calculations/0/request/path",
             serde_json::json!(CALCULATION_PATH),
         ),
-        ("manifest.json", "/request/version", serde_json::json!(99)),
         (
             "manifest.json",
-            "/request/size",
+            "/calculations/0/request/version",
+            serde_json::json!(99),
+        ),
+        (
+            "manifest.json",
+            "/calculations/0/request/size",
             serde_json::json!(MAX_REQUEST_BYTES + 1),
         ),
         (
@@ -325,8 +337,8 @@ fn request_and_source_integrity_versions_and_limits_are_checked_on_open() {
                 .1;
             let (size, digest) = (bytes.len(), sha256(bytes).to_string());
             edit_json(&mut contents, "manifest.json", |m| {
-                m["request"]["size"] = size.into();
-                m["request"]["digest"] = digest.into();
+                m["calculations"][0]["request"]["size"] = size.into();
+                m["calculations"][0]["request"]["digest"] = digest.into();
             });
         }
         write_members(&broken, &contents);
@@ -357,7 +369,10 @@ fn empty_artifacts_uhf_and_mp2_context_round_trip() {
         })
         .with_hf(HfConfig {
             method: HfMethod::Uhf.into(),
-            diis: true,
+            diis: crate::config::DiisConfig {
+                enabled: true,
+                ..Default::default()
+            },
             ..Default::default()
         })
         .with_mp2(Mp2Config::default())
@@ -386,9 +401,8 @@ fn compatibility_depends_on_effective_integral_inputs_only() {
         .unwrap();
     assert!(data.eri_is_compatible(&mp2));
     let changed = CalculationBuilder::new(prepared.get_molecule(), &load_minimal_basis_file())
-        .with_hf(HfConfig {
-            eri_schwarz_threshold: None,
-            ..Default::default()
+        .with_integrals(crate::config::IntegralConfig {
+            schwarz_threshold: None.into(),
         })
         .prepare()
         .unwrap();
@@ -464,9 +478,12 @@ fn unknown_artifacts_survive_verified_streaming_copy() {
     data().write(&first).unwrap();
     let mut contents = members(&first);
     let opaque = b"future payload".to_vec();
-    contents.push(("arrays/future.bin".into(), opaque.clone()));
+    contents.push((
+        "calculations/calculation-0/arrays/future.bin".into(),
+        opaque.clone(),
+    ));
     edit_json(&mut contents, "manifest.json", |m| {
-        m["artifacts"]["future"] = serde_json::json!({"path":"arrays/future.bin","size":opaque.len(),"digest":sha256(&opaque),"representation":"future-v99","attributes":{"opaque":17}});
+        m["calculations"][0]["artifacts"]["future"] = serde_json::json!({"path":"calculations/calculation-0/arrays/future.bin","size":opaque.len(),"digest":sha256(&opaque),"representation":"future-v99","attributes":{"opaque":17}});
     });
     let source = dir.path().join("source.rustiq");
     write_members(&source, &contents);
@@ -474,7 +491,10 @@ fn unknown_artifacts_survive_verified_streaming_copy() {
     let output = dir.path().join("copy.rustiq");
     restored.write(&output).unwrap();
     assert!(restored.ao_eri.is_none());
-    assert!(members(&output).contains(&("arrays/future.bin".into(), opaque)));
+    assert!(members(&output).contains(&(
+        "calculations/calculation-0/arrays/future.bin".into(),
+        opaque
+    )));
     assert_eq!(
         RustiQData::open(&output).unwrap().manifest.artifacts["future"],
         restored.manifest.artifacts["future"]
@@ -492,27 +512,27 @@ fn rejects_invalid_context_manifest_and_artifact_metadata() {
         ("manifest.json", "/format_version", serde_json::json!(999)),
         (
             "manifest.json",
-            "/scientific_identity/version",
+            "/calculations/0/scientific_identity/version",
             serde_json::json!(99),
         ),
         (
             "manifest.json",
-            "/artifacts/ao_eri/attributes/basis_functions",
+            "/calculations/0/artifacts/ao_eri/attributes/basis_functions",
             serde_json::json!(3),
         ),
         (
             "manifest.json",
-            "/artifacts/ao_eri/attributes/computation_version",
+            "/calculations/0/artifacts/ao_eri/attributes/computation_version",
             serde_json::json!(99),
         ),
         (
             "manifest.json",
-            "/artifacts/ao_eri/path",
+            "/calculations/0/artifacts/ao_eri/path",
             serde_json::json!("CALCULATION.JSON"),
         ),
         (
             "manifest.json",
-            "/artifacts/ao_eri/size",
+            "/calculations/0/artifacts/ao_eri/size",
             serde_json::json!(1),
         ),
         (CALCULATION_PATH, "/version", serde_json::json!(99)),
@@ -696,7 +716,12 @@ fn zip64_handles_offsets_beyond_four_gib_without_allocating_large_payloads() {
     let path = dir.path().join("sparse.rustiq");
     let mut file = File::create(&path).unwrap();
     file.seek(SeekFrom::Start(u64::from(u32::MAX) + 1)).unwrap();
-    data().write_to(Storage::create_zip(file)).unwrap();
+    super::super::bundle::write_snapshot(
+        std::slice::from_mut(&mut data()),
+        &[],
+        Storage::create_zip(file),
+    )
+    .unwrap();
     assert!(fs::metadata(&path).unwrap().len() > u64::from(u32::MAX));
     let mut restored = RustiQData::open(&path).unwrap();
     assert_eq!(
@@ -748,7 +773,7 @@ fn rejects_links_special_entries_encryption_and_oversized_metadata() {
     assert!(RustiQData::open(path).is_err());
     let mut contents = members(&source);
     edit_json(&mut contents, "manifest.json", |m| {
-        m["calculation"]["size"] = (MAX_CALCULATION_BYTES + 1).into()
+        m["calculations"][0]["calculation"]["size"] = (MAX_CALCULATION_BYTES + 1).into()
     });
     let path = dir.path().join("snapshot-limit.rustiq");
     write_members(&path, &contents);
@@ -849,7 +874,7 @@ fn unsupported_representation_is_inspectable_but_not_scientifically_usable() {
     data().write(&source).unwrap();
     let mut contents = members(&source);
     edit_json(&mut contents, "manifest.json", |m| {
-        m["artifacts"]["ao_eri"]["representation"] = "future-eri-v2".into()
+        m["calculations"][0]["artifacts"]["ao_eri"]["representation"] = "future-eri-v2".into()
     });
     let unknown = dir.path().join("unknown.rustiq");
     write_members(&unknown, &contents);
@@ -939,8 +964,8 @@ fn independently_rounded_python_angstrom_conversion_is_accepted() {
     let request = &contents.iter().find(|(n, _)| n == REQUEST_PATH).unwrap().1;
     let (size, digest) = (request.len(), sha256(request).to_string());
     edit_json(&mut contents, "manifest.json", |m| {
-        m["request"]["size"] = size.into();
-        m["request"]["digest"] = digest.into();
+        m["calculations"][0]["request"]["size"] = size.into();
+        m["calculations"][0]["request"]["digest"] = digest.into();
     });
     let invalid = dir.path().join("changed.rustiq");
     write_members(&invalid, &contents);
@@ -1026,5 +1051,248 @@ fn published_required_fields_match_v1_decoders() {
                 .insert("unknown_v1_field".into(), json!(0));
             assert!(!decode(candidate), "unknown field in {definition}");
         }
+    }
+}
+
+#[test]
+fn bundle_entries_have_independent_lazy_artifacts_and_shared_sources() {
+    use crate::persistence::RustiQBundle;
+    let basis = load_minimal_basis_file();
+    let prepared = calculation();
+    let changed = CalculationBuilder::new(prepared.get_molecule(), &basis)
+        .with_integrals(crate::config::IntegralConfig {
+            schwarz_threshold: None.into(),
+        })
+        .prepare()
+        .unwrap();
+    let mut first = data();
+    first
+        .add_source("batch.ncl", b"shared source".as_slice())
+        .unwrap();
+    let mut second = RustiQData::from_calculation(&changed).unwrap();
+    second
+        .add_source("batch.ncl", b"shared source".as_slice())
+        .unwrap();
+    second.set_eri(CompactEri::Zeroed(2)).unwrap();
+    let mut bundle = RustiQBundle::new(vec![first, second]).unwrap();
+    assert_eq!(bundle.sources().len(), 1);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("batch.rustiq");
+    bundle.write(&path).unwrap();
+    let contents = members(&path);
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &contents
+            .iter()
+            .find(|(n, _)| n == "manifest.json")
+            .unwrap()
+            .1,
+    )
+    .unwrap();
+    assert!(manifest.get("scientific_identity").is_none());
+    assert_eq!(manifest["calculations"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        contents
+            .iter()
+            .filter(|(n, _)| n.starts_with("sources/"))
+            .count(),
+        1
+    );
+    assert!(RustiQData::open(&path)
+        .unwrap_err()
+        .to_string()
+        .contains("exactly one"));
+    let mut restored = RustiQBundle::open(&path).unwrap();
+    assert!(restored
+        .calculations()
+        .iter()
+        .all(|data| data.ao_eri.is_none()));
+    assert!(restored.calculations()[0].eri_is_compatible(&prepared));
+    assert!(!restored.calculations()[1].eri_is_compatible(&prepared));
+    assert!(restored.calculations()[1].eri_is_compatible(&changed));
+    assert_eq!(
+        restored.calculations_mut()[0]
+            .read_eri()
+            .unwrap()
+            .ordered_values()[0],
+        0.5
+    );
+    assert!(restored.calculations()[1].ao_eri.is_none());
+    assert_eq!(
+        restored.calculations_mut()[1]
+            .read_eri()
+            .unwrap()
+            .ordered_values()[0],
+        0.0
+    );
+    let copy = dir.path().join("copy.rustiq");
+    restored.write(&copy).unwrap();
+    assert_eq!(fs::read(&path).unwrap(), fs::read(&copy).unwrap());
+}
+
+#[test]
+fn bundle_rejects_empty_duplicate_ids_cross_entry_and_conflicting_references() {
+    use crate::persistence::RustiQBundle;
+    assert!(RustiQBundle::new(vec![]).is_err());
+    let dir = tempfile::tempdir().unwrap();
+    let good = dir.path().join("good.rustiq");
+    RustiQBundle::new(vec![data(), data()])
+        .unwrap()
+        .write(&good)
+        .unwrap();
+    let original = members(&good);
+    for (field, value) in [
+        ("/calculations", serde_json::json!([])),
+        ("/calculations/1/id", serde_json::json!("calculation-0")),
+        ("/calculations/1/id", serde_json::json!("../invalid")),
+        (
+            "/calculations/1/request/path",
+            serde_json::json!(REQUEST_PATH),
+        ),
+        (
+            "/calculations/0/artifacts/ao_eri/path",
+            serde_json::json!(CALCULATION_PATH),
+        ),
+    ] {
+        let mut contents = original.clone();
+        edit_json(&mut contents, "manifest.json", |manifest| {
+            *manifest.pointer_mut(field).unwrap() = value;
+        });
+        let bad = dir.path().join("bad.rustiq");
+        write_members(&bad, &contents);
+        assert!(RustiQBundle::open(&bad).is_err(), "{field}");
+    }
+    let mut contents = original;
+    edit_json(&mut contents, "manifest.json", |manifest| {
+        manifest["scientific_identity"] =
+            manifest["calculations"][0]["scientific_identity"].clone();
+    });
+    let bad = dir.path().join("aggregate.rustiq");
+    write_members(&bad, &contents);
+    assert!(RustiQBundle::open(&bad).is_err());
+}
+
+#[test]
+fn corrupt_bundle_entry_does_not_prevent_independent_artifact_access_or_publish_partial_output() {
+    use crate::persistence::RustiQBundle;
+    let dir = tempfile::tempdir().unwrap();
+    let good = dir.path().join("good.rustiq");
+    RustiQBundle::new(vec![data(), data()])
+        .unwrap()
+        .write(&good)
+        .unwrap();
+    let mut contents = members(&good);
+    *contents
+        .iter_mut()
+        .find(|(n, _)| n == AO_ERI_PATH)
+        .unwrap()
+        .1
+        .last_mut()
+        .unwrap() ^= 1;
+    let bad = dir.path().join("bad.rustiq");
+    write_members(&bad, &contents);
+    let original = fs::read(&bad).unwrap();
+    let mut bundle = RustiQBundle::open(&bad).unwrap();
+    assert!(bundle.calculations_mut()[0].read_eri().is_err());
+    assert_eq!(
+        bundle.calculations_mut()[1]
+            .read_eri()
+            .unwrap()
+            .ordered_values()[0],
+        0.5
+    );
+    let output = dir.path().join("output.rustiq");
+    assert!(bundle.write(&output).is_err());
+    assert!(!output.exists());
+    assert_eq!(fs::read(&bad).unwrap(), original);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+}
+
+#[test]
+fn reads_python_multi_calculation_fixture() {
+    let fixture =
+        include_str!("../../../../tests/data/persistence/portable-python-multi-v1.rustiq.hex");
+    let bytes: Vec<u8> = fixture
+        .trim()
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("multi.rustiq");
+    fs::write(&path, bytes).unwrap();
+    let mut bundle = crate::persistence::RustiQBundle::open(&path).unwrap();
+    assert_eq!(bundle.sources().len(), 1);
+    assert_eq!(bundle.calculations().len(), 2);
+    for data in bundle.calculations_mut() {
+        assert!(data.ao_eri.is_none());
+        assert_eq!(
+            data.read_eri().unwrap().ordered_values(),
+            &[0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+        );
+    }
+}
+
+#[test]
+#[ignore = "writes a multi-calculation artifact for Python interoperability"]
+fn writes_bundle_for_python_interoperability() {
+    let path = std::env::var_os("RUSTIQ_ARCHIVE_TEST_OUTPUT").expect("output path");
+    let mut bundle = crate::persistence::RustiQBundle::new(vec![data(), data()]).unwrap();
+    bundle
+        .add_source("batch.ncl", b"shared source".as_slice())
+        .unwrap();
+    bundle.write(path).unwrap();
+}
+
+#[test]
+fn portable_manifest_golden_and_schema_required_fields_match_decoder() {
+    use crate::persistence::manifest::PortableManifest;
+    use serde_json::{json, Value};
+    let value: Value = serde_json::from_str(include_str!(
+        "../../../../tests/data/persistence/portable-manifest-h2-v1.json"
+    ))
+    .unwrap();
+    let decoded: PortableManifest = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(serde_json::to_value(decoded).unwrap(), value);
+    let schema: Value = serde_json::from_str(include_str!(
+        "../../../../../../schemas/portable-manifest-v1.schema.json"
+    ))
+    .unwrap();
+    assert_eq!(schema["properties"]["calculations"]["minItems"], 1);
+    for (path, definition) in [
+        ("", ""),
+        ("/calculations/0", "calculation"),
+        ("/calculations/0/request", "snapshot"),
+        ("/sources/0", "source"),
+    ] {
+        let record = if definition.is_empty() {
+            &schema
+        } else {
+            &schema["$defs"][definition]
+        };
+        let required = record["required"].as_array().unwrap();
+        for field in record["properties"].as_object().unwrap().keys() {
+            let mut candidate = value.clone();
+            candidate
+                .pointer_mut(path)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert_eq!(
+                serde_json::from_value::<PortableManifest>(candidate).is_ok(),
+                !required.contains(&json!(field)),
+                "{definition} {field}"
+            );
+        }
+        let mut candidate = value.clone();
+        candidate
+            .pointer_mut(path)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("unknown_v1_field".into(), json!(0));
+        assert!(serde_json::from_value::<PortableManifest>(candidate).is_err());
     }
 }

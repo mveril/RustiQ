@@ -11,7 +11,8 @@ use crate::{
     calculation::CalculationRequest,
     config::{
         validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
-        HfConfig, HfMethod, MemoryLimit, MoleculeConfig, Mp2Config,
+        DiisConfig, HfConfig, HfMethod, IntegralConfig, MemoryLimit, MoleculeConfig, Mp2Config,
+        OrthogonalizationConfig,
     },
     molecules::{atom::Atom, geometry::Geometry, units::Units},
 };
@@ -113,10 +114,19 @@ impl RequestSnapshot {
                 },
                 max_iterations: u64::try_from(hf.max_iterations.get()).map_err(|_| invalid())?,
                 convergence_threshold: hf.convergence_threshold.into_inner(),
-                linear_dependency_threshold: hf.linear_dependency_threshold.value.into_inner(),
-                eri_schwarz_threshold: hf.eri_schwarz_threshold.map(|v| v.into_inner()),
-                diis: hf.diis,
-                diis_size: u64::try_from(hf.diis_size.into_inner()).map_err(|_| invalid())?,
+                linear_dependency_threshold: hf
+                    .orthogonalization
+                    .linear_dependency_threshold
+                    .value
+                    .into_inner(),
+                eri_schwarz_threshold: request
+                    .integrals()
+                    .schwarz_threshold
+                    .value
+                    .map(|v| v.into_inner()),
+                diis: hf.diis.enabled,
+                diis_size: u64::try_from(hf.diis.max_history.value.into_inner())
+                    .map_err(|_| invalid())?,
                 guess: hf.guess.value.into(),
             },
             mp2: request
@@ -177,23 +187,22 @@ impl RequestSnapshot {
             .ok_or_else(invalid)?,
             convergence_threshold: PositiveFiniteF64::try_new(self.hf.convergence_threshold)
                 .map_err(|_| invalid())?,
-            linear_dependency_threshold: NonNegativeFiniteF64::try_new(
-                self.hf.linear_dependency_threshold,
-            )
-            .map_err(|_| invalid())?
-            .into(),
-            eri_schwarz_threshold: self
-                .hf
-                .eri_schwarz_threshold
-                .map(PositiveFiniteF64::try_new)
-                .transpose()
-                .map_err(|_| invalid())?,
+            orthogonalization: OrthogonalizationConfig {
+                linear_dependency_threshold: NonNegativeFiniteF64::try_new(
+                    self.hf.linear_dependency_threshold,
+                )
+                .map_err(|_| invalid())?
+                .into(),
+            },
             guess: self.hf.guess.to_config().into(),
-            diis: self.hf.diis,
-            diis_size: DiisSize::try_new(
-                usize::try_from(self.hf.diis_size).map_err(|_| invalid())?,
-            )
-            .map_err(|_| invalid())?,
+            diis: DiisConfig {
+                enabled: self.hf.diis,
+                max_history: DiisSize::try_new(
+                    usize::try_from(self.hf.diis_size).map_err(|_| invalid())?,
+                )
+                .map_err(|_| invalid())?
+                .into(),
+            },
         };
         let request = CalculationRequest {
             geometry: Geometry::new(String::new(), atoms),
@@ -209,6 +218,15 @@ impl RequestSnapshot {
             },
             basis_name: self.basis.clone(),
             hf,
+            integrals: IntegralConfig {
+                schwarz_threshold: self
+                    .hf
+                    .eri_schwarz_threshold
+                    .map(PositiveFiniteF64::try_new)
+                    .transpose()
+                    .map_err(|_| invalid())?
+                    .into(),
+            },
             mp2: self
                 .mp2
                 .as_ref()
@@ -267,8 +285,8 @@ mod tests {
             value["hf"]["diis_size"] = json!(17);
             let snapshot: RequestSnapshot = serde_json::from_value(value.clone()).unwrap();
             let request = snapshot.to_request().unwrap();
-            assert_eq!(request.hf().diis, enabled);
-            assert_eq!(request.hf().diis_size.into_inner(), 17);
+            assert_eq!(request.hf().diis.enabled, enabled);
+            assert_eq!(request.hf().diis.max_history.value.into_inner(), 17);
             assert_eq!(
                 serde_json::to_value(RequestSnapshot::from_request(&request).unwrap()).unwrap()
                     ["hf"]["diis_size"],

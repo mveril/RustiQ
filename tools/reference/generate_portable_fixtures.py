@@ -60,6 +60,18 @@ def digest(payload: bytes) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
+def portable_manifest(manifest: dict) -> dict:
+    entry = {"id": "calculation-0"}
+    for field in ("scientific_identity", "request", "calculation", "artifacts"):
+        entry[field] = manifest.pop(field)
+    for field in ("request", "calculation"):
+        entry[field]["path"] = "calculations/calculation-0/" + entry[field]["path"]
+    for artifact in entry["artifacts"].values():
+        artifact["path"] = "calculations/calculation-0/" + artifact["path"]
+    manifest["calculations"] = [entry]
+    return manifest
+
+
 def generate() -> None:
     snapshot = (FIXTURES / "calculation-h2-v1.json").read_bytes()
     request = (FIXTURES / "request-h2-v1.json").read_bytes()
@@ -109,6 +121,7 @@ def generate() -> None:
                 }
             },
         }
+        manifest = portable_manifest(manifest)
         output = io.BytesIO()
         # Force full ZIP64 EOCD/locator/central extras on small fixtures.
         previous_limit = zipfile.ZIP64_LIMIT
@@ -117,10 +130,10 @@ def generate() -> None:
             with zipfile.ZipFile(output, "w", allowZip64=True) as archive:
                 for name, content in [
                     ("manifest.json", json.dumps(manifest, indent=2).encode() + b"\n"),
-                    ("calculation.json", snapshot),
-                    ("request.json", request),
+                    ("calculations/calculation-0/calculation.json", snapshot),
+                    ("calculations/calculation-0/request.json", request),
                     ("sources/0", source),
-                    ("arrays/integrals/ao-eri.npy", payload),
+                    ("calculations/calculation-0/arrays/integrals/ao-eri.npy", payload),
                 ]:
                     info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
                     info.create_system = 3
@@ -177,12 +190,13 @@ def generate_angstrom() -> None:
         },
         "artifacts": {},
     }
+    manifest = portable_manifest(manifest)
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", allowZip64=True) as archive:
         for name, content in [
             ("manifest.json", json.dumps(manifest, indent=2).encode() + b"\n"),
-            ("request.json", request_bytes),
-            ("calculation.json", snapshot_bytes),
+            ("calculations/calculation-0/request.json", request_bytes),
+            ("calculations/calculation-0/calculation.json", snapshot_bytes),
         ]:
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             info.create_system = 3
@@ -194,6 +208,60 @@ def generate_angstrom() -> None:
     )
 
 
+def generate_multi() -> None:
+    """Two independent entries share source provenance and use opposite NPY byte orders."""
+
+    def write_member(target: zipfile.ZipFile, name: str, content: bytes) -> None:
+        info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+        info.create_system = 3
+        info.external_attr = 0o100644 << 16
+        info.compress_type = (
+            zipfile.ZIP_STORED if name.endswith(".npy") else zipfile.ZIP_DEFLATED
+        )
+        target.writestr(info, content)
+
+    output = io.BytesIO()
+    combined = None
+    with zipfile.ZipFile(output, "w", allowZip64=True) as target:
+        for index, order in enumerate(("little", "big")):
+            content = bytes.fromhex(
+                (FIXTURES / f"portable-python-{order}-v1.rustiq.hex").read_text()
+            )
+            with zipfile.ZipFile(io.BytesIO(content)) as source:
+                manifest = json.loads(source.read("manifest.json"))
+                entry = manifest["calculations"][0]
+                old_prefix = "calculations/calculation-0/"
+                new_prefix = f"calculations/calculation-{index}/"
+                entry["id"] = f"calculation-{index}"
+                for reference in (
+                    entry["request"],
+                    entry["calculation"],
+                    *entry["artifacts"].values(),
+                ):
+                    reference["path"] = reference["path"].replace(
+                        old_prefix, new_prefix
+                    )
+                if combined is None:
+                    combined = manifest
+                    write_member(target, "sources/0", source.read("sources/0"))
+                else:
+                    combined["calculations"].append(entry)
+                for name in source.namelist():
+                    if name.startswith(old_prefix):
+                        write_member(
+                            target,
+                            name.replace(old_prefix, new_prefix),
+                            source.read(name),
+                        )
+        write_member(
+            target, "manifest.json", json.dumps(combined, indent=2).encode() + b"\n"
+        )
+    (FIXTURES / "portable-python-multi-v1.rustiq.hex").write_text(
+        output.getvalue().hex() + "\n", encoding="ascii"
+    )
+
+
 if __name__ == "__main__":
     generate()
     generate_angstrom()
+    generate_multi()

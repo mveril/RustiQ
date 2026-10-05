@@ -110,6 +110,8 @@ basis-function count from their typed manifest attributes; the NPY length is nev
 used to infer that scientific context. Matrix readers accept C and Fortran order
 and matrix writers emit Fortran order.
 
+For the directory cache:
+
 - `manifest.json` is UTF-8 JSON and describes the format, producer, scientific
   identity and artifacts.
 - `arrays/integrals/ao-eri.npy` is the AO electron-repulsion integral artifact.
@@ -155,7 +157,7 @@ independent of its container.
 
 ## Generic artifact manifest
 
-The root manifest is an index of versioned scientific artifacts rather than a
+The cache root manifest, or each portable calculation entry, indexes scientific artifacts rather than a
 union of every scientific state RustiQ may ever persist. A representative entry
 has this shape:
 
@@ -235,38 +237,60 @@ unchanged.
 
 ## Portable `.rustiq` V1
 
-A portable artifact is a ZIP archive, with ZIP64 support for large members and
-large offsets. It contains `manifest.json`, independently versioned `request.json`
-and `calculation.json`, optional opaque `sources/` payloads, and zero or more
-indexed scientific artifacts. It is not an NPZ file. Readers access members by
-name without extracting files. The active directory cache remains a separate,
-disposable machine-local product with its existing format and behavior.
+A portable artifact is a ZIP archive with ZIP64 support, containing a non-empty
+collection of independently reusable calculations. Single-calculation archives
+use the same V1 format with exactly one entry. The normative root schema is
+[`portable-manifest-v1.schema.json`](../schemas/portable-manifest-v1.schema.json).
+A [golden H2 manifest](../crates/rustiq-core/tests/data/persistence/portable-manifest-h2-v1.json)
+records the ordinary single-calculation case.
+The directory cache retains its existing single-artifact manifest and layout.
 
-The portable manifest uses `kind: "portable"`. Its format/version, producer,
-scientific identity and artifact envelope are the same as the logical format
-above. It additionally requires separate `request` and `calculation` references:
+```text
+manifest.json
+sources/0                                  optional shared opaque provenance
+calculations/calculation-0/request.json     normalized requested state
+calculations/calculation-0/calculation.json resolved scientific state
+calculations/calculation-0/arrays/integrals/ao-eri.npy
+calculations/calculation-1/request.json
+calculations/calculation-1/calculation.json
+...
+```
+
+The root contains `format: "rustiq-persistence"`, `format_version: 1`,
+`kind: "portable"`, `producer`, optional `sources`, and `calculations`.
+Each calculation entry contains `id`, `scientific_identity`, `request`,
+`calculation`, and `artifacts`. There is no root scientific identity or artifact
+map. Compatibility remains specific to each calculation and artifact.
+
+Writers assign deterministic identifiers `calculation-0`, `calculation-1`, ...
+in collection order. Readers accept unique `calculation-<digits>` identifiers.
+Identifiers are references within a snapshot, not scientific identities; neither
+identifiers, source order nor user labels enter scientific compatibility.
+Request/resolved references and artifacts must stay inside their entry's
+`calculations/<id>/` namespace. References are full archive member paths:
 
 ```json
 "request": {
-  "path": "request.json",
+  "path": "calculations/calculation-0/request.json",
   "version": 1,
   "size": 1234,
   "digest": "sha256:..."
 },
 "calculation": {
-  "path": "calculation.json",
+  "path": "calculations/calculation-0/calculation.json",
   "version": 1,
   "size": 1234,
   "digest": "sha256:..."
 }
 ```
 
-`size` and `digest` describe the exact uncompressed JSON bytes, including any
-whitespace. Each reference version selects its own snapshot schema; it is not
-tied to the package version or the other snapshot version. Cache manifests omit
-both references and source provenance. Producer version remains
-provenance, not an invalidation rule. Archives may contain no numerical artifacts;
-the scientific context remains useful by itself.
+`size` and `digest` describe exact uncompressed bytes, including whitespace.
+Each snapshot has an independently versioned schema. Producer version is
+provenance, not an invalidation rule. An entry may contain no numerical artifacts.
+A bundle represents the supplied calculation collection, not an append-only history.
+Shared sources are stored once; numerical payload deduplication is not implemented.
+The pre-release single-calculation portable layout is replaced by this V1 contract;
+there is no migration reader for that unpublished layout.
 
 ### Normalized request and optional source provenance
 
@@ -289,6 +313,11 @@ this deliberately asks preparation to choose a fresh seed. The unresolved reques
 keeps that state while `calculation.json` records the concrete seed actually used.
 Comments, source
 spans, source paths, cache configuration, and output/UI settings are excluded.
+The V1 wire fields remain independent of Rust struct organization: integral screening
+is encoded as `hf.eri_schwarz_threshold`, orthogonalization as
+`hf.linear_dependency_threshold`, and DIIS as `hf.diis` / `hf.diis_size`.
+The decoder maps these to `IntegralConfig`, `OrthogonalizationConfig`, and
+`DiisConfig`, respectively.
 The basis label is informational; resolved AO contents define scientific identity.
 
 Sources are optional opaque bytes, including non-UTF-8 content. They are never
@@ -378,6 +407,35 @@ restart state.
 
 ### Rust API
 
+`RustiQBundle::new(Vec<RustiQData>)` validates a non-empty portable collection.
+`calculations()` and `calculations_mut()` expose entries in manifest order, with
+independent typed artifact access and compatibility. The mutable slice cannot
+change cardinality. `add_source` / `sources` manage shared provenance; construction
+also lifts and deduplicates identical source name/byte pairs attached to entries.
+`RustiQBundle::open` reads all request/resolved snapshots but leaves arrays lazy.
+`write` publishes all supplied entries as one complete snapshot.
+
+```rust,ignore
+use rustiq_core::persistence::{RustiQBundle, RustiQData};
+
+let entries = prepared_calculations.iter()
+    .map(RustiQData::from_calculation)
+    .collect::<Result<Vec<_>, _>>()?;
+let mut bundle = RustiQBundle::new(entries)?;
+bundle.add_source("batch.ncl", original_source_bytes)?;
+bundle.write("batch.rustiq")?;
+let mut reopened = RustiQBundle::open("batch.rustiq")?;
+for entry in reopened.calculations_mut() {
+    println!("{:?}", entry.calculation().expect("portable context").hf_method());
+}
+```
+
+The existing single-calculation `RustiQData::open/write` methods delegate to the
+same bundle implementation. `open` rejects multi-calculation archives explicitly,
+so callers cannot silently drop entries. Sources returned by `RustiQData::open`
+are the single bundle's shared provenance. Bundle entries use `bundle.sources()`.
+
+
 `RustiQData::from_calculation(&PreparedCalculation)` captures requested and resolved inputs
 without executing HF. `set_eri` / `set::<AoEriArtifact>` supply an owned
 `CompactEri` whose dimension matches those inputs. The caller is responsible for
@@ -448,7 +506,7 @@ directory after publication. Failures before publication leave the destination
 untouched and clean up the temporary file. A directory-sync error after
 publication can leave a complete output file and is still reported as an error.
 
-Writers use `Stored` for numerical/opaque artifacts and `Deflated` for all three
+Writers use `Stored` for numerical/opaque artifacts and `Deflated` for
 JSON members (`manifest.json`, `request.json`, and `calculation.json`). Streaming
 payloads reserve ZIP64 local-header fields even for small arrays, allowing growth
 past 4 GiB without buffering. ZIP64 central/end
@@ -471,7 +529,9 @@ Limits applied before parsing or allocating payloads:
 | Structure | Limit |
 | --- | ---: |
 | Uncompressed manifest | 1 MiB |
-| Uncompressed calculation snapshot | 64 MiB |
+| Uncompressed request snapshot, per calculation | 64 MiB |
+| Uncompressed calculation snapshot, per calculation | 64 MiB |
+| Combined shared sources | 64 MiB |
 | Members | 4,096 |
 | Central directory | 16 MiB |
 | ZIP64 end-record body | 64 KiB |
@@ -495,7 +555,8 @@ for the decoded `CompactEri`; there is no artificial 4 GiB payload limit.
 
 `tools/reference/generate_portable_fixtures.py` regenerates Python-produced
 ZIP64 fixtures using only standard-library modules and the existing NumPy byte
-fixtures. Both little- and big-endian f64 payloads are covered. The Python tests
+fixtures. Single- and multi-calculation bundles, shared sources, and both little- and
+big-endian f64 payloads are covered. The Python tests
 independently reproduce the scientific identity and verify ZIP/JSON/NumPy output
 written by Rust. Rust tests also exercise a sparse archive with offsets beyond
 4 GiB without allocating a multi-gigabyte payload.

@@ -87,16 +87,16 @@ def test_numpy_reads_rust_portable_archive(tmp_path: Path) -> None:
         assert archive.testzip() is None
         assert set(archive.namelist()) == {
             "manifest.json",
-            "calculation.json",
-            "request.json",
+            "calculations/calculation-0/calculation.json",
+            "calculations/calculation-0/request.json",
             "sources/0",
-            "arrays/integrals/ao-eri.npy",
+            "calculations/calculation-0/arrays/integrals/ao-eri.npy",
         }
         manifest = json.loads(archive.read("manifest.json"))
-        request_bytes = archive.read("request.json")
+        request_bytes = archive.read("calculations/calculation-0/request.json")
         request = json.loads(request_bytes)
-        assert manifest["request"]["digest"] == digest(request_bytes)
-        assert manifest["request"]["size"] == len(request_bytes)
+        assert manifest["calculations"][0]["request"]["digest"] == digest(request_bytes)
+        assert manifest["calculations"][0]["request"]["size"] == len(request_bytes)
         assert request["hf"]["method"] == "auto"
         assert request["units"] == "bohr"
         source_bytes = archive.read("sources/0")
@@ -105,19 +105,25 @@ def test_numpy_reads_rust_portable_archive(tmp_path: Path) -> None:
         )
         assert manifest["sources"][0]["digest"] == digest(source_bytes)
         assert manifest["sources"][0]["original_name"] == "../../calculation.toml"
-        snapshot_bytes = archive.read("calculation.json")
+        snapshot_bytes = archive.read("calculations/calculation-0/calculation.json")
         snapshot = json.loads(snapshot_bytes)
-        assert manifest["scientific_identity"]["digest"] == scientific_identity(
-            snapshot
+        assert manifest["calculations"][0]["scientific_identity"][
+            "digest"
+        ] == scientific_identity(snapshot)
+        assert manifest["calculations"][0]["calculation"]["digest"] == digest(
+            snapshot_bytes
         )
-        assert manifest["calculation"]["digest"] == digest(snapshot_bytes)
         assert snapshot["hf"]["method"] == "rhf"
         assert snapshot["units"] == "bohr"
-        payload = archive.read("arrays/integrals/ao-eri.npy")
-        assert manifest["artifacts"]["ao_eri"]["digest"] == digest(payload)
+        payload = archive.read("calculations/calculation-0/arrays/integrals/ao-eri.npy")
+        assert manifest["calculations"][0]["artifacts"]["ao_eri"]["digest"] == digest(
+            payload
+        )
         _assert_ao_eri_values(np.load(io.BytesIO(payload), allow_pickle=False))
         assert (
-            archive.getinfo("arrays/integrals/ao-eri.npy").compress_type
+            archive.getinfo(
+                "calculations/calculation-0/arrays/integrals/ao-eri.npy"
+            ).compress_type
             == zipfile.ZIP_STORED
         )
         assert all(
@@ -143,16 +149,26 @@ def test_python_portable_golden_fixtures() -> None:
                 (FIXTURE_DIR / "source-original-v1.toml.hex").read_text()
             )
             assert digest(source_bytes) == manifest["sources"][0]["digest"]
-            request_bytes = archive.read("request.json")
-            assert digest(request_bytes) == manifest["request"]["digest"]
+            request_bytes = archive.read("calculations/calculation-0/request.json")
+            assert (
+                digest(request_bytes)
+                == manifest["calculations"][0]["request"]["digest"]
+            )
             assert json.loads(request_bytes)["hf"]["method"] == "auto"
-            snapshot = json.loads(archive.read("calculation.json"))
+            snapshot = json.loads(
+                archive.read("calculations/calculation-0/calculation.json")
+            )
             assert (
                 scientific_identity(snapshot)
-                == manifest["scientific_identity"]["digest"]
+                == manifest["calculations"][0]["scientific_identity"]["digest"]
             )
-            payload = archive.read("arrays/integrals/ao-eri.npy")
-            assert digest(payload) == manifest["artifacts"]["ao_eri"]["digest"]
+            payload = archive.read(
+                "calculations/calculation-0/arrays/integrals/ao-eri.npy"
+            )
+            assert (
+                digest(payload)
+                == manifest["calculations"][0]["artifacts"]["ao_eri"]["digest"]
+            )
             _assert_ao_eri_values(np.load(io.BytesIO(payload), allow_pickle=False))
 
 
@@ -168,16 +184,20 @@ def test_python_angstrom_conversion_fixture() -> None:
     )
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         manifest = json.loads(archive.read("manifest.json"))
-        request_bytes = archive.read("request.json")
-        snapshot_bytes = archive.read("calculation.json")
+        request_bytes = archive.read("calculations/calculation-0/request.json")
+        snapshot_bytes = archive.read("calculations/calculation-0/calculation.json")
         request = json.loads(request_bytes)
         snapshot = json.loads(snapshot_bytes)
         assert request["units"] == "angstrom"
         assert snapshot["units"] == "bohr"
-        assert digest(request_bytes) == manifest["request"]["digest"]
-        assert digest(snapshot_bytes) == manifest["calculation"]["digest"]
+        assert digest(request_bytes) == manifest["calculations"][0]["request"]["digest"]
         assert (
-            scientific_identity(snapshot) == manifest["scientific_identity"]["digest"]
+            digest(snapshot_bytes)
+            == manifest["calculations"][0]["calculation"]["digest"]
+        )
+        assert (
+            scientific_identity(snapshot)
+            == manifest["calculations"][0]["scientific_identity"]["digest"]
         )
         with localcontext() as context:
             context.prec = 100
@@ -190,3 +210,64 @@ def test_python_angstrom_conversion_fixture() -> None:
                     Decimal.from_float(requested) / Decimal("0.529177210903")
                 )
         assert snapshot["atoms"][1]["position"][0] != 0.74 / 0.529177210903
+
+
+def _assert_multi_archive(content: bytes) -> None:
+    import json
+    import zipfile
+
+    from generate_portable_fixtures import digest, scientific_identity
+
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        assert archive.testzip() is None
+        manifest = json.loads(archive.read("manifest.json"))
+        assert "scientific_identity" not in manifest
+        assert len(manifest["calculations"]) == 2
+        assert len(manifest["sources"]) == 1
+        source = manifest["sources"][0]
+        assert digest(archive.read(source["path"])) == source["digest"]
+        for index, entry in enumerate(manifest["calculations"]):
+            assert entry["id"] == f"calculation-{index}"
+            for field in ("request", "calculation"):
+                reference = entry[field]
+                payload = archive.read(reference["path"])
+                assert len(payload) == reference["size"]
+                assert digest(payload) == reference["digest"]
+            snapshot = json.loads(archive.read(entry["calculation"]["path"]))
+            assert (
+                scientific_identity(snapshot) == entry["scientific_identity"]["digest"]
+            )
+            reference = entry["artifacts"]["ao_eri"]
+            payload = archive.read(reference["path"])
+            assert digest(payload) == reference["digest"]
+            _assert_ao_eri_values(np.load(io.BytesIO(payload), allow_pickle=False))
+
+
+def test_python_multi_calculation_fixture() -> None:
+    content = bytes.fromhex(
+        (FIXTURE_DIR / "portable-python-multi-v1.rustiq.hex").read_text()
+    )
+    _assert_multi_archive(content)
+
+
+def test_numpy_reads_rust_multi_calculation_archive(tmp_path: Path) -> None:
+    output = tmp_path / "batch.rustiq"
+    environment = os.environ.copy()
+    environment["RUSTIQ_ARCHIVE_TEST_OUTPUT"] = str(output)
+    subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "rustiq-core",
+            "--no-default-features",
+            "persistence::data::portable::tests::writes_bundle_for_python_interoperability",
+            "--",
+            "--ignored",
+            "--exact",
+        ],
+        check=True,
+        cwd=ROOT,
+        env=environment,
+    )
+    _assert_multi_archive(output.read_bytes())

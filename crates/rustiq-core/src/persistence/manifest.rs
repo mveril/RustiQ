@@ -393,3 +393,26 @@ mod wire_tests {
         }
     }
 }
+
+/// Portable wire format is independent of the single-artifact directory cache.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PortableManifest {
+    pub format: String,
+    pub format_version: u32,
+    pub kind: ManifestKind,
+    pub producer: Producer,
+    #[serde(default)]
+    pub sources: Vec<SourceManifest>,
+    pub calculations: Vec<PortableCalculation>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PortableCalculation {
+    pub id: String,
+    pub scientific_identity: ScientificIdentityManifest,
+    pub request: SnapshotManifest,
+    pub calculation: SnapshotManifest,
+    pub artifacts: BTreeMap<String, ArtifactManifest>,
+}

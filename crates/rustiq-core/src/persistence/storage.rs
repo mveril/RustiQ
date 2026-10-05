@@ -15,6 +15,10 @@ mod zip;
 #[derive(Debug)]
 pub(crate) enum Storage {
     Folder(PathBuf),
+    Scoped {
+        storage: std::sync::Arc<std::sync::Mutex<Storage>>,
+        prefix: String,
+    },
     ZipReader(Box<::zip::ZipArchive<File>>),
     ZipWriter(Box<::zip::ZipWriter<BufWriter<File>>>),
 }
@@ -70,6 +74,10 @@ impl<W: Write> Write for DigestWriter<W> {
 }
 
 impl Storage {
+    pub(crate) fn scoped(storage: std::sync::Arc<std::sync::Mutex<Self>>, prefix: String) -> Self {
+        Self::Scoped { storage, prefix }
+    }
+
     pub(crate) fn open_zip(path: &std::path::Path) -> Result<Self, StorageError> {
         Ok(Self::ZipReader(Box::new(zip::open(path)?)))
     }
@@ -81,6 +89,10 @@ impl Storage {
     pub(crate) fn artifact_size(&mut self, path: &RelativePath) -> Result<u64, StorageError> {
         validate_path(path)?;
         match self {
+            Self::Scoped { storage, prefix } => storage
+                .lock()
+                .expect("storage mutex poisoned")
+                .artifact_size(&prefixed_path(prefix, path)?),
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_size(path),
             Self::ZipReader(archive) => Ok(archive
                 .by_name(path.as_str())
@@ -99,6 +111,10 @@ impl Storage {
         path: &RelativePath,
     ) -> Result<ArtifactMetadata, StorageError> {
         match self {
+            Self::Scoped { storage, prefix } => storage
+                .lock()
+                .expect("storage mutex poisoned")
+                .artifact_metadata(&prefixed_path(prefix, path)?),
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_metadata(path),
             Self::ZipReader(archive) => {
                 let size = archive
@@ -120,6 +136,10 @@ impl Storage {
         F: FnOnce(&mut dyn Read) -> Result<T, E>,
     {
         match self {
+            Self::Scoped { storage, prefix } => storage
+                .lock()
+                .expect("storage mutex poisoned")
+                .with_artifact(&prefixed_path(prefix, path).map_err(E::from)?, read),
             Self::Folder(root) => FolderStorage { root: root.clone() }.with_artifact(path, read),
             Self::ZipReader(archive) => zip::with_member(archive, path, read),
             Self::ZipWriter(_) => Err(E::from(zip::invalid("cannot read an archive writer"))),
@@ -136,6 +156,10 @@ impl Storage {
         F: FnOnce(&mut dyn Write) -> Result<(), E>,
     {
         match self {
+            Self::Scoped { storage, prefix } => storage
+                .lock()
+                .expect("storage mutex poisoned")
+                .write_artifact(&prefixed_path(prefix, path).map_err(E::from)?, write),
             Self::Folder(root) => FolderStorage { root: root.clone() }.write_artifact(path, write),
             Self::ZipWriter(archive) => {
                 validate_path(path).map_err(E::from)?;
@@ -182,7 +206,7 @@ impl Storage {
     ) -> Result<ArtifactMetadata, ManifestError> {
         let mut bytes = serde_json::to_vec_pretty(value)?;
         bytes.push(b'\n');
-        let limit = match path.as_str() {
+        let limit = match path.file_name().unwrap_or_default() {
             super::calculation::CALCULATION_PATH => super::calculation::MAX_CALCULATION_BYTES,
             super::request::REQUEST_PATH => super::request::MAX_REQUEST_BYTES,
             _ => 1024 * 1024,
@@ -198,7 +222,7 @@ impl Storage {
 
     pub(crate) fn finish(self) -> Result<(), StorageError> {
         match self {
-            Self::Folder(_) | Self::ZipReader(_) => Ok(()),
+            Self::Folder(_) | Self::ZipReader(_) | Self::Scoped { .. } => Ok(()),
             Self::ZipWriter(archive) => {
                 let mut file = archive.finish().map_err(zip::zip_error)?;
                 file.flush()?;
@@ -207,6 +231,16 @@ impl Storage {
             }
         }
     }
+}
+
+fn prefixed_path(
+    prefix: &str,
+    path: &RelativePath,
+) -> Result<relative_path::RelativePathBuf, StorageError> {
+    validate_path(path)?;
+    let full = relative_path::RelativePathBuf::from(format!("{prefix}/{}", path.as_str()));
+    validate_path(&full)?;
+    Ok(full)
 }
 
 #[derive(Debug)]

@@ -5,7 +5,7 @@ pub(crate) const MAX_SOURCE_NAME_BYTES: usize = 4096;
 
 /// Exact original source bytes with an informational original name.
 /// The name is never an archive member name or an extraction instruction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceProvenance {
     pub(crate) original_name: String,
     pub(crate) bytes: Vec<u8>,

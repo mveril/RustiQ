@@ -210,7 +210,9 @@ enum ResolvedGuess {
     OneElectron {
         perturbation: Option<ResolvedRandom>,
     },
-    Random { random: ResolvedRandom },
+    Random {
+        random: ResolvedRandom,
+    },
     Zero,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -279,11 +281,20 @@ impl Snapshot {
                 },
                 max_iterations: u64::try_from(hf.max_iterations.get()).map_err(invalid)?,
                 convergence_threshold: hf.convergence_threshold.into_inner(),
-                linear_dependency_threshold: hf.linear_dependency_threshold.value.into_inner(),
-                eri_schwarz_threshold: hf.eri_schwarz_threshold.map(|value| value.into_inner()),
+                linear_dependency_threshold: hf
+                    .orthogonalization
+                    .linear_dependency_threshold
+                    .value
+                    .into_inner(),
+                eri_schwarz_threshold: calculation
+                    .integral_config()
+                    .schwarz_threshold
+                    .value
+                    .map(|value| value.into_inner()),
                 diis_size: hf
                     .diis
-                    .then(|| u64::try_from(hf.diis_size.into_inner()))
+                    .enabled
+                    .then(|| u64::try_from(hf.diis.max_history.value.into_inner()))
                     .transpose()
                     .map_err(invalid)?,
                 guess: ResolvedGuess::from_config(hf.guess.value)?,
@@ -403,12 +414,22 @@ impl Snapshot {
             || u64::try_from(hf.max_iterations.get()).map_err(|_| invalid())?
                 != self.hf.max_iterations
             || hf.convergence_threshold.into_inner() != self.hf.convergence_threshold
-            || hf.linear_dependency_threshold.value.into_inner()
+            || hf
+                .orthogonalization
+                .linear_dependency_threshold
+                .value
+                .into_inner()
                 != self.hf.linear_dependency_threshold
-            || hf.eri_schwarz_threshold.map(|v| v.into_inner()) != self.hf.eri_schwarz_threshold
+            || request
+                .integrals()
+                .schwarz_threshold
+                .value
+                .map(|v| v.into_inner())
+                != self.hf.eri_schwarz_threshold
             || hf
                 .diis
-                .then(|| u64::try_from(hf.diis_size.into_inner()))
+                .enabled
+                .then(|| u64::try_from(hf.diis.max_history.value.into_inner()))
                 .transpose()
                 .map_err(|_| invalid())?
                 != self.hf.diis_size
@@ -608,14 +629,13 @@ impl ResolvedGuess {
                 Self::CoreHamiltonian { perturbation: a },
                 Guess::CoreHamiltonian { perturbation: b },
             )
-            | (
-                Self::OneElectron { perturbation: a },
-                Guess::OneElectron { perturbation: b },
-            ) => match (a, b) {
-                (None, None) => true,
-                (Some(a), Some(b)) => random_matches(a, b),
-                _ => false,
-            },
+            | (Self::OneElectron { perturbation: a }, Guess::OneElectron { perturbation: b }) => {
+                match (a, b) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => random_matches(a, b),
+                    _ => false,
+                }
+            }
             (Self::Random { random: a }, Guess::Random { random: b }) => random_matches(a, b),
             (Self::Zero, Guess::Zero) => true,
             _ => false,

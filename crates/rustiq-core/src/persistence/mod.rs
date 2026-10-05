@@ -21,7 +21,7 @@ mod storage;
 
 pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
-pub use data::{AoEriArtifact, Artifact, RustiQData};
+pub use data::{AoEriArtifact, Artifact, RustiQBundle, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
 pub use error::{ArtifactError, NpyError, PortableError};
 pub(crate) use error::{ManifestError, PersistenceReadError, PersistenceWriteError, StorageError};

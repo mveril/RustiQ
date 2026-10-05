@@ -14,7 +14,7 @@ use super::super::{
 use super::artifact::Artifact;
 
 pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
-const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
+pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 
 /// Known scientific artifacts and their manifest, with values loaded on demand.
 #[derive(Debug)]
@@ -74,6 +74,13 @@ impl RustiQData {
     pub(crate) fn read_from(mut source: Storage) -> Result<Self, PersistenceReadError> {
         let manifest: Manifest =
             source.read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)?;
+        Self::read_manifest(source, manifest)
+    }
+
+    pub(crate) fn read_manifest(
+        source: Storage,
+        manifest: Manifest,
+    ) -> Result<Self, PersistenceReadError> {
         if manifest.format != FORMAT_NAME || manifest.format_version != FORMAT_VERSION {
             return Err(ManifestError::UnsupportedFormat.into());
         }
@@ -186,7 +193,9 @@ impl RustiQData {
 
     pub(crate) fn write_to(&mut self, destination: Storage) -> Result<(), PersistenceWriteError> {
         let eri = self.ao_eri.take();
-        let result = self.write_inner(destination, eri.as_ref());
+        let result = self
+            .write_inner(destination, eri.as_ref(), true)
+            .map(|_| ());
         self.ao_eri = eri;
         result
     }
@@ -196,14 +205,25 @@ impl RustiQData {
         destination: Storage,
         eri: &CompactEri,
     ) -> Result<(), PersistenceWriteError> {
-        self.write_inner(destination, Some(eri))
+        self.write_inner(destination, Some(eri), true).map(|_| ())
+    }
+
+    pub(crate) fn write_entry(
+        &mut self,
+        destination: Storage,
+    ) -> Result<Manifest, PersistenceWriteError> {
+        let eri = self.ao_eri.take();
+        let result = self.write_inner(destination, eri.as_ref(), false);
+        self.ao_eri = eri;
+        result
     }
 
     fn write_inner(
         &mut self,
         mut destination: Storage,
         eri: Option<&CompactEri>,
-    ) -> Result<(), PersistenceWriteError> {
+        publish_manifest: bool,
+    ) -> Result<Manifest, PersistenceWriteError> {
         let mut manifest = self.manifest.clone();
         if manifest.kind == ManifestKind::Portable {
             manifest.producer = Producer {
@@ -315,9 +335,11 @@ impl RustiQData {
             );
         }
 
-        destination.write_json(RelativePath::new(MANIFEST_PATH), &manifest)?;
+        if publish_manifest {
+            destination.write_json(RelativePath::new(MANIFEST_PATH), &manifest)?;
+        }
         destination.finish()?;
-        Ok(())
+        Ok(manifest)
     }
 }
 

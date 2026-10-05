@@ -8,8 +8,6 @@ use super::super::{
 use super::{RustiQData, AO_ERI_ARTIFACT};
 use crate::calculation::PreparedCalculation;
 use relative_path::RelativePath;
-#[cfg(any(unix, test))]
-use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
@@ -32,8 +30,21 @@ impl RustiQData {
 
     /// Opens a portable archive and validates its context and artifact index.
     /// Numerical payloads are verified and decoded lazily on first access.
+    /// Multi-calculation archives require [`super::RustiQBundle::open`].
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
-        let mut data = Self::read_from(Storage::open_zip(path.as_ref())?)?;
+        let bundle = super::RustiQBundle::open(path)?;
+        let (mut calculations, sources) = bundle.into_parts();
+        if calculations.len() != 1 {
+            return Err(PortableError::InvalidArchive(
+                "single-calculation API requires exactly one calculation".into(),
+            ));
+        }
+        let mut data = calculations.remove(0);
+        data.sources = sources;
+        Ok(data)
+    }
+
+    pub(crate) fn validate_portable(mut data: Self) -> Result<Self, PortableError> {
         if data.manifest.kind != ManifestKind::Portable {
             return Err(PortableError::UnsupportedVersion);
         }
@@ -59,56 +70,6 @@ impl RustiQData {
         let request = request_snapshot.to_request()?;
         snapshot.validate_request(&request)?;
         data.request = Some(request);
-        if data.manifest.sources.len() > MAX_SOURCES {
-            return Err(PortableError::InvalidArchive(
-                "too many source payloads".into(),
-            ));
-        }
-        let mut total = 0_u64;
-        let mut paths = std::collections::HashSet::new();
-        for reference in &data.manifest.sources {
-            let path = RelativePath::new(&reference.path);
-            super::super::validate_storage_path(path)?;
-            total = total
-                .checked_add(reference.size)
-                .filter(|total| *total <= MAX_SOURCE_BYTES)
-                .ok_or_else(|| {
-                    PortableError::InvalidArchive("source payloads exceed size limit".into())
-                })?;
-            if reference.version != 1 {
-                return Err(PortableError::UnsupportedVersion);
-            }
-            if !reference.path.starts_with("sources/")
-                || reference.original_name.len() > MAX_SOURCE_NAME_BYTES
-                || !paths.insert(reference.path.to_lowercase())
-            {
-                return Err(PortableError::InvalidArchive(
-                    "invalid source reference".into(),
-                ));
-            }
-            let expected = super::super::manifest::SnapshotManifest {
-                path: reference.path.clone(),
-                version: reference.version,
-                size: reference.size,
-                digest: reference.digest,
-            };
-            verify_reference(source, &expected, &reference.path, MAX_SOURCE_BYTES)?;
-            let bytes = source.with_artifact::<_, PortableError, _>(path, |reader| {
-                let mut bytes = Vec::new();
-                reader.take(reference.size + 1).read_to_end(&mut bytes)?;
-                if u64::try_from(bytes.len()).map_err(|_| {
-                    PortableError::InvalidArchive("source size exceeds V1 range".into())
-                })? != reference.size
-                {
-                    return Err(ArtifactError::IntegrityMismatch(reference.path.clone()).into());
-                }
-                Ok(bytes)
-            })?;
-            data.sources.push(SourceProvenance {
-                original_name: reference.original_name.clone(),
-                bytes,
-            });
-        }
         let identity = snapshot.identity();
         if identity.version != data.manifest.scientific_identity.version
             || identity.digest != data.manifest.scientific_identity.digest
@@ -249,11 +210,10 @@ impl RustiQData {
     }
 
     fn matches_eri_identity(&self, calculation: &PreparedCalculation) -> bool {
-        let hf = calculation.hf_config();
         let identity = super::super::ao_eri_identity(
             calculation.get_molecule(),
             calculation.get_basis(),
-            hf.eri_schwarz_threshold,
+            calculation.integral_config().schwarz_threshold.value,
         );
         self.manifest.scientific_identity.version == identity.version
             && self.manifest.scientific_identity.digest == identity.digest
@@ -270,39 +230,14 @@ impl RustiQData {
                 "portable output requires resolved calculation context".into(),
             ));
         }
-        // Validate any known, unloaded artifact before preserving it as scientific data.
-        if self.ao_eri.is_none() && self.manifest.artifacts.get(AO_ERI_ARTIFACT)
-            .is_some_and(|artifact| artifact.representation == COMPACT_ERI_REPRESENTATION
-                && matches!(&artifact.attributes, ArtifactAttributes::AoEri(attributes) if attributes.computation_version == super::super::AO_ERI_COMPUTATION_VERSION)) {
-            self.validate_unloaded_eri()?;
-        }
-        let path = path.as_ref();
-        match std::fs::symlink_metadata(path) {
-            Ok(_) => return Err(PortableError::AlreadyExists),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
-        }
-        let parent = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .unwrap_or(Path::new("."));
-        let temporary = tempfile::NamedTempFile::new_in(parent)?;
-        self.write_to(Storage::create_zip(temporary.reopen()?))?;
-        // Reopening validates the finalized container, context, index and publication limits.
-        drop(Self::open(temporary.path())?);
-        temporary.persist_noclobber(path).map_err(|error| {
-            if error.error.kind() == std::io::ErrorKind::AlreadyExists {
-                PortableError::AlreadyExists
-            } else {
-                PortableError::Io(error.error)
-            }
-        })?;
-        #[cfg(unix)]
-        File::open(parent)?.sync_all()?;
-        Ok(())
+        let sources = std::mem::take(&mut self.sources);
+        let result =
+            super::bundle::write_bundle(std::slice::from_mut(self), &sources, path.as_ref());
+        self.sources = sources;
+        result
     }
 
-    fn validate_unloaded_eri(&mut self) -> Result<(), PortableError> {
+    pub(crate) fn validate_unloaded_eri(&mut self) -> Result<(), PortableError> {
         let artifact = &self.manifest.artifacts[AO_ERI_ARTIFACT];
         let ArtifactAttributes::AoEri(attributes) = &artifact.attributes else {
             unreachable!()
@@ -318,6 +253,64 @@ impl RustiQData {
         })?;
         Ok(())
     }
+}
+
+pub(super) fn read_sources(
+    source: &mut Storage,
+    references: &[super::super::manifest::SourceManifest],
+) -> Result<Vec<SourceProvenance>, PortableError> {
+    let mut sources = Vec::new();
+    if references.len() > MAX_SOURCES {
+        return Err(PortableError::InvalidArchive(
+            "too many source payloads".into(),
+        ));
+    }
+    let mut total = 0_u64;
+    let mut paths = std::collections::HashSet::new();
+    for reference in references {
+        let path = RelativePath::new(&reference.path);
+        super::super::validate_storage_path(path)?;
+        total = total
+            .checked_add(reference.size)
+            .filter(|total| *total <= MAX_SOURCE_BYTES)
+            .ok_or_else(|| {
+                PortableError::InvalidArchive("source payloads exceed size limit".into())
+            })?;
+        if reference.version != 1 {
+            return Err(PortableError::UnsupportedVersion);
+        }
+        if !reference.path.starts_with("sources/")
+            || reference.original_name.len() > MAX_SOURCE_NAME_BYTES
+            || !paths.insert(reference.path.to_lowercase())
+        {
+            return Err(PortableError::InvalidArchive(
+                "invalid source reference".into(),
+            ));
+        }
+        let expected = super::super::manifest::SnapshotManifest {
+            path: reference.path.clone(),
+            version: reference.version,
+            size: reference.size,
+            digest: reference.digest,
+        };
+        verify_reference(source, &expected, &reference.path, MAX_SOURCE_BYTES)?;
+        let bytes = source.with_artifact::<_, PortableError, _>(path, |reader| {
+            let mut bytes = Vec::new();
+            reader.take(reference.size + 1).read_to_end(&mut bytes)?;
+            if u64::try_from(bytes.len())
+                .map_err(|_| PortableError::InvalidArchive("source size exceeds V1 range".into()))?
+                != reference.size
+            {
+                return Err(ArtifactError::IntegrityMismatch(reference.path.clone()).into());
+            }
+            Ok(bytes)
+        })?;
+        sources.push(SourceProvenance {
+            original_name: reference.original_name.clone(),
+            bytes,
+        });
+    }
+    Ok(sources)
 }
 
 fn verify_reference(

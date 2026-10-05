@@ -51,7 +51,7 @@ pub(super) fn open(path: &Path) -> Result<ZipArchive<File>, StorageError> {
 
 pub(super) fn options(path: &RelativePath) -> SimpleFileOptions {
     let metadata = matches!(
-        path.as_str(),
+        path.file_name().unwrap_or_default(),
         "manifest.json" | "calculation.json" | "request.json"
     );
     SimpleFileOptions::default()

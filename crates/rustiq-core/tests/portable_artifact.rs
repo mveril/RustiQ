@@ -68,3 +68,81 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
         assert_eq!(eri[index], value);
     }
 }
+
+#[test]
+fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() {
+    use rustiq_core::{
+        config::{
+            validated::{DiisSize, NonNegativeFiniteF64},
+            DiisConfig, HfConfig, IntegralConfig, OrthogonalizationConfig,
+        },
+        persistence::RustiQBundle,
+    };
+    let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
+    let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .with_hf(HfConfig {
+            diis: DiisConfig {
+                enabled: true,
+                max_history: DiisSize::try_new(9).unwrap().into(),
+            },
+            orthogonalization: OrthogonalizationConfig {
+                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1e-7).unwrap().into(),
+            },
+            ..Default::default()
+        })
+        .with_integrals(IntegralConfig {
+            schwarz_threshold: None.into(),
+        })
+        .prepare()
+        .unwrap();
+    let mut bundle = RustiQBundle::new(vec![
+        RustiQData::from_calculation(&prepared).unwrap(),
+        RustiQData::from_calculation(&prepared).unwrap(),
+    ])
+    .unwrap();
+    bundle
+        .add_source("input.ncl", b"opaque input".as_slice())
+        .unwrap();
+    bundle.calculations_mut()[1]
+        .set::<AoEriArtifact>(CompactEri::Zeroed(2))
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bundle.rustiq");
+    bundle.write(&path).unwrap();
+    let mut reopened = RustiQBundle::open(&path).unwrap();
+    assert_eq!(reopened.sources().next().unwrap().bytes(), b"opaque input");
+    for entry in reopened.calculations() {
+        let request = entry.request().unwrap();
+        assert!(request.hf().diis.enabled);
+        assert_eq!(request.hf().diis.max_history.value.into_inner(), 9);
+        assert_eq!(
+            request
+                .hf()
+                .orthogonalization
+                .linear_dependency_threshold
+                .value
+                .into_inner(),
+            1e-7
+        );
+        assert!(request.integrals().schwarz_threshold.value.is_none());
+        assert_eq!(entry.calculation().unwrap().diis_size(), Some(9));
+        assert_eq!(
+            entry.calculation().unwrap().linear_dependency_threshold(),
+            1e-7
+        );
+        assert!(entry
+            .calculation()
+            .unwrap()
+            .eri_schwarz_threshold()
+            .is_none());
+    }
+    assert!(reopened.calculations_mut()[0]
+        .get::<AoEriArtifact>()
+        .unwrap()
+        .is_none());
+    assert!(reopened.calculations_mut()[1]
+        .get::<AoEriArtifact>()
+        .unwrap()
+        .is_some());
+}
