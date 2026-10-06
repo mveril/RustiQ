@@ -29,7 +29,7 @@ fn collect_toml_files(dir: &Path, files: &mut Vec<String>, root: &Path) {
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    .to_owned(),
+                    .replace('\\', "/"),
             );
         }
     }
