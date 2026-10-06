@@ -1,7 +1,12 @@
 //! Embedded Nickel configuration frontend.
 use super::resolved::ResolvedInput;
 
-fn evaluate(expression: &str) -> Result<ResolvedInput, String> {
+pub(crate) struct ConfigurationError {
+    pub(crate) path: Option<String>,
+    pub(crate) message: String,
+}
+
+fn evaluate_input(expression: &str) -> Result<ResolvedInput, Vec<ConfigurationError>> {
     // Inline the maintained schema so evaluation does not depend on an
     // installed Nickel CLI or runtime paths to package sources.
     let schema = include_str!("nickel/calculation.ncl");
@@ -10,28 +15,110 @@ fn evaluate(expression: &str) -> Result<ResolvedInput, String> {
         .replace("import \"calculation.ncl\"", &format!("({schema})"));
     let source = format!("let ResolveInput = ({resolve}) in let Rebuild = ({rebuild}) in ResolveInput (Rebuild ({expression}))");
     let mut context = nickel_lang::Context::new();
-    let expr = context
-        .eval_deep_for_export(&source)
-        .map_err(|error| format_error(&error))?;
-    let json = context
-        .expr_to_json(&expr)
-        .map_err(|error| format_error(&error))?;
+    let expr = context.eval_deep_for_export(&source).map_err(|error| {
+        // Contracts on record fields are delayed. Force each sibling separately
+        // after a failed export so one invalid field does not hide other errors.
+        let original = format_error(&error);
+        let mut diagnostics_context = nickel_lang::Context::new();
+        let mut errors = Vec::new();
+        collect_errors(
+            &mut diagnostics_context,
+            &source,
+            &mut Vec::new(),
+            &mut errors,
+        );
+        if errors.is_empty() {
+            errors.push(ConfigurationError {
+                path: None,
+                message: original,
+            });
+        }
+        errors
+    })?;
+    let json = context.expr_to_json(&expr).map_err(|error| {
+        vec![ConfigurationError {
+            path: None,
+            message: format_error(&error),
+        }]
+    })?;
     serde_json::from_str(&json).map_err(|error| {
         let message = error.to_string();
-        if message.contains("MP2 memory limit") || message.contains("couldn't parse") {
-            format!("method.mp2.memory_limit: {message}")
-        } else {
-            message
-        }
+        let path = (message.contains("MP2 memory limit") || message.contains("couldn't parse"))
+            .then(|| "method.mp2.memory_limit".to_owned());
+        vec![ConfigurationError { path, message }]
     })
 }
 
-pub(crate) fn resolve_toml(toml: &str) -> Result<ResolvedInput, String> {
+pub(crate) fn resolve_toml(toml: &str) -> Result<ResolvedInput, Vec<ConfigurationError>> {
     let expression = format!(
         "std.deserialize 'Toml {}",
         serde_json::to_string(toml).expect("serializing a string cannot fail")
     );
-    evaluate(&expression)
+    evaluate_input(&expression)
+}
+
+fn collect_errors(
+    context: &mut nickel_lang::Context,
+    expression: &str,
+    path: &mut Vec<String>,
+    errors: &mut Vec<ConfigurationError>,
+) {
+    match context.eval_shallow(expression) {
+        Ok(value) => {
+            if path
+                .iter()
+                .map(String::as_str)
+                .eq(["calculations", "method", "mp2", "memory_limit"])
+            {
+                if let Some(text) = value.as_str() {
+                    if let Err(message) = crate::config::MemoryLimit::parse(text) {
+                        errors.push(ConfigurationError {
+                            path: Some("method.mp2.memory_limit".to_owned()),
+                            message,
+                        });
+                    }
+                }
+            }
+            if let Some(record) = value.as_record() {
+                for (name, _) in record.iter() {
+                    let key =
+                        serde_json::to_string(name).expect("serializing a string cannot fail");
+                    path.push(name.to_owned());
+                    collect_errors(context, &format!("({expression}).{key}"), path, errors);
+                    path.pop();
+                }
+            } else if let Some(array) = value.as_array() {
+                for index in 0..array.len() {
+                    collect_errors(
+                        context,
+                        &format!("std.array.at {index} ({expression})"),
+                        path,
+                        errors,
+                    );
+                }
+            }
+        }
+        Err(error) => {
+            let configuration_path = path
+                .strip_prefix(&["calculations".to_owned()])
+                .unwrap_or(path);
+            errors.push(ConfigurationError {
+                path: (!configuration_path.is_empty()).then(|| configuration_path.join(".")),
+                message: format_error(&error),
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+fn evaluate(expression: &str) -> Result<ResolvedInput, String> {
+    evaluate_input(expression).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
 }
 
 fn format_error(error: &nickel_lang::Error) -> String {

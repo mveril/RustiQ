@@ -22,22 +22,43 @@ pub fn parse_runfile(
     toml_content: &str,
 ) -> miette::Result<ParsedRunFile> {
     let source_name = source_name.into();
-    let resolved = super::nickel::resolve_toml(toml_content).map_err(|error| {
-        let (path, span) = match super::source_map::TomlSourceMap::parse(toml_content) {
-            Ok(source_map) => source_map
-                .error_location(&error)
-                .map_or((None, None), |(path, span)| (Some(path), Some(span))),
-            Err(parse_error) => (
-                None,
-                parse_error
-                    .span()
-                    .map(|span| (span.start, span.end.saturating_sub(span.start)).into()),
-            ),
-        };
-        let default_label = error.lines().next().unwrap_or("invalid configuration");
-        let (message, label) =
-            super::diagnostics::humanized_runfile_error(path.as_deref(), &error, default_label);
-        super::diagnostics::nickel_error(&source_name, toml_content, message, label, span)
+    let resolved = super::nickel::resolve_toml(toml_content).map_err(|errors| {
+        let source_map = super::source_map::TomlSourceMap::parse(toml_content);
+        let diagnostics = errors
+            .into_iter()
+            .map(|error| {
+                let (path, span) = match &source_map {
+                    Ok(source_map) => error
+                        .path
+                        .as_ref()
+                        .and_then(|path| {
+                            source_map
+                                .span(&path.split('.').collect::<Vec<_>>())
+                                .map(|span| (path.clone(), span))
+                        })
+                        .or_else(|| source_map.error_location(&error.message))
+                        .map_or((error.path, None), |(path, span)| (Some(path), Some(span))),
+                    Err(parse_error) => (
+                        None,
+                        parse_error
+                            .span()
+                            .map(|span| (span.start, span.end.saturating_sub(span.start)).into()),
+                    ),
+                };
+                let default_label = error
+                    .message
+                    .lines()
+                    .next()
+                    .unwrap_or("invalid configuration");
+                let (message, label) = super::diagnostics::humanized_runfile_error(
+                    path.as_deref(),
+                    &error.message,
+                    default_label,
+                );
+                super::diagnostics::nickel_error(&source_name, toml_content, message, label, span)
+            })
+            .collect();
+        super::diagnostics::group_nickel_errors(diagnostics)
     })?;
     let source_map = super::source_map::TomlSourceMap::parse(toml_content).map_err(|error| {
         miette::miette!("{source_name}: could not map TOML source locations: {error}")

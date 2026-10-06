@@ -6,7 +6,11 @@ Canonical rendering and `init` still use the legacy frontend until PR 5.
 
 Nickel errors are adapted to miette using original TOML locations when a
 contract error identifies an explicit field. Nickel-injected defaults have no
-source span.
+source span. After a failed export, the frontend evaluates independent fields
+through Nickel field access and collects their failures as related miette
+diagnostics. A failed parent contract is reported once, since its children
+cannot be validated until the parent is corrected. Successful inputs keep a
+single evaluation pass.
 `calculation.ncl` owns the intended defaults and closed contracts, `resolve.ncl`
 normalizes a record or a non-empty array, and `rebuild-data.ncl` is a private
 migration workaround. No external Nickel executable is needed.

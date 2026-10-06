@@ -4,11 +4,11 @@ use thiserror::Error;
 #[derive(Debug, Error, Diagnostic)]
 #[error("{message}")]
 #[diagnostic(code(rustiq::runfile::nickel))]
-struct NickelRunfileDiagnostic {
+pub(crate) struct NickelRunfileDiagnostic {
     #[source_code]
     source_code: NamedSource<String>,
     #[label("{label}")]
-    span: SourceSpan,
+    span: Option<SourceSpan>,
     message: String,
     label: String,
 }
@@ -19,17 +19,40 @@ pub(crate) fn nickel_error(
     message: String,
     label: String,
     span: Option<SourceSpan>,
-) -> miette::Report {
-    if let Some(span) = span {
-        NickelRunfileDiagnostic {
-            source_code: NamedSource::new(source_name, source.to_owned()),
-            span,
-            message,
-            label,
+) -> NickelRunfileDiagnostic {
+    NickelRunfileDiagnostic {
+        source_code: NamedSource::new(source_name, source.to_owned()),
+        span,
+        message: if span.is_some() {
+            message
+        } else {
+            format!("{source_name}: {message}\n{label}")
+        },
+        label,
+    }
+}
+
+#[derive(Debug, Error, Diagnostic)]
+#[error("runfile contains {count} configuration error(s)")]
+#[diagnostic(
+    code(rustiq::runfile::nickel),
+    help("Fix each reported runfile field error.")
+)]
+struct NickelRunfileErrors {
+    count: usize,
+    #[related]
+    diagnostics: Vec<NickelRunfileDiagnostic>,
+}
+
+pub(crate) fn group_nickel_errors(mut diagnostics: Vec<NickelRunfileDiagnostic>) -> miette::Report {
+    if diagnostics.len() == 1 {
+        diagnostics.remove(0).into()
+    } else {
+        NickelRunfileErrors {
+            count: diagnostics.len(),
+            diagnostics,
         }
         .into()
-    } else {
-        miette::miette!("{source_name}: {message}\n{label}")
     }
 }
 
@@ -276,6 +299,57 @@ mod tests {
             .unwrap();
         assert_eq!(std::str::from_utf8(contents.data()).unwrap(), "4");
         assert_eq!(contents.name(), Some("calculation.toml"));
+    }
+
+    #[test]
+    fn grouped_contract_errors_retain_each_original_value_span() {
+        let source = include_str!("../../samples/invalid_diagnostics.toml");
+        let error = parse_runfile("calculation.toml", source).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "runfile contains 4 configuration error(s)"
+        );
+        let mut values = error
+            .related()
+            .unwrap()
+            .map(|diagnostic| {
+                let label = diagnostic.labels().unwrap().next().unwrap();
+                let contents = diagnostic
+                    .source_code()
+                    .unwrap()
+                    .read_span(label.inner(), 0, 0)
+                    .unwrap();
+                assert_eq!(contents.name(), Some("calculation.toml"));
+                std::str::from_utf8(contents.data()).unwrap().to_owned()
+            })
+            .collect::<Vec<_>>();
+        values.sort();
+        assert_eq!(values, ["\"one\"", "0", "0.0", "4"]);
+    }
+
+    #[test]
+    fn grouping_includes_parent_contracts_missing_fields_and_domain_errors() {
+        let source = "[basis]\n[method.hf]\nmax_iterations = 0\n[method.hf.guess]\ntype = 'Unknown'\n[method.mp2]\nmemory_limit = 'nonsense'\n";
+        let error = parse_runfile("calculation.toml", source).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "runfile contains 4 configuration error(s)"
+        );
+        let messages = error
+            .related()
+            .unwrap()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        assert!(messages.iter().any(|message| message.contains("basis set")));
+        assert!(messages
+            .iter()
+            .any(|message| message.contains("iteration limit")));
+        assert!(messages
+            .iter()
+            .any(|message| message.contains("density guess")));
+        assert!(messages
+            .iter()
+            .any(|message| message.contains("MP2 memory limit")));
     }
 
     #[test]
