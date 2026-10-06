@@ -31,281 +31,296 @@ fn collect_toml_files(dir: &Path, files: &mut Vec<String>, root: &Path) {
     }
 }
 
-#[test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "Explicit expectations for every sample keep the migration baseline independent of parser defaults"
-)]
+type SampleExpectation = (
+    &'static str,
+    &'static str,
+    &'static str,
+    HfMethod,
+    i32,
+    u8,
+    usize,
+    f64,
+    Option<usize>,
+    bool,
+    bool,
+);
+
+const SAMPLE_EXPECTATIONS: &[SampleExpectation] = &[
+    (
+        "anthracene/cc-pvdz/calculation.toml",
+        "../anthracene.xyz",
+        "cc-pvdz",
+        HfMethod::Auto,
+        0,
+        1,
+        300,
+        1e-8,
+        Some(6),
+        true,
+        true,
+    ),
+    (
+        "benzene/cc-pvdz/calculation.toml",
+        "../benzene.xyz",
+        "cc-pvdz",
+        HfMethod::Auto,
+        0,
+        1,
+        150,
+        1e-10,
+        Some(10),
+        false,
+        false,
+    ),
+    (
+        "cholesterol/sto-3g/calculation.toml",
+        "../cholesterol.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        Some(8),
+        true,
+        false,
+    ),
+    (
+        "ethanol/6-31g/calculation.toml",
+        "../ethanol.xyz",
+        "6-31g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-10,
+        Some(8),
+        false,
+        false,
+    ),
+    (
+        "ethanol/cc-pvdz/calculation.toml",
+        "../ethanol.xyz",
+        "cc-pvdz",
+        HfMethod::Auto,
+        0,
+        1,
+        120,
+        1e-10,
+        Some(10),
+        false,
+        false,
+    ),
+    (
+        "ethanol/sto-3g/calculation.toml",
+        "../ethanol.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        1,
+        80,
+        1e-10,
+        Some(8),
+        false,
+        false,
+    ),
+    (
+        "h2/6-31g/calculation.toml",
+        "../molecule.xyz",
+        "6-31g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        Some(2),
+        false,
+        false,
+    ),
+    (
+        "h2/cc-pvdz/calculation.toml",
+        "../molecule.xyz",
+        "cc-pvdz",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        Some(8),
+        false,
+        false,
+    ),
+    (
+        "h2/cc-pvdz/mp2_calculation.toml",
+        "../molecule.xyz",
+        "cc-pvdz",
+        HfMethod::Rhf,
+        0,
+        1,
+        80,
+        1e-12,
+        Some(8),
+        true,
+        false,
+    ),
+    (
+        "h2/sto-3g/calculation-cache.toml",
+        "../molecule.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        None,
+        false,
+        true,
+    ),
+    (
+        "h2/sto-3g/calculation.toml",
+        "../molecule.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        None,
+        false,
+        false,
+    ),
+    (
+        "h2/sto-3g/mp2_calculation.toml",
+        "../molecule.xyz",
+        "sto-3g",
+        HfMethod::Rhf,
+        0,
+        1,
+        100,
+        1e-8,
+        None,
+        true,
+        false,
+    ),
+    (
+        "h2/sto-3g/uhf_h2_plus_calculation.toml",
+        "../molecule.xyz",
+        "sto-3g",
+        HfMethod::Uhf,
+        1,
+        2,
+        100,
+        1e-8,
+        None,
+        false,
+        false,
+    ),
+    (
+        "h2o/6-31g/calculation.toml",
+        "../h2o.xyz",
+        "6-31g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        Some(6),
+        false,
+        false,
+    ),
+    (
+        "h2o/6-31g/mp2_calculation.toml",
+        "../h2o.xyz",
+        "6-31g",
+        HfMethod::Rhf,
+        0,
+        1,
+        80,
+        1e-12,
+        Some(6),
+        true,
+        false,
+    ),
+    (
+        "h2o/cc-pvdz/calculation.toml",
+        "../h2o.xyz",
+        "cc-pvdz",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        Some(8),
+        false,
+        false,
+    ),
+    (
+        "h2o/sto-3g/calculation.toml",
+        "../h2o.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        1,
+        100,
+        1e-8,
+        None,
+        false,
+        false,
+    ),
+    (
+        "oh/sto-3g/calculation.toml",
+        "../oh.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        2,
+        100,
+        1e-5,
+        Some(6),
+        false,
+        false,
+    ),
+    (
+        "oh/sto-3g/mp2_calculation.toml",
+        "../oh.xyz",
+        "sto-3g",
+        HfMethod::Auto,
+        0,
+        2,
+        100,
+        1e-5,
+        Some(6),
+        true,
+        false,
+    ),
+];
+
+#[rstest::rstest]
+#[case::anthracene(0)]
+#[case::benzene(1)]
+#[case::cholesterol(2)]
+#[case::ethanol_6_31g(3)]
+#[case::ethanol_cc_pvdz(4)]
+#[case::ethanol_sto_3g(5)]
+#[case::h2_6_31g(6)]
+#[case::h2_cc_pvdz(7)]
+#[case::h2_cc_pvdz_mp2(8)]
+#[case::h2_cache(9)]
+#[case::h2_sto_3g(10)]
+#[case::h2_sto_3g_mp2(11)]
+#[case::h2_plus(12)]
+#[case::h2o_6_31g(13)]
+#[case::h2o_6_31g_mp2(14)]
+#[case::h2o_cc_pvdz(15)]
+#[case::h2o_sto_3g(16)]
+#[case::oh_sto_3g(17)]
+#[case::oh_sto_3g_mp2(18)]
 #[allow(
     clippy::float_cmp,
     reason = "The baseline pins literal configuration values exactly"
 )]
-fn every_valid_sample_resolves_to_expected_scientific_configuration() {
-    use HfMethod::{Auto, Rhf, Uhf};
-    // path, geometry, basis, HF method, charge, multiplicity, iterations,
-    // convergence, enabled DIIS history (None means disabled with history 6), MP2, cache.
-    let cases = [
-        (
-            "anthracene/cc-pvdz/calculation.toml",
-            "../anthracene.xyz",
-            "cc-pvdz",
-            Auto,
-            0,
-            1,
-            300,
-            1e-8,
-            Some(6),
-            true,
-            true,
-        ),
-        (
-            "benzene/cc-pvdz/calculation.toml",
-            "../benzene.xyz",
-            "cc-pvdz",
-            Auto,
-            0,
-            1,
-            150,
-            1e-10,
-            Some(10),
-            false,
-            false,
-        ),
-        (
-            "cholesterol/sto-3g/calculation.toml",
-            "../cholesterol.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            Some(8),
-            true,
-            false,
-        ),
-        (
-            "ethanol/6-31g/calculation.toml",
-            "../ethanol.xyz",
-            "6-31g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-10,
-            Some(8),
-            false,
-            false,
-        ),
-        (
-            "ethanol/cc-pvdz/calculation.toml",
-            "../ethanol.xyz",
-            "cc-pvdz",
-            Auto,
-            0,
-            1,
-            120,
-            1e-10,
-            Some(10),
-            false,
-            false,
-        ),
-        (
-            "ethanol/sto-3g/calculation.toml",
-            "../ethanol.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            1,
-            80,
-            1e-10,
-            Some(8),
-            false,
-            false,
-        ),
-        (
-            "h2/6-31g/calculation.toml",
-            "../molecule.xyz",
-            "6-31g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            Some(2),
-            false,
-            false,
-        ),
-        (
-            "h2/cc-pvdz/calculation.toml",
-            "../molecule.xyz",
-            "cc-pvdz",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            Some(8),
-            false,
-            false,
-        ),
-        (
-            "h2/cc-pvdz/mp2_calculation.toml",
-            "../molecule.xyz",
-            "cc-pvdz",
-            Rhf,
-            0,
-            1,
-            80,
-            1e-12,
-            Some(8),
-            true,
-            false,
-        ),
-        (
-            "h2/sto-3g/calculation-cache.toml",
-            "../molecule.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            None,
-            false,
-            true,
-        ),
-        (
-            "h2/sto-3g/calculation.toml",
-            "../molecule.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            None,
-            false,
-            false,
-        ),
-        (
-            "h2/sto-3g/mp2_calculation.toml",
-            "../molecule.xyz",
-            "sto-3g",
-            Rhf,
-            0,
-            1,
-            100,
-            1e-8,
-            None,
-            true,
-            false,
-        ),
-        (
-            "h2/sto-3g/uhf_h2_plus_calculation.toml",
-            "../molecule.xyz",
-            "sto-3g",
-            Uhf,
-            1,
-            2,
-            100,
-            1e-8,
-            None,
-            false,
-            false,
-        ),
-        (
-            "h2o/6-31g/calculation.toml",
-            "../h2o.xyz",
-            "6-31g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            Some(6),
-            false,
-            false,
-        ),
-        (
-            "h2o/6-31g/mp2_calculation.toml",
-            "../h2o.xyz",
-            "6-31g",
-            Rhf,
-            0,
-            1,
-            80,
-            1e-12,
-            Some(6),
-            true,
-            false,
-        ),
-        (
-            "h2o/cc-pvdz/calculation.toml",
-            "../h2o.xyz",
-            "cc-pvdz",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            Some(8),
-            false,
-            false,
-        ),
-        (
-            "h2o/sto-3g/calculation.toml",
-            "../h2o.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            1,
-            100,
-            1e-8,
-            None,
-            false,
-            false,
-        ),
-        (
-            "oh/sto-3g/calculation.toml",
-            "../oh.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            2,
-            100,
-            1e-5,
-            Some(6),
-            false,
-            false,
-        ),
-        (
-            "oh/sto-3g/mp2_calculation.toml",
-            "../oh.xyz",
-            "sto-3g",
-            Auto,
-            0,
-            2,
-            100,
-            1e-5,
-            Some(6),
-            true,
-            false,
-        ),
-    ];
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
-    let mut actual_files = Vec::new();
-    collect_toml_files(&root, &mut actual_files, &root);
-    actual_files.retain(|path| path != "invalid_diagnostics.toml");
-    actual_files.sort();
-    let mut covered_files: Vec<_> = cases.iter().map(|case| case.0.to_owned()).collect();
-    covered_files.sort();
-    assert_eq!(
-        actual_files, covered_files,
-        "Every valid sample needs explicit semantic expectations"
-    );
-
-    for (
+fn every_valid_sample_resolves_to_expected_scientific_configuration(#[case] case: usize) {
+    let (
         file,
         geometry,
         basis,
@@ -317,64 +332,77 @@ fn every_valid_sample_resolves_to_expected_scientific_configuration() {
         diis,
         mp2,
         cache,
-    ) in cases
-    {
-        let source = fs::read_to_string(root.join(file)).unwrap();
-        let parsed =
-            parse_runfile(file, &source).unwrap_or_else(|error| panic!("{file}: {error:?}"));
-        // Keep assertion failures attributable to a sample, including shared defaults.
-        let check = std::panic::catch_unwind(|| {
-            assert_eq!(parsed.runfile.molecule.geometry, Path::new(geometry));
-            assert_eq!(parsed.runfile.basis.name, basis);
-            assert_eq!(parsed.molecule_config.units, Units::Angstrom);
-            assert_eq!(parsed.molecule_config.charge.value, charge);
-            assert_eq!(
-                parsed.molecule_config.multiplicity.value.get(),
-                multiplicity
-            );
-            let hf = parsed
-                .hf_config
-                .as_ref()
-                .expect("All current samples request HF");
-            assert_eq!(hf.method.value, method);
-            assert_eq!(hf.max_iterations.get(), iterations);
-            assert_eq!(hf.convergence_threshold.into_inner(), convergence);
-            assert_eq!(hf.diis.enabled, diis.is_some());
-            assert_eq!(hf.diis.max_history.value.into_inner(), diis.unwrap_or(6));
-            assert_eq!(
-                hf.orthogonalization
-                    .linear_dependency_threshold
-                    .value
-                    .into_inner(),
-                1e-8
-            );
-            match (method, hf.guess.value) {
-                (Uhf, DensityGuessConfig::OneElectron { perturbation: None })
-                | (Auto | Rhf, DensityGuessConfig::CoreHamiltonian { perturbation: None }) => {}
-                (_, guess) => panic!("Unexpected density guess: {guess:?}"),
-            }
-            assert_eq!(parsed.mp2_config.is_some(), mp2);
-            if let Some(config) = &parsed.mp2_config {
-                assert_eq!(config.frozen_orbitals.value, 0);
-                assert!(matches!(config.memory_limit.value, MemoryLimit::Auto));
-            }
-            assert_eq!(
-                parsed
-                    .integral_config
-                    .schwarz_threshold
-                    .value
-                    .unwrap()
-                    .into_inner(),
-                1e-12
-            );
-            assert_eq!(parsed.runfile.cache.enabled, cache);
-            assert_eq!(parsed.runfile.output.scf, ScfOutput::Normal);
-        });
-        assert!(
-            check.is_ok(),
-            "Scientific configuration baseline failed for {file}"
-        );
+    ) = SAMPLE_EXPECTATIONS[case];
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
+    let source = fs::read_to_string(root.join(file)).unwrap();
+    let parsed = parse_runfile(file, &source).unwrap_or_else(|error| panic!("{file}: {error:?}"));
+
+    assert_eq!(parsed.runfile.molecule.geometry, Path::new(geometry));
+    assert_eq!(parsed.runfile.basis.name, basis);
+    assert_eq!(parsed.molecule_config.units, Units::Angstrom);
+    assert_eq!(parsed.molecule_config.charge.value, charge);
+    assert_eq!(
+        parsed.molecule_config.multiplicity.value.get(),
+        multiplicity
+    );
+    let hf = parsed
+        .hf_config
+        .as_ref()
+        .expect("All current samples request HF");
+    assert_eq!(hf.method.value, method);
+    assert_eq!(hf.max_iterations.get(), iterations);
+    assert_eq!(hf.convergence_threshold.into_inner(), convergence);
+    assert_eq!(hf.diis.enabled, diis.is_some());
+    assert_eq!(hf.diis.max_history.value.into_inner(), diis.unwrap_or(6));
+    assert_eq!(
+        hf.orthogonalization
+            .linear_dependency_threshold
+            .value
+            .into_inner(),
+        1e-8
+    );
+    match (method, hf.guess.value) {
+        (HfMethod::Uhf, DensityGuessConfig::OneElectron { perturbation: None })
+        | (
+            HfMethod::Auto | HfMethod::Rhf,
+            DensityGuessConfig::CoreHamiltonian { perturbation: None },
+        ) => {}
+        (_, guess) => panic!("Unexpected density guess: {guess:?}"),
     }
+    assert_eq!(parsed.mp2_config.is_some(), mp2);
+    if let Some(config) = &parsed.mp2_config {
+        assert_eq!(config.frozen_orbitals.value, 0);
+        assert!(matches!(config.memory_limit.value, MemoryLimit::Auto));
+    }
+    assert_eq!(
+        parsed
+            .integral_config
+            .schwarz_threshold
+            .value
+            .unwrap()
+            .into_inner(),
+        1e-12
+    );
+    assert_eq!(parsed.runfile.cache.enabled, cache);
+    assert_eq!(parsed.runfile.output.scf, ScfOutput::Normal);
+}
+
+#[test]
+fn valid_sample_set_matches_baseline_cases() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
+    let mut actual_files = Vec::new();
+    collect_toml_files(&root, &mut actual_files, &root);
+    actual_files.retain(|path| path != "invalid_diagnostics.toml");
+    actual_files.sort();
+    let mut covered_files: Vec<_> = SAMPLE_EXPECTATIONS
+        .iter()
+        .map(|case| case.0.to_owned())
+        .collect();
+    covered_files.sort();
+    assert_eq!(
+        actual_files, covered_files,
+        "Every valid sample needs explicit semantic expectations"
+    );
 }
 
 #[test]
