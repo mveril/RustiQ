@@ -20,7 +20,7 @@ dependencies = [
  "indicatif",
  "miette",
  "nalgebra",
- "nickel-lang",
+ "nickel-lang-core",
  "periodic_table",
  "proptest",
  "rand 0.10.2",
@@ -34,9 +34,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "toml",
- "toml-spanner",
- "toml_edit 0.25.13+spec-1.1.0",
 ]
 
 [[package]]
@@ -2093,23 +2090,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
-name = "nickel-lang"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5242161492409bbb82716f52e7af9c7d4ce8423d3b31d648fa818518c4d82295"
-dependencies = [
- "codespan-reporting",
- "indexmap",
- "malachite",
- "nickel-lang-core",
- "nickel-lang-vector",
- "serde",
- "serde_json",
- "serde_yaml",
- "toml",
-]
-
-[[package]]
 name = "nickel-lang-core"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4002,23 +3982,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "toml-spanner"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0454309849e01bb15a8591a5032d706694445b393f0b1ac84b5e3b0b07ca8d69"
-dependencies = [
- "foldhash 0.2.0",
- "toml-spanner-macros",
- "zmij",
-]
-
-[[package]]
-name = "toml-spanner-macros"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e31f017b6327c4d14f8a90240489076bdb23ea7d1c514ed1a45f72739c717ec"
-
-[[package]]
 name = "toml_datetime"
 version = "0.7.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4058,7 +4021,6 @@ dependencies = [
  "indexmap",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
- "toml_writer",
  "winnow 1.0.4",
 ]
 

@@ -1,70 +1,73 @@
-//! TOML syntax locations only. Nickel owns configuration defaults and validation.
+//! Source locations from Nickel's TOML parser. No configuration interpretation.
 use miette::SourceSpan;
+use nickel_lang_core::{
+    eval::value::{Container, NickelValue},
+    position::PosTable,
+};
+use std::collections::BTreeMap;
 
 pub(crate) struct TomlSourceMap {
-    document: toml_edit::Document<String>,
+    locations: BTreeMap<String, SourceSpan>,
 }
 
 impl TomlSourceMap {
-    pub(crate) fn parse(source: &str) -> Result<Self, toml_edit::TomlError> {
-        toml_edit::Document::parse(source.to_owned()).map(|document| Self { document })
+    #[cfg(test)]
+    pub(crate) fn parse(source: &str) -> Result<Self, String> {
+        super::nickel::source_locations(source).map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| error.message)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+    }
+
+    pub(crate) fn from_value(value: &NickelValue, positions: &PosTable) -> Self {
+        fn visit(
+            value: &NickelValue,
+            positions: &PosTable,
+            path: &mut Vec<String>,
+            locations: &mut BTreeMap<String, SourceSpan>,
+        ) {
+            if let Some(span) = positions.get(value.pos_idx()).into_opt() {
+                let start = span.start.to_usize();
+                locations.insert(path.join("."), (start, span.end.to_usize() - start).into());
+            }
+            if let Some(record) = value.as_record().and_then(Container::into_opt) {
+                for (name, field) in &record.fields {
+                    if let Some(value) = &field.value {
+                        path.push(name.label().to_owned());
+                        visit(value, positions, path, locations);
+                        path.pop();
+                    }
+                }
+            }
+        }
+        let mut locations = BTreeMap::new();
+        visit(value, positions, &mut Vec::new(), &mut locations);
+        Self { locations }
     }
 
     pub(crate) fn span(&self, path: &[&str]) -> Option<SourceSpan> {
-        let item = path.iter().try_fold(self.document.as_item(), |item, key| {
-            item.as_table_like()?.get(key)
-        })?;
-        let span = item.span()?;
-        Some((span.start, span.end.saturating_sub(span.start)).into())
+        self.locations.get(&path.join(".")).copied()
     }
 
-    /// A known Nickel path is authoritative, even when its value was omitted.
-    /// Without a path, only a uniquely labeled explicit TOML key is usable.
     pub(crate) fn error_location(
         &self,
         path: Option<&str>,
         error: &str,
     ) -> (Option<String>, Option<SourceSpan>) {
         if let Some(path) = path {
-            return (
-                Some(path.to_owned()),
-                self.span(&path.split('.').collect::<Vec<_>>()),
-            );
+            return (Some(path.to_owned()), self.locations.get(path).copied());
         }
-        let mut matches = Vec::new();
-        find_labeled_keys(
-            self.document.as_item(),
-            &mut Vec::new(),
-            error,
-            &mut matches,
-        );
-        if matches.len() == 1 {
-            let (path, span) = matches.remove(0);
-            (Some(path), Some(span))
-        } else {
-            (None, None)
+        let mut matches = self.locations.iter().filter(|(path, _)| {
+            let leaf = path.rsplit('.').next().unwrap_or(path);
+            !leaf.is_empty() && error.contains(&format!("`{leaf}`"))
+        });
+        match (matches.next(), matches.next()) {
+            (Some((path, span)), None) => (Some(path.clone()), Some(*span)),
+            _ => (None, None),
         }
-    }
-}
-
-fn find_labeled_keys(
-    item: &toml_edit::Item,
-    parent: &mut Vec<String>,
-    error: &str,
-    matches: &mut Vec<(String, SourceSpan)>,
-) {
-    let Some(table) = item.as_table_like() else {
-        return;
-    };
-    for (key_name, value) in table.iter() {
-        parent.push(key_name.to_owned());
-        if error.contains(&format!("`{key_name}`")) {
-            if let Some(span) = value.span() {
-                matches.push((parent.join("."), (span.start, span.end - span.start).into()));
-            }
-        }
-        find_labeled_keys(value, parent, error, matches);
-        parent.pop();
     }
 }
 

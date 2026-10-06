@@ -1,23 +1,17 @@
-use toml_spanner::Toml;
+use super::RunFile;
+use serde::Serialize;
 
-#[derive(Debug, Default, Toml)]
-#[toml(Toml, recoverable)]
+#[derive(Debug, Default, Serialize)]
 pub struct OutputConfig {
-    #[toml(default)]
     pub scf: ScfOutput,
 }
 
-#[derive(Debug, Default, Clone, Copy, Toml, PartialEq, Eq, Hash)]
-#[toml(Toml)]
+#[derive(Debug, Default, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
 pub enum ScfOutput {
     #[default]
     Normal,
     Quiet,
 }
-
-use toml_spanner::{Arena, FromToml, Item, TableStyle, ToToml, ToTomlError};
-
-use super::RunFile;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Defaults {
@@ -25,79 +19,84 @@ pub enum Defaults {
     Omit,
 }
 
-pub struct TomlOutput<'a, T> {
-    value: &'a T,
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub(crate) struct RenderError(pub(crate) String);
+
+pub(crate) fn to_string(value: &impl Serialize) -> Result<String, RenderError> {
+    let json = serde_json::to_string(value).map_err(|error| RenderError(error.to_string()))?;
+    super::nickel::export_toml(&json)
+}
+
+pub struct TomlOutput<'a> {
+    value: &'a RunFile,
     defaults: Defaults,
 }
-
 impl RunFile {
-    pub fn output(&self, defaults: Defaults) -> TomlOutput<'_, Self> {
-        TomlOutput::new(self, defaults)
+    pub fn output(&self, defaults: Defaults) -> TomlOutput<'_> {
+        TomlOutput {
+            value: self,
+            defaults,
+        }
     }
 }
-
-impl<'a, T> TomlOutput<'a, T> {
-    pub(crate) fn new(value: &'a T, defaults: Defaults) -> Self {
-        Self { value, defaults }
-    }
-}
-
-impl<T: ToToml + for<'de> FromToml<'de>> ToToml for TomlOutput<'_, T> {
-    fn to_toml<'a>(&'a self, arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
-        let original = self.value.to_toml(arena)?;
+impl TomlOutput<'_> {
+    pub(crate) fn render(&self) -> Result<String, RenderError> {
+        let mut item =
+            serde_json::to_value(self.value).map_err(|error| RenderError(error.to_string()))?;
         if self.defaults == Defaults::Include {
-            return Ok(original);
+            return to_string(&item);
         }
-        let mut item = original.clone_in(arena);
+        let source = to_string(&item)?;
+        let resolved = super::nickel::resolve_toml(&source).map_err(|errors| {
+            RenderError(
+                errors
+                    .into_iter()
+                    .map(|error| error.message)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        })?;
         let mut paths = Vec::new();
-        collect_fields(&original, &mut Vec::new(), &mut paths);
+        collect_fields(&item, &mut Vec::new(), &mut paths);
         for path in paths {
-            let scratch = Arena::new();
-            let mut candidate = item.clone_in(&scratch);
-            if !remove_field(&mut candidate, &path) {
-                continue; // An earlier omission removed the containing table.
+            // Preserve explicitly requested calculation sections in canonical output.
+            if path == ["method"] || path == ["method", "hf"] {
+                continue;
             }
-            let source = toml_spanner::to_string(&candidate)?;
-            // FromToml is the authority for defaults, including custom
-            // expressions, nested sections, and required enum tags.
-            if let Ok(restored) = toml_spanner::from_str::<T>(&source) {
-                if restored.to_toml(&scratch)? == original {
-                    remove_field(&mut item, &path);
-                }
+            let mut candidate = item.clone();
+            if !remove_field(&mut candidate, &path) {
+                continue;
+            }
+            let source = to_string(&candidate)?;
+            // Nickel owns defaults; serialization never supplies validation or defaults.
+            if super::nickel::resolve_toml(&source).is_ok_and(|candidate| candidate == resolved) {
+                remove_field(&mut item, &path);
             }
         }
-        Ok(item)
+        to_string(&item)
     }
 }
 
-// Visit whole fields before their children so a default section can disappear
-// in one step. Arrays are kept intact unless the entire field can be omitted.
-fn collect_fields(item: &Item<'_>, path: &mut Vec<String>, paths: &mut Vec<Vec<String>>) {
-    if let Some(table) = item.as_table() {
+fn collect_fields(item: &serde_json::Value, path: &mut Vec<String>, paths: &mut Vec<Vec<String>>) {
+    if let Some(table) = item.as_object() {
         for (key, value) in table {
-            path.push(key.as_str().to_owned());
+            path.push(key.clone());
             paths.push(path.clone());
             collect_fields(value, path, paths);
             path.pop();
         }
     }
 }
-
-fn remove_field(item: &mut Item<'_>, path: &[String]) -> bool {
+fn remove_field(item: &mut serde_json::Value, path: &[String]) -> bool {
     let Some((key, parents)) = path.split_last() else {
         return false;
     };
-    let parent = parents
+    parents
         .iter()
-        .try_fold(item, |item, key| item.as_table_mut()?.get_mut(key));
-    let Some(table) = parent.and_then(Item::as_table_mut) else {
-        return false;
-    };
-    let removed = table.remove_entry(key).is_some();
-    if table.is_empty() {
-        table.set_style(TableStyle::Header);
-    }
-    removed
+        .try_fold(item, |item, key| item.get_mut(key))
+        .and_then(serde_json::Value::as_object_mut)
+        .is_some_and(|table| table.remove(key).is_some())
 }
 
 #[cfg(test)]
@@ -106,58 +105,11 @@ mod tests {
     use crate::runfile::parser::parse_runfile;
 
     #[test]
-    fn omission_uses_from_toml_defaults_without_a_default_trait_or_known_fields() {
-        #[derive(toml_spanner::Toml)]
-        #[toml(Toml, recoverable)]
-        struct Config {
-            required: u32,
-            #[toml(default = 7)]
-            retries: u32,
-            nested: Nested,
-            #[toml(default)]
-            optional: Option<Nested>,
-        }
-
-        #[derive(toml_spanner::Toml)]
-        #[toml(Toml)]
-        struct Nested {
-            #[toml(default = 3)]
-            limit: u32,
-        }
-
-        let config = Config {
-            required: 0,
-            retries: 7,
-            nested: Nested { limit: 3 },
-            optional: Some(Nested { limit: 3 }),
-        };
-        let compact = toml_spanner::to_string(&TomlOutput::new(&config, Defaults::Omit)).unwrap();
-        assert!(compact.contains("required = 0"));
-        assert!(!compact.contains("retries"));
-        assert!(!compact.contains("limit"));
-        assert!(compact.contains("[nested]"));
-        assert!(compact.contains("[optional]"));
-        let restored: Config = toml_spanner::from_str(&compact).unwrap();
-        assert_eq!(restored.retries, 7);
-        assert_eq!(restored.nested.limit, 3);
-        assert_eq!(restored.optional.unwrap().limit, 3);
-
-        let config = Config {
-            retries: 0,
-            nested: Nested { limit: 9 },
-            ..config
-        };
-        let compact = toml_spanner::to_string(&TomlOutput::new(&config, Defaults::Omit)).unwrap();
-        assert!(compact.contains("retries = 0"));
-        assert!(compact.contains("limit = 9"));
-    }
-
-    #[test]
     fn output_context_controls_defaults_without_changing_the_model() {
         let source = "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
         let parsed = parse_runfile("test", source).unwrap();
-        let full = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
-        let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
+        let full = parsed.runfile.output(Defaults::Include).render().unwrap();
+        let compact = parsed.runfile.output(Defaults::Omit).render().unwrap();
         for field in [
             "charge =",
             "multiplicity =",
@@ -184,11 +136,11 @@ mod tests {
         let restored = parse_runfile("compact", &compact).unwrap();
         assert_eq!(
             full,
-            toml_spanner::to_string(&restored.runfile.output(Defaults::Include)).unwrap()
+            restored.runfile.output(Defaults::Include).render().unwrap()
         );
         assert_eq!(
             full,
-            toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap()
+            parsed.runfile.output(Defaults::Include).render().unwrap()
         );
     }
 
@@ -223,11 +175,11 @@ std_dev = 0.01
 frozen_orbitals = 1
 "#;
         let parsed = parse_runfile("test", source).unwrap();
-        let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
+        let compact = parsed.runfile.output(Defaults::Omit).render().unwrap();
         let restored = parse_runfile("compact", &compact).unwrap();
         assert_eq!(
-            toml_spanner::to_string(&parsed.runfile).unwrap(),
-            toml_spanner::to_string(&restored.runfile).unwrap()
+            to_string(&parsed.runfile).unwrap(),
+            to_string(&restored.runfile).unwrap()
         );
         assert!(compact.contains("OneElectron"));
         assert!(!compact.contains("linear_dependency_threshold"));
@@ -245,7 +197,7 @@ frozen_orbitals = 1
         )
         .unwrap();
         assert!(parsed.integral_config.schwarz_threshold.value.is_none());
-        let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
+        let compact = parsed.runfile.output(Defaults::Omit).render().unwrap();
         assert!(compact.contains("schwarz_threshold = 0"));
         let restored = parse_runfile("compact.toml", &compact).unwrap();
         assert!(restored.integral_config.schwarz_threshold.value.is_none());

@@ -1,7 +1,4 @@
-use toml_spanner::Toml;
-
-#[derive(Debug, Toml)]
-#[toml(Toml)]
+#[derive(Debug, serde::Serialize)]
 pub struct BasisConfig {
     pub name: String,
 }

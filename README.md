@@ -69,8 +69,8 @@ The repository is intentionally split into small domains:
 - `src/cli/` handles command dispatch, terminal output, and user-facing reports.
 - `crates/rustiq-core/src/config/` owns scientific options and optional source locations;
   `calculation/` prepares the molecule/basis and orchestrates HF and optional MP2.
-- `src/runfile/` is the CLI configuration frontend: Nickel owns TOML defaults
-  and validation, `toml_edit` maps explicit source locations, and resolved DTOs
+- `src/runfile/` is the CLI configuration frontend: Nickel owns TOML parsing,
+  defaults, validation, and source locations, and resolved DTOs
   convert fallibly to scientific configuration.
 - `crates/rustiq-core/src/molecules/` owns atoms, elements, geometry parsing, units, charge,
   multiplicity, electron-count logic, and geometry transforms.
@@ -123,8 +123,8 @@ RustiQ deliberately uses community crates where they make the code clearer:
 - `ndarray` for array-shaped reference data in compact tensor tests;
 - `rayon` for data parallelism in integral and post-HF paths;
 - `clap` for declarative command-line parsing;
-- `serde`, `serde_json`, `nickel-lang`, `toml_edit`, and `toml-spanner` for
-  configuration resolution, source mapping, and canonical TOML rendering;
+- `serde` and `serde_json` for resolved DTOs, and `nickel-lang-core` for
+  TOML parsing, configuration resolution, source locations, and TOML rendering;
 - `miette` for diagnostics that point at invalid TOML fields and XYZ geometry
   lines;
 - `thiserror` for explicit error handling;
@@ -796,7 +796,7 @@ resolved configuration and XYZ in Bohr. These canonical pairs can each be
 copied into `calculation.toml` and `molecule.xyz` to recreate the corresponding
 semantic input. Canonical XYZ retains enough coordinate digits for an exact
 floating-point round trip. Canonical TOML uses typed CLI adapters and
-`toml-spanner`, without cache or terminal options. The requested basis label is
+Nickel export, without cache or terminal options. The requested basis label is
 distinct from the resolved basis name and AO contents; only the resolved
 scientific state determines artifact compatibility. Source provenance is
 optional and never needed to render either semantic view. TOML and XYZ are CLI
@@ -813,7 +813,7 @@ Both `HfOutcome::method()` and `HfSolution::method()` return the resolved
 the calculation did not converge.
 
 TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
-`toml-spanner` dependency or runfile feature, even with all its features enabled.
+Nickel dependency or runfile feature, even with all its features enabled.
 Application directories and `RUSTIQ_DATA_HOME` / `RUSTIQ_DATA_BASIS` are
 resolved by `src/cli/directories.rs`; environment-only behavior remains in
 `src/cli/env.rs`. Core consumers provide their own path to `BasisStore::new`.

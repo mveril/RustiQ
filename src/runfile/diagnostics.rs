@@ -11,6 +11,8 @@ pub(crate) struct NickelRunfileDiagnostic {
     span: Option<SourceSpan>,
     message: String,
     label: String,
+    #[related]
+    details: Vec<NickelDiagnosticDetail>,
 }
 
 pub(crate) fn nickel_error(
@@ -29,7 +31,29 @@ pub(crate) fn nickel_error(
             format!("{source_name}: {message}\n{label}")
         },
         label,
+        details: Vec::new(),
     }
+}
+
+impl NickelRunfileDiagnostic {
+    pub(crate) fn with_details(mut self, details: Vec<NickelDiagnosticDetail>) -> Self {
+        self.details = details;
+        self
+    }
+}
+
+/// Nickel's own labels and notes, grouped by source file for miette.
+#[derive(Debug, Error, Diagnostic)]
+#[error("{message}")]
+#[diagnostic(code(rustiq::runfile::nickel::detail))]
+pub(crate) struct NickelDiagnosticDetail {
+    pub(crate) message: String,
+    #[source_code]
+    pub(crate) source_code: Option<NamedSource<String>>,
+    #[label(collection)]
+    pub(crate) labels: Vec<miette::LabeledSpan>,
+    #[help]
+    pub(crate) notes: Option<String>,
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -54,115 +78,6 @@ pub(crate) fn group_nickel_errors(mut diagnostics: Vec<NickelRunfileDiagnostic>)
         }
         .into()
     }
-}
-
-#[cfg(test)]
-#[derive(Debug, Error, Diagnostic)]
-#[error("runfile contains {count} configuration error(s)")]
-#[diagnostic(
-    code(rustiq::runfile::toml_deserialize),
-    help("Fix each reported runfile field error.")
-)]
-struct RunfileDeserializationError {
-    count: usize,
-    #[related]
-    diagnostics: Vec<RunfileFieldDiagnostic>,
-}
-
-#[cfg(test)]
-#[derive(Debug, Error, Diagnostic)]
-#[error("{message}")]
-#[diagnostic(code(rustiq::runfile::invalid_field))]
-struct RunfileFieldDiagnostic {
-    message: String,
-    #[source_code]
-    source_code: NamedSource<String>,
-    #[label("{label}")]
-    span: SourceSpan,
-    label: String,
-}
-
-#[cfg(test)]
-pub(crate) trait FromTomlErrorMietteExt {
-    fn into_miette_diagnostic(self, source_name: String, toml_content: &str) -> miette::Report;
-}
-
-#[cfg(test)]
-impl FromTomlErrorMietteExt for toml_spanner::FromTomlError {
-    fn into_miette_diagnostic(self, source_name: String, toml_content: &str) -> miette::Report {
-        let source_code = NamedSource::new(source_name, toml_content.to_string());
-        let diagnostics: Vec<RunfileFieldDiagnostic> = self
-            .errors
-            .iter()
-            .map(|error| {
-                let (span, default_label) = error
-                    .primary_label()
-                    .unwrap_or_else(|| (error.span(), error.message(toml_content)));
-                let path = error
-                    .path()
-                    .map(std::string::ToString::to_string)
-                    .or_else(|| path_for_span(toml_content, span));
-                let (message, label) = humanized_runfile_error(
-                    path.as_deref(),
-                    &error.message(toml_content),
-                    &default_label,
-                );
-
-                RunfileFieldDiagnostic {
-                    message,
-                    source_code: source_code.clone(),
-                    span: source_span(span),
-                    label,
-                }
-            })
-            .collect();
-
-        RunfileDeserializationError {
-            count: diagnostics.len(),
-            diagnostics,
-        }
-        .into()
-    }
-}
-
-#[cfg(test)]
-fn source_span(span: toml_spanner::Span) -> SourceSpan {
-    let start = span.start as usize;
-    let end = span.end as usize;
-    (start, end.saturating_sub(start)).into()
-}
-
-#[cfg(test)]
-fn path_for_span(toml_content: &str, span: toml_spanner::Span) -> Option<String> {
-    let offset = (span.start as usize).min(toml_content.len());
-    let before = toml_content.get(..offset)?;
-    let after = toml_content.get(offset..)?;
-    let line_start = before.rfind('\n').map_or(0, |index| index + 1);
-    let line_end = after
-        .find('\n')
-        .map_or(toml_content.len(), |index| offset + index);
-    let line = toml_content.get(line_start..line_end)?.trim();
-    let key = line.split_once('=')?.0.trim();
-    if key.is_empty() {
-        return None;
-    }
-
-    let section = toml_content
-        .get(..line_start)?
-        .lines()
-        .rev()
-        .find_map(|line| {
-            let line = line.trim();
-            line.strip_prefix('[')
-                .and_then(|line| line.strip_suffix(']'))
-                .map(str::trim)
-                .filter(|section| !section.is_empty())
-        });
-
-    Some(match section {
-        Some(section) => format!("{section}.{key}"),
-        None => key.to_string(),
-    })
 }
 
 #[allow(
@@ -267,23 +182,45 @@ mod tests {
     use crate::runfile::parser::parse_runfile;
 
     #[test]
-    fn path_for_span_handles_utf8_boundaries() {
-        let source = "# é\n[global]\nbasis = 4\n";
-        let start = u32::try_from(source.find('4').unwrap()).unwrap();
+    fn native_toml_syntax_errors_preserve_utf8_offsets_and_source_name() {
+        let source = "# é\nbasis = { name = 'sto-3g' }\nmethod = { hf = { max_iterations = @ } }\n";
+        let error = parse_runfile("stdin.toml", source).unwrap_err();
+        let label = error.labels().unwrap().next().unwrap();
+        assert_eq!(label.offset(), source.find('@').unwrap());
         assert_eq!(
-            super::path_for_span(
-                source,
-                toml_spanner::Span {
-                    start,
-                    end: start + 1
-                }
-            ),
-            Some("global.basis".to_string())
+            source
+                .get(label.offset()..label.offset() + label.len())
+                .unwrap(),
+            "@ "
         );
-        assert_eq!(
-            super::path_for_span(source, toml_spanner::Span { start: 3, end: 4 }),
-            None
-        );
+        let contents = error
+            .source_code()
+            .unwrap()
+            .read_span(label.inner(), 0, 0)
+            .unwrap();
+        assert_eq!(contents.name(), Some("stdin.toml"));
+        let native = error.related().unwrap().next().unwrap();
+        assert!(native.labels().is_some());
+    }
+
+    #[test]
+    fn native_contract_labels_retain_the_original_input_source() {
+        let source = "basis = { name = 'sto-3g' }\nmethod = { hf = { max_iterations = 0 } }\n";
+        let error = parse_runfile("inline.toml", source).unwrap_err();
+        let details = error.related().unwrap().collect::<Vec<_>>();
+        assert!(!details.is_empty());
+        assert!(details.iter().any(|detail| detail.labels().is_some()));
+        assert!(details.iter().any(|detail| {
+            detail.labels().is_some_and(|mut labels| {
+                labels.any(|label| {
+                    detail
+                        .source_code()
+                        .unwrap()
+                        .read_span(label.inner(), 0, 0)
+                        .is_ok_and(|contents| contents.name() == Some("inline.toml"))
+                })
+            })
+        }));
     }
 
     #[test]

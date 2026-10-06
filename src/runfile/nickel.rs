@@ -1,12 +1,113 @@
 //! Embedded Nickel configuration frontend.
 use super::resolved::ResolvedInput;
+use nickel_lang_core::{
+    cache::{CacheHub, InputFormat, SourcePath},
+    error::{Error, IntoDiagnostics, NullReporter},
+    eval::{
+        cache::CacheImpl,
+        value::{Container, NickelValue},
+        VirtualMachine, VmContext,
+    },
+    files::FileId,
+    identifier::Ident,
+    term::Term,
+};
+
+struct Context {
+    vm: VmContext<CacheHub, CacheImpl>,
+    input_id: Option<FileId>,
+}
+
+impl Context {
+    fn new() -> Self {
+        Self {
+            vm: VmContext::new(CacheHub::new(), std::io::sink(), NullReporter {}),
+            input_id: None,
+        }
+    }
+
+    fn eval(&mut self, source: &str, deep: bool) -> Result<NickelValue, Error> {
+        let id = self.vm.import_resolver.sources.add_string(
+            SourcePath::Path("<rustiq-schema>".into(), InputFormat::Nickel),
+            source.to_owned(),
+        );
+        let value = self.vm.prepare_eval(id)?;
+        let mut vm = VirtualMachine::new(&mut self.vm);
+        if deep {
+            Ok(vm.eval_full_for_export(value)?)
+        } else {
+            Ok(vm.eval(value)?)
+        }
+    }
+
+    fn configuration_error(&self, path: Option<String>, error: Error) -> ConfigurationError {
+        let mut files = self.vm.import_resolver.sources.files().clone();
+        let mut details = Vec::new();
+        let mut messages = Vec::new();
+        let mut span = None;
+        for diagnostic in error.into_diagnostics(&mut files) {
+            messages.push(diagnostic.message.clone());
+            let mut sources = Vec::new();
+            for label in &diagnostic.labels {
+                if !sources.contains(&label.file_id) {
+                    sources.push(label.file_id);
+                }
+                if Some(label.file_id) == self.input_id && span.is_none() {
+                    span = Some((label.range.start, label.range.len()).into());
+                }
+            }
+            if sources.is_empty() {
+                details.push(super::diagnostics::NickelDiagnosticDetail {
+                    message: diagnostic.message.clone(),
+                    source_code: None,
+                    labels: Vec::new(),
+                    notes: (!diagnostic.notes.is_empty()).then(|| diagnostic.notes.join("\n")),
+                });
+            }
+            for id in sources {
+                let labels = diagnostic
+                    .labels
+                    .iter()
+                    .filter(|label| label.file_id == id)
+                    .map(|label| {
+                        miette::LabeledSpan::new(
+                            Some(label.message.clone()),
+                            label.range.start,
+                            label.range.len(),
+                        )
+                    })
+                    .collect();
+                details.push(super::diagnostics::NickelDiagnosticDetail {
+                    message: diagnostic.message.clone(),
+                    source_code: Some(miette::NamedSource::new(
+                        files.name(id).to_string_lossy(),
+                        files.source(id).to_owned(),
+                    )),
+                    labels,
+                    notes: (!diagnostic.notes.is_empty()).then(|| diagnostic.notes.join("\n")),
+                });
+            }
+        }
+        ConfigurationError {
+            path,
+            message: messages.join("\n"),
+            span,
+            details,
+        }
+    }
+}
 
 pub(crate) struct ConfigurationError {
     pub(crate) path: Option<String>,
     pub(crate) message: String,
+    pub(crate) span: Option<miette::SourceSpan>,
+    pub(crate) details: Vec<super::diagnostics::NickelDiagnosticDetail>,
 }
 
-fn evaluate_input(expression: &str) -> Result<ResolvedInput, Vec<ConfigurationError>> {
+fn evaluate_input_with_context(
+    expression: &str,
+    mut context: Context,
+) -> Result<ResolvedInput, Vec<ConfigurationError>> {
     // Inline the maintained schema so evaluation does not depend on an
     // installed Nickel CLI or runtime paths to package sources.
     let schema = include_str!("nickel/calculation.ncl");
@@ -14,73 +115,193 @@ fn evaluate_input(expression: &str) -> Result<ResolvedInput, Vec<ConfigurationEr
     let resolve = include_str!("nickel/resolve.ncl")
         .replace("import \"calculation.ncl\"", &format!("({schema})"));
     let source = format!("let ResolveInput = ({resolve}) in let Rebuild = ({rebuild}) in ResolveInput (Rebuild ({expression}))");
-    let mut context = nickel_lang::Context::new();
-    let expr = context.eval_deep_for_export(&source).map_err(|error| {
+    let expr = context.eval(&source, true).map_err(|error| {
         // Contracts on record fields are delayed. Force each sibling separately
         // after a failed export so one invalid field does not hide other errors.
-        let original = format_error(&error);
-        let mut diagnostics_context = nickel_lang::Context::new();
+        let original = context.configuration_error(None, error);
         let mut errors = Vec::new();
-        collect_errors(
-            &mut diagnostics_context,
-            &source,
-            &mut Vec::new(),
-            &mut errors,
-        );
+        collect_errors(&mut context, &source, &mut Vec::new(), &mut errors);
         if errors.is_empty() {
-            errors.push(ConfigurationError {
-                path: None,
-                message: original,
-            });
+            errors.push(original);
         }
         errors
     })?;
-    let json = context.expr_to_json(&expr).map_err(|error| {
-        vec![ConfigurationError {
-            path: None,
-            message: format_error(&error),
-        }]
+    let json = nickel_lang_core::serialize::to_string(
+        nickel_lang_core::serialize::ExportFormat::Json,
+        &expr,
+    )
+    .map_err(|error| {
+        vec![context.configuration_error(
+            None,
+            error.with_pos_table(context.vm.pos_table.clone()).into(),
+        )]
     })?;
     serde_json::from_str(&json).map_err(|error| {
         let message = error.to_string();
         let path = (message.contains("MP2 memory limit") || message.contains("couldn't parse"))
             .then(|| "method.mp2.memory_limit".to_owned());
-        vec![ConfigurationError { path, message }]
+        vec![ConfigurationError {
+            path,
+            message,
+            span: None,
+            details: Vec::new(),
+        }]
     })
 }
 
-pub(crate) fn resolve_toml(toml: &str) -> Result<ResolvedInput, Vec<ConfigurationError>> {
-    let expression = format!(
-        "std.deserialize 'Toml {}",
-        serde_json::to_string(toml).expect("serializing a string cannot fail")
+/// Nickel is also the TOML exporter, so no separate configuration parser is linked.
+pub(crate) fn export_toml(json: &str) -> Result<String, super::output::RenderError> {
+    let mut context = Context::new();
+    let rebuild = include_str!("nickel/rebuild-data.ncl");
+    let source = format!(
+        "({rebuild}) (std.deserialize 'Json {})",
+        serde_json::to_string(json).expect("serializing a string cannot fail")
     );
-    evaluate_input(&expression)
+    let value = context.eval(&source, true).map_err(|error| {
+        super::output::RenderError(context.configuration_error(None, error).message)
+    })?;
+    let export = |value: &NickelValue| {
+        nickel_lang_core::serialize::to_string(
+            nickel_lang_core::serialize::ExportFormat::Toml,
+            value,
+        )
+        .map_err(|error| {
+            super::output::RenderError(
+                context
+                    .configuration_error(
+                        None,
+                        error.with_pos_table(context.vm.pos_table.clone()).into(),
+                    )
+                    .message,
+            )
+        })
+    };
+    // Preserve the CLI's section order using Nickel values, without reparsing output.
+    if let Some(record) = value.as_record().and_then(Container::into_opt) {
+        let sections = [
+            "molecule",
+            "basis",
+            "method",
+            "integrals",
+            "cache",
+            "output",
+        ];
+        if record.fields.keys().any(|key| key.label() == "basis")
+            && record
+                .fields
+                .keys()
+                .all(|key| sections.contains(&key.label()))
+        {
+            let mut output = String::new();
+            for section_name in sections {
+                let mut section = record.clone();
+                section.fields.retain(|key, _| key.label() == section_name);
+                if section.fields.is_empty() {
+                    continue;
+                }
+                if !output.is_empty() {
+                    output.push('\n');
+                }
+                output.push_str(&export(&NickelValue::record_posless(section))?);
+            }
+            return Ok(output);
+        }
+    }
+    export(&value)
+}
+
+pub(crate) fn resolve_toml(toml: &str) -> Result<ResolvedInput, Vec<ConfigurationError>> {
+    let (context, _) = toml_context("<input.toml>", toml)?;
+    evaluate_input_with_context("Input", context)
+}
+
+fn toml_context(
+    source_name: &str,
+    toml: &str,
+) -> Result<(Context, super::source_map::TomlSourceMap), Vec<ConfigurationError>> {
+    let mut context = Context::new();
+    let id = context.vm.import_resolver.sources.add_string(
+        SourcePath::Path(source_name.into(), InputFormat::Toml),
+        toml.to_owned(),
+    );
+    context.input_id = Some(id);
+    if let Err(error) =
+        context
+            .vm
+            .import_resolver
+            .parse_to_term(&mut context.vm.pos_table, id, InputFormat::Toml)
+    {
+        return Err(vec![context.configuration_error(None, error.into())]);
+    }
+    let value = context
+        .vm
+        .import_resolver
+        .terms
+        .get_owned(id)
+        .expect("parsed input is cached");
+    let locations = super::source_map::TomlSourceMap::from_value(&value, &context.vm.pos_table);
+    context.vm = context.vm.with_extend_env(vec![(
+        Ident::new("Input"),
+        NickelValue::term_posless(Term::ResolvedImport(id)),
+    )]);
+    Ok((context, locations))
+}
+
+pub(crate) fn resolve_toml_with_locations(
+    source_name: &str,
+    toml: &str,
+) -> (
+    Result<ResolvedInput, Vec<ConfigurationError>>,
+    Option<super::source_map::TomlSourceMap>,
+) {
+    match toml_context(source_name, toml) {
+        Ok((context, locations)) => (
+            evaluate_input_with_context("Input", context),
+            Some(locations),
+        ),
+        Err(errors) => (Err(errors), None),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn source_locations(
+    toml: &str,
+) -> Result<super::source_map::TomlSourceMap, Vec<ConfigurationError>> {
+    toml_context("<input.toml>", toml).map(|(_, locations)| locations)
+}
+
+#[cfg(test)]
+fn evaluate_input(expression: &str) -> Result<ResolvedInput, Vec<ConfigurationError>> {
+    evaluate_input_with_context(expression, Context::new())
 }
 
 fn collect_errors(
-    context: &mut nickel_lang::Context,
+    context: &mut Context,
     expression: &str,
     path: &mut Vec<String>,
     errors: &mut Vec<ConfigurationError>,
 ) {
-    match context.eval_shallow(expression) {
+    match context.eval(expression, false) {
         Ok(value) => {
             if path
                 .iter()
                 .map(String::as_str)
                 .eq(["calculations", "method", "mp2", "memory_limit"])
             {
-                if let Some(text) = value.as_str() {
+                if let Some(text) = value.as_string().map(|text| text.as_str()) {
                     if let Err(message) = crate::config::MemoryLimit::parse(text) {
                         errors.push(ConfigurationError {
                             path: Some("method.mp2.memory_limit".to_owned()),
                             message,
+                            span: None,
+                            details: Vec::new(),
                         });
                     }
                 }
             }
-            if let Some(record) = value.as_record() {
-                for (name, _) in record.iter() {
+            if let Some(record) = value.as_record().and_then(Container::into_opt) {
+                for name in record.fields.keys() {
+                    let name = name.label();
                     let key =
                         serde_json::to_string(name).expect("serializing a string cannot fail");
                     path.push(name.to_owned());
@@ -102,10 +323,10 @@ fn collect_errors(
             let configuration_path = path
                 .strip_prefix(&["calculations".to_owned()])
                 .unwrap_or(path);
-            errors.push(ConfigurationError {
-                path: (!configuration_path.is_empty()).then(|| configuration_path.join(".")),
-                message: format_error(&error),
-            });
+            errors.push(context.configuration_error(
+                (!configuration_path.is_empty()).then(|| configuration_path.join(".")),
+                error,
+            ));
         }
     }
 }
@@ -119,14 +340,6 @@ fn evaluate(expression: &str) -> Result<ResolvedInput, String> {
             .collect::<Vec<_>>()
             .join("\n")
     })
-}
-
-fn format_error(error: &nickel_lang::Error) -> String {
-    let mut output = Vec::new();
-    match error.format(&mut output, nickel_lang::ErrorFormat::Text) {
-        Ok(()) => String::from_utf8_lossy(&output).into_owned(),
-        Err(error) => error.to_string(),
-    }
 }
 
 #[test]
@@ -225,4 +438,15 @@ fn nickel_rejects_nested_types_ranges_and_tags() {
             "{field}"
         );
     }
+}
+
+#[test]
+fn native_contract_notes_are_preserved() {
+    let mut context = Context::new();
+    let error = context.eval(r#"0 | std.contract.custom (fun _ _ => 'Error { message = "invalid setting", notes = ["native contract advice"] })"#, true).unwrap_err();
+    let error = context.configuration_error(None, error);
+    assert!(error.details.iter().any(|detail| detail
+        .notes
+        .as_deref()
+        .is_some_and(|notes| notes.contains("native contract advice"))));
 }

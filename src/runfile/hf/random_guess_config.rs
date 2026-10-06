@@ -1,12 +1,9 @@
-use toml_spanner::{helper::flatten_any, Toml};
-
 use crate::runfile::random_config::distribution_config::UniformDistributionConfig;
 use crate::runfile::random_config::{DistributionConfig, RandomConfig};
 
-#[derive(Debug, Clone, Copy, Toml)]
-#[toml(Toml)]
+#[derive(Debug, Clone, Copy, serde::Serialize)]
 pub struct RandomGuessConfig {
-    #[toml(flatten, with = flatten_any)]
+    #[serde(flatten)]
     pub(crate) random: RandomConfig,
 }
 

@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use serde::{Deserialize, Serialize};
-use toml_spanner::Toml;
 
 use crate::runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
 use rustiq_core::molecules::molecule::Molecule;
@@ -14,22 +13,14 @@ pub use density_guess_config::DensityGuessConfig;
 pub use guess_perturbation_config::GuessPerturbationConfig;
 pub use random_guess_config::RandomGuessConfig;
 
-#[derive(Debug, Toml)]
-#[toml(Toml, recoverable)]
+#[derive(Debug, serde::Serialize)]
 pub struct HfConfig {
-    #[toml(default)]
     pub method: HfMethod,
-    #[toml(default = default_max_iter())]
-    #[toml(with = crate::runfile::validated::non_zero_usize)]
     pub max_iterations: NonZeroUsize,
-    #[toml(default = default_conv_threshold())]
-    #[toml(with = crate::runfile::validated::positive_finite_f64)]
+    #[serde(serialize_with = "crate::runfile::validated::positive_finite_f64::serialize")]
     pub convergence_threshold: PositiveFiniteF64,
-    #[toml(default, style = Header)]
     pub guess: DensityGuessConfig,
-    #[toml(default, style = Header)]
     pub diis: DiisConfig,
-    #[toml(default, style = Header)]
     pub orthogonalization: OrthogonalizationConfig,
 }
 
@@ -46,13 +37,10 @@ impl Default for HfConfig {
     }
 }
 
-#[derive(Debug, Toml)]
-#[toml(Toml, recoverable)]
+#[derive(Debug, serde::Serialize)]
 pub struct DiisConfig {
-    #[toml(default)]
     pub enabled: bool,
-    #[toml(default = default_diis_size())]
-    #[toml(with = crate::runfile::validated::diis_size)]
+    #[serde(serialize_with = "crate::runfile::validated::diis_size::serialize")]
     pub max_history: DiisSize,
 }
 
@@ -65,11 +53,9 @@ impl Default for DiisConfig {
     }
 }
 
-#[derive(Debug, Toml)]
-#[toml(Toml, recoverable)]
+#[derive(Debug, serde::Serialize)]
 pub struct OrthogonalizationConfig {
-    #[toml(default = default_linear_dependency_threshold())]
-    #[toml(with = crate::runfile::validated::non_negative_finite_f64)]
+    #[serde(serialize_with = "crate::runfile::validated::non_negative_finite_f64::serialize")]
     pub linear_dependency_threshold: NonNegativeFiniteF64,
 }
 
@@ -81,8 +67,7 @@ impl Default for OrthogonalizationConfig {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Toml, PartialEq, Eq)]
-#[toml(Toml)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum HfMethod {
     #[default]
     Auto,
@@ -121,6 +106,12 @@ fn default_diis_size() -> DiisSize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn parse_hf(source: &str) -> miette::Result<HfConfig> {
+        let source = source
+            .replace("[diis]", "[method.hf.diis]")
+            .replace("[orthogonalization]", "[method.hf.orthogonalization]");
+        super::super::parse_section("method.hf", &source).map(|runfile| runfile.method.hf.unwrap())
+    }
 
     #[test]
     #[allow(
@@ -128,7 +119,7 @@ mod tests {
         reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
     )]
     fn hf_defaults_keep_diis_explicitly_disabled() {
-        let config: HfConfig = toml_spanner::from_str("").unwrap();
+        let config: HfConfig = parse_hf("").unwrap();
 
         assert_eq!(config.method, HfMethod::Auto);
         assert_eq!(config.max_iterations.get(), 100);
@@ -150,7 +141,7 @@ mod tests {
         reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
     )]
     fn nested_diis_and_orthogonalization_deserialize() {
-        let config: HfConfig = toml_spanner::from_str(
+        let config: HfConfig = parse_hf(
             r"
             [diis]
             enabled = true
@@ -175,8 +166,6 @@ mod tests {
 
     #[test]
     fn invalid_diis_history_is_rejected_at_parse_time() {
-        assert!(
-            toml_spanner::from_str::<HfConfig>("[diis]\nenabled = true\nmax_history = 1").is_err()
-        );
+        assert!(parse_hf("[diis]\nenabled = true\nmax_history = 1").is_err());
     }
 }

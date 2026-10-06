@@ -1,20 +1,18 @@
-use toml_spanner::{helper::flatten_any, Toml};
-
 use crate::runfile::hf::{GuessPerturbationConfig, RandomGuessConfig};
 
-#[derive(Debug, Clone, Copy, Toml)]
-#[toml(Toml, tag = "type")]
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(tag = "type")]
 pub enum DensityGuessConfig {
     CoreHamiltonian {
-        #[toml(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
         perturbation: Option<GuessPerturbationConfig>,
     },
     OneElectron {
-        #[toml(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
         perturbation: Option<GuessPerturbationConfig>,
     },
     Random {
-        #[toml(default, flatten, with = flatten_any)]
+        #[serde(flatten)]
         config: RandomGuessConfig,
     },
     Zero,

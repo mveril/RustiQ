@@ -1,24 +1,13 @@
 use std::{num::NonZeroU8, path::PathBuf};
 
-use toml_spanner::Toml;
-
 use rustiq_core::molecules::units::Units;
 
-#[derive(Debug, Toml)]
-#[toml(Toml)]
+#[derive(Debug, serde::Serialize)]
 pub struct MoleculeConfig {
-    #[toml(
-        default = default_molecule_file(),
-        with = crate::runfile::validated::non_empty_path_buf
-    )]
     pub geometry: PathBuf,
-    #[toml(default)]
     pub charge: i32,
-    #[toml(default = default_multiplicity())]
-    #[toml(with = crate::runfile::validated::non_zero_u8)]
     pub multiplicity: NonZeroU8,
-    #[toml(default = default_units())]
-    #[toml(with = crate::runfile::units)]
+    #[serde(serialize_with = "crate::runfile::units::serialize")]
     pub units: Units,
 }
 
