@@ -174,6 +174,12 @@ pub fn compute_eri_primitive(
 /// A 4D tensor containing all ERI integrals.
 #[derive(Debug, Error, PartialEq)]
 pub enum EriError {
+    #[error("supplied AO ERI has {actual} values, expected {expected} for {basis_functions} basis functions")]
+    InvalidValueCount {
+        basis_functions: usize,
+        expected: usize,
+        actual: usize,
+    },
     #[error("non-finite Coulomb self-integral for AO pair {pair_index}: {value}")]
     NonFiniteSelfIntegral { pair_index: usize, value: f64 },
     #[error(

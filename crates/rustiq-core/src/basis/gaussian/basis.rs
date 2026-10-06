@@ -140,6 +140,88 @@ pub struct NormalizedPrimitive {
 }
 
 impl Basis {
+    /// Rebuilds the resolved AO basis stored in portable calculation context.
+    /// Its normalized primitive coefficients are copied verbatim. Resolved AO
+    /// snapshots retain effective components, not the original shell grouping;
+    /// integral evaluation only needs the centers alongside those components.
+    pub(crate) fn from_calculation_context(
+        context: &crate::persistence::CalculationContext,
+    ) -> Self {
+        let mut shells = Vec::new();
+        let mut shell_ids = Vec::new();
+        let mut angular_momenta = Vec::new();
+        let mut angular_components = Vec::new();
+        let mut normalized_components = Vec::new();
+
+        for ao in context.basis() {
+            let components: Vec<_> = ao.components().collect();
+            let first = components
+                .first()
+                .expect("validated portable AO has at least one component");
+            let shell_id = shells.len();
+            let center = ao.center();
+            shells.push(Shell {
+                alpha: nalgebra::DVector::zeros(0),
+                contr: Vec::new(),
+                origin: Point3::new(center[0], center[1], center[2]),
+                max_ln_coeff: nalgebra::DVector::zeros(0),
+            });
+            shell_ids.push(shell_id);
+            let first_angular_momentum = first.angular_momentum();
+            angular_momenta.push(Vector3::new(
+                first_angular_momentum[0],
+                first_angular_momentum[1],
+                first_angular_momentum[2],
+            ));
+            angular_components.push(
+                components
+                    .iter()
+                    .map(|component| {
+                        let angular_momentum = component.angular_momentum();
+                        (
+                            Vector3::new(
+                                angular_momentum[0],
+                                angular_momentum[1],
+                                angular_momentum[2],
+                            ),
+                            1.0,
+                        )
+                    })
+                    .collect(),
+            );
+            normalized_components.push(
+                components
+                    .iter()
+                    .map(|component| NormalizedComponent {
+                        angular_momentum: {
+                            let angular_momentum = component.angular_momentum();
+                            Vector3::new(
+                                angular_momentum[0],
+                                angular_momentum[1],
+                                angular_momentum[2],
+                            )
+                        },
+                        primitives: component
+                            .primitives()
+                            .map(|(exponent, coefficient)| NormalizedPrimitive {
+                                exponent,
+                                coefficient,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            );
+        }
+
+        Self {
+            shells,
+            shell_ids,
+            angular_momenta,
+            angular_components,
+            normalized_components,
+        }
+    }
+
     pub(crate) fn new(shells: Vec<Shell>) -> Self {
         let mut shell_ids = Vec::new();
         let mut angular_momenta = Vec::new();

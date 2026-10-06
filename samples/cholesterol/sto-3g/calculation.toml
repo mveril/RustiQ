@@ -1,19 +1,21 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../cholesterol.xyz"
 charge = 0
 multiplicity = 1
-molecule_unit = "Angstrom"
+units = "Angstrom"
 
-[hf]
+[method.hf]
 max_iterations = 100
 convergence_threshold = 1e-8
-diis = true
-diis_size = 8
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 
-[mp2]
+[method.mp2]
+
+[method.hf.diis]
+enabled = true
+max_history = 8

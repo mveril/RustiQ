@@ -1,3 +1,20 @@
+use toml_spanner::Toml;
+
+#[derive(Debug, Default, Toml)]
+#[toml(Toml, recoverable)]
+pub struct OutputConfig {
+    #[toml(default)]
+    pub scf: ScfOutput,
+}
+
+#[derive(Debug, Default, Clone, Copy, Toml, PartialEq, Eq, Hash)]
+#[toml(Toml)]
+pub enum ScfOutput {
+    #[default]
+    Normal,
+    Quiet,
+}
+
 use toml_spanner::{Arena, FromToml, Item, TableStyle, ToToml, ToTomlError};
 
 use super::RunFile;
@@ -137,28 +154,33 @@ mod tests {
 
     #[test]
     fn output_context_controls_defaults_without_changing_the_model() {
-        let source = "[global]\nbasis = \"sto-3g\"\n[hf]\n[mp2]\n";
+        let source = "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
         let parsed = parse_runfile("test", source).unwrap();
         let full = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
         for field in [
-            "charge",
-            "multiplicity",
-            "molecule_unit",
-            "method",
-            "max_iterations",
-            "convergence_threshold",
-            "linear_dependency_threshold",
-            "eri_schwarz_threshold",
-            "diis",
-            "guess",
-            "frozen_orbitals",
+            "charge =",
+            "multiplicity =",
+            "units =",
+            "method =",
+            "max_iterations =",
+            "convergence_threshold =",
+            "linear_dependency_threshold =",
+            "schwarz_threshold =",
+            "enabled =",
+            "max_history =",
+            "type =",
+            "frozen_orbitals =",
+            "memory_limit =",
+            "scf =",
         ] {
             assert!(full.contains(field), "missing {field}");
             assert!(!compact.contains(field), "unexpected {field}");
         }
-        assert!(compact.contains("[hf]"));
-        assert!(compact.contains("[mp2]"));
+        assert!(full.contains("[method.hf.guess]"));
+        assert!(!compact.contains("[method.hf.guess]"));
+        assert!(compact.contains("[method.hf]"));
+        assert!(compact.contains("[method.mp2]"));
         let restored = parse_runfile("compact", &compact).unwrap();
         assert_eq!(
             full,
@@ -173,23 +195,31 @@ mod tests {
     #[test]
     fn compact_output_preserves_non_default_and_tagged_configuration() {
         let source = r#"
-[global]
-basis = "cc-pvdz"
-[global.molecule]
+[molecule]
 charge = -1
 multiplicity = 2
-molecule_unit = "Bohr"
-[hf]
+units = "Bohr"
+
+[basis]
+name = "cc-pvdz"
+
+[method.hf]
 method = "Uhf"
 max_iterations = 42
-diis = true
-[hf.guess]
+
+[method.hf.diis]
+enabled = true
+max_history = 8
+
+[method.hf.guess]
 type = "OneElectron"
-[hf.guess.perturbation]
+
+[method.hf.guess.perturbation]
 distribution = "Normal"
 mean = 0.0
 std_dev = 0.01
-[mp2]
+
+[method.mp2]
 frozen_orbitals = 1
 "#;
         let parsed = parse_runfile("test", source).unwrap();
@@ -201,5 +231,39 @@ frozen_orbitals = 1
         );
         assert!(compact.contains("OneElectron"));
         assert!(!compact.contains("linear_dependency_threshold"));
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+    )]
+    fn schwarz_threshold_zero_survives_compaction_and_omission_restores_default() {
+        let parsed = parse_runfile(
+            "zero.toml",
+            "[molecule]\n[basis]\nname = \"sto-3g\"\n[integrals]\nschwarz_threshold = 0\n",
+        )
+        .unwrap();
+        assert!(parsed.integral_config.schwarz_threshold.value.is_none());
+        let compact = toml_spanner::to_string(&parsed.runfile.output(Defaults::Omit)).unwrap();
+        assert!(compact.contains("schwarz_threshold = 0"));
+        let restored = parse_runfile("compact.toml", &compact).unwrap();
+        assert!(restored.integral_config.schwarz_threshold.value.is_none());
+
+        let omitted = parse_runfile(
+            "omitted.toml",
+            "[molecule]\n[basis]\nname = \"sto-3g\"\n[integrals]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            omitted
+                .integral_config
+                .schwarz_threshold
+                .value
+                .unwrap()
+                .into_inner(),
+            rustiq_core::config::DEFAULT_ERI_SCHWARZ_THRESHOLD
+        );
+        assert!(omitted.integral_config.schwarz_threshold.span.is_none());
     }
 }

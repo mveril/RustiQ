@@ -1,17 +1,19 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../ethanol.xyz"
 charge = 0
 multiplicity = 1
-molecule_unit = "Angstrom"
+units = "Angstrom"
 
-[hf]
+[method.hf]
 max_iterations = 80
 convergence_threshold = 1e-10
-diis = true
-diis_size = 8
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
+
+[method.hf.diis]
+enabled = true
+max_history = 8

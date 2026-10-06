@@ -12,3 +12,4 @@ __pycache__/
 .fake
 /result
 /result-*
+/crates/rustiq-core/examples/data/

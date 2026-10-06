@@ -1,14 +1,14 @@
-[global]
-basis = "sto-3g"
+[basis]
+name = "sto-3g"
 
-[global.molecule]
+[molecule]
 geometry = "../molecule.xyz"
 
-[hf]
+[method.hf]
 method = "Rhf"
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 
-[mp2]
+[method.mp2]
 frozen_orbitals = 0

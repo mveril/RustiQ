@@ -64,7 +64,7 @@ fn mp2_human_memory_budget_reaches_cli_and_preserves_json() {
     let path = directory.path().join("memory.toml");
     let geometry = repo_root().join("samples/h2/molecule.xyz");
     let prefix = format!(
-        "[global]\nbasis = \"sto-3g\"\n[global.molecule]\ngeometry = {:?}\n[hf]\n[mp2]\n",
+        "[molecule]\ngeometry = {:?}\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n",
         geometry.to_str().unwrap()
     );
     fs::write(&path, format!("{prefix}memory_limit = \"1 KiB\"\n")).unwrap();

@@ -1,23 +1,25 @@
-[global]
-basis = "cc-pvdz"
+[basis]
+name = "cc-pvdz"
 
-[global.molecule]
+[molecule]
 geometry = "../anthracene.xyz"
 charge = 0
 multiplicity = 1
-molecule_unit = "Angstrom"
+units = "Angstrom"
 
-[hf]
+[method.hf]
 max_iterations = 300
 convergence_threshold = 1e-8
-diis = true
-diis_size = 6
 
-[hf.guess]
+[method.hf.guess]
 type = "CoreHamiltonian"
 
-[mp2]
+[method.mp2]
 frozen_orbitals = 0
 
 [cache]
 enabled = true
+
+[method.hf.diis]
+enabled = true
+max_history = 6

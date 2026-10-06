@@ -6,6 +6,7 @@ use thiserror::Error;
 
 use crate::{
     basis::gaussian::basis::Basis,
+    config::DiisConfig,
     eri::{index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
     molecules::molecule::Molecule,
@@ -279,9 +280,15 @@ impl<'a> UhfCalculation<'a> {
         Ok(())
     }
 
+    pub(crate) fn configure_diis(&mut self, config: &DiisConfig) {
+        self.diis = config
+            .enabled
+            .then(|| DiisAccelerator::new(config.max_history.value));
+    }
+
     #[allow(
         dead_code,
-        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+        reason = "Retained helper supports scientific tests and benchmarks"
     )]
     pub fn run(&mut self) -> Result<ScfOutcome, NumericalError> {
         self.run_with_iterations(|_| {})

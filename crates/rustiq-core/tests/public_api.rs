@@ -20,8 +20,9 @@ use rustiq_core::{
             distribution_config::UniformDistributionConfig, DistributionConfig, RandomConfig,
         },
         validated::{NonNegativeFiniteF64, PositiveFiniteF64},
-        DensityGuessConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod, Located,
-        MoleculeConfig, Mp2Config, RandomGuessConfig, ResolvedHfMethod,
+        DensityGuessConfig, DiisConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
+        IntegralConfig, Located, MoleculeConfig, Mp2Config, OrthogonalizationConfig,
+        RandomGuessConfig, ResolvedHfMethod,
     },
     molecules::{atom::Atom, geometry::Geometry, units::Units},
 };
@@ -438,7 +439,10 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
     ] {
         let config = HfConfig {
             method: method.into(),
-            diis: true,
+            diis: DiisConfig {
+                enabled: true,
+                ..Default::default()
+            },
             convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
             ..Default::default()
         };
@@ -472,7 +476,10 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
             let error = CalculationBuilder::new(&geometry, &file)
                 .with_hf(HfConfig {
                     method: method.into(),
-                    diis: true,
+                    diis: DiisConfig {
+                        enabled: true,
+                        ..Default::default()
+                    },
                     convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
                     ..Default::default()
                 })
@@ -582,10 +589,12 @@ fn setup_errors_retain_threshold_and_guess_locations() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let mut config = HfConfig {
             method: method.into(),
-            linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
+            orthogonalization: OrthogonalizationConfig {
+                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
+            },
             ..Default::default()
         };
-        config.linear_dependency_threshold.span = Some(span);
+        config.orthogonalization.linear_dependency_threshold.span = Some(span);
         let error = CalculationBuilder::new(&geometry, &file)
             .with_hf(config.clone())
             .execute()
@@ -603,7 +612,7 @@ fn setup_errors_retain_threshold_and_guess_locations() {
                 }
             ));
         }
-        config.linear_dependency_threshold = HfConfig::default().linear_dependency_threshold;
+        config.orthogonalization = OrthogonalizationConfig::default();
         config.guess.value = DensityGuessConfig::Random {
             config: RandomGuessConfig {
                 random: RandomConfig {
@@ -635,7 +644,9 @@ fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let config = HfConfig {
             method: method.into(),
-            linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
+            orthogonalization: OrthogonalizationConfig {
+                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
+            },
             ..Default::default()
         };
         let mut setup_steps = Vec::new();
@@ -688,9 +699,9 @@ fn configured_eri_threshold_reaches_scf_integrals() {
             units: Units::Angstrom,
             ..Default::default()
         })
-        .with_hf(HfConfig {
-            eri_schwarz_threshold: Some(PositiveFiniteF64::try_new(1.0).unwrap()),
-            ..Default::default()
+        .with_hf(HfConfig::default())
+        .with_integrals(IntegralConfig {
+            schwarz_threshold: Some(PositiveFiniteF64::try_new(1.0).unwrap()).into(),
         })
         .execute()
         .unwrap();
@@ -699,9 +710,9 @@ fn configured_eri_threshold_reaches_scf_integrals() {
             units: Units::Angstrom,
             ..Default::default()
         })
-        .with_hf(HfConfig {
-            eri_schwarz_threshold: None,
-            ..Default::default()
+        .with_hf(HfConfig::default())
+        .with_integrals(IntegralConfig {
+            schwarz_threshold: None.into(),
         })
         .execute()
         .unwrap();

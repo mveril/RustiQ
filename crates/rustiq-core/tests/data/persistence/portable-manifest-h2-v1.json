@@ -1,0 +1,51 @@
+{
+  "format": "rustiq-persistence",
+  "format_version": 1,
+  "kind": "portable",
+  "producer": {
+    "name": "Python interoperability fixture",
+    "version": "1"
+  },
+  "sources": [
+    {
+      "original_name": "../../calculation.toml",
+      "path": "sources/0",
+      "version": 1,
+      "size": 84,
+      "digest": "sha256:0e4846b3cda3e792522dad47a72f03dde51c5584411e028712ee292cb4184f06"
+    }
+  ],
+  "calculations": [
+    {
+      "id": "calculation-0",
+      "scientific_identity": {
+        "version": 1,
+        "digest": "sha256:0fd27aa0f91978616522cb640381b2db36b1ddebb97f3fd53a8036270717c6cc"
+      },
+      "request": {
+        "path": "calculations/calculation-0/request.json",
+        "version": 1,
+        "size": 666,
+        "digest": "sha256:b0f6d85c96f09c2320b5774c12455ba0de4193ca751bc9c2ba0cd1d2efe042c6"
+      },
+      "calculation": {
+        "path": "calculations/calculation-0/calculation.json",
+        "version": 1,
+        "size": 1892,
+        "digest": "sha256:5123dec16a2195b13299d7f4b9fd27b089b3f693fc189bc0fb83efcb60e69f55"
+      },
+      "artifacts": {
+        "ao_eri": {
+          "path": "calculations/calculation-0/arrays/integrals/ao-eri.npy",
+          "size": 176,
+          "digest": "sha256:d838095f0921ded52c58e791ff1ad0fc558dc1b4b43aae62c5be45e19c9735be",
+          "representation": "rustiq-compact-eri-v1",
+          "attributes": {
+            "basis_functions": 2,
+            "computation_version": 1
+          }
+        }
+      }
+    }
+  ]
+}

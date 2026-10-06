@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mveril/RustiQ/blob/main/schemas/request-snapshot-v1.schema.json",
+  "title": "RustiQ normalized requested calculation V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "units",
+    "atoms",
+    "charge",
+    "multiplicity",
+    "basis",
+    "hf"
+  ],
+  "properties": {
+    "format": {
+      "const": "rustiq-request"
+    },
+    "version": {
+      "const": 1
+    },
+    "units": {
+      "enum": [
+        "bohr",
+        "angstrom"
+      ]
+    },
+    "atoms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/atom"
+      }
+    },
+    "charge": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "multiplicity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 255
+    },
+    "basis": {
+      "type": "string"
+    },
+    "hf": {
+      "$ref": "#/$defs/hf"
+    },
+    "mp2": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/mp2"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "atom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atomic_number",
+        "position"
+      ],
+      "properties": {
+        "atomic_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 118
+        },
+        "position": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "distribution": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "min",
+            "max"
+          ],
+          "properties": {
+            "kind": {
+              "const": "uniform"
+            },
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "mean",
+            "std_dev"
+          ],
+          "properties": {
+            "kind": {
+              "const": "normal"
+            },
+            "mean": {
+              "type": "number"
+            },
+            "std_dev": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "random": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "distribution"
+      ],
+      "properties": {
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "distribution": {
+          "$ref": "#/$defs/distribution"
+        }
+      }
+    },
+    "guess": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "core_hamiltonian"
+            },
+            "perturbation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/random"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "one_electron"
+            },
+            "perturbation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/random"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "random"
+          ],
+          "properties": {
+            "kind": {
+              "const": "random"
+            },
+            "random": {
+              "$ref": "#/$defs/random"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "zero"
+            }
+          }
+        }
+      ]
+    },
+    "hf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "max_iterations",
+        "convergence_threshold",
+        "linear_dependency_threshold",
+        "guess",
+        "diis",
+        "diis_size"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "auto",
+            "rhf",
+            "uhf"
+          ]
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "convergence_threshold": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "linear_dependency_threshold": {
+          "type": "number",
+          "minimum": 0
+        },
+        "eri_schwarz_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diis_size": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 18446744073709551615
+        },
+        "guess": {
+          "$ref": "#/$defs/guess"
+        },
+        "diis": {
+          "type": "boolean"
+        }
+      }
+    },
+    "mp2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frozen_orbitals",
+        "memory_limit"
+      ],
+      "properties": {
+        "frozen_orbitals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "memory_limit": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "auto"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "bytes"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "fixed"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

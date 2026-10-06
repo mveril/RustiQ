@@ -1,6 +1,6 @@
 use crate::{
     basis::{Basis, BasisFile},
-    config::{HfConfig, MoleculeConfig, Mp2Config},
+    config::{HfConfig, IntegralConfig, MoleculeConfig, Mp2Config},
     molecules::{geometry::Geometry, units::Units},
     persistence::EriCache,
 };
@@ -29,7 +29,13 @@ use super::{
 /// # fn example(geometry: &Geometry, basis_file: &BasisFile) -> Result<(), Box<dyn std::error::Error>> {
 /// let calculation = CalculationBuilder::new(geometry, basis_file)
 ///     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
-///     .with_hf(HfConfig { diis: true, ..Default::default() })
+///     .with_hf(HfConfig {
+///         diis: rustiq_core::config::DiisConfig {
+///             enabled: true,
+///             ..Default::default()
+///         },
+///         ..Default::default()
+///     })
 ///     .with_mp2(Mp2Config::default());
 /// let prepared = calculation.prepare()?;
 /// let result = prepared.execute()?;
@@ -43,6 +49,7 @@ pub struct CalculationBuilder<'a> {
     basis_label: Option<String>,
     molecule_config: MoleculeConfig,
     hf: HfConfig,
+    integrals: IntegralConfig,
     mp2: Option<Mp2Config>,
     eri_cache: Option<EriCache>,
 }
@@ -56,6 +63,7 @@ impl<'a> CalculationBuilder<'a> {
             basis_label: None,
             molecule_config: MoleculeConfig::default(),
             hf: HfConfig::default(),
+            integrals: IntegralConfig::default(),
             mp2: None,
             eri_cache: None,
         }
@@ -90,6 +98,11 @@ impl<'a> CalculationBuilder<'a> {
         &self.hf
     }
     #[must_use]
+    pub fn get_integrals(&self) -> &IntegralConfig {
+        &self.integrals
+    }
+
+    #[must_use]
     pub fn get_mp2(&self) -> Option<&Mp2Config> {
         self.mp2.as_ref()
     }
@@ -118,6 +131,17 @@ impl<'a> CalculationBuilder<'a> {
     #[must_use]
     pub fn with_hf(mut self, config: HfConfig) -> Self {
         self.hf(config);
+        self
+    }
+
+    pub fn integrals(&mut self, config: IntegralConfig) -> &mut Self {
+        self.integrals = config;
+        self
+    }
+
+    #[must_use]
+    pub fn with_integrals(mut self, config: IntegralConfig) -> Self {
+        self.integrals(config);
         self
     }
 
@@ -193,8 +217,10 @@ impl CalculationBuilder<'_> {
             basis,
             basis_name: self.basis_file.name().to_owned(),
             hf,
+            integrals: self.integrals,
             mp2: self.mp2,
             eri_cache: self.eri_cache.clone(),
+            source: super::artifact_reuse::CalculationSource::Configuration,
         })
     }
 
@@ -213,11 +239,18 @@ impl CalculationBuilder<'_> {
                 .clone()
                 .unwrap_or_else(|| self.basis_file.name().to_owned()),
             hf: normalized_hf_config(&self.hf),
+            integrals: normalized_integral_config(&self.integrals),
             mp2: self.mp2.map(|config| Mp2Config {
                 frozen_orbitals: config.frozen_orbitals.value.into(),
                 memory_limit: config.memory_limit.value.into(),
             }),
         }
+    }
+}
+
+pub(super) fn normalized_integral_config(config: &IntegralConfig) -> IntegralConfig {
+    IntegralConfig {
+        schwarz_threshold: config.schwarz_threshold.value.into(),
     }
 }
 
@@ -248,11 +281,18 @@ pub(super) fn normalized_hf_config(config: &HfConfig) -> HfConfig {
         method: config.method.value.into(),
         max_iterations: config.max_iterations,
         convergence_threshold: config.convergence_threshold,
-        linear_dependency_threshold: config.linear_dependency_threshold.value.into(),
-        eri_schwarz_threshold: config.eri_schwarz_threshold,
         guess: config.guess.value.into(),
-        diis: config.diis,
-        diis_size: config.diis_size,
+        diis: crate::config::DiisConfig {
+            enabled: config.diis.enabled,
+            max_history: config.diis.max_history.value.into(),
+        },
+        orthogonalization: crate::config::OrthogonalizationConfig {
+            linear_dependency_threshold: config
+                .orthogonalization
+                .linear_dependency_threshold
+                .value
+                .into(),
+        },
     }
 }
 

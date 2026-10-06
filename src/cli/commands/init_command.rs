@@ -10,11 +10,14 @@ use miette::{miette, IntoDiagnostic, WrapErr};
 
 use super::{CommandResult, Runnable};
 use crate::runfile::{
+    basis::BasisConfig,
     cache::CacheConfig,
-    global::{molecule_config::MoleculeConfig, Global},
     hf::{HfConfig, HfMethod},
+    integrals::IntegralConfig,
+    method::MethodConfig,
+    molecule::MoleculeConfig,
     mp2::Mp2Config,
-    output::Defaults,
+    output::{Defaults, OutputConfig},
     RunFile,
 };
 use rustiq_core::molecules::{geometry::Geometry, molecule::Molecule, units::Units};
@@ -159,21 +162,25 @@ impl Runnable for InitCommand {
             Err(error) => return Err(error).into_diagnostic(),
         }
         let run = RunFile {
-            global: Global {
-                basis: self.basis.clone(),
-                molecule: MoleculeConfig {
-                    geometry: relative_geometry(&input, &directory),
-                    charge: self.charge,
-                    multiplicity,
-                    molecule_unit: units,
-                },
+            molecule: MoleculeConfig {
+                geometry: relative_geometry(&input, &directory),
+                charge: self.charge,
+                multiplicity,
+                units,
             },
-            hf: Some(HfConfig {
-                method,
-                ..HfConfig::default()
-            }),
-            mp2: self.mp2.then(Mp2Config::default),
+            basis: BasisConfig {
+                name: self.basis.clone(),
+            },
+            method: MethodConfig {
+                hf: Some(HfConfig {
+                    method,
+                    ..HfConfig::default()
+                }),
+                mp2: self.mp2.then(Mp2Config::default),
+            },
+            integrals: IntegralConfig::default(),
             cache: CacheConfig::default(),
+            output: OutputConfig::default(),
         };
         let content = toml_spanner::to_string(&run.output(Defaults::Omit)).into_diagnostic()?;
         let mut temporary = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
@@ -243,13 +250,13 @@ mod tests {
         let parsed = parse_runfile("calculation.toml", &content).unwrap();
         let expanded = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
         for field in [
-            "charge",
-            "multiplicity",
-            "molecule_unit",
-            "method",
-            "max_iterations",
-            "convergence_threshold",
-            "frozen_orbitals",
+            "charge =",
+            "multiplicity =",
+            "units =",
+            "method =",
+            "max_iterations =",
+            "convergence_threshold =",
+            "frozen_orbitals =",
         ] {
             assert!(!content.contains(field), "init must omit {field}");
             assert!(
@@ -257,16 +264,19 @@ mod tests {
                 "expanded runfile must include {field}"
             );
         }
-        let molecule = &parsed.runfile.global.molecule;
+        let molecule = &parsed.runfile.molecule;
         assert_eq!(temp.path().join(&molecule.geometry), input);
         assert_eq!(molecule.charge, 0);
         assert_eq!(molecule.multiplicity.get(), 1);
-        assert_eq!(molecule.molecule_unit, Units::Angstrom);
-        let hf = parsed.runfile.hf.as_ref().unwrap();
+        assert_eq!(molecule.units, Units::Angstrom);
+        let hf = parsed.runfile.method.hf.as_ref().unwrap();
         assert_eq!(hf.method, HfMethod::Auto);
         assert_eq!(hf.max_iterations.get(), 100);
         assert_eq!(hf.convergence_threshold.into_inner(), 1e-8);
-        assert_eq!(parsed.runfile.mp2.as_ref().unwrap().frozen_orbitals, 0);
+        assert_eq!(
+            parsed.runfile.method.mp2.as_ref().unwrap().frozen_orbitals,
+            0
+        );
         assert_eq!(fs::read_to_string(&output).unwrap(), content);
     }
 
@@ -299,11 +309,11 @@ mod tests {
             assert_eq!(
                 lines,
                 [
-                    "[global]",
-                    "basis = \"sto-3g\"",
-                    "[global.molecule]",
+                    "[molecule]",
                     "geometry = \"molecule.xyz\"",
-                    "[hf]"
+                    "[basis]",
+                    "name = \"sto-3g\"",
+                    "[method.hf]"
                 ]
             );
         }
@@ -311,11 +321,11 @@ mod tests {
             .run()
             .unwrap();
         let content = fs::read_to_string(&output).unwrap();
-        assert!(content.contains("[mp2]"));
+        assert!(content.contains("[method.mp2]"));
         assert!(!content.contains("frozen_orbitals"));
         let run = parse_runfile("generated", &content).unwrap().runfile;
-        assert!(run.hf.is_some());
-        assert_eq!(run.mp2.unwrap().frozen_orbitals, 0);
+        assert!(run.method.hf.is_some());
+        assert_eq!(run.method.mp2.unwrap().frozen_orbitals, 0);
     }
 
     #[test]
@@ -355,21 +365,21 @@ mod tests {
             command(&input, &output, &extra).run().unwrap();
             let content = fs::read_to_string(&output).unwrap();
             let run = parse_runfile("generated", &content).unwrap().runfile;
-            assert_eq!(run.global.basis, "sto-3g");
-            assert_eq!(run.global.molecule.geometry, Path::new("../molecule.xyz"));
-            assert_eq!(run.global.molecule.charge, charge);
-            assert_eq!(run.global.molecule.multiplicity.get(), multiplicity);
+            assert_eq!(run.basis.name, "sto-3g");
+            assert_eq!(run.molecule.geometry, Path::new("../molecule.xyz"));
+            assert_eq!(run.molecule.charge, charge);
+            assert_eq!(run.molecule.multiplicity.get(), multiplicity);
             assert_eq!(
-                run.global.molecule.molecule_unit,
+                run.molecule.units,
                 if charge == -1 {
                     Units::Bohr
                 } else {
                     Units::Angstrom
                 }
             );
-            assert_eq!(run.hf.unwrap().method, expected_method);
-            assert_eq!(run.mp2.is_some(), mp2);
-            if let Some(config) = run.mp2 {
+            assert_eq!(run.method.hf.unwrap().method, expected_method);
+            assert_eq!(run.method.mp2.is_some(), mp2);
+            if let Some(config) = run.method.mp2 {
                 assert_eq!(config.frozen_orbitals, 0);
             }
         }
@@ -378,7 +388,7 @@ mod tests {
             .run()
             .unwrap();
         let parsed = parse_runfile("generated", &fs::read_to_string(output).unwrap()).unwrap();
-        assert_eq!(parsed.runfile.global.basis, special_basis);
+        assert_eq!(parsed.runfile.basis.name, special_basis);
     }
 
     #[test]
@@ -447,7 +457,7 @@ mod tests {
         let run = parse_runfile("generated", &fs::read_to_string(&output).unwrap())
             .unwrap()
             .runfile;
-        assert_eq!(temp.path().join(run.global.molecule.geometry), input);
+        assert_eq!(temp.path().join(run.molecule.geometry), input);
         let link = temp.path().join("link.toml");
         std::os::unix::fs::symlink(&output, &link).unwrap();
         assert!(command(&input, &link, &["--force"]).run().is_err());

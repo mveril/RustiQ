@@ -17,9 +17,9 @@ pub struct MoleculeConfig {
     #[toml(default = default_multiplicity())]
     #[toml(with = crate::runfile::validated::non_zero_u8)]
     pub multiplicity: NonZeroU8,
-    #[toml(default = default_molecule_unit())]
+    #[toml(default = default_units())]
     #[toml(with = crate::runfile::units)]
-    pub molecule_unit: Units,
+    pub units: Units,
 }
 
 impl Default for MoleculeConfig {
@@ -28,7 +28,7 @@ impl Default for MoleculeConfig {
             geometry: default_molecule_file(),
             charge: Default::default(),
             multiplicity: default_multiplicity(),
-            molecule_unit: default_molecule_unit(),
+            units: default_units(),
         }
     }
 }
@@ -37,30 +37,10 @@ fn default_molecule_file() -> PathBuf {
     "./molecule.xyz".into()
 }
 
-fn default_molecule_unit() -> Units {
+fn default_units() -> Units {
     Units::Angstrom
 }
 
 fn default_multiplicity() -> NonZeroU8 {
     NonZeroU8::MIN
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_default_multiplicity() {
-        assert_eq!(u8::from(default_multiplicity()), 1);
-    }
-
-    #[test]
-    fn test_molecule_config_rejects_empty_geometry_path() {
-        let result = toml_spanner::from_str::<MoleculeConfig>(
-            r#"
-            geometry = ""
-            "#,
-        );
-
-        assert!(result.is_err());
-    }
 }
