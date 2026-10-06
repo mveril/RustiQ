@@ -248,7 +248,7 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
-    assert!(stdout.contains("Calculation\n  Geometry      ../molecule.xyz"));
+    assert!(stdout.contains("Calculation\n  Geometry      samples/h2/sto-3g/../molecule.xyz"));
     assert!(stdout.contains("  Atoms         2"));
     assert!(stdout.contains("  Charge        0"));
     assert!(stdout.contains("  Multiplicity  1"));
@@ -297,7 +297,10 @@ fn test_cli_shows_canonical_request_without_original_source_dump() {
     assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
     assert!(stdout.contains("H 0 0 -0.3700000001234568"));
     assert!(stdout.contains("Calculation\n"));
-    assert!(stdout.contains("Geometry      molecule.xyz"));
+    assert!(stdout.contains(&format!(
+        "Geometry      {}",
+        input_dir.join("molecule.xyz").display()
+    )));
     assert!(!stdout.contains("Keep the original path and formatting"));
     assert!(!stdout.contains("Hydrogen molecule -- original comment"));
     assert!(!stdout.contains("relative to this file"));
@@ -1213,8 +1216,9 @@ fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
     let root = tempfile::tempdir().unwrap();
     prepare_basis_store(root.path());
     let inputs = root.path().join("inputs");
+    let nested_inputs = inputs.join("nested");
     let caller = root.path().join("caller");
-    fs::create_dir(&inputs).unwrap();
+    fs::create_dir_all(&nested_inputs).unwrap();
     fs::create_dir(&caller).unwrap();
     fs::write(
         inputs.join("molecule.xyz"),
@@ -1222,8 +1226,8 @@ fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
     )
     .unwrap();
     fs::write(
-        inputs.join("calculation.toml"),
-        "[basis]\nname = \"sto-3g\"\n[cache]\nenabled = true\n[method.hf]\n",
+        nested_inputs.join("calculation.toml"),
+        "[molecule]\ngeometry = \"../molecule.xyz\"\n[basis]\nname = \"sto-3g\"\n[cache]\nenabled = true\n[method.hf]\n",
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
@@ -1231,17 +1235,19 @@ fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
         .env("RUSTIQ_DATA_HOME", root.path())
         .args([
             "run",
-            "../inputs/calculation.toml",
+            "../inputs/nested/calculation.toml",
             "--no-auto-download",
             "--cache-dir",
             "local-cache",
-            "--format",
-            "json",
         ])
         .output()
         .unwrap();
     assert_success(&output);
-    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Calculation\n  Geometry      ../inputs/nested/../molecule.xyz"),
+        "{stdout}"
+    );
     assert!(caller.join("local-cache").exists());
     assert!(!inputs.join("local-cache").exists());
 }

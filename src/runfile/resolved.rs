@@ -109,7 +109,7 @@ pub struct ResolvedOrthogonalizationConfig {
 #[serde(deny_unknown_fields)]
 pub struct ResolvedMp2Config {
     pub frozen_orbitals: usize,
-    pub memory_limit: super::mp2::MemoryLimit,
+    pub memory_limit: crate::config::MemoryLimit,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -321,8 +321,8 @@ impl ResolvedCalculationConfig {
             .map(|mp2| rustiq_core::config::Mp2Config {
                 frozen_orbitals: mp2.frozen_orbitals.into(),
                 memory_limit: match mp2.memory_limit {
-                    super::mp2::MemoryLimit::Auto => rustiq_core::config::MemoryLimit::Auto,
-                    super::mp2::MemoryLimit::Fixed(size) => {
+                    crate::config::MemoryLimit::Auto => rustiq_core::config::MemoryLimit::Auto,
+                    crate::config::MemoryLimit::Fixed(size) => {
                         rustiq_core::config::MemoryLimit::Fixed(size)
                     }
                 }

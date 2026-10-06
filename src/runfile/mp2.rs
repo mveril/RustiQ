@@ -1,6 +1,7 @@
-use bytesize::ByteSize;
 use serde::{Deserialize, Serialize};
 use toml_spanner::Toml;
+
+pub use crate::config::MemoryLimit;
 
 #[derive(Debug, Default, Serialize, Deserialize, Toml)]
 #[toml(Toml)]
@@ -10,59 +11,6 @@ pub struct Mp2Config {
     pub frozen_orbitals: usize,
     #[toml(default)]
     pub memory_limit: MemoryLimit,
-}
-
-/// Runfile representation, preserving automatic selection until MP2 starts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum MemoryLimit {
-    /// Automatic memory limit based on available system memory.
-    #[default]
-    Auto,
-    /// Explicit memory limit in bytes.
-    Fixed(ByteSize),
-}
-
-impl MemoryLimit {
-    fn parse(text: &str) -> Result<Self, String> {
-        let text = text.trim();
-        if text.eq_ignore_ascii_case("auto") {
-            return Ok(Self::Auto);
-        }
-        if !text.chars().any(|c| c.is_ascii_alphabetic()) {
-            return Err("MP2 memory limit requires a unit, for example 512 MiB".into());
-        }
-        let size = text.parse::<ByteSize>().map_err(|e| e.clone())?;
-        if size.as_u64() == 0 || size.as_u64() > isize::MAX as u64 {
-            return Err("MP2 memory limit must be positive and fit the addressable range".into());
-        }
-        Ok(Self::Fixed(size))
-    }
-
-    // Preserve exact bytes when serializing rather than rounding the display.
-    fn exact(self) -> String {
-        let Self::Fixed(size) = self else {
-            return "auto".into();
-        };
-        let bytes = size.as_u64();
-        for (unit, scale) in [("GiB", 1u64 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)] {
-            if bytes % scale == 0 {
-                return format!("{} {unit}", bytes / scale);
-            }
-        }
-        format!("{bytes} B")
-    }
-}
-
-impl Serialize for MemoryLimit {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.exact())
-    }
-}
-
-impl<'de> Deserialize<'de> for MemoryLimit {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Self::parse(&String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
 }
 
 impl<'de> toml_spanner::FromToml<'de> for MemoryLimit {
@@ -87,6 +35,7 @@ impl toml_spanner::ToToml for MemoryLimit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytesize::ByteSize;
 
     #[test]
     fn memory_sizes_parse_and_round_trip_exactly() {

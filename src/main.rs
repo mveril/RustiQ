@@ -7,6 +7,7 @@ use clap::{CommandFactory, FromArgMatches};
 use cli::{commands::Runnable, Cli};
 
 mod cli;
+mod config;
 mod runfile;
 
 fn main() -> miette::Result<()> {

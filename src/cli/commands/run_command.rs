@@ -142,6 +142,7 @@ impl Runnable for RunCommand {
             source_name,
             toml_content,
             run.molecule.geometry.clone(),
+            molecule_path.clone(),
             xyz_content,
         );
         let source_code =
