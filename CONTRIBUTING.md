@@ -79,6 +79,12 @@ only when its message explains an established internal invariant. Unit tests
 allow `unwrap` through `clippy.toml`; integration-test helpers have explicit,
 documented exceptions. Benchmarks follow the production rules.
 
+Keep test assertions idiomatic: use `assert!(value.is_empty())` or
+`assert!(!value.is_empty())` when testing emptiness. Test modules permit
+`assert_is_empty` rather than requiring comparisons with typed empty collections.
+These local exceptions tolerate the lint being unavailable on Clippy 1.98.
+Avoid explicit type arguments when inference already makes the code clear.
+
 Keep exceptions on the smallest practical item and specify an English `reason`.
 Scientific notation, intentional floating-point rounding, exact endpoint
 comparisons, shared interface contracts, and cohesive calculation/reporting

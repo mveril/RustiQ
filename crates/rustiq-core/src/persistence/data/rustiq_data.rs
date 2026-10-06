@@ -445,11 +445,9 @@ mod tests {
 
         let mut restored = RustiQData::read_from(Storage::folder(&entry)).unwrap();
         assert!(restored.ao_eri.is_none());
-        let first =
-            std::ptr::from_ref::<CompactEri>(restored.get::<AoEriArtifact>().unwrap().unwrap());
+        let first = std::ptr::from_ref(restored.get::<AoEriArtifact>().unwrap().unwrap());
         fs::remove_file(entry.join(AO_ERI_PATH)).unwrap();
-        let second =
-            std::ptr::from_ref::<CompactEri>(restored.get::<AoEriArtifact>().unwrap().unwrap());
+        let second = std::ptr::from_ref(restored.get::<AoEriArtifact>().unwrap().unwrap());
         assert_eq!(first, second);
         assert_eq!(restored.read_eri().unwrap().len(), 6);
     }

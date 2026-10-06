@@ -41,6 +41,14 @@ pub struct RunFile {
 }
 
 #[cfg(test)]
+#[allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#[allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
 mod tests {
     use super::*;
     use std::{fs, path::Path};
@@ -70,7 +78,7 @@ mod tests {
             path.file_name()
                 .is_none_or(|name| name != "invalid_diagnostics.toml")
         });
-        assert_ne!(files, [] as [std::path::PathBuf; 0]);
+        assert!(!files.is_empty());
 
         for path in files {
             let content = fs::read_to_string(&path).unwrap();

@@ -1,3 +1,12 @@
+#![allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#![allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
+
 use super::super::super::{sha256, AoEriArtifact};
 use super::*;
 use crate::{
@@ -141,11 +150,8 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
         restored.read_eri().unwrap().ordered_values(),
         &[0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
     );
-    let pointer = std::ptr::from_ref::<CompactEri>(restored.read_eri().unwrap());
-    assert_eq!(
-        std::ptr::from_ref::<CompactEri>(restored.read_eri().unwrap()),
-        pointer
-    );
+    let pointer = std::ptr::from_ref(restored.read_eri().unwrap());
+    assert_eq!(std::ptr::from_ref(restored.read_eri().unwrap()), pointer);
     let zip = ZipArchive::new(File::open(&first).unwrap()).unwrap();
     assert_eq!(zip.len(), 4);
     let request = members(&first)
@@ -233,7 +239,7 @@ fn normalized_request_round_trip_keeps_auto_angstrom_defaults_and_requested_opti
         request.mp2().unwrap().memory_limit.value,
         prepared.request().mp2().unwrap().memory_limit.value
     );
-    assert_eq!(request.geometry().comment, "");
+    assert!(request.geometry().comment.is_empty());
     let DensityGuessConfig::Random { config } = request.hf().guess.value else {
         panic!()
     };

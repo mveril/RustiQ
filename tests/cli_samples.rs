@@ -1,4 +1,12 @@
 #![allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#![allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
+#![allow(
     clippy::unwrap_used,
     reason = "Integration tests and their fixture helpers intentionally panic on unexpected failures"
 )]
@@ -443,10 +451,7 @@ fn test_cli_cache_is_disabled_when_runfile_omits_cache_section() {
     assert_success(&output);
 
     assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
-    assert_eq!(
-        EriCache::new(cache_root).entries().unwrap(),
-        [] as [rustiq_core::persistence::EriCacheEntry; 0]
-    );
+    assert!(EriCache::new(cache_root).entries().unwrap().is_empty());
 }
 
 #[test]
@@ -790,7 +795,7 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
             .output()
             .unwrap();
         assert_error(&output);
-        assert_eq!(output.stdout, [] as [u8; 0]);
+        assert!(output.stdout.is_empty());
         let stderr = String::from_utf8_lossy(&output.stderr);
         for text in [expected, label, source_line, "scientific-input.toml"] {
             assert!(
@@ -817,7 +822,7 @@ fn test_cli_uses_default_hf_when_requesting_mp2_without_hf_section() {
         directory.path(),
     );
     assert!(output.status.success());
-    assert_eq!(output.stderr, [] as [u8; 0]);
+    assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("\"method\":\"RHF\""));
     assert!(stdout.contains("\"method\":\"RHF-MP2\""));

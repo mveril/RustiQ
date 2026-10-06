@@ -286,6 +286,14 @@ fn matrix_from_npy_values(
 }
 
 #[cfg(test)]
+#[allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#[allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
 mod tests {
     use super::*;
     use crate::eri::index::EriIndex;
@@ -409,7 +417,7 @@ mod tests {
             )),
         ] {
             let (pairs, remainder) = hex.trim().as_bytes().as_chunks::<2>();
-            assert_eq!(remainder, [] as [u8; 0]);
+            assert!(remainder.is_empty());
             let bytes: Vec<u8> = pairs
                 .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
@@ -477,7 +485,7 @@ mod tests {
             "/tests/data/persistence/ao-eri-python-v1.npy.hex"
         ));
         let (pairs, remainder) = hex.trim().as_bytes().as_chunks::<2>();
-        assert_eq!(remainder, [] as [u8; 0]);
+        assert!(remainder.is_empty());
         let bytes: Vec<u8> = pairs
             .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
@@ -493,7 +501,7 @@ mod tests {
             "/tests/data/persistence/ao-eri-python-big-endian-v1.npy.hex"
         ));
         let (pairs, remainder) = hex.trim().as_bytes().as_chunks::<2>();
-        assert_eq!(remainder, [] as [u8; 0]);
+        assert!(remainder.is_empty());
         let bytes: Vec<u8> = pairs
             .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())

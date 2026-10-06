@@ -476,6 +476,14 @@ pub(super) fn is_fingerprint(value: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#[allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
 mod tests {
     use super::*;
     use crate::persistence::MANIFEST_PATH;
@@ -739,7 +747,7 @@ mod tests {
             .to_hex();
         assert_eq!(cache.entries().unwrap().len(), 1);
         assert!(cache.remove(&fingerprint).unwrap());
-        assert_eq!(cache.entries().unwrap(), [] as [EriCacheEntry; 0]);
+        assert!(cache.entries().unwrap().is_empty());
     }
 
     #[test]
