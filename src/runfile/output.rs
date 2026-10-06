@@ -57,7 +57,7 @@ impl<T: ToToml + for<'de> FromToml<'de>> ToToml for TomlOutput<'_, T> {
 // in one step. Arrays are kept intact unless the entire field can be omitted.
 fn collect_fields(item: &Item<'_>, path: &mut Vec<String>, paths: &mut Vec<Vec<String>>) {
     if let Some(table) = item.as_table() {
-        for (key, value) in table.iter() {
+        for (key, value) in table {
             path.push(key.as_str().to_owned());
             paths.push(path.clone());
             collect_fields(value, path, paths);

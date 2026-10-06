@@ -17,12 +17,20 @@ pub struct CompactEri {
 }
 
 impl CompactEri {
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.storage.len()
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.storage.is_empty()
     }
@@ -68,7 +76,11 @@ impl CompactEri {
         })
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
+    #[must_use]
     pub fn Zeroed(size: usize) -> Self {
         Self {
             storage: (0..Self::storage_len(size)).map(|_| 0.0).collect(),
@@ -184,6 +196,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Symmetry and storage indexing must retrieve the exact stored fixture values"
+    )]
     fn test_compact_eri_indexes_eightfold_symmetry() {
         let mut eri = CompactEri::Zeroed(4);
 
@@ -204,6 +220,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Symmetry and storage indexing must retrieve the exact stored fixture values"
+    )]
     fn test_compact_eri_matches_dense_array4_with_eri_symmetry() {
         let basis_functions = 5;
         let mut dense = Array4::zeros((
@@ -250,6 +270,14 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Symmetry and storage indexing must retrieve the exact stored fixture values"
+    )]
     fn test_compact_eri_from_ordered_values_par_iter_uses_compact_order() {
         let basis_functions = 5;
         let storage_len = CompactEri::storage_len(basis_functions);
@@ -301,6 +329,10 @@ mod tests {
         assert!(eri.storage.is_empty());
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn unique_value(mu: usize, nu: usize, lambda: usize, sigma: usize) -> f64 {
         let compact_index = EriIndex::new(mu, nu, lambda, sigma).0;
         compact_index as f64 + 0.25

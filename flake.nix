@@ -110,7 +110,8 @@
                 inProjectTree =
                   directory: relativePath == directory || pkgs.lib.hasPrefix "${directory}/" relativePath;
               in
-              craneLib.filterCargoSources path type
+              relativePath == "clippy.toml"
+              || craneLib.filterCargoSources path type
               || inProjectTree "assets"
               || inProjectTree "samples"
               || inProjectTree "schemas"

@@ -41,7 +41,7 @@ impl FromTomlErrorMietteExt for toml_spanner::FromTomlError {
                     .unwrap_or_else(|| (error.span(), error.message(toml_content)));
                 let path = error
                     .path()
-                    .map(|path| path.to_string())
+                    .map(std::string::ToString::to_string)
                     .or_else(|| path_for_span(toml_content, span));
                 let (message, label) = humanized_runfile_error(
                     path.as_deref(),
@@ -73,26 +73,30 @@ fn source_span(span: toml_spanner::Span) -> SourceSpan {
 }
 
 fn path_for_span(toml_content: &str, span: toml_spanner::Span) -> Option<String> {
-    let offset = span.start as usize;
-    let line_start = toml_content[..offset.min(toml_content.len())]
-        .rfind('\n')
-        .map_or(0, |index| index + 1);
-    let line_end = toml_content[offset.min(toml_content.len())..]
+    let offset = (span.start as usize).min(toml_content.len());
+    let before = toml_content.get(..offset)?;
+    let after = toml_content.get(offset..)?;
+    let line_start = before.rfind('\n').map_or(0, |index| index + 1);
+    let line_end = after
         .find('\n')
         .map_or(toml_content.len(), |index| offset + index);
-    let line = toml_content[line_start..line_end].trim();
+    let line = toml_content.get(line_start..line_end)?.trim();
     let key = line.split_once('=')?.0.trim();
     if key.is_empty() {
         return None;
     }
 
-    let section = toml_content[..line_start].lines().rev().find_map(|line| {
-        let line = line.trim();
-        line.strip_prefix('[')
-            .and_then(|line| line.strip_suffix(']'))
-            .map(str::trim)
-            .filter(|section| !section.is_empty())
-    });
+    let section = toml_content
+        .get(..line_start)?
+        .lines()
+        .rev()
+        .find_map(|line| {
+            let line = line.trim();
+            line.strip_prefix('[')
+                .and_then(|line| line.strip_suffix(']'))
+                .map(str::trim)
+                .filter(|section| !section.is_empty())
+        });
 
     Some(match section {
         Some(section) => format!("{section}.{key}"),
@@ -100,6 +104,10 @@ fn path_for_span(toml_content: &str, span: toml_spanner::Span) -> Option<String>
     })
 }
 
+#[allow(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "These are case-sensitive TOML field paths, not filesystem extensions"
+)]
 fn humanized_runfile_error(
     path: Option<&str>,
     raw_message: &str,
@@ -194,6 +202,26 @@ mod tests {
     use crate::runfile::parser::parse_runfile;
 
     #[test]
+    fn path_for_span_handles_utf8_boundaries() {
+        let source = "# é\n[global]\nbasis = 4\n";
+        let start = u32::try_from(source.find('4').unwrap()).unwrap();
+        assert_eq!(
+            super::path_for_span(
+                source,
+                toml_spanner::Span {
+                    start,
+                    end: start + 1
+                }
+            ),
+            Some("global.basis".to_string())
+        );
+        assert_eq!(
+            super::path_for_span(source, toml_spanner::Span { start: 3, end: 4 }),
+            None
+        );
+    }
+
+    #[test]
     fn test_from_toml_error_reports_toml_span() {
         let result = parse_runfile("calculation.toml", "hf = \"not a table\"");
 
@@ -239,14 +267,14 @@ mod tests {
     fn test_from_toml_error_reports_spanned_field_values() {
         let result = parse_runfile(
             "calculation.toml",
-            r#"
+            r"
             [global]
             basis = 4
 
             [hf]
             max_iterations = 0
             convergence_threshold = 0.0
-            "#,
+            ",
         );
 
         let err = result.unwrap_err();

@@ -50,7 +50,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_default_multiplicity() {
-        assert_eq!(u8::from(default_multiplicity()), 1)
+        assert_eq!(u8::from(default_multiplicity()), 1);
     }
 
     #[test]

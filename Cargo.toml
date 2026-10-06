@@ -3,6 +3,24 @@ members = ["crates/rustiq-core"]
 default-members = [".", "crates/rustiq-core"]
 resolver = "2"
 
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Individual lint settings and local, documented exceptions override these groups.
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+exit = "deny"
+lossy_float_literal = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+allow_attributes_without_reason = "deny"
+
+[lints]
+workspace = true
+
 [workspace.dependencies]
 bytesize = "2.7"
 approx = "0.5.1"

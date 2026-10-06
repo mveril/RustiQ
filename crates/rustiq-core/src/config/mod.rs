@@ -50,6 +50,7 @@ impl MemoryLimit {
     ///
     /// Machine-dependent resource discovery is owned by the execution-resource
     /// layer rather than by scientific configuration.
+    #[must_use]
     pub fn resolve(self) -> ByteSize {
         crate::resources::resolve_mp2_memory_limit(self)
     }

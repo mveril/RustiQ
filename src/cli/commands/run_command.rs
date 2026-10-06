@@ -75,28 +75,35 @@ impl RunCommand {
         }
     }
 
+    #[cfg_attr(
+        not(feature = "online"),
+        allow(
+            clippy::unused_self,
+            reason = "Online builds use the command download flags; offline builds share the same resolver"
+        )
+    )]
     fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
         let basis_store = crate::cli::directories::basis_store();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "online")] {
                 if self.resolve_auto_download() {
-                    self.get_basis_online(&basis_store, name)
+                    Self::get_basis_online(&basis_store, name)
                 } else {
-                    self.get_basis_offline(&basis_store, name)
+                    Self::get_basis_offline(&basis_store, name)
                 }
             } else {
-                self.get_basis_offline(&basis_store, name)
+                Self::get_basis_offline(&basis_store, name)
             }
         }
     }
 
     #[cfg(feature = "online")]
-    fn get_basis_online(&self, store: &BasisStore, name: &str) -> miette::Result<BasisFile> {
+    fn get_basis_online(store: &BasisStore, name: &str) -> miette::Result<BasisFile> {
         store.get_or_download(name).into_diagnostic()
     }
 
-    fn get_basis_offline(&self, store: &BasisStore, name: &str) -> miette::Result<BasisFile> {
+    fn get_basis_offline(store: &BasisStore, name: &str) -> miette::Result<BasisFile> {
         if let Some(basis) = store.get(name).into_diagnostic()? {
             Ok(basis)
         } else {
@@ -110,6 +117,10 @@ impl RunCommand {
 }
 
 impl Runnable for RunCommand {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep calculation setup, execution, and result publication in their execution order"
+    )]
     fn run(&self) -> CommandResult {
         let json_output = self.format == CalculationOutputFormat::Json;
         if !json_output {

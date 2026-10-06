@@ -72,7 +72,10 @@ pub(crate) fn prepare_scf_setup(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Scientific setup requires these distinct inputs; keeping the existing interface avoids a broader refactor"
+)]
 pub(crate) fn prepare_scf_setup_with_eri_threshold(
     molecule: &Molecule,
     basis: &Basis,

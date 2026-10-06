@@ -120,6 +120,10 @@ mod tests {
     use std::mem::discriminant;
     use std::num::NonZeroU8;
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "The test geometry uses small, exactly representable integer coordinates"
+    )]
     fn molecule(atom_symbols: &[&str], charge: i32, multiplicity: u8) -> Molecule {
         let elements = periodic_table::periodic_table();
         let atoms = atom_symbols
@@ -143,6 +147,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration parsing and default restoration must preserve the literal values exactly"
+    )]
     fn test_hf_config_diis_defaults() {
         let config: HfConfig = toml_spanner::from_str("").unwrap();
 
@@ -227,10 +235,10 @@ mod tests {
     #[test]
     fn test_hf_config_diis_deserialization() {
         let config: HfConfig = toml_spanner::from_str(
-            r#"
+            r"
             diis = true
             diis_size = 8
-            "#,
+            ",
         )
         .unwrap();
 
@@ -302,6 +310,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration parsing and default restoration must preserve the literal values exactly"
+    )]
     fn test_hf_config_guess_perturbation_defaults() {
         let config: HfConfig = toml_spanner::from_str(
             r#"
@@ -413,6 +425,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration parsing and default restoration must preserve the literal values exactly"
+    )]
     fn test_hf_config_linear_dependency_threshold_accepts_zero() {
         let config =
             toml_spanner::from_str::<HfConfig>("linear_dependency_threshold = 0.0").unwrap();
@@ -448,10 +464,10 @@ mod tests {
     #[test]
     fn test_hf_config_rejects_too_small_diis_size() {
         let result = toml_spanner::from_str::<HfConfig>(
-            r#"
+            r"
             diis = true
             diis_size = 1
-            "#,
+            ",
         );
 
         assert!(result.is_err());

@@ -1,3 +1,8 @@
+#![allow(
+    clippy::unwrap_used,
+    reason = "Integration tests and their fixture helpers intentionally panic on unexpected failures"
+)]
+
 use rustiq_core::{
     basis::BasisFile,
     calculation::{
@@ -89,6 +94,10 @@ fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Canonicalization or cloning must preserve the previously computed state exactly"
+)]
 fn unconverged_hf_is_retained_but_cannot_run_mp2() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let hf = solution(method, 1);

@@ -238,7 +238,6 @@ mod tests {
                 discriminant(&rustiq_core::config::DensityGuessConfig::from(config.guess)),
                 discriminant(&expected)
             );
-            let _density_guess = config.guess;
         }
     }
 }

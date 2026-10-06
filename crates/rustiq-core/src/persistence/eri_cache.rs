@@ -50,11 +50,16 @@ impl EriCache {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }
+    #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
     }
 
     /// Lists the published ERI cache entries without following symbolic links.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache directory cannot be inspected.
     pub fn entries(&self) -> io::Result<Vec<EriCacheEntry>> {
         let names = super::cache_names::mappings(&self.root).unwrap_or_default();
         let mut result = Vec::new();
@@ -122,6 +127,10 @@ impl EriCache {
 
     /// Assigns persistent aliases to published entries without reading payloads.
     /// Failure leaves all scientific entries intact; callers may still list them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inspecting entries or publishing persistent aliases fails.
     pub fn assign_missing_names(&self) -> io::Result<()> {
         let mut names = super::cache_names::mappings(&self.root)?;
         for fingerprint in self.fingerprints()? {
@@ -132,6 +141,11 @@ impl EriCache {
     }
 
     /// Resolves a persistent alias to a published fingerprint without reading NPY.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inspecting an alias or cache directory fails or an unsafe path is
+    /// encountered.
     pub fn resolve_name(&self, name: &str) -> io::Result<Option<String>> {
         let Some(fingerprint) = super::cache_names::resolve(&self.root, name)? else {
             return Ok(None);
@@ -148,6 +162,10 @@ impl EriCache {
     }
 
     /// Removes an entry by its full fingerprint or persistent alias.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unsafe cache path or if resolving or removing the entry fails.
     pub fn remove_named(&self, target: &str) -> io::Result<bool> {
         if is_fingerprint(target) {
             return self.remove(target);
@@ -162,6 +180,10 @@ impl EriCache {
     ///
     /// Returns `false` when the entry does not exist. Symbolic links and invalid
     /// fingerprints are rejected rather than being followed or interpreted as paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid fingerprint, an unsafe cache path, or a filesystem failure.
     pub fn remove(&self, fingerprint: &str) -> io::Result<bool> {
         if !is_fingerprint(fingerprint) {
             return Err(io::Error::new(
@@ -197,6 +219,10 @@ impl EriCache {
     }
 
     /// Removes every published ERI cache entry below this cache root.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if listing or removing a published cache entry fails.
     pub fn remove_all(&self) -> io::Result<()> {
         for fingerprint in self.fingerprints()? {
             self.remove(&fingerprint)?;
@@ -404,16 +430,14 @@ fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: 
         return false;
     }
     let file_path = entry.join(AO_ERI_PATH);
-    let metadata = match fs::symlink_metadata(&file_path) {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
+    let Ok(metadata) = fs::symlink_metadata(&file_path) else {
+        return false;
     };
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return false;
     }
-    let mut file = match File::open(&file_path) {
-        Ok(file) => file,
-        Err(_) => return false,
+    let Ok(mut file) = File::open(&file_path) else {
+        return false;
     };
     if file
         .metadata()
@@ -473,6 +497,10 @@ mod tests {
         let basis = load_sto3g_basis(molecule.geometry());
         (molecule, basis)
     }
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The test helper returns the optional threshold accepted by the cache identity API"
+    )]
     fn threshold() -> Option<PositiveFiniteF64> {
         Some(PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD).unwrap())
     }
@@ -711,7 +739,7 @@ mod tests {
             .to_hex();
         assert_eq!(cache.entries().unwrap().len(), 1);
         assert!(cache.remove(&fingerprint).unwrap());
-        assert!(cache.entries().unwrap().is_empty());
+        assert_eq!(cache.entries().unwrap(), [] as [EriCacheEntry; 0]);
     }
 
     #[test]

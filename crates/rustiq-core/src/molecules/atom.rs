@@ -9,6 +9,7 @@ pub struct Atom {
 
 impl Atom {
     /// Construct an atom in the coordinate units chosen for its geometry.
+    #[must_use]
     pub fn new(element: &'static Element, position: Point3<f64>) -> Self {
         Atom { element, position }
     }

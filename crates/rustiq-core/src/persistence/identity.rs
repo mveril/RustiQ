@@ -126,6 +126,10 @@ mod tests {
         (geometry, basis)
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The test helper returns the optional threshold accepted by the cache identity API"
+    )]
     fn threshold(value: f64) -> Option<PositiveFiniteF64> {
         Some(PositiveFiniteF64::try_new(value).unwrap())
     }

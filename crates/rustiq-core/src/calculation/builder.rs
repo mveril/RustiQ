@@ -48,6 +48,7 @@ pub struct CalculationBuilder<'a> {
 }
 
 impl<'a> CalculationBuilder<'a> {
+    #[must_use]
     pub fn new(geometry: &'a Geometry, basis_file: &'a BasisFile) -> Self {
         Self {
             geometry,
@@ -60,9 +61,11 @@ impl<'a> CalculationBuilder<'a> {
         }
     }
 
+    #[must_use]
     pub fn get_geometry(&self) -> &Geometry {
         self.geometry
     }
+    #[must_use]
     pub fn get_basis_file(&self) -> &BasisFile {
         self.basis_file
     }
@@ -78,15 +81,19 @@ impl<'a> CalculationBuilder<'a> {
         self.basis_label(label);
         self
     }
+    #[must_use]
     pub fn get_molecule_config(&self) -> &MoleculeConfig {
         &self.molecule_config
     }
+    #[must_use]
     pub fn get_hf(&self) -> &HfConfig {
         &self.hf
     }
+    #[must_use]
     pub fn get_mp2(&self) -> Option<&Mp2Config> {
         self.mp2.as_ref()
     }
+    #[must_use]
     pub fn get_eri_cache(&self) -> Option<&EriCache> {
         self.eri_cache.as_ref()
     }
@@ -145,12 +152,21 @@ impl<'a> CalculationBuilder<'a> {
     }
 }
 
-impl<'a> CalculationBuilder<'a> {
+impl CalculationBuilder<'_> {
     /// Prepare reusable scientific inputs without executing HF or MP2.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the molecule, HF method, basis, or scientific setup is invalid.
     pub fn prepare(&self) -> Result<PreparedCalculation, CalculationError> {
         self.prepare_with_events(|_| {})
     }
 
+    /// Prepares reusable scientific inputs while reporting setup events.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the molecule, HF method, basis, or scientific setup is invalid.
     pub fn prepare_with_events(
         &self,
         mut events: impl FnMut(CalculationEvent<'_>),

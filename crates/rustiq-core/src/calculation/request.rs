@@ -18,24 +18,29 @@ pub struct CalculationRequest {
 }
 
 impl CalculationRequest {
+    #[must_use]
     pub fn geometry(&self) -> &Geometry {
         &self.geometry
     }
 
+    #[must_use]
     pub fn molecule(&self) -> &MoleculeConfig {
         &self.molecule
     }
 
     /// Requested portable basis label, or the loaded basis name for direct API use.
     /// This label is not the scientific identity of the resolved basis.
+    #[must_use]
     pub fn basis_name(&self) -> &str {
         &self.basis_name
     }
 
+    #[must_use]
     pub fn hf(&self) -> &HfConfig {
         &self.hf
     }
 
+    #[must_use]
     pub fn mp2(&self) -> Option<&Mp2Config> {
         self.mp2.as_ref()
     }

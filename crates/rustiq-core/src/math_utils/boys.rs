@@ -9,6 +9,10 @@ use std::ops::Index;
 /// $$
 ///
 /// The integral occurs in Gaussian Coulomb and electron-repulsion integrals.
+#[allow(
+    clippy::doc_markdown,
+    reason = "MathJax renders the Boys function notation and integral as mathematical expressions"
+)]
 pub fn boys_function(m: u64, x: f64) -> f64 {
     boys_function_value(m, x)
 }
@@ -25,21 +29,21 @@ impl CachedBoysFunction {
         let mut values = Vec::with_capacity(count);
         if x == 0.0 {
             for m in 0..=max_order {
-                values.push(1.0 / (2 * m as u64 + 1) as f64);
+                values.push(1.0 / f64::from(2 * u32::from(m) + 1));
             }
         } else if max_order == 0 {
             values.push(boys_zero(x));
         } else if x < 0.5 {
             for m in 0..=max_order {
-                values.push(boys_function_value(m as u64, x));
+                values.push(boys_function_value(u64::from(m), x));
             }
         } else {
             values.resize(count, 0.0);
             let exp_neg_x = (-x).exp();
-            values[max_order as usize] = boys_gamma_reference(max_order as u64, x);
+            values[max_order as usize] = boys_gamma_reference(u64::from(max_order), x);
             for m in (0..max_order).rev() {
-                values[m as usize] =
-                    (2.0 * x * values[m as usize + 1] + exp_neg_x) / (2 * m as u64 + 1) as f64;
+                values[m as usize] = (2.0 * x * values[m as usize + 1] + exp_neg_x)
+                    / f64::from(2 * u32::from(m) + 1);
             }
         }
 
@@ -60,6 +64,10 @@ fn boys_zero(x: f64) -> f64 {
     (SQRT_PI * Primitive::erf(sqrtx)) / (2.0 * sqrtx)
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Scientific coefficients and analytic functions are evaluated at f64 precision"
+)]
 fn boys_function_value(m: u64, x: f64) -> f64 {
     if x == 0.0 {
         1.0 / (2 * m + 1) as f64
@@ -72,12 +80,16 @@ fn boys_function_value(m: u64, x: f64) -> f64 {
     }
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Scientific coefficients and analytic functions are evaluated at f64 precision"
+)]
 fn boys_series(m: u64, x: f64) -> f64 {
     let mut term = 1.0 / (2 * m + 1) as f64;
     let mut sum = term;
 
     for k in 1..=100 {
-        let k = k as f64;
+        let k = f64::from(k);
         term *= -x / k * (2.0 * m as f64 + 2.0 * k - 1.0) / (2.0 * m as f64 + 2.0 * k + 1.0);
         sum += term;
         if term.abs() <= f64::EPSILON * sum.abs() {
@@ -88,6 +100,10 @@ fn boys_series(m: u64, x: f64) -> f64 {
     sum
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Scientific coefficients and analytic functions are evaluated at f64 precision"
+)]
 fn boys_gamma_reference(m: u64, x: f64) -> f64 {
     let a = m as f64 + 0.5;
     let gamma_a = <f64 as Gamma>::gamma(a);
@@ -103,10 +119,17 @@ mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn boys_integral_reference(m: u64, x: f64) -> f64 {
         const INTERVALS: usize = 16_384;
         let h = 1.0 / INTERVALS as f64;
-        let integrand = |t: f64| t.powi((2 * m) as i32) * (-x * t * t).exp();
+        let integrand = |t: f64| {
+            t.powi(i32::try_from(2 * m).expect("quadrature test orders fit in i32"))
+                * (-x * t * t).exp()
+        };
         let interior = (1..INTERVALS)
             .map(|index| {
                 let weight = if index % 2 == 0 { 2.0 } else { 4.0 };
@@ -125,17 +148,17 @@ mod tests {
     fn test_boys_function() {
         // Reference values from reliable sources or verified calculations.
         let test_cases = [
-            (0, 0.001, 0.9996667666428618),
-            (0, 0.5, 0.855624),
-            (3, 0.01, 0.14175056440779324),
-            (5, 0.015, 0.08976271177772857),
-            (0, 1.0, 0.7468241328124271),
-            (2, 5.0, 0.010995436178434296),
-            (4, 10.0, 0.00018061943636439907),
-            (3, 7.5, 0.0013864655818003292),
-            (0, 25.0, 0.17724538509027907),
-            (2, 50.0, 3.7599424119465e-05),
-            (5, 100.0, 2.6171388894056747e-10),
+            (0, 0.001, 0.999_666_766_642_861_8),
+            (0, 0.5, 0.855_624),
+            (3, 0.01, 0.141_750_564_407_793_24),
+            (5, 0.015, 0.089_762_711_777_728_57),
+            (0, 1.0, 0.746_824_132_812_427_1),
+            (2, 5.0, 0.010_995_436_178_434_296),
+            (4, 10.0, 0.000_180_619_436_364_399_07),
+            (3, 7.5, 0.001_386_465_581_800_329_2),
+            (0, 25.0, 0.177_245_385_090_279_07),
+            (2, 50.0, 3.759_942_411_946_5e-05),
+            (5, 100.0, 2.617_138_889_405_674_7e-10),
         ];
         for (m, x, expected) in test_cases {
             let result = boys_function(m, x);
@@ -144,6 +167,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn optimized_boys_function_matches_exact_reference() {
         let x_values = [
             0.0, 1e-12, 1e-9, 1e-6, 1e-4, 1e-3, 0.01, 0.1, 0.2, 0.5, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0,
@@ -179,10 +206,10 @@ mod tests {
                 let cache = CachedBoysFunction::new(max_order, x);
                 for m in 0..=max_order {
                     let result = cache[m];
-                    let expected = if x == 0.0 || (m > 0 && x.abs() < (m as f64 + 0.5) * 1e-4) {
-                        boys_integral_reference(m as u64, x)
+                    let expected = if x == 0.0 || (m > 0 && x.abs() < (f64::from(m) + 0.5) * 1e-4) {
+                        boys_integral_reference(u64::from(m), x)
                     } else {
-                        boys_gamma_reference(m as u64, x)
+                        boys_gamma_reference(u64::from(m), x)
                     };
                     let error = (result - expected).abs();
                     assert!(

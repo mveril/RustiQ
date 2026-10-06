@@ -82,7 +82,7 @@ pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {
                             let hermite_terms = hermite_terms(&e);
 
                             for atom in &mol.atoms {
-                                let z = atom.element.atomic_number as f64;
+                                let z = f64::from(atom.element.atomic_number);
                                 let pc = p_center - atom.position;
                                 let primitive = hermite_terms
                                     .iter()

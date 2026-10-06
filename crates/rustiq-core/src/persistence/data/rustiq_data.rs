@@ -27,11 +27,20 @@ pub struct RustiQData {
 
 impl RustiQData {
     /// Gets a known scientific artifact, loading and caching it on first access.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the artifact metadata, stored payload, or requested representation is
+    /// invalid, or reading fails.
     pub fn get<A: Artifact>(&mut self) -> Result<Option<&A::Value>, ArtifactError> {
         A::get(self)
     }
 
     /// Sets a known scientific artifact using its statically selected value type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the artifact cannot be represented by the current metadata.
     pub fn set<A: Artifact>(&mut self, value: A::Value) -> Result<(), ArtifactError> {
         A::set(self, value)
     }
@@ -102,6 +111,10 @@ impl RustiQData {
     }
 
     /// Replaces the AO ERI artifact after checking its compact length.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if basis metadata is missing or the compact ERI length does not match it.
     pub fn set_eri(&mut self, eri: CompactEri) -> Result<(), ArtifactError> {
         let basis_functions = self.basis_functions.ok_or(ArtifactError::Missing)?;
         validate_eri_len(&eri, basis_functions)?;
@@ -110,6 +123,16 @@ impl RustiQData {
     }
 
     /// Validates and decodes the AO ERI on first access, then reuses the object.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the artifact is missing, its metadata or payload is invalid, or reading
+    /// fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal cache does not retain an artifact after it has been loaded
+    /// successfully.
     pub fn read_eri(&mut self) -> Result<&CompactEri, ArtifactError> {
         if self.ao_eri.is_none() {
             let artifact = self
@@ -298,9 +321,11 @@ mod tests {
 
         let mut restored = RustiQData::read_from(Storage::folder(&entry)).unwrap();
         assert!(restored.ao_eri.is_none());
-        let first = restored.get::<AoEriArtifact>().unwrap().unwrap() as *const CompactEri;
+        let first =
+            std::ptr::from_ref::<CompactEri>(restored.get::<AoEriArtifact>().unwrap().unwrap());
         fs::remove_file(entry.join(AO_ERI_PATH)).unwrap();
-        let second = restored.get::<AoEriArtifact>().unwrap().unwrap() as *const CompactEri;
+        let second =
+            std::ptr::from_ref::<CompactEri>(restored.get::<AoEriArtifact>().unwrap().unwrap());
         assert_eq!(first, second);
         assert_eq!(restored.read_eri().unwrap().len(), 6);
     }

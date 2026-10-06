@@ -78,6 +78,10 @@ pub(crate) fn unrestricted_perturb_fock_like_matrices(
     )))
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "Use the same fallible interface as the perturbation callers and density-guess strategies"
+)]
 pub(crate) fn symmetric_random_matrix<T: RandomSampler + ?Sized>(
     size: usize,
     sampler: &mut T,
@@ -102,15 +106,15 @@ pub(crate) fn mo_coefficients_from_fock_like_matrix(
     let orthogonal_fock = &orthogonalizer.transpose() * fock_like * orthogonalizer;
     let eig = orthogonal_fock.symmetric_eigen();
     let mo_coefficients = orthogonalizer * eig.eigenvectors;
-    let sorted_mo_coefficients = sort_orbitals(mo_coefficients, eig.eigenvalues)?;
+    let sorted_mo_coefficients = sort_orbitals(&mo_coefficients, &eig.eigenvalues)?;
     Ok(sorted_mo_coefficients)
 }
 
 fn sort_orbitals(
-    mo_coefficients: DMatrix<f64>,
-    orbital_energies: DVector<f64>,
+    mo_coefficients: &DMatrix<f64>,
+    orbital_energies: &DVector<f64>,
 ) -> Result<DMatrix<f64>, NumericalError> {
-    ensure_finite_values(&orbital_energies, "orbital energies")?;
+    ensure_finite_values(orbital_energies, "orbital energies")?;
     let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
     order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
@@ -203,9 +207,7 @@ mod tests {
             for j in 0..matrix.ncols() {
                 assert!(
                     (matrix[(i, j)] - matrix[(j, i)]).abs() < 1e-10,
-                    "matrix is not symmetric at ({}, {})",
-                    i,
-                    j
+                    "matrix is not symmetric at ({i}, {j})"
                 );
             }
         }
@@ -222,6 +224,10 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn assert_electron_count(density: &DMatrix<f64>, molecule: &Molecule, basis: &Basis) {
         let electron_count = (density * basis.overlap_ints()).trace();
         assert!(

@@ -43,7 +43,7 @@ fn available_memory() -> Option<u64> {
         );
         system
             .process(pid)
-            .and_then(|process| process.cgroup_limits())
+            .and_then(sysinfo::Process::cgroup_limits)
             .map(|limits| limits.free_memory)
     });
 
@@ -51,9 +51,7 @@ fn available_memory() -> Option<u64> {
 }
 
 fn from_available_memory(available: Option<u64>) -> ByteSize {
-    let bytes = available
-        .map(|bytes| bytes / 2)
-        .unwrap_or(FALLBACK_MP2_MEMORY);
+    let bytes = available.map_or(FALLBACK_MP2_MEMORY, |bytes| bytes / 2);
     ByteSize::b(bytes.min(isize::MAX as u64))
 }
 

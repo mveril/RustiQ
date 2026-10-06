@@ -118,7 +118,7 @@ mod tests {
             path.file_name()
                 .is_none_or(|name| name != "invalid_diagnostics.toml")
         });
-        assert!(!files.is_empty());
+        assert_ne!(files, [] as [std::path::PathBuf; 0]);
 
         for path in files {
             let content = fs::read_to_string(&path).unwrap();

@@ -26,6 +26,10 @@ pub struct BasisId<'a>(Cow<'a, str>);
 
 impl<'a> BasisId<'a> {
     /// Normalizes and validates a basis-set name or identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the identifier is empty or contains invalid path characters.
     pub fn new(value: &'a str) -> Result<Self, InvalidBasisId> {
         if value.is_empty() || value.contains('\\') {
             return Err(invalid_basis_id(value));
@@ -49,11 +53,13 @@ impl<'a> BasisId<'a> {
         Ok(Self(normalized))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
     /// Converts this identifier into an owned value.
+    #[must_use]
     pub fn into_owned(self) -> BasisId<'static> {
         BasisId(Cow::Owned(self.0.into_owned()))
     }
@@ -62,6 +68,10 @@ impl<'a> BasisId<'a> {
 impl BasisId<'static> {
     /// Normalizes a basis-set identifier while reusing an owned string when
     /// no transformation is required.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the identifier is empty or contains invalid path characters.
     pub fn from_string(value: String) -> Result<Self, InvalidBasisId> {
         let needs_normalization = value
             .chars()

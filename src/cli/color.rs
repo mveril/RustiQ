@@ -90,14 +90,14 @@ pub(crate) fn configure(mode: ColorChoice) {
 
 pub(crate) fn enabled_for(stream: OutputStream) -> bool {
     #[cfg(test)]
-    let choice = TEST_COLOR_CHOICE
-        .get()
-        .map(|mode| match mode {
+    let choice = TEST_COLOR_CHOICE.get().map_or_else(
+        || COLOR_CHOICE.load(Ordering::Relaxed),
+        |mode| match mode {
             ColorChoice::Always => 0,
             ColorChoice::Never => 1,
             ColorChoice::Auto => 2,
-        })
-        .unwrap_or_else(|| COLOR_CHOICE.load(Ordering::Relaxed));
+        },
+    );
     #[cfg(not(test))]
     let choice = COLOR_CHOICE.load(Ordering::Relaxed);
 

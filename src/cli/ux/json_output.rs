@@ -7,7 +7,7 @@ use rustiq_core::{
     config::ResolvedHfMethod,
 };
 
-/// Version 1 of RustiQ's stable, machine-readable calculation-output contract.
+/// Version 1 of `RustiQ`'s stable, machine-readable calculation-output contract.
 #[derive(Debug, Serialize)]
 pub(crate) struct CalculationOutput {
     pub schema_version: u32,

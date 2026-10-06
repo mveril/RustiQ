@@ -20,7 +20,10 @@ pub use data::{AoEriArtifact, Artifact, RustiQData};
 pub use eri_cache::{EriCache, EriCacheEntry};
 pub use error::{ArtifactError, NpyError};
 pub(crate) use error::{ManifestError, PersistenceReadError, PersistenceWriteError, StorageError};
-#[allow(unused_imports)]
+#[allow(
+    unused_imports,
+    reason = "Re-exports are retained across feature configurations and internal consumers"
+)]
 pub(crate) use identity::{ao_eri_identity, ScientificIdentity, AO_ERI_COMPUTATION_VERSION};
 pub(crate) use manifest::{
     AoEriAttributes, ArtifactAttributes, ArtifactManifest, Manifest, ManifestKind, Producer,
@@ -28,7 +31,10 @@ pub(crate) use manifest::{
 };
 pub(crate) use storage::Storage;
 
-#[allow(unused_imports)]
+#[allow(
+    unused_imports,
+    reason = "Re-exports are retained across feature configurations and internal consumers"
+)]
 pub(crate) use npy::{
     read_compact_eri, read_dmatrix, validate_compact_eri_header, write_compact_eri,
 };

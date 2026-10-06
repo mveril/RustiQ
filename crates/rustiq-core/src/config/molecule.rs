@@ -44,6 +44,12 @@ impl Default for MoleculeConfig {
 }
 
 impl MoleculeConfig {
+    /// Builds and validates a molecule from its geometry and configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the charge yields a nonpositive electron count or the multiplicity is
+    /// incompatible.
     pub fn build(&self, geometry: Geometry) -> Result<Molecule, MoleculeConfigError> {
         Molecule::try_new(
             geometry,

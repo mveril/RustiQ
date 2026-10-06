@@ -1,3 +1,8 @@
+#![allow(
+    clippy::unwrap_used,
+    reason = "Integration tests and their fixture helpers intentionally panic on unexpected failures"
+)]
+
 use std::{
     fs,
     path::PathBuf,

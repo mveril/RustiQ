@@ -264,16 +264,14 @@ fn atom_line_diagnostic(
             "remove extra field(s); expected exactly: Element x y z",
             fields
                 .get(4)
-                .map(|field| field.span())
-                .unwrap_or_else(|| line.end_span()),
+                .map_or_else(|| line.end_span(), |field| field.span()),
         ),
         AtomLineProblem::InvalidElement(source) => (
             format!("Atom {atom_index} on XYZ line {line_number} has an invalid element: {source}"),
             "invalid element symbol",
             fields
                 .first()
-                .map(|field| field.span())
-                .unwrap_or_else(|| line.span()),
+                .map_or_else(|| line.span(), |field| field.span()),
         ),
         AtomLineProblem::InvalidCoordinate {
             coordinate_index,
@@ -286,9 +284,7 @@ fn atom_line_diagnostic(
                 ),
                 "invalid numeric coordinate",
                 fields
-                    .get(coordinate_index)
-                    .map(|field| field.span())
-                    .unwrap_or_else(|| line.span()),
+                    .get(coordinate_index).map_or_else(|| line.span(), |field| field.span()),
             )
         }
         AtomLineProblem::NonFiniteCoordinate { coordinate_index } => {
@@ -299,9 +295,7 @@ fn atom_line_diagnostic(
                 ),
                 "coordinate must be finite",
                 fields
-                    .get(coordinate_index)
-                    .map(|field| field.span())
-                    .unwrap_or_else(|| line.span()),
+                    .get(coordinate_index).map_or_else(|| line.span(), |field| field.span()),
             )
         }
     };

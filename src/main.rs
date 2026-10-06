@@ -1,3 +1,6 @@
+// User text and filesystem paths require careful handling at the CLI boundary.
+#![deny(clippy::string_slice, clippy::path_buf_push_overwrite)]
+
 use std::env;
 
 use clap::{CommandFactory, FromArgMatches};

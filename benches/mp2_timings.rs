@@ -21,9 +21,13 @@ fn main() {
     );
     for n in sizes {
         // Warm up kernels before taking the median of three runs.
-        let _ = benchmark_mp2(n, n / 3, budget.as_u64()).unwrap();
+        let _ = benchmark_mp2(n, n / 3, budget.as_u64())
+            .expect("the configured synthetic MP2 case fits the benchmark memory budget");
         let mut runs: Vec<_> = (0..3)
-            .map(|_| benchmark_mp2(n, n / 3, budget.as_u64()).unwrap())
+            .map(|_| {
+                benchmark_mp2(n, n / 3, budget.as_u64())
+                    .expect("the configured synthetic MP2 case fits the benchmark memory budget")
+            })
             .collect();
         for run in &runs {
             assert!((run.dense_energy - run.blocked_energy).abs() < 1e-12);

@@ -4,7 +4,10 @@ use std::collections::HashMap;
 use super::{basis_id::deserialize_owned, function_type::FunctionType, BasisId};
 
 #[derive(Deserialize, Debug)]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 pub struct BasisSetDetail {
     #[serde(deserialize_with = "deserialize_owned")]
     pub basename: BasisId<'static>,
@@ -22,7 +25,10 @@ pub struct BasisSetDetail {
 }
 
 #[derive(Deserialize, Debug)]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 pub struct Version {
     pub elements: Vec<String>, // List of elements for this version
     pub file_relpath: String,  // Path of the associated file
@@ -31,6 +37,7 @@ pub struct Version {
 }
 
 impl BasisSetDetail {
+    #[must_use]
     pub fn get_latest_version(&self) -> &Version {
         &self.versions[&self.latest_version]
     }

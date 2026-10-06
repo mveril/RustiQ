@@ -78,7 +78,10 @@ pub struct ScfCalculation<'a> {
 
 impl<'a> ScfCalculation<'a> {
     /// Creates a new `ScfCalculation` instance.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn new<G>(
         molecule: &'a Molecule,
         basis: &'a Basis,
@@ -140,7 +143,14 @@ impl<'a> ScfCalculation<'a> {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Scientific setup requires these distinct inputs; keeping the existing interface avoids a broader refactor"
+    )]
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "All density-guess strategies share an owned setup interface"
+    )]
     pub(crate) fn new_with_prepared<G, F>(
         molecule: &'a Molecule,
         basis: &'a Basis,
@@ -233,10 +243,10 @@ impl<'a> ScfCalculation<'a> {
     }
 
     fn sort_orbitals(
-        mo_coefficients: DMatrix<f64>,
-        orbital_energies: DVector<f64>,
+        mo_coefficients: &DMatrix<f64>,
+        orbital_energies: &DVector<f64>,
     ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
-        ensure_finite_values(&orbital_energies, "orbital energies")?;
+        ensure_finite_values(orbital_energies, "orbital energies")?;
         let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
         order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
@@ -251,7 +261,10 @@ impl<'a> ScfCalculation<'a> {
     }
 
     /// Execute the SCF calculation loop
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn run(&mut self) -> Result<ScfOutcome, NumericalError> {
         self.run_with_iterations(|_| {})
     }
@@ -300,13 +313,22 @@ impl<'a> ScfCalculation<'a> {
                     // An uphill DIIS proposal can perpetuate charge sloshing.
                     // Restart from the physical F(P), then minimize the RHF
                     // energy along the resulting density segment (optimal damping).
-                    self.diis.as_mut().unwrap().clear();
+                    self.diis
+                        .as_mut()
+                        .expect("DIIS history exists when a DIIS proposal is damped")
+                        .clear();
                     self.fock_matrix = previous_fock.clone();
                     self.solve_roothaan_hall_equation()?;
                     self.update_density_matrix();
                     self.update_residual_norm_and_next_fock();
                     let fraction = self.apply_optimal_damping(&previous_density, &previous_fock)?;
-                    pure_density = fraction == 1.0;
+                    #[allow(
+                        clippy::float_cmp,
+                        reason = "Exactly one marks the undamped endpoint, not approximate numerical convergence"
+                    )]
+                    {
+                        pure_density = fraction == 1.0;
+                    }
                 }
             }
             ensure_finite_value(self.energy, "SCF electronic energy")?;
@@ -484,6 +506,10 @@ impl<'a> ScfCalculation<'a> {
         self.fock_matrix = next_fock_matrix;
     }
 
+    #[allow(
+        clippy::manual_midpoint,
+        reason = "Preserve the established floating-point evaluation order of the exchange contraction"
+    )]
     fn build_fock_matrix(&self, density_matrix: &DMatrix<f64>) -> DMatrix<f64> {
         let nbasis = self.basis.nbasis();
         let n_pairs = nbasis * (nbasis + 1) / 2;
@@ -530,7 +556,7 @@ impl<'a> ScfCalculation<'a> {
             &self.orthogonalizer.transpose() * &self.fock_matrix * &self.orthogonalizer;
         let eig = fock_preconditioned.symmetric_eigen();
         let mo_coefficients = &self.orthogonalizer * eig.eigenvectors;
-        Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
+        Self::sort_orbitals(&mo_coefficients, &eig.eigenvalues)
     }
 
     fn calculate_density_matrix(&self) -> DMatrix<f64> {
@@ -590,7 +616,6 @@ mod tests {
     use super::*;
     use crate::basis::gaussian;
     use crate::eri::electron_repulsion_ints;
-    use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
     use crate::hf::orthogonalization::orthogonalizer;
     use crate::molecules::atom::Atom;
@@ -615,7 +640,7 @@ mod tests {
             assert_abs_diff_eq!(fraction, expected, epsilon = 1e-15);
             let energy = slope * fraction + curvature * fraction * fraction;
             for index in 0..=100 {
-                let trial = index as f64 / 100.0;
+                let trial = f64::from(index) / 100.0;
                 assert!(energy <= slope * trial + curvature * trial * trial + 1e-14);
             }
         }
@@ -705,7 +730,7 @@ mod tests {
         assert_final_density_matches_canonical_orbitals(&scf, 1e-8);
     }
 
-    /// Simple implementation of DensityGuess for testing purposes.
+    /// Simple implementation of `DensityGuess` for testing purposes.
     struct TestDensityGuess;
 
     impl DensityGuess for TestDensityGuess {
@@ -755,16 +780,12 @@ mod tests {
                 if i == j {
                     assert!(
                         (identity[(i, j)] - 1.0).abs() < 1e-6,
-                        "Orthogonalité échouée pour i={}, j={}",
-                        i,
-                        j
+                        "Orthogonality check failed at i={i}, j={j}"
                     );
                 } else {
                     assert!(
                         identity[(i, j)].abs() < 1e-6,
-                        "Orthogonalité échouée pour i={}, j={}",
-                        i,
-                        j
+                        "Orthogonality check failed at i={i}, j={j}"
                     );
                 }
             }
@@ -772,6 +793,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn test_scf_runs_after_discarding_linearly_dependent_basis_function() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let source_basis = test_utils::load_sto3g_basis(&geometry);
@@ -831,9 +856,6 @@ mod tests {
         )
         .unwrap();
 
-        let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
-        let _h_core = &t_matrix + &v_matrix;
-
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
         let scf = ScfCalculation::new(&molecule, &basis, 10, 1e-6, 1e-8, TestDensityGuess).unwrap();
@@ -847,15 +869,17 @@ mod tests {
             for nu in 0..basis.nbasis() {
                 assert!(
                     (fock[(mu, nu)] - fock[(nu, mu)]).abs() < 1e-6,
-                    "Fock matrix is not symmetric at ({}, {})",
-                    mu,
-                    nu
+                    "Fock matrix is not symmetric at ({mu}, {nu})"
                 );
             }
         }
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn test_calculate_density_matrix() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
@@ -876,9 +900,7 @@ mod tests {
             for nu in 0..basis.nbasis() {
                 assert!(
                     (density[(mu, nu)] - density[(nu, mu)]).abs() < 1e-10,
-                    "Density matrix is not symmetric at ({}, {})",
-                    mu,
-                    nu
+                    "Density matrix is not symmetric at ({mu}, {nu})"
                 );
             }
         }
@@ -935,9 +957,9 @@ mod tests {
 
     #[test]
     fn test_scf_h2_sto3g_matches_pyscf_reference_energy() {
-        const PYSCF_ELECTRONIC_ENERGY: f64 = -1.831863646477507;
-        const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 0.715104339081081;
-        const PYSCF_TOTAL_ENERGY: f64 = -1.116759307396425;
+        const PYSCF_ELECTRONIC_ENERGY: f64 = -1.831_863_646_477_507;
+        const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 0.715_104_339_081_081;
+        const PYSCF_TOTAL_ENERGY: f64 = -1.116_759_307_396_425;
 
         let result = test_utils::run_sto3g_scf_for_sample("samples/h2/molecule.xyz");
 
@@ -957,7 +979,7 @@ mod tests {
     #[test]
     fn test_scf_h2o_sto3g_matches_pyscf_reference_energy() {
         const PYSCF_ELECTRONIC_ENERGY: f64 = -84.151_321_547_473_78;
-        const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 9.188258417746113;
+        const PYSCF_NUCLEAR_REPULSION_ENERGY: f64 = 9.188_258_417_746_113;
         const PYSCF_TOTAL_ENERGY: f64 = -74.963_063_129_727_67;
         // Covers the residual integral-engine difference after using the
         // converged small-x Boys series instead of its zero-order limit.
@@ -1049,6 +1071,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Canonicalization or cloning must preserve the previously computed state exactly"
+    )]
     fn test_converged_rhf_orbitals_are_canonical_for_final_fock() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2o/h2o.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
@@ -1149,10 +1175,7 @@ mod tests {
             for j in 0..matrix.ncols() {
                 assert!(
                     (matrix[(i, j)] - matrix[(j, i)]).abs() <= epsilon,
-                    "{} is not symmetric at ({}, {})",
-                    label,
-                    i,
-                    j
+                    "{label} is not symmetric at ({i}, {j})"
                 );
             }
         }

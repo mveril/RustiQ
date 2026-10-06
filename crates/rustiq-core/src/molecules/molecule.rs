@@ -36,6 +36,16 @@ impl Deref for Molecule {
 }
 
 impl Molecule {
+    /// Creates a molecule with a validated charge and spin multiplicity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the charge yields a nonpositive electron count or the multiplicity is
+    /// incompatible.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the total nuclear charge cannot be represented as an `i32`.
     pub fn try_new(
         geometry: Geometry,
         unit: Units,
@@ -55,7 +65,10 @@ impl Molecule {
     /// Builds a molecule without validating its electron configuration.
     ///
     /// This is restricted to the crate for tests and transitional internal code.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub(crate) fn new_unchecked(
         geometry: Geometry,
         unit: Units,
@@ -80,28 +93,33 @@ impl Molecule {
                 electrons,
             });
         }
-        let unpaired_electrons = self.unpaired_electrons() as i32;
+        let unpaired_electrons = i32::from(self.unpaired_electrons());
         if unpaired_electrons > electrons || (electrons - unpaired_electrons) % 2 != 0 {
             return Err(MoleculeError::IncompatibleMultiplicity {
-                electrons: electrons as usize,
+                electrons: usize::try_from(electrons)
+                    .expect("electron count was checked to be positive"),
                 multiplicity: self.multiplicity.get(),
             });
         }
         Ok(())
     }
 
+    #[must_use]
     pub fn geometry(&self) -> &Geometry {
         &self.geometry
     }
 
+    #[must_use]
     pub fn unit(&self) -> Units {
         self.unit
     }
 
+    #[must_use]
     pub fn charge(&self) -> i32 {
         self.charge
     }
 
+    #[must_use]
     pub fn multiplicity(&self) -> NonZero<u8> {
         self.multiplicity
     }
@@ -118,20 +136,33 @@ impl Molecule {
     }
 
     fn nuclear_charge(&self) -> i32 {
-        self.atoms
-            .iter()
-            .map(|a| a.element.atomic_number)
-            .sum::<u32>() as i32
+        i32::try_from(
+            self.atoms
+                .iter()
+                .map(|a| a.element.atomic_number)
+                .sum::<u32>(),
+        )
+        .expect("total nuclear charge fits in the molecular charge representation")
     }
 
+    #[must_use]
+    /// Returns the electron count of the validated molecule.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internally unchecked molecule has a negative electron count
+    /// or a total nuclear charge that cannot be represented as an `i32`.
     pub fn total_electrons(&self) -> usize {
-        (self.nuclear_charge() - self.charge) as usize
+        usize::try_from(self.nuclear_charge() - self.charge)
+            .expect("validated electron configuration has a positive electron count")
     }
 
+    #[must_use]
     pub fn unpaired_electrons(&self) -> u8 {
         self.multiplicity.get() - 1
     }
 
+    #[must_use]
     pub fn occupied_orbitals(&self) -> usize {
         ((self.total_electrons() - self.unpaired_electrons() as usize) / 2)
             + self.unpaired_electrons() as usize
@@ -145,6 +176,10 @@ mod tests {
     use nalgebra::point;
     use std::num::NonZeroU8;
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn atoms(symbols: &[&str]) -> Vec<Atom> {
         let elements = periodic_table::periodic_table();
         symbols
@@ -180,14 +215,13 @@ mod tests {
 
     #[test]
     fn try_new_rejects_non_positive_electron_count() {
-        let error = match Molecule::try_new(
+        let Err(error) = Molecule::try_new(
             Geometry::new("overcharged hydrogen".to_string(), atoms(&["H"])),
             Units::Bohr,
             2,
             NonZeroU8::new(1).unwrap(),
-        ) {
-            Ok(_) => panic!("expected invalid molecular charge"),
-            Err(error) => error,
+        ) else {
+            panic!("expected invalid molecular charge")
         };
 
         assert_eq!(

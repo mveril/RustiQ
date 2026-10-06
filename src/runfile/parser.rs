@@ -93,7 +93,12 @@ mod tests {
         let config = parsed.hf_config.unwrap();
         let error = config.resolve_method(&molecule).unwrap_err();
         let span = labels(&error)[0];
-        assert_eq!(&source[span.offset()..span.offset() + span.len()], "'Rhf'");
+        assert_eq!(
+            source
+                .get(span.offset()..span.offset() + span.len())
+                .unwrap(),
+            "'Rhf'"
+        );
         assert!(error.source_code().is_none());
         let report = miette::Report::new(error).with_source_code(miette::NamedSource::new(
             "calculation.toml",
@@ -117,7 +122,12 @@ mod tests {
             .err()
             .unwrap();
         let span = labels(&error)[0];
-        assert_eq!(&source[span.offset()..span.offset() + span.len()], "1.0");
+        assert_eq!(
+            source
+                .get(span.offset()..span.offset() + span.len())
+                .unwrap(),
+            "1.0"
+        );
         let error = rustiq_core::calculation::CalculationBuilder::new(&geometry(), &basis_file)
             .with_mp2(parsed.mp2_config.unwrap())
             .execute()

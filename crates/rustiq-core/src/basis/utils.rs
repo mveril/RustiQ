@@ -21,9 +21,8 @@ where
 {
     let opt = Option::<String>::deserialize(deserializer)?;
     match opt.as_deref() {
-        Some("") => Ok(None),
+        Some("") | None => Ok(None),
         Some(s) => T::deserialize(s.into_deserializer()).map(Some),
-        None => Ok(None),
     }
 }
 

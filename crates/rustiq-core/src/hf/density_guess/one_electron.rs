@@ -38,7 +38,7 @@ impl DensityGuess for OneElectron {
 mod tests {
     use super::*;
     use crate::eri::electron_repulsion_ints;
-    use crate::hf::core::core_hamiltonian_ints;
+
     use crate::hf::density_guess::DensityGuess;
     use crate::hf::scf::ScfCalculation;
     use crate::molecules::atom::Atom;
@@ -48,7 +48,7 @@ mod tests {
     use nalgebra::point;
     use std::convert::Infallible;
 
-    /// Simple implementation of DensityGuess for tests.
+    /// Simple implementation of `DensityGuess` for tests.
     struct TestDensityGuess;
 
     impl DensityGuess for TestDensityGuess {
@@ -75,6 +75,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn test_build_density_guess_optimized() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
@@ -86,10 +90,6 @@ mod tests {
             std::num::NonZeroU8::MIN,
         )
         .unwrap();
-
-        // Calculate H_core (simplified for the test)
-        let (t_matrix, v_matrix) = core_hamiltonian_ints(&molecule, &basis);
-        let _h_core = &t_matrix + &v_matrix;
 
         let _two_electron_integrals = electron_repulsion_ints(&basis);
 
@@ -106,9 +106,7 @@ mod tests {
         let expected_trace = molecule.total_electrons() as f64;
         assert!(
             (trace - expected_trace).abs() < 1e-6,
-            "La trace de la densité ({}) ne correspond pas au nombre d'électrons attendu ({}).",
-            trace,
-            expected_trace
+            "Density trace ({trace}) does not match the expected electron count ({expected_trace})."
         );
 
         // Check that the off-diagonal elements are calculated correctly
@@ -118,9 +116,7 @@ mod tests {
             for nu in 0..basis.nbasis() {
                 assert!(
                     (density[(mu, nu)] - density[(nu, mu)]).abs() < 1e-8,
-                    "La densité n'est pas symétrique en ({}, {}).",
-                    mu,
-                    nu
+                    "Density matrix is not symmetric at ({mu}, {nu})."
                 );
             }
         }

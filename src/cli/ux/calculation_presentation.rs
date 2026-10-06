@@ -1,6 +1,9 @@
 // Full canonical views are lazy capabilities for inspection and artifact reuse;
 // the normal `run` path uses only the concise summary below.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 
 use std::{
     fmt::Write,
@@ -486,8 +489,8 @@ mod tests {
                 resolved_calculation(&implicit).unwrap().combined(),
                 resolved_calculation(&explicit).unwrap().combined()
             );
-            assert!(explicit.request().geometry().comment.is_empty());
-            assert!(explicit.get_molecule().geometry().comment.is_empty());
+            assert_eq!(explicit.request().geometry().comment, "");
+            assert_eq!(explicit.get_molecule().geometry().comment, "");
             assert!(explicit.request().molecule().charge.span.is_none());
             assert!(explicit.request().molecule().multiplicity.span.is_none());
             for hf in [explicit.request().hf().clone(), explicit.hf_config()] {

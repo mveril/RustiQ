@@ -31,7 +31,7 @@ impl MemoryLimit {
         if !text.chars().any(|c| c.is_ascii_alphabetic()) {
             return Err("MP2 memory limit requires a unit, for example 512 MiB".into());
         }
-        let size = text.parse::<ByteSize>().map_err(|e| e.to_string())?;
+        let size = text.parse::<ByteSize>().map_err(|e| e.clone())?;
         if size.as_u64() == 0 || size.as_u64() > isize::MAX as u64 {
             return Err("MP2 memory limit must be positive and fit the addressable range".into());
         }

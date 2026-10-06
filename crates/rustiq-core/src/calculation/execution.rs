@@ -67,10 +67,20 @@ pub enum CalculationEvent<'a> {
 
 /// Shared execution interface for builders and prepared calculations.
 pub trait CalculationExecution {
+    /// Prepares and executes the requested HF and optional MP2 calculation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if preparation, HF execution, or a requested MP2 calculation fails.
     fn execute(&self) -> Result<CalculationResult, CalculationExecutionError> {
         self.execute_with_events(|_| {})
     }
 
+    /// Executes the calculation while reporting progress to the event callback.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if preparation, HF execution, or a requested MP2 calculation fails.
     fn execute_with_events(
         &self,
         events: impl FnMut(CalculationEvent<'_>),

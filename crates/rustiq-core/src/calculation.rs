@@ -294,7 +294,7 @@ impl<'a> HfCalculation<'a> {
                     method,
                     span: match &error {
                         UhfSetupError::Scf(error) => setup_span(error, config),
-                        _ => None,
+                        UhfSetupError::ElectronRepulsion(_) => None,
                     },
                     error: error.into(),
                 })?;

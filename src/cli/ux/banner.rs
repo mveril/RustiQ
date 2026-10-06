@@ -28,8 +28,7 @@ fn render_package_name(package_name: &str) -> String {
     match FIGlet::standard() {
         Ok(font) => font
             .convert(package_name)
-            .map(|figure| figure.to_string())
-            .unwrap_or_else(|| package_name.to_string()),
+            .map_or_else(|| package_name.to_string(), |figure| figure.to_string()),
         Err(_) => package_name.to_string(),
     }
 }

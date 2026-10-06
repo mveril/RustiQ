@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::{
-    fmt,
+    fmt::{self, Write as _},
     io::{self, Read},
     str::FromStr,
 };
@@ -13,8 +13,14 @@ pub struct Sha256Digest([u8; 32]);
 pub struct Sha256DigestParseError;
 
 impl Sha256Digest {
+    #[must_use]
     pub fn to_hex(self) -> String {
-        self.0.iter().map(|byte| format!("{byte:02x}")).collect()
+        self.0
+            .iter()
+            .fold(String::with_capacity(64), |mut hex, byte| {
+                write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
+                hex
+            })
     }
 }
 
@@ -98,11 +104,16 @@ impl<'de> Deserialize<'de> for Sha256Digest {
     }
 }
 
+#[must_use]
 pub fn sha256(bytes: &[u8]) -> Sha256Digest {
     Sha256::digest(bytes).into()
 }
 
 /// Computes a SHA-256 digest without materializing the complete input.
+///
+/// # Errors
+///
+/// Returns an error if reading the input fails.
 pub fn sha256_reader(mut reader: impl Read) -> Result<Sha256Digest, io::Error> {
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 8192];
@@ -115,6 +126,7 @@ pub fn sha256_reader(mut reader: impl Read) -> Result<Sha256Digest, io::Error> {
     }
 }
 
+#[must_use]
 pub fn verify_sha256(bytes: &[u8], expected: Sha256Digest) -> bool {
     sha256(bytes) == expected
 }

@@ -5,7 +5,7 @@ pub(crate) mod private {
     pub trait Sealed {}
 }
 
-/// A known scientific artifact. Only RustiQ's declared artifact markers implement this trait.
+/// A known scientific artifact. Only `RustiQ`'s declared artifact markers implement this trait.
 pub trait Artifact: private::Sealed {
     type Value;
 
