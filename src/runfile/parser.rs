@@ -1,6 +1,8 @@
+#[cfg(test)]
 use crate::runfile::RunFile;
 use miette::IntoDiagnostic;
 
+#[cfg(test)]
 use super::diagnostics::FromTomlErrorMietteExt;
 
 #[derive(Debug)]
@@ -20,27 +22,43 @@ pub fn parse_runfile(
     toml_content: &str,
 ) -> miette::Result<ParsedRunFile> {
     let source_name = source_name.into();
-    let arena = toml_spanner::Arena::new();
-    let mut document = toml_spanner::parse(toml_content, &arena)
-        .map_err(toml_spanner::FromTomlError::from)
-        .map_err(|error| error.into_miette_diagnostic(source_name.clone(), toml_content))?;
-    let runfile = document
-        .to::<RunFile>()
-        .map_err(|error| error.into_miette_diagnostic(source_name, toml_content))?;
-
-    let calculation = super::resolved::ResolvedCalculationConfig::from_runfile(&runfile)?;
+    let resolved = super::nickel::resolve_toml(toml_content).map_err(|error| {
+        let (path, span) = match super::source_map::TomlSourceMap::parse(toml_content) {
+            Ok(source_map) => source_map
+                .error_location(&error)
+                .map_or((None, None), |(path, span)| (Some(path), Some(span))),
+            Err(parse_error) => (
+                None,
+                parse_error
+                    .span()
+                    .map(|span| (span.start, span.end.saturating_sub(span.start)).into()),
+            ),
+        };
+        let default_label = error.lines().next().unwrap_or("invalid configuration");
+        let (message, label) =
+            super::diagnostics::humanized_runfile_error(path.as_deref(), &error, default_label);
+        super::diagnostics::nickel_error(&source_name, toml_content, message, label, span)
+    })?;
+    let source_map = super::source_map::TomlSourceMap::parse(toml_content).map_err(|error| {
+        miette::miette!("{source_name}: could not map TOML source locations: {error}")
+    })?;
+    let calculation = resolved.single_calculation().into_diagnostic()?;
     let mut hf_config = Some(calculation.hf_config().into_diagnostic()?);
     let mut mp2_config = calculation.mp2_config();
     let mut molecule_config = calculation.molecule_config();
     let mut integral_config = calculation.integral_config().into_diagnostic()?;
-    let resolved = super::resolved::ResolvedInput::new(vec![calculation]).into_diagnostic()?;
 
-    let root = document.into_item();
-    let span = |path: &[&str]| {
-        let item = path.iter().try_fold(&root, |item, key| item[*key].item())?;
-        let span = item.span();
-        Some((span.start as usize, (span.end - span.start) as usize).into())
+    #[cfg(test)]
+    let runfile = {
+        let arena = toml_spanner::Arena::new();
+        let mut document = toml_spanner::parse(toml_content, &arena)
+            .map_err(toml_spanner::FromTomlError::from)
+            .map_err(|error| error.into_miette_diagnostic(source_name.clone(), toml_content))?;
+        document
+            .to::<RunFile>()
+            .map_err(|error| error.into_miette_diagnostic(source_name.clone(), toml_content))?
     };
+    let span = |path: &[&str]| source_map.span(path);
 
     if let Some(config) = &mut hf_config {
         config.method.span = span(&["method", "hf", "method"]);

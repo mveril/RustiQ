@@ -1,9 +1,9 @@
-//! Embedded schema verification during migration. Normal CLI runs use TOML only.
+//! Embedded Nickel configuration frontend.
 use super::resolved::ResolvedInput;
 
 fn evaluate(expression: &str) -> Result<ResolvedInput, String> {
-    // Inline the maintained schema so tests do not depend on an installed CLI
-    // or runtime paths to package sources.
+    // Inline the maintained schema so evaluation does not depend on an
+    // installed Nickel CLI or runtime paths to package sources.
     let schema = include_str!("nickel/calculation.ncl");
     let rebuild = include_str!("nickel/rebuild-data.ncl");
     let resolve = include_str!("nickel/resolve.ncl")
@@ -16,7 +16,22 @@ fn evaluate(expression: &str) -> Result<ResolvedInput, String> {
     let json = context
         .expr_to_json(&expr)
         .map_err(|error| format_error(&error))?;
-    serde_json::from_str(&json).map_err(|e| e.to_string())
+    serde_json::from_str(&json).map_err(|error| {
+        let message = error.to_string();
+        if message.contains("MP2 memory limit") || message.contains("couldn't parse") {
+            format!("method.mp2.memory_limit: {message}")
+        } else {
+            message
+        }
+    })
+}
+
+pub(crate) fn resolve_toml(toml: &str) -> Result<ResolvedInput, String> {
+    let expression = format!(
+        "std.deserialize 'Toml {}",
+        serde_json::to_string(toml).expect("serializing a string cannot fail")
+    );
+    evaluate(&expression)
 }
 
 fn format_error(error: &nickel_lang::Error) -> String {
@@ -25,58 +40,6 @@ fn format_error(error: &nickel_lang::Error) -> String {
         Ok(()) => String::from_utf8_lossy(&output).into_owned(),
         Err(error) => error.to_string(),
     }
-}
-
-fn collect_samples(path: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
-    for entry in std::fs::read_dir(path).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            collect_samples(&path, files);
-        } else if path.extension().is_some_and(|ext| ext == "toml") {
-            files.push(path);
-        }
-    }
-}
-
-#[test]
-fn nickel_matches_every_valid_sample() {
-    let mut files = Vec::new();
-    collect_samples(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("samples"),
-        &mut files,
-    );
-    let mut count = 0;
-    for path in files {
-        let source = std::fs::read_to_string(&path).unwrap();
-        if path
-            .file_name()
-            .is_some_and(|name| name == "invalid_diagnostics.toml")
-        {
-            continue;
-        }
-        let parsed = super::parser::parse_runfile(path.display().to_string(), &source).unwrap();
-        let expression = format!(
-            "std.deserialize 'Toml {}",
-            serde_json::to_string(&source).unwrap()
-        );
-        let nickel = evaluate(&expression).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        assert_eq!(nickel, parsed.resolved, "{}", path.display());
-        let calculation = &nickel.calculations()[0];
-        assert_eq!(
-            format!("{:?}", calculation.hf_config().unwrap()),
-            format!("{:?}", {
-                let mut hf = parsed.hf_config.unwrap();
-                hf.method.span = None;
-                hf.guess.span = None;
-                hf.diis.max_history.span = None;
-                hf.orthogonalization.linear_dependency_threshold.span = None;
-                hf
-            })
-        );
-        calculation.integral_config().unwrap();
-        count += 1;
-    }
-    assert_eq!(count, 19, "all valid baseline samples must be compared");
 }
 
 #[test]
@@ -132,7 +95,7 @@ fn rebuilt_nested_json_preserves_values_and_validation() {
 }
 
 #[test]
-fn nickel_matches_tagged_and_optional_toml_settings() {
+fn production_toml_frontend_accepts_tagged_and_optional_settings() {
     for settings in [
         "",
         "[method.mp2]\nmemory_limit = '513 B'\nfrozen_orbitals = 2\n",
@@ -145,11 +108,8 @@ fn nickel_matches_tagged_and_optional_toml_settings() {
         "[molecule]\nunits = 'Bohr'\ncharge = -1\nmultiplicity = 2\n",
     ] {
         let source = format!("[basis]\nname = 'sto-3g'\n{settings}");
-        let legacy = super::parser::parse_runfile("parity.toml", &source).unwrap();
-        let nickel = evaluate(&format!("std.deserialize 'Toml {}", serde_json::to_string(&source).unwrap())).unwrap();
-        assert_eq!(nickel, legacy.resolved, "{settings}");
-        nickel.calculations()[0].hf_config().unwrap();
-        nickel.calculations()[0].integral_config().unwrap();
+        let parsed = super::parser::parse_runfile("parity.toml", &source).unwrap();
+        parsed.hf_config.unwrap();
     }
 }
 
@@ -171,6 +131,7 @@ fn nickel_rejects_nested_types_ranges_and_tags() {
         "output.scf = \"unknown\"",
         "cache.extra = true",
         "method.hf.guess = {type = \"Random\", distribution = \"Unknown\"}",
+        "method.hf.guess = {type = \"Random\"}",
     ] {
         assert!(
             evaluate(&format!("{{ basis.name = \"sto-3g\", {field} }}")).is_err(),

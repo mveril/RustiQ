@@ -1,11 +1,12 @@
 # Nickel migration schema
 
-PR 2 of #94 retains the TOML parser as the production authority. Parsed TOML
-crosses `ResolvedInput` before conversion to core configuration. Canonical
-rendering and `init` still use the legacy frontend until PR 5.
+PR 3 of #94 makes the embedded Nickel schema authoritative for TOML defaults
+and validation. TOML source mapping is kept separate and supplies spans only.
+Canonical rendering and `init` still use the legacy frontend until PR 5.
 
-The embedded Nickel 2.2 evaluator is exercised only in shadow compatibility
-tests (`src/runfile/nickel.rs`); normal runs do not evaluate inputs twice.
+Nickel errors are adapted to miette using original TOML locations when a
+contract error identifies an explicit field. Nickel-injected defaults have no
+source span.
 `calculation.ncl` owns the intended defaults and closed contracts, `resolve.ncl`
 normalizes a record or a non-empty array, and `rebuild-data.ncl` is a private
 migration workaround. No external Nickel executable is needed.
@@ -38,8 +39,5 @@ cargo test --offline --workspace --all-targets --no-default-features
 cargo clippy --offline --workspace --all-targets --all-features -- -D warnings
 ```
 
-One legacy discrepancy found by the additional parity tests is retained:
-`[method.hf.guess]` containing only `type = "Random"` is currently rejected by
-the TOML parser. The intended Nickel contract supplies the default Uniform
-parameters for this input, as validated in POC #96. PR 2 does not make Nickel
-authoritative for production TOML or silently broaden its accepted syntax.
+The accepted `Random` density guess syntax remains unchanged: its distribution
+must be specified explicitly, as before the Nickel migration.

@@ -282,7 +282,7 @@ mod tests {
         let result = parse_runfile("calculation.toml".to_string(), "hf = \"not a table\"");
 
         let err = result.unwrap_err();
-        assert!(format!("{err:?}").contains("toml_deserialize"));
+        assert!(format!("{err:?}").contains("nickel"));
     }
 
     #[cfg(feature = "online")]

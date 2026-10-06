@@ -46,12 +46,10 @@ let Guess = std.contract.custom (fun label value =>
   else if tag == "Zero" then std.contract.check { type | Choice ["Zero"] } label value
   else if tag == "Random" then
     let random = std.record.remove "type" value in
-    let normalized = if std.record.has_field "distribution" random then
-      std.contract.apply Distribution label random
-    else std.contract.apply Distribution label (random & {
-      distribution | default = "Uniform", min | default = -1, max | default = 1,
-    }) in
-    'Ok (normalized & { type = "Random" })
+    if std.record.has_field "distribution" random then
+      let normalized = std.contract.apply Distribution label random in
+      'Ok (normalized & { type = "Random" })
+    else 'Error { message = "random density guess requires a distribution" }
   else 'Error { message = "unknown density guess type" }) in
 let Hf = {
   method | Choice ["Auto", "Rhf", "Uhf"] | default = "Auto",
