@@ -28,16 +28,9 @@ pub fn parse_runfile(
             .into_iter()
             .map(|error| {
                 let (path, span) = match &source_map {
-                    Ok(source_map) => error
-                        .path
-                        .as_ref()
-                        .and_then(|path| {
-                            source_map
-                                .span(&path.split('.').collect::<Vec<_>>())
-                                .map(|span| (path.clone(), span))
-                        })
-                        .or_else(|| source_map.error_location(&error.message))
-                        .map_or((error.path, None), |(path, span)| (Some(path), Some(span))),
+                    Ok(source_map) => {
+                        source_map.error_location(error.path.as_deref(), &error.message)
+                    }
                     Err(parse_error) => (
                         None,
                         parse_error

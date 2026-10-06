@@ -353,6 +353,32 @@ mod tests {
     }
 
     #[test]
+    fn inline_table_diagnostics_label_the_correct_nested_values() {
+        let source = "basis = { name = 'sto-3g' }\nmethod = { hf = { max_iterations = 0, diis = { enabled = 'invalid-diis' } } }\ncache = { enabled = 'invalid-cache' }\n";
+        let error = parse_runfile("inline.toml", source).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "runfile contains 3 configuration error(s)"
+        );
+        let mut values = error
+            .related()
+            .unwrap()
+            .map(|diagnostic| {
+                let label = diagnostic.labels().unwrap().next().unwrap();
+                let contents = diagnostic
+                    .source_code()
+                    .unwrap()
+                    .read_span(label.inner(), 0, 0)
+                    .unwrap();
+                assert_eq!(contents.name(), Some("inline.toml"));
+                std::str::from_utf8(contents.data()).unwrap().to_owned()
+            })
+            .collect::<Vec<_>>();
+        values.sort();
+        assert_eq!(values, ["'invalid-cache'", "'invalid-diis'", "0"]);
+    }
+
+    #[test]
     fn nickel_contract_errors_keep_field_specific_messages() {
         for (source, expected_message, expected_value) in [
             (
