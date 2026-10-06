@@ -47,35 +47,62 @@ impl TomlOutput<'_> {
         if self.defaults == Defaults::Include {
             return to_string(&item);
         }
-        let source = to_string(&item)?;
-        let resolved = super::nickel::resolve_toml(&source).map_err(|errors| {
-            RenderError(
-                errors
-                    .into_iter()
-                    .map(|error| error.message)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            )
-        })?;
+        // Nickel supplies one resolved default tree for field comparisons.
+        let defaults =
+            super::nickel::resolve_toml("[basis]\nname = \"rustiq-default-probe\"\n[method.mp2]\n")
+                .map_err(|errors| {
+                    RenderError(
+                        errors
+                            .into_iter()
+                            .map(|error| error.message)
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    )
+                })?;
+        let defaults =
+            serde_json::to_value(defaults).map_err(|error| RenderError(error.to_string()))?;
+        let defaults = defaults
+            .pointer("/calculations/0")
+            .expect("Nickel resolves a RunFile to one calculation");
         let mut paths = Vec::new();
         collect_fields(&item, &mut Vec::new(), &mut paths);
         for path in paths {
             // Preserve explicitly requested calculation sections in canonical output.
-            if path == ["method"] || path == ["method", "hf"] {
+            if path == ["method"] || path == ["method", "hf"] || path == ["method", "mp2"] {
                 continue;
             }
-            let mut candidate = item.clone();
-            if !remove_field(&mut candidate, &path) {
+            // basis.name is required by the Nickel schema and has no default.
+            if path == ["basis"] || path == ["basis", "name"] {
                 continue;
             }
-            let source = to_string(&candidate)?;
-            // Nickel owns defaults; serialization never supplies validation or defaults.
-            if super::nickel::resolve_toml(&source).is_ok_and(|candidate| candidate == resolved) {
+            let Some(default) = path.iter().try_fold(defaults, |value, key| value.get(key)) else {
+                continue;
+            };
+            let Some(value) = path.iter().try_fold(&item, |value, key| value.get(key)) else {
+                continue;
+            };
+            if matches_default(value, default) {
                 remove_field(&mut item, &path);
             }
         }
         to_string(&item)
     }
+}
+
+/// Match frontend JSON to the resolved DTO; omitted optional fields correspond to null.
+fn matches_default(value: &serde_json::Value, default: &serde_json::Value) -> bool {
+    if value == default {
+        return true;
+    }
+    let (Some(value), Some(default)) = (value.as_object(), default.as_object()) else {
+        return false;
+    };
+    value.keys().chain(default.keys()).all(|key| {
+        matches_default(
+            value.get(key).unwrap_or(&serde_json::Value::Null),
+            default.get(key).unwrap_or(&serde_json::Value::Null),
+        )
+    })
 }
 
 fn collect_fields(item: &serde_json::Value, path: &mut Vec<String>, paths: &mut Vec<Vec<String>>) {

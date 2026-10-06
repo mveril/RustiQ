@@ -5,7 +5,9 @@ and validation. Nickel's native TOML import parses the in-memory source once
 and preserves its locations. The source mapper walks Nickel's parsed value and
 supplies spans only; it does not parse TOML or construct configuration.
 Canonical rendering and `init` export TOML through Nickel. Default omission
-compares Nickel-resolved candidates with the full resolved configuration.
+resolves one minimal configuration through Nickel, then compares the serialized
+fields with Nickel’s resolved defaults. Required basis names and explicit method
+sections stay in the output.
 There are no direct TOML parser or serializer dependencies in RustiQ.
 
 The private frontend pins `nickel-lang-core` to 0.18.0 because the stable
