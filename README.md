@@ -516,6 +516,11 @@ Run an MP2 example:
 cargo run -- run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
+Relative geometry paths in a runfile are resolved from the directory containing
+that input file. When the runfile is read from standard input, they are resolved
+from the caller's current directory. CLI paths such as `--cache-dir` are also
+relative to the caller's current directory.
+
 ### Terminal colors
 
 RustiQ uses the same color choices as Clap throughout its terminal-oriented

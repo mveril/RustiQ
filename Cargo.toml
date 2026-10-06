@@ -66,6 +66,8 @@ online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
 bench-support = ["rustiq-core/bench-support"]
 
 [dependencies]
+nickel-lang = "=2.2.0"
+toml = "0.9"
 bytesize.workspace = true
 rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
 directories = "6"

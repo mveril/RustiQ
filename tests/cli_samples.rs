@@ -1207,3 +1207,71 @@ fn run_accepts_bare_filename_in_current_directory() {
     assert_success(&output);
     serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
 }
+
+#[test]
+fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
+    let root = tempfile::tempdir().unwrap();
+    prepare_basis_store(root.path());
+    let inputs = root.path().join("inputs");
+    let caller = root.path().join("caller");
+    fs::create_dir(&inputs).unwrap();
+    fs::create_dir(&caller).unwrap();
+    fs::write(
+        inputs.join("molecule.xyz"),
+        include_bytes!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    fs::write(
+        inputs.join("calculation.toml"),
+        "[basis]\nname = \"sto-3g\"\n[cache]\nenabled = true\n[method.hf]\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .current_dir(&caller)
+        .env("RUSTIQ_DATA_HOME", root.path())
+        .args([
+            "run",
+            "../inputs/calculation.toml",
+            "--no-auto-download",
+            "--cache-dir",
+            "local-cache",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    assert_success(&output);
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+    assert!(caller.join("local-cache").exists());
+    assert!(!inputs.join("local-cache").exists());
+}
+
+#[test]
+fn run_resolves_stdin_geometry_from_callers_directory() {
+    use std::{io::Write, process::Stdio};
+    let root = tempfile::tempdir().unwrap();
+    prepare_basis_store(root.path());
+    fs::write(
+        root.path().join("molecule.xyz"),
+        include_bytes!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .current_dir(root.path())
+        .env("RUSTIQ_DATA_HOME", root.path())
+        .args(["run", "--no-auto-download", "--format", "json"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"[basis]\nname = \"sto-3g\"\n")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_success(&output);
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+}

@@ -1,10 +1,13 @@
 use crate::runfile::RunFile;
+use miette::IntoDiagnostic;
 
 use super::diagnostics::FromTomlErrorMietteExt;
 
 #[derive(Debug)]
 pub struct ParsedRunFile {
+    #[cfg(test)]
     pub runfile: RunFile,
+    pub resolved: super::resolved::ResolvedInput,
     /// Scientific options with locations in the original input, not the formatted output.
     pub hf_config: Option<rustiq_core::config::HfConfig>,
     pub mp2_config: Option<rustiq_core::config::Mp2Config>,
@@ -25,18 +28,12 @@ pub fn parse_runfile(
         .to::<RunFile>()
         .map_err(|error| error.into_miette_diagnostic(source_name, toml_content))?;
 
-    let mut hf_config = runfile
-        .method
-        .hf
-        .as_ref()
-        .map(rustiq_core::config::HfConfig::from);
-    let mut mp2_config = runfile
-        .method
-        .mp2
-        .as_ref()
-        .map(rustiq_core::config::Mp2Config::from);
-    let mut molecule_config = rustiq_core::config::MoleculeConfig::from(&runfile.molecule);
-    let mut integral_config = rustiq_core::config::IntegralConfig::from(&runfile.integrals);
+    let calculation = super::resolved::ResolvedCalculationConfig::from_runfile(&runfile)?;
+    let mut hf_config = Some(calculation.hf_config().into_diagnostic()?);
+    let mut mp2_config = calculation.mp2_config();
+    let mut molecule_config = calculation.molecule_config();
+    let mut integral_config = calculation.integral_config().into_diagnostic()?;
+    let resolved = super::resolved::ResolvedInput::new(vec![calculation]).into_diagnostic()?;
 
     let root = document.into_item();
     let span = |path: &[&str]| {
@@ -65,7 +62,9 @@ pub fn parse_runfile(
     integral_config.schwarz_threshold.span = span(&["integrals", "schwarz_threshold"]);
 
     Ok(ParsedRunFile {
+        #[cfg(test)]
         runfile,
+        resolved,
         hf_config,
         mp2_config,
         molecule_config,

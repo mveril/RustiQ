@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    fs,
     io::{self, Read, Write},
     path::PathBuf,
     time::Instant,
@@ -17,7 +17,7 @@ use crate::cli::{
         json_output::CalculationOutput,
     },
 };
-use crate::runfile::{output::ScfOutput, parser::parse_runfile};
+use crate::runfile::{parser::parse_runfile, resolved::ScfOutput};
 use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
@@ -128,9 +128,6 @@ impl Runnable for RunCommand {
         }
         let (source_name, toml_content) = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml).into_diagnostic()?;
-            if let Some(dir) = path_toml.parent().filter(|dir| !dir.as_os_str().is_empty()) {
-                env::set_current_dir(dir).into_diagnostic()?;
-            }
             (path_toml.display().to_string(), content)
         } else {
             let mut content = String::new();
@@ -138,13 +135,13 @@ impl Runnable for RunCommand {
             ("<stdin>".to_string(), content)
         };
         let parsed = parse_runfile(source_name.clone(), &toml_content)?;
-        let run = parsed.runfile;
-        let molecule_path = &run.molecule.geometry;
-        let xyz_content = fs::read_to_string(molecule_path).into_diagnostic()?;
+        let run = parsed.resolved.single_calculation().into_diagnostic()?;
+        let molecule_path = run.resource_path(self.input.as_deref());
+        let xyz_content = fs::read_to_string(&molecule_path).into_diagnostic()?;
         let source = SourceProvenance::new(
             source_name,
             toml_content,
-            molecule_path.clone(),
+            run.molecule.geometry.clone(),
             xyz_content,
         );
         let source_code =
@@ -205,7 +202,10 @@ impl Runnable for RunCommand {
             prepared.map_err(|error| with_source(error, &source_code))?
         };
         if !json_output {
-            let output_format = run.output.scf;
+            let output_format = match run.output.scf {
+                ScfOutput::Normal => crate::runfile::output::ScfOutput::Normal,
+                ScfOutput::Quiet => crate::runfile::output::ScfOutput::Quiet,
+            };
             let requested =
                 requested_calculation(prepared.request(), run.cache.enabled, output_format)
                     .into_diagnostic()?;
