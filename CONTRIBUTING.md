@@ -76,10 +76,11 @@ Unsafe code is forbidden. CI checks every target with all features and without
 default features; it also rejects any remaining compiler warnings.
 
 Use typed errors for fallible input and operations. Production code must not
-panic; a `Result`-returning function must report invalid external input through
-its error. An `expect` is appropriate only when its message explains an
-established internal invariant. Tests may panic intentionally and use `unwrap`;
-benchmarks follow the production rules. Do not silently discard a fallible result.
+panic on fallible external input; a `Result`-returning function must report such
+failures through its error. Panics and `expect` are reserved for established
+internal invariants and must be locally justified. Tests may panic intentionally
+and use `unwrap`; benchmarks follow the production rules. Do not silently
+discard a fallible result.
 
 Keep test assertions idiomatic: use `assert!(value.is_empty())` or
 `assert!(!value.is_empty())` when testing emptiness. Test modules permit

@@ -34,7 +34,7 @@ pub(crate) mod positive_finite_f64 {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a PositiveFiniteF64,
-        __arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.into_inner()))
     }
@@ -56,7 +56,7 @@ pub(crate) mod non_negative_finite_f64 {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonNegativeFiniteF64,
-        __arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.into_inner()))
     }
@@ -101,7 +101,7 @@ pub(crate) mod optional_positive_finite_f64 {
     )]
     pub(crate) fn to_toml<'a, T: ToTomlThreshold>(
         value: &'a T,
-        __arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.to_item()))
     }
@@ -121,7 +121,7 @@ pub(crate) mod diis_size {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a DiisSize,
-        __arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.into_inner() as i128))
     }
