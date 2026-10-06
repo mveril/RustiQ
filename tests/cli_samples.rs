@@ -248,7 +248,11 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
-    assert!(stdout.contains("Calculation\n  Geometry      samples/h2/sto-3g/../molecule.xyz"));
+    let expected_geometry = Path::new("samples/h2/sto-3g")
+        .join("../molecule.xyz")
+        .display()
+        .to_string();
+    assert!(stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")));
     assert!(stdout.contains("  Atoms         2"));
     assert!(stdout.contains("  Charge        0"));
     assert!(stdout.contains("  Multiplicity  1"));
@@ -1244,8 +1248,12 @@ fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
         .unwrap();
     assert_success(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let expected_geometry = Path::new("../inputs/nested")
+        .join("../molecule.xyz")
+        .display()
+        .to_string();
     assert!(
-        stdout.contains("Calculation\n  Geometry      ../inputs/nested/../molecule.xyz"),
+        stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")),
         "{stdout}"
     );
     assert!(caller.join("local-cache").exists());
