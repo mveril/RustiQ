@@ -86,6 +86,8 @@ cfg-if = "1"
 tempfile.workspace = true
 # Native in-memory TOML imports and structured diagnostics require the core API.
 nickel-lang-core = { version = "=0.18.0", default-features = false }
+# Preserve Nickel's TOML layout while choosing readable float representations.
+toml_edit = "0.24.1"
 
 [dev-dependencies]
 approx.workspace = true

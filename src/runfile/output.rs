@@ -25,7 +25,63 @@ pub(crate) struct RenderError(pub(crate) String);
 
 pub(crate) fn to_string(value: &impl Serialize) -> Result<String, RenderError> {
     let json = serde_json::to_string(value).map_err(|error| RenderError(error.to_string()))?;
-    super::nickel::export_toml(&json)
+    format_floats(&super::nickel::export_toml(&json)?)
+}
+
+fn format_floats(toml: &str) -> Result<String, RenderError> {
+    let mut document = toml
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|error| RenderError(error.to_string()))?;
+    format_item(document.as_item_mut())?;
+    Ok(document.to_string())
+}
+
+fn format_item(item: &mut toml_edit::Item) -> Result<(), RenderError> {
+    match item {
+        toml_edit::Item::Value(value) => format_value(value)?,
+        toml_edit::Item::Table(table) => {
+            for (_, item) in table.iter_mut() {
+                format_item(item)?;
+            }
+        }
+        toml_edit::Item::ArrayOfTables(tables) => {
+            for table in tables.iter_mut() {
+                for (_, item) in table.iter_mut() {
+                    format_item(item)?;
+                }
+            }
+        }
+        toml_edit::Item::None => {}
+    }
+    Ok(())
+}
+
+fn format_value(value: &mut toml_edit::Value) -> Result<(), RenderError> {
+    match value {
+        toml_edit::Value::Float(float) if float.value().is_finite() => {
+            // LowerExp without a precision produces a shortest round-trip representation.
+            let scientific = format!("{:e}", float.value());
+            if scientific.len() < float.display_repr().len() {
+                let mut formatted = scientific
+                    .parse::<toml_edit::Value>()
+                    .map_err(|error| RenderError(error.to_string()))?;
+                *formatted.decor_mut() = value.decor().clone();
+                *value = formatted;
+            }
+        }
+        toml_edit::Value::Array(array) => {
+            for value in array.iter_mut() {
+                format_value(value)?;
+            }
+        }
+        toml_edit::Value::InlineTable(table) => {
+            for (_, value) in table.iter_mut() {
+                format_value(value)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 pub struct TomlOutput<'a> {
@@ -132,11 +188,74 @@ mod tests {
     use crate::runfile::parser::parse_runfile;
 
     #[test]
+    fn scientific_notation_preserves_toml_layout_and_non_float_values() {
+        let source = r#"# Keep decimal-looking text intact.
+text = "0.00000001"
+multiline = """
+threshold = 0.00000001
+"""
+iterations = 1000000
+zero = 0.0
+negative_zero = -0.0
+ordinary = 0.01
+threshold = 0.00000001 # convergence
+values = [0.000000000001, -0.00000001, { threshold = 0.000001 }]
+
+[nested]
+threshold = 0.000000000001
+
+[[calculations]]
+threshold = 0.00000001
+"#;
+        let expected = source
+            .replace("threshold = 0.00000001 #", "threshold = 1e-8 #")
+            .replace(
+                "[0.000000000001, -0.00000001, { threshold = 0.000001 }]",
+                "[1e-12, -1e-8, { threshold = 1e-6 }]",
+            )
+            .replace(
+                "[nested]\nthreshold = 0.000000000001",
+                "[nested]\nthreshold = 1e-12",
+            )
+            .replace(
+                "[[calculations]]\nthreshold = 0.00000001",
+                "[[calculations]]\nthreshold = 1e-8",
+            );
+        assert_eq!(format_floats(source).unwrap(), expected);
+    }
+
+    #[test]
+    fn scientific_notation_preserves_float_bits() {
+        for number in [
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+            f64::MAX,
+            1e-12,
+            -1e-8,
+            1.234_567_890_123_456_7e-12,
+            1.234_567_890_123_456_7e20,
+            0.01,
+            0.0,
+            -0.0,
+        ] {
+            let source = format!("number = {}\n", toml_edit::Value::from(number));
+            let output = format_floats(&source).unwrap();
+            let parsed = output.parse::<toml_edit::DocumentMut>().unwrap();
+            assert_eq!(
+                parsed["number"].as_float().unwrap().to_bits(),
+                number.to_bits()
+            );
+        }
+    }
+
+    #[test]
     fn output_context_controls_defaults_without_changing_the_model() {
         let source = "[molecule]\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
         let parsed = parse_runfile("test", source).unwrap();
         let full = parsed.runfile.output(Defaults::Include).render().unwrap();
         let compact = parsed.runfile.output(Defaults::Omit).render().unwrap();
+        assert!(full.contains("convergence_threshold = 1e-8"));
+        assert!(full.contains("schwarz_threshold = 1e-12"));
         for field in [
             "charge =",
             "multiplicity =",
