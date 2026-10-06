@@ -115,6 +115,8 @@
               || inProjectTree "assets"
               || inProjectTree "samples"
               || inProjectTree "schemas"
+              || inProjectTree "src/runfile/nickel"
+              || inProjectTree "src/runfile/nickel"
               || inProjectTree "tests/data"
               || inProjectTree "crates/rustiq-core/tests/data";
           };
