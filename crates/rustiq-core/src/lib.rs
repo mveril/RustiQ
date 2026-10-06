@@ -1,5 +1,11 @@
 // Numerical accuracy and terminal output isolation are library-specific requirements.
-#![deny(clippy::imprecise_flops, clippy::print_stdout, clippy::print_stderr)]
+#![deny(
+    clippy::host_endian_bytes,
+    clippy::imprecise_flops,
+    clippy::redundant_clone,
+    clippy::print_stdout,
+    clippy::print_stderr
+)]
 #![allow(
     dead_code,
     non_snake_case,
@@ -87,6 +93,14 @@ pub mod bench_support {
     use crate::eri::electron_repulsion_ints_timed_with_observer;
     use crate::molecules::geometry::Geometry;
 
+    #[derive(Debug, thiserror::Error)]
+    pub enum EriBenchInputError {
+        #[error(transparent)]
+        Geometry(#[from] crate::molecules::geometry_parse_error::GeometryParseError),
+        #[error(transparent)]
+        Basis(#[from] crate::basis::BasisError),
+    }
+
     pub struct EriBenchInput {
         name: String,
         basis: Basis,
@@ -109,11 +123,7 @@ pub mod bench_support {
         ///
         /// # Errors
         ///
-        /// Returns an error if the basis data is invalid or unsupported.
-        ///
-        /// # Panics
-        ///
-        /// Panics if the benchmark geometry cannot be read or parsed.
+        /// Returns an error if the geometry cannot be read or parsed, or the basis is invalid or unsupported.
         #[allow(
             clippy::needless_pass_by_value,
             reason = "Preserve the public benchmark loader ownership contract"
@@ -122,9 +132,8 @@ pub mod bench_support {
             name: impl Into<String>,
             geometry_path: impl AsRef<Path>,
             basis: BasisFile,
-        ) -> Result<Self, crate::basis::BasisError> {
-            let geometry = Geometry::from_path(geometry_path.as_ref())
-                .unwrap_or_else(|err| panic!("failed to read geometry: {err:?}"));
+        ) -> Result<Self, EriBenchInputError> {
+            let geometry = Geometry::from_path(geometry_path.as_ref())?;
             let basis = Basis::try_load(&basis, &geometry)?;
 
             Ok(Self {

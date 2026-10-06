@@ -69,15 +69,17 @@ reference values, and tolerance rationale.
 
 Both crates inherit the workspace lint policy from the root Cargo manifest.
 Clippy's `all` and `pedantic` groups are denied, together with `unwrap_used`,
-`dbg_macro`, `todo`, `unimplemented`, `exit`, `lossy_float_literal`, and
+`dbg_macro`, `todo`, `unimplemented`, `panic`, `panic_in_result_fn`,
+`let_underscore_must_use`, `exit`, `lossy_float_literal`, and
 `allow_attributes_without_reason`.
 Unsafe code is forbidden. CI checks every target with all features and without
 default features; it also rejects any remaining compiler warnings.
 
-Use typed errors for fallible input and operations. An `expect` is appropriate
-only when its message explains an established internal invariant. Unit tests
-allow `unwrap` through `clippy.toml`; integration-test helpers have explicit,
-documented exceptions. Benchmarks follow the production rules.
+Use typed errors for fallible input and operations. Production code must not
+panic; a `Result`-returning function must report invalid external input through
+its error. An `expect` is appropriate only when its message explains an
+established internal invariant. Tests may panic intentionally and use `unwrap`;
+benchmarks follow the production rules. Do not silently discard a fallible result.
 
 Keep test assertions idiomatic: use `assert!(value.is_empty())` or
 `assert!(!value.is_empty())` when testing emptiness. Test modules permit
@@ -97,8 +99,10 @@ when ignoring a returned value is likely to be a mistake.
 
 The crate roots add checks specific to their responsibilities:
 
-- `rustiq-core` denies `imprecise_flops` to catch avoidable numerical precision
-  loss, such as `exp(x) - 1` instead of `exp_m1(x)`. It also denies `print_stdout`
+- `rustiq-core` denies `host_endian_bytes` to keep persisted bytes portable and
+  `redundant_clone` where ownership makes a clone unnecessary. It also denies
+  `imprecise_flops` to catch avoidable precision loss, such as `exp(x) - 1`
+  instead of `exp_m1(x)`, and denies `print_stdout`
   and `print_stderr` so library calculations cannot add terminal output that
   interferes with CLI reports or versioned JSON output.
 - The CLI denies `string_slice` to require review of byte-indexed UTF-8 text

@@ -96,7 +96,7 @@ mod tests {
         let scf: ScfCalculation<'_> =
             ScfCalculation::new(&molecule, &basis, 10, 1e-6, 1e-8, TestDensityGuess).unwrap();
 
-        let density = scf.density_matrix.clone();
+        let density = scf.density_matrix;
 
         // Check that the density is symmetric
         crate::debug_assert_is_symmetric!(&density, 1e-8);

@@ -65,10 +65,10 @@ fn main() {
     for case in cases {
         let basis_file = basis_store
             .get(case.basis)
-            .unwrap_or_else(|_| panic!("failed to load {} from basis store", case.basis))
-            .unwrap_or_else(|| panic!("missing {} in basis store", case.basis));
+            .expect("basis store should be readable")
+            .expect("benchmark basis should exist");
         let input = EriBenchInput::load(case.name, manifest_dir.join(case.geometry), basis_file)
-            .unwrap_or_else(|error| panic!("invalid basis {}: {error}", case.basis));
+            .expect("benchmark geometry and basis inputs should be valid");
         println!("case: {}", case.name);
         println!("  basis: {}", case.basis);
         flush_stdout();

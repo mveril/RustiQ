@@ -612,7 +612,7 @@ fn rejects_invalid_context_manifest_and_artifact_metadata() {
         write_members(&path, &contents);
         assert!(RustiQData::open(&path).is_err(), "{target} {field}");
     }
-    let mut contents = original.clone();
+    let mut contents = original;
     contents.retain(|(n, _)| n != CALCULATION_PATH);
     let path = dir.path().join("missing.rustiq");
     write_members(&path, &contents);
@@ -810,7 +810,7 @@ fn rejects_links_special_entries_encryption_and_oversized_metadata() {
     let path = dir.path().join("huge.rustiq");
     write_members(&path, &contents);
     assert!(RustiQData::open(path).is_err());
-    let mut bytes = original.clone();
+    let mut bytes = original;
     let end = bytes.len() - 22;
     bytes[end + 8..end + 10].copy_from_slice(&4097_u16.to_le_bytes());
     bytes[end + 10..end + 12].copy_from_slice(&4097_u16.to_le_bytes());

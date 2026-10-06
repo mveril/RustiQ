@@ -34,7 +34,7 @@ pub(crate) mod positive_finite_f64 {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a PositiveFiniteF64,
-        _arena: &'a Arena,
+        __arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.into_inner()))
     }
@@ -56,7 +56,7 @@ pub(crate) mod non_negative_finite_f64 {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonNegativeFiniteF64,
-        _arena: &'a Arena,
+        __arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.into_inner()))
     }
@@ -101,7 +101,7 @@ pub(crate) mod optional_positive_finite_f64 {
     )]
     pub(crate) fn to_toml<'a, T: ToTomlThreshold>(
         value: &'a T,
-        _arena: &'a Arena,
+        __arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.to_item()))
     }
@@ -121,7 +121,7 @@ pub(crate) mod diis_size {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a DiisSize,
-        _arena: &'a Arena,
+        __arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(value.into_inner() as i128))
     }
@@ -143,9 +143,8 @@ pub(crate) mod non_zero_usize {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonZeroUsize,
-        arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
-        let _ = arena;
         Ok(Item::from(value.get() as i128))
     }
 }
@@ -164,8 +163,10 @@ pub(crate) mod usize_as_integer {
         clippy::unnecessary_wraps,
         reason = "The TOML adapter must match the fallible serializer callback signature"
     )]
-    pub(crate) fn to_toml<'a>(value: &'a usize, arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
-        let _ = arena;
+    pub(crate) fn to_toml<'a>(
+        value: &'a usize,
+        _arena: &'a Arena,
+    ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(*value as i128))
     }
 }
@@ -186,9 +187,8 @@ pub(crate) mod non_zero_u8 {
     )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonZeroU8,
-        arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
-        let _ = arena;
         Ok(Item::from(i128::from(value.get())))
     }
 }

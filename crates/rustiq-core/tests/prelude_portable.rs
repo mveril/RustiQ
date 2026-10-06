@@ -35,7 +35,7 @@ fn portable_workflow_uses_only_the_public_prelude() {
     let mut strict_data = RustiQData::open(&path).unwrap();
     let transferred: CompactEri = strict_data.take_compatible_eri(&prepared).unwrap();
     let strict_result = prepared.execute_with_eri(transferred).unwrap();
-    let _: &CompactEri = strict_result.hf.ao_eri();
+    assert!(!strict_result.hf.ao_eri().is_empty());
 
     let _: Option<RustiQBundle> = None;
     let _: Option<ArtifactReuseEvent> = None;

@@ -26,8 +26,8 @@ impl Runnable for ListCommand {
     fn run(&self) -> CommandResult {
         let root = self.cache_dir.clone().unwrap_or_else(cache_path);
         let cache = EriCache::new(root);
-        // A read-only cache remains inspectable even when aliases cannot be assigned.
-        let _ = cache.assign_missing_names();
+        // Alias assignment is best-effort; a read-only cache remains inspectable.
+        drop(cache.assign_missing_names());
         let mut stdout = color::stdout();
         writeln!(
             stdout,

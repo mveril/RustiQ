@@ -34,7 +34,8 @@ fn temp_root(test_name: &str) -> PathBuf {
 
 fn prepare_basis_store(temp_root: &Path) {
     let basis_dir = temp_root.join("RustiQ").join("basis_sets");
-    let _ = fs::remove_dir_all(temp_root);
+    // This is test setup cleanup; a missing temporary directory is harmless.
+    drop(fs::remove_dir_all(temp_root));
     let store = BasisStore::new(&basis_dir);
     store
         .import(Cursor::new(include_bytes!("data/sto-3g.json")))
@@ -1165,6 +1166,10 @@ fn inertia_tensor(atoms: &[(String, [f64; 3])]) -> [[f64; 3]; 3] {
     })
 }
 
+#[allow(
+    clippy::panic,
+    reason = "The test-only mass helper accepts only the explicit fixture elements above"
+)]
 fn atomic_mass(symbol: &str) -> f64 {
     match symbol {
         "H" => 1.00794,

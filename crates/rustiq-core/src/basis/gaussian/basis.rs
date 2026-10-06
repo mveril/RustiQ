@@ -586,6 +586,10 @@ fn generate_angular_momentum_combinations_vector(l: u8) -> Vec<Vector3<u8>> {
     combinations
 }
 
+#[allow(
+    clippy::panic,
+    reason = "Basis::try_load rejects spherical angular momentum above 2 before this internal helper is called"
+)]
 fn generate_angular_components(l: u8, pure: bool) -> Vec<Vec<(Vector3<u8>, f64)>> {
     if !pure || l <= 1 {
         return generate_angular_momentum_combinations_vector(l)
@@ -821,8 +825,8 @@ mod tests {
         let alpha = vec![0.5];
         let contr = vec![Contraction::new(0, false, vec![1.0])];
         let origin = Point3::origin();
-        let shell = Shell::new(alpha.clone(), contr.clone(), origin);
-        let basis = Basis::new(vec![shell.clone()]);
+        let shell = Shell::new(alpha, contr, origin);
+        let basis = Basis::new(vec![shell]);
 
         assert_eq!(basis.shells.len(), 1);
         assert_eq!(basis.shell_ids.len(), 1); // Il y a une seule fonction de base
@@ -1088,8 +1092,8 @@ mod tests {
         let alpha = vec![0.5];
         let contr = vec![Contraction::new(0, false, vec![1.0])];
         let origin = point!(0.0, 0.0, 0.0);
-        let shell = Shell::new(alpha.clone(), contr.clone(), origin);
-        let basis = Basis::new(vec![shell.clone(), shell.clone()]);
+        let shell = Shell::new(alpha, contr, origin);
+        let basis = Basis::new(vec![shell.clone(), shell]);
 
         let overlap_matrix = basis.overlap_ints();
         let n = overlap_matrix.nrows();

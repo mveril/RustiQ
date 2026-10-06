@@ -176,7 +176,7 @@ mod tests {
         let l = 0;
         let pure = false;
 
-        let alpha = DVector::from_vec(alpha_values.clone());
+        let alpha = DVector::from_vec(alpha_values);
 
         let mut contractions = [Contraction::new(l, pure, coeffs)];
         Shell::renorm(&alpha, &mut contractions);
@@ -196,7 +196,7 @@ mod tests {
         let l = 0;
         let pure = false;
 
-        let alpha = DVector::from_vec(alpha_values.clone());
+        let alpha = DVector::from_vec(alpha_values);
 
         let mut contractions = [Contraction::new(l, pure, coeffs)];
         Shell::renorm(&alpha, &mut contractions);
@@ -210,7 +210,7 @@ mod tests {
         let l = 0;
         let pure = false;
 
-        let alpha = DVector::from_vec(alpha_values.clone());
+        let alpha = DVector::from_vec(alpha_values);
 
         let mut contractions = [Contraction::new(l, pure, coeffs)];
         Shell::renorm(&alpha, &mut contractions);

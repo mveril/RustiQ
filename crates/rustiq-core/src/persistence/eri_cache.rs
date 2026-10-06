@@ -211,7 +211,8 @@ impl EriCache {
         if let Ok(names) = super::cache_names::mappings(&self.root) {
             for (name, value) in names {
                 if value == fingerprint {
-                    let _ = super::cache_names::remove_alias(&self.root, &name);
+                    // Alias cleanup is best-effort; the scientific cache entry is already removed.
+                    drop(super::cache_names::remove_alias(&self.root, &name));
                 }
             }
         }
@@ -232,7 +233,8 @@ impl EriCache {
                 if fs::symlink_metadata(self.root.join("eri").join(fingerprint))
                     .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
                 {
-                    let _ = super::cache_names::remove_alias(&self.root, &name);
+                    // Alias cleanup is best-effort; the scientific cache entry is already removed.
+                    drop(super::cache_names::remove_alias(&self.root, &name));
                 }
             }
         }
@@ -317,7 +319,8 @@ impl EriCache {
         threshold: Option<PositiveFiniteF64>,
         eri: &CompactEri,
     ) -> io::Result<()> {
-        let _ = self.store_with_reference(molecule, basis, threshold, eri)?;
+        // The caller requested storage only; the optional human-readable alias is not needed here.
+        drop(self.store_with_reference(molecule, basis, threshold, eri)?);
         Ok(())
     }
 
@@ -372,18 +375,21 @@ impl EriCache {
         let temporary_path = temporary.keep();
         if fs::symlink_metadata(&final_entry).is_ok() {
             if self.load_identity(identity, basis_functions).is_some() {
-                let _ = fs::remove_dir_all(temporary_path);
+                // The published winner is valid; temporary cleanup failure does not invalidate it.
+                drop(fs::remove_dir_all(temporary_path));
                 return Ok(());
             }
             if let Err(error) = remove_invalid_entry(&final_entry) {
-                let _ = fs::remove_dir_all(&temporary_path);
+                // Preserve the publication error; cleanup is best-effort on this failure path.
+                drop(fs::remove_dir_all(&temporary_path));
                 return Err(error);
             }
         }
         match fs::rename(&temporary_path, &final_entry) {
             Ok(()) => Ok(()),
             Err(error) => {
-                let _ = fs::remove_dir_all(temporary_path);
+                // The published winner is valid; temporary cleanup failure does not invalidate it.
+                drop(fs::remove_dir_all(temporary_path));
                 if self.load_identity(identity, basis_functions).is_some() {
                     Ok(())
                 } else {

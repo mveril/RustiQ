@@ -11,6 +11,9 @@ unsafe_code = "forbid"
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 unwrap_used = "deny"
+panic = "deny"
+panic_in_result_fn = "deny"
+let_underscore_must_use = "deny"
 exit = "deny"
 lossy_float_literal = "deny"
 dbg_macro = "deny"

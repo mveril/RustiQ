@@ -455,7 +455,7 @@ H  0.000000  0.000000   0.370000
         let atom2 = Atom::new(&elements::H, Point3::new(0.0, 0.0, -point_angstrom.z));
         let geometry = Geometry::new(
             "Hydrogen molecule (centered)".to_string(),
-            vec![atom1.clone(), atom2.clone()],
+            vec![atom1, atom2],
         );
 
         let expected_output = format!(
