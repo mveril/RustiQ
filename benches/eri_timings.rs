@@ -5,7 +5,10 @@ use std::path::PathBuf;
 use rustiq_core::bench_support::{BasisStore, EriBenchInput};
 
 // Share application path policy; the scientific core only receives explicit paths.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "The benchmark shares the CLI path policy but only uses its basis-store helpers"
+)]
 #[path = "../src/cli/directories.rs"]
 mod cli_directories;
 
@@ -62,10 +65,10 @@ fn main() {
     for case in cases {
         let basis_file = basis_store
             .get(case.basis)
-            .unwrap_or_else(|_| panic!("failed to load {} from basis store", case.basis))
-            .unwrap_or_else(|| panic!("missing {} in basis store", case.basis));
+            .expect("basis store should be readable")
+            .expect("benchmark basis should exist");
         let input = EriBenchInput::load(case.name, manifest_dir.join(case.geometry), basis_file)
-            .unwrap_or_else(|error| panic!("invalid basis {}: {error}", case.basis));
+            .expect("benchmark geometry and basis inputs should be valid");
         println!("case: {}", case.name);
         println!("  basis: {}", case.basis);
         flush_stdout();
@@ -84,6 +87,10 @@ fn main() {
     }
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Cache coverage percentages are approximate floating-point statistics"
+)]
 fn print_cache_stats(result: &rustiq_core::bench_support::EriBenchResult) {
     let stats = &result.coulomb_cache_sizes;
     println!("  coulomb caches: {}", stats.count);
@@ -121,8 +128,7 @@ fn selected_cases() -> Vec<&'static BenchCase> {
 
 fn env_flag(name: &str) -> bool {
     env::var(name)
-        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
-        .unwrap_or(false)
+        .is_ok_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
 }
 
 fn basis_store() -> BasisStore {

@@ -179,6 +179,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "DIIS history selection must return the exact stored fixture values"
+    )]
     fn test_history_discards_oldest_entry() {
         let mut diis = DiisAccelerator::new(DiisSize::try_new(2).unwrap());
         let error = DMatrix::zeros(1, 1);

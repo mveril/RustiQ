@@ -17,8 +17,7 @@ impl ElementExt for Element {
     fn atomic_mass_f64(&self) -> Result<f64, AtomicMassParseError> {
         let mass = self.atomic_mass;
         mass.split_once('(')
-            .map(|(before, _)| before)
-            .unwrap_or(mass)
+            .map_or(mass, |(before, _)| before)
             .trim_matches(['[', ']'])
             .parse::<f64>()
             .map_err(|source| AtomicMassParseError { mass, source })

@@ -91,7 +91,7 @@ impl Dimensions {
         ]
         .into_iter()
         .max()
-        .unwrap();
+        .expect("the workspace estimate contains four allocation stages");
         let coefficients = product(&[n, sum(&[b, o, va, vb])?])?;
         bytes(sum(&[peak, coefficients])?)
     }
@@ -350,10 +350,18 @@ mod tests {
     use approx::assert_relative_eq;
     use nalgebra::DVector;
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn coefficients(n: usize, m: usize, shift: f64) -> DMatrix<f64> {
         DMatrix::from_fn(n, m, |i, j| ((i * m + j) as f64 + shift).sin() / n as f64)
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn integrals(n: usize) -> CompactEri {
         let mut eri = CompactEri::Zeroed(n);
         for k in 0..eri.len() {
@@ -362,6 +370,10 @@ mod tests {
         eri
     }
 
+    #[allow(
+        clippy::many_single_char_names,
+        reason = "Indices and exponents follow the standard notation for this integral or contraction"
+    )]
     fn direct(
         left: &DMatrix<f64>,
         right: &DMatrix<f64>,

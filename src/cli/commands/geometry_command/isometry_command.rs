@@ -8,6 +8,10 @@ use clap::Args;
 use nalgebra::{Isometry3, Rotation3, Translation3};
 
 #[derive(Args, Debug, Clone)]
+#[allow(
+    clippy::struct_field_names,
+    reason = "Each field groups flattened CLI arguments for a distinct transform"
+)]
 pub struct IsometryCommand {
     #[clap(flatten)]
     pub rotation_args: RotationArgs,

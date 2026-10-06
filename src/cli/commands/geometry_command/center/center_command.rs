@@ -22,7 +22,7 @@ impl Runnable for CenterCommand {
                 CenterType::Geometry => geometry.centering(),
                 CenterType::Mass => geometry.mass_centering().into_diagnostic()?,
                 CenterType::Charge => geometry.charge_centering(),
-            };
+            }
             Ok(())
         })?;
         Ok(())

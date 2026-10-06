@@ -218,9 +218,8 @@ pub(crate) fn validate_compact_eri_header(
         return false;
     };
     let mut reader = std::io::BufReader::new(reader);
-    let npy = match NpyFile::new(&mut reader) {
-        Ok(npy) => npy,
-        Err(_) => return false,
+    let Ok(npy) = NpyFile::new(&mut reader) else {
+        return false;
     };
     let dtype = npy.dtype();
     let valid_dtype = matches!(
@@ -237,9 +236,8 @@ pub(crate) fn validate_compact_eri_header(
         return false;
     };
     let valid_shape = npy.shape() == [expected];
-    let data_offset = match reader.stream_position() {
-        Ok(position) => position,
-        Err(_) => return false,
+    let Ok(data_offset) = reader.stream_position() else {
+        return false;
     };
     valid_dtype
         && valid_shape
@@ -288,12 +286,24 @@ fn matrix_from_npy_values(
 }
 
 #[cfg(test)]
+#[allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#[allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
 mod tests {
     use super::*;
     use crate::eri::index::EriIndex;
     use std::fs::File;
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn compact_eri_round_trips_through_npy_in_stable_order() {
         let basis_functions = 4;
         let mut source = CompactEri::Zeroed(basis_functions);
@@ -317,6 +327,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Changing the NPY memory layout must preserve the stored values exactly"
+    )]
     fn read_dmatrix_converts_c_order_npy_to_nalgebra_layout() {
         let shape = [2, 3];
         let values = [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0];
@@ -498,6 +512,10 @@ mod tests {
 
     #[test]
     #[ignore = "called by the NumPy interoperability test"]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn writes_npy_for_numpy_interoperability() {
         let output = std::env::var_os("RUSTIQ_NPY_TEST_OUTPUT")
             .expect("RUSTIQ_NPY_TEST_OUTPUT must name the NPY output file");

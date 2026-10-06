@@ -123,7 +123,7 @@ impl RequestSnapshot {
                     .integrals()
                     .schwarz_threshold
                     .value
-                    .map(|v| v.into_inner()),
+                    .map(crate::config::validated::PositiveFiniteF64::into_inner),
                 diis: hf.diis.enabled,
                 diis_size: u64::try_from(hf.diis.max_history.value.into_inner())
                     .map_err(|_| invalid())?,
@@ -147,6 +147,10 @@ impl RequestSnapshot {
         })
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Validate and reconstruct each portable request component in one coherent conversion"
+    )]
     pub(crate) fn to_request(&self) -> Result<CalculationRequest, PortableError> {
         if self.format != "rustiq-request" || self.version != 1 {
             return Err(PortableError::UnsupportedVersion);

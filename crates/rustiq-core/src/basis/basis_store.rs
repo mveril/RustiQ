@@ -53,17 +53,23 @@ pub struct BasisEntry {
 
 impl BasisEntry {
     /// The normalized identifier used to locate this basis set in the store.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
+    #[must_use]
     pub fn id(&self) -> &BasisId<'static> {
         &self.id
     }
 
     /// The canonical basis-set name declared by BSE.
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.basis.name
     }
 
     /// Consumes the entry and returns its decoded basis set.
+    #[must_use]
     pub fn into_basis_file(self) -> BasisFile {
         self.basis
     }
@@ -74,14 +80,19 @@ impl BasisStore {
     ///
     /// # Arguments
     /// * `path` - A reference to a path where the basis files are stored.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the built-in Basis Set Exchange URL is changed to an invalid URL.
     pub fn new(path: &impl AsRef<Path>) -> BasisStore {
         BasisStore {
             path: path.as_ref().to_owned().into_boxed_path(),
             #[cfg(feature = "online")]
-            url: Url::from_str(BASE_URL).unwrap(),
+            url: Url::from_str(BASE_URL).expect("the built-in Basis Set Exchange URL is valid"),
         }
     }
 
+    #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -144,7 +155,14 @@ impl BasisStore {
 
     /// Copies a basis file from another store into this store.
     #[cfg(any(test, feature = "bench-support"))]
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid basis identifier or if creating directories or copying the file fails.
     pub fn copy_from(&self, source: &BasisStore, name: &str) -> io::Result<()> {
         let id = BasisId::new(name)?;
         let destination = self.get_path(&id);
@@ -157,7 +175,11 @@ impl BasisStore {
 
     /// Returns the package-local fixture basis store used by tests and benches.
     #[cfg(any(test, feature = "bench-support"))]
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
+    #[must_use]
     pub fn repository_fixtures() -> BasisStore {
         BasisStore::new(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data"))
     }
@@ -168,10 +190,10 @@ impl BasisStore {
     /// Returns an [`io::Result`] if the directory cannot be read. Individual
     /// basis files may yield [`FileError`] while they are decoded.
     pub fn list(&self) -> io::Result<impl Iterator<Item = Result<BasisEntry, FileError>>> {
-        let read_dir = if !self.path.exists() {
-            None
-        } else {
+        let read_dir = if self.path.exists() {
             Some(self.path.read_dir()?)
+        } else {
+            None
         }
         .into_iter()
         .flatten();
@@ -233,7 +255,10 @@ impl BasisStore {
     /// Returns a [`DownloadParseError::Http`] if the HTTP request fails,
     /// or [`DownloadParseError::Serde`] if the JSON response cannot be parsed.
     #[cfg(feature = "online")]
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub async fn list_online(
         &self,
     ) -> Result<HashMap<BasisId<'static>, BasisSetDetail>, DownloadParseError> {
@@ -273,6 +298,10 @@ impl BasisStore {
     }
 
     #[cfg(feature = "online")]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid identifier, an unsuccessful HTTP request, or a filesystem failure.
     pub async fn download(
         &self,
         name: &str,
@@ -324,7 +353,10 @@ impl BasisStore {
     /// This function returns a [`DownloadSaveError::Http`] if the HTTP request fails,
     /// or a [`DownloadSaveError::Save`] if the file cannot be saved.
     #[cfg(feature = "online")]
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn download_sync(&self, name: &str) -> Result<(), DownloadSaveError> {
         let url = self.basis_url(name).map_err(SaveError::from)?;
         // Start downloading the file

@@ -1,3 +1,8 @@
+#![allow(
+    clippy::unwrap_used,
+    reason = "Integration tests and their fixture helpers intentionally panic on unexpected failures"
+)]
+
 //! These tests also run with no default features: no runfile parser or runtime.
 use std::num::{NonZeroU8, NonZeroUsize};
 
@@ -15,8 +20,9 @@ use rustiq_core::{
             distribution_config::UniformDistributionConfig, DistributionConfig, RandomConfig,
         },
         validated::{NonNegativeFiniteF64, PositiveFiniteF64},
-        DensityGuessConfig, DiisConfig, HfConfig, HfConfigError, HfMethod, IntegralConfig, Located,
-        MoleculeConfig, Mp2Config, OrthogonalizationConfig, RandomGuessConfig, ResolvedHfMethod,
+        DensityGuessConfig, DiisConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
+        IntegralConfig, Located, MoleculeConfig, Mp2Config, OrthogonalizationConfig,
+        RandomGuessConfig, ResolvedHfMethod,
     },
     molecules::{atom::Atom, geometry::Geometry, units::Units},
 };
@@ -87,6 +93,10 @@ struct WorkflowObserver {
 }
 
 impl WorkflowObserver {
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "Match the owned calculation-event callback contract exercised by the integration test"
+    )]
     fn on_event(&mut self, event: CalculationEvent<'_>) {
         match event {
             CalculationEvent::BasisStarted => self.events.push("basis_start"),
@@ -102,6 +112,10 @@ impl WorkflowObserver {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact comparisons verify fixture values or intentionally unchanged state, not numerical convergence"
+)]
 fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
@@ -245,13 +259,13 @@ fn preparation_resolves_missing_perturbation_seeds_but_keeps_explicit_seeds() {
     for (guess, expected) in [
         (
             DensityGuessConfig::CoreHamiltonian {
-                perturbation: Some(Default::default()),
+                perturbation: Some(GuessPerturbationConfig::default()),
             },
             None,
         ),
         (
             DensityGuessConfig::OneElectron {
-                perturbation: Some(Default::default()),
+                perturbation: Some(GuessPerturbationConfig::default()),
             },
             None,
         ),
@@ -281,7 +295,7 @@ fn preparation_resolves_missing_perturbation_seeds_but_keeps_explicit_seeds() {
                 distribution: DistributionConfig::Uniform {
                     config: UniformDistributionConfig { min: 0.0, max: 1.0 },
                 },
-                seed: Some(8675309),
+                seed: Some(8_675_309),
             },
         }),
     };
@@ -294,7 +308,7 @@ fn preparation_resolves_missing_perturbation_seeds_but_keeps_explicit_seeds() {
         .unwrap();
     match prepared.hf_config().guess.value {
         DensityGuessConfig::CoreHamiltonian { perturbation } => {
-            assert_eq!(perturbation.unwrap().random.seed, Some(8675309));
+            assert_eq!(perturbation.unwrap().random.seed, Some(8_675_309));
         }
         _ => panic!("expected core Hamiltonian guess"),
     }
@@ -665,6 +679,10 @@ fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Configuration parsing and default restoration must preserve the literal values exactly"
+)]
 fn configured_eri_threshold_reaches_scf_integrals() {
     let geometry = geometry();
     let file = basis_file();

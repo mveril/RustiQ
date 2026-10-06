@@ -6,6 +6,10 @@ use rustiq_core::{
 };
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+)]
 fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
     let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
     let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
@@ -70,6 +74,10 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+)]
 fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() {
     use rustiq_core::{
         config::{
@@ -148,6 +156,10 @@ fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() 
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+)]
 fn borrowed_output_and_owned_input_preserve_eri_and_mp2() {
     use rustiq_core::{
         calculation::CalculationExecution, config::Mp2Config, persistence::EriCache,
@@ -165,9 +177,9 @@ fn borrowed_output_and_owned_input_preserve_eri_and_mp2() {
     data.add_source("input.xyz", b"provenance".as_slice())
         .unwrap();
     let tensor = ordinary.hf.ao_eri();
-    let pointer = &tensor[(0, 0, 0, 0)] as *const f64;
+    let pointer = &raw const tensor[(0, 0, 0, 0)];
     data.write_with_eri(&path, tensor).unwrap();
-    assert_eq!(pointer, &ordinary.hf.ao_eri()[(0, 0, 0, 0)] as *const f64);
+    assert_eq!(pointer, &raw const ordinary.hf.ao_eri()[(0, 0, 0, 0)]);
     assert!(data.get::<AoEriArtifact>().unwrap().is_none());
     let mut restored = RustiQData::open(&path).unwrap();
     assert_eq!(restored.sources().len(), 1);
@@ -179,9 +191,9 @@ fn borrowed_output_and_owned_input_preserve_eri_and_mp2() {
         .prepare()
         .unwrap();
     let eri = restored.take_compatible_eri(&cached).unwrap();
-    let pointer = &eri[(0, 0, 0, 0)] as *const f64;
+    let pointer = &raw const eri[(0, 0, 0, 0)];
     let supplied = cached.execute_with_eri(eri).unwrap();
-    assert_eq!(pointer, &supplied.hf.ao_eri()[(0, 0, 0, 0)] as *const f64);
+    assert_eq!(pointer, &raw const supplied.hf.ao_eri()[(0, 0, 0, 0)]);
     assert!(!cache_root.exists());
     assert_eq!(
         ordinary.hf.summary().scf.electronic_energy,

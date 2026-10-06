@@ -24,6 +24,10 @@ where
         &mut self.writer
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep related SCF report sections together in their terminal display order"
+    )]
     pub(crate) fn write_summary(&mut self, result: &ScfResult, converged: bool) -> io::Result<()> {
         if converged {
             writeln!(

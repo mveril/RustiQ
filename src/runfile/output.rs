@@ -74,7 +74,7 @@ impl<T: ToToml + for<'de> FromToml<'de>> ToToml for TomlOutput<'_, T> {
 // in one step. Arrays are kept intact unless the entire field can be omitted.
 fn collect_fields(item: &Item<'_>, path: &mut Vec<String>, paths: &mut Vec<Vec<String>>) {
     if let Some(table) = item.as_table() {
-        for (key, value) in table.iter() {
+        for (key, value) in table {
             path.push(key.as_str().to_owned());
             paths.push(path.clone());
             collect_fields(value, path, paths);
@@ -234,6 +234,10 @@ frozen_orbitals = 1
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+    )]
     fn schwarz_threshold_zero_survives_compaction_and_omission_restores_default() {
         let parsed = parse_runfile(
             "zero.toml",

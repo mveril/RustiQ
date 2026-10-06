@@ -87,6 +87,10 @@ fn relative_geometry(input: &Path, directory: &Path) -> PathBuf {
 }
 
 impl Runnable for InitCommand {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep initialization validation and file publication in their execution order"
+    )]
     fn run(&self) -> CommandResult {
         if self.basis.trim().is_empty() {
             return Err(miette!("Basis name must not be empty"));
@@ -107,9 +111,10 @@ impl Runnable for InitCommand {
         {
             return Err(miette!("Invalid molecular electron count: {electrons}"));
         }
-        let multiplicity = self
-            .multiplicity
-            .unwrap_or_else(|| NonZeroU8::new(if electrons % 2 == 0 { 1 } else { 2 }).unwrap());
+        let multiplicity = self.multiplicity.unwrap_or_else(|| {
+            NonZeroU8::new(if electrons % 2 == 0 { 1 } else { 2 })
+                .expect("default singlet or doublet multiplicity is nonzero")
+        });
         let units = match self.units {
             GeometryUnits::Angstrom => Units::Angstrom,
             GeometryUnits::Bohr => Units::Bohr,
@@ -230,6 +235,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration parsing and default restoration must preserve the literal values exactly"
+    )]
     fn test_init_runfile_restores_defaults_for_run_display() {
         let temp = tempfile::tempdir().unwrap();
         let input = temp.path().join("h2.xyz");

@@ -231,7 +231,10 @@ impl<'a> HfCalculation<'a> {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Scientific setup requires these distinct inputs; preserve the existing interface"
+    )]
     pub(crate) fn new_with_progress_and_cache(
         molecule: &'a Molecule,
         basis: &'a Basis,
@@ -310,7 +313,7 @@ impl<'a> HfCalculation<'a> {
                     method,
                     span: match &error {
                         UhfSetupError::Scf(error) => setup_span(error, config),
-                        _ => None,
+                        UhfSetupError::ElectronRepulsion(_) => None,
                     },
                     error: error.into(),
                 })?;

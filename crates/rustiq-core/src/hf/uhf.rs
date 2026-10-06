@@ -89,7 +89,10 @@ pub struct UhfCalculation<'a> {
 }
 
 impl<'a> UhfCalculation<'a> {
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn new<G>(
         molecule: &'a Molecule,
         basis: &'a Basis,
@@ -155,7 +158,14 @@ impl<'a> UhfCalculation<'a> {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Scientific setup requires these distinct inputs; keeping the existing interface avoids a broader refactor"
+    )]
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "All density-guess strategies share an owned setup interface"
+    )]
     pub(crate) fn new_with_prepared<G, F>(
         molecule: &'a Molecule,
         basis: &'a Basis,
@@ -276,7 +286,10 @@ impl<'a> UhfCalculation<'a> {
             .then(|| DiisAccelerator::new(config.max_history.value));
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained helper supports scientific tests and benchmarks"
+    )]
     pub fn run(&mut self) -> Result<ScfOutcome, NumericalError> {
         self.run_with_iterations(|_| {})
     }
@@ -353,6 +366,10 @@ impl<'a> UhfCalculation<'a> {
         }))
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Allocated orbital counts are represented in f64 for the spin expectation values"
+    )]
     fn spin_diagnostics(&self) -> Result<SpinDiagnostics, NumericalError> {
         let n_alpha = self.occupied_orbitals.alpha;
         let n_beta = self.occupied_orbitals.beta;
@@ -375,10 +392,10 @@ impl<'a> UhfCalculation<'a> {
     }
 
     fn sort_orbitals(
-        mo_coefficients: DMatrix<f64>,
-        orbital_energies: DVector<f64>,
+        mo_coefficients: &DMatrix<f64>,
+        orbital_energies: &DVector<f64>,
     ) -> Result<(DMatrix<f64>, DVector<f64>), NumericalError> {
-        ensure_finite_values(&orbital_energies, "orbital energies")?;
+        ensure_finite_values(orbital_energies, "orbital energies")?;
         let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
         order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
@@ -496,7 +513,7 @@ impl<'a> UhfCalculation<'a> {
             &self.orthogonalizer.transpose() * fock_matrix * &self.orthogonalizer;
         let eig = fock_preconditioned.symmetric_eigen();
         let mo_coefficients = &self.orthogonalizer * eig.eigenvectors;
-        Self::sort_orbitals(mo_coefficients, eig.eigenvalues)
+        Self::sort_orbitals(&mo_coefficients, &eig.eigenvalues)
     }
 
     fn update_density_matrices(&mut self) {
@@ -590,7 +607,7 @@ impl<'a> UhfCalculation<'a> {
 pub(crate) fn alpha_beta_occupied_orbitals(molecule: &Molecule) -> Spin<usize> {
     let electrons = molecule.total_electrons();
     let spin = molecule.unpaired_electrons() as usize;
-    let alpha = (electrons + spin) / 2;
+    let alpha = usize::midpoint(electrons, spin);
     let beta = (electrons - spin) / 2;
     Spin::new(alpha, beta)
 }
@@ -741,8 +758,8 @@ mod tests {
 
     #[test]
     fn test_uhf_h2_singlet_matches_rhf_reference_energy() {
-        const PYSCF_RHF_ELECTRONIC_ENERGY: f64 = -1.831863646477507;
-        const PYSCF_RHF_TOTAL_ENERGY: f64 = -1.116759307396425;
+        const PYSCF_RHF_ELECTRONIC_ENERGY: f64 = -1.831_863_646_477_507;
+        const PYSCF_RHF_TOTAL_ENERGY: f64 = -1.116_759_307_396_425;
 
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);
@@ -877,7 +894,7 @@ mod tests {
         assert_abs_diff_eq!(beta_electrons, 0.0, epsilon = 1e-8);
         assert_abs_diff_eq!(
             alpha_electrons - beta_electrons,
-            molecule.unpaired_electrons() as f64,
+            f64::from(molecule.unpaired_electrons()),
             epsilon = 1e-8
         );
     }
@@ -923,6 +940,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Canonicalization or cloning must preserve the previously computed state exactly"
+    )]
     fn test_converged_uhf_orbitals_are_canonical_for_final_fock() {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
         let basis = test_utils::load_sto3g_basis(&geometry);

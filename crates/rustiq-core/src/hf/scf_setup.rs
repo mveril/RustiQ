@@ -76,7 +76,10 @@ pub(crate) fn prepare_scf_setup(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Scientific setup requires these distinct inputs; preserve the existing interface"
+)]
 pub(crate) fn prepare_configured_scf_setup(
     molecule: &Molecule,
     basis: &Basis,
@@ -104,7 +107,10 @@ pub(crate) fn prepare_configured_scf_setup(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Scientific setup requires these distinct inputs; preserve the existing interface"
+)]
 fn prepare_scf_setup_with_thresholds(
     molecule: &Molecule,
     basis: &Basis,

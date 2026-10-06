@@ -220,6 +220,10 @@ impl Storage {
         })
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "Storage backends share a fallible finalization contract"
+    )]
     pub(crate) fn finish(self) -> Result<(), StorageError> {
         match self {
             Self::Folder(_) | Self::ZipReader(_) | Self::Scoped { .. } => Ok(()),

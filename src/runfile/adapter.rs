@@ -253,6 +253,10 @@ mod tests {
     use toml_spanner::Toml;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+    )]
     fn component_configs_convert_in_both_directions() {
         let frontend_diis = crate::runfile::hf::DiisConfig {
             enabled: true,
@@ -358,7 +362,6 @@ mod tests {
                 discriminant(&rustiq_core::config::DensityGuessConfig::from(config.guess)),
                 discriminant(&expected)
             );
-            let _density_guess = config.guess;
         }
     }
 }

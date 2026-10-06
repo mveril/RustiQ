@@ -35,7 +35,7 @@ impl AsyncRunnable for DownloadCommand {
                 if let Some(total_size) = total {
                     let progress_bar =
                         ProgressBar::new(total_size).with_style(progress_style.clone());
-                    let _ = pb_cell.set(progress_bar);
+                    pb_cell.get_or_init(|| progress_bar);
                 }
             }
             if let Some(pb) = pb_cell.get_mut() {

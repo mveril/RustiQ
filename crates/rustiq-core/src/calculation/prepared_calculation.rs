@@ -123,24 +123,32 @@ impl PreparedCalculation {
     /// Normal execution checks compatibility per artifact, then uses the enabled
     /// local cache or computes missing/incompatible values. Corrupt required
     /// payloads are errors. Newly computed values are retained in memory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reusable portable data is incompatible with this calculation.
     pub fn with_reuse_data(mut self, data: RustiQData) -> Result<Self, PortableError> {
         self.source = CalculationSource::Portable(Box::new(ArtifactReuse::new(data, &self)?));
         Ok(self)
     }
 
     /// Returns the normalized inputs as requested before scientific resolution.
+    #[must_use]
     pub fn request(&self) -> &CalculationRequest {
         &self.request
     }
 
+    #[must_use]
     pub fn get_molecule(&self) -> &Molecule {
         &self.molecule
     }
 
+    #[must_use]
     pub fn get_basis(&self) -> &Basis {
         &self.basis
     }
 
+    #[must_use]
     pub fn hf_method(&self) -> ResolvedHfMethod {
         self.hf.1
     }
@@ -148,12 +156,14 @@ impl PreparedCalculation {
     /// Human-readable label of the loaded basis; this is not its scientific identity.
     /// The resolved basis contents exposed by `get_basis()` are authoritative. Replaying
     /// canonical TOML that uses this label assumes a compatible basis store.
+    #[must_use]
     pub fn basis_name(&self) -> &str {
         &self.basis_name
     }
 
     /// Resolved HF presentation options with an explicit method and no frontend source spans.
     /// Random seeds resolved during preparation are retained here.
+    #[must_use]
     pub fn hf_config(&self) -> HfConfig {
         let mut config = super::builder::normalized_hf_config(&self.hf.0);
         config.method.value = match self.hf.1 {
@@ -163,11 +173,13 @@ impl PreparedCalculation {
         config
     }
 
+    #[must_use]
     pub fn integral_config(&self) -> IntegralConfig {
         super::builder::normalized_integral_config(&self.integrals)
     }
 
     /// MP2 options without frontend source spans; automatic memory resolves at execution.
+    #[must_use]
     pub fn mp2_config(&self) -> Option<&Mp2Config> {
         self.request.mp2()
     }
@@ -175,10 +187,19 @@ impl PreparedCalculation {
 
 impl PreparedCalculation {
     /// Run only HF, retaining orbitals and integrals for subsequent MP2.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if HF setup fails or a non-finite numerical value is encountered.
     pub fn run_hf(&self) -> Result<HfOutcome, CalculationExecutionError> {
         self.run_hf_with_events(|_| {})
     }
 
+    /// Runs HF while reporting setup, iteration, and completion events.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if HF setup fails or a non-finite numerical value is encountered.
     pub fn run_hf_with_events(
         &self,
         events: impl FnMut(CalculationEvent<'_>),
@@ -187,6 +208,10 @@ impl PreparedCalculation {
     }
 
     /// Runs HF with an owned AO ERI, bypassing integral computation and the ERI cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the supplied ERI is incompatible or HF preparation or execution fails.
     pub fn run_hf_with_eri(&self, eri: CompactEri) -> Result<HfOutcome, CalculationExecutionError> {
         self.run_hf_from_eri(Some(eri), |_| {})
     }
@@ -229,7 +254,7 @@ impl PreparedCalculation {
             |event| events.borrow_mut()(CalculationEvent::EriCache(event)),
         )?;
         let outcome = calculation.run_with_iterations(|iteration| {
-            events.borrow_mut()(CalculationEvent::ScfIteration(iteration))
+            events.borrow_mut()(CalculationEvent::ScfIteration(iteration));
         })?;
         let hf = match outcome {
             ScfOutcome::Converged(scf) => HfOutcome::Converged(HfSolution::from_state(
@@ -261,6 +286,10 @@ impl PreparedCalculation {
 
 impl PreparedCalculation {
     /// Executes HF and optional MP2 using the supplied AO ERI without copying it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied ERIs are incompatible or HF/MP2 execution fails.
     pub fn execute_with_eri(
         &self,
         eri: CompactEri,

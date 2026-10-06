@@ -14,6 +14,10 @@ use std::path::Path;
 impl RustiQData {
     /// Creates portable scientific data from effective inputs, without running HF.
     /// Add known artifacts with the typed setters before calling [`Self::write`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if resolved inputs or their portable request are invalid or inconsistent.
     pub fn from_calculation(calculation: &PreparedCalculation) -> Result<Self, PortableError> {
         let snapshot = Snapshot::from_calculation(calculation)?;
         RequestSnapshot::from_request(calculation.request())?;
@@ -31,6 +35,10 @@ impl RustiQData {
     /// Opens a portable archive and validates its context and artifact index.
     /// Numerical payloads are verified and decoded lazily on first access.
     /// Multi-calculation archives require [`super::RustiQBundle::open`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for inaccessible, unsupported, corrupt, or multi-calculation archives.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
         let bundle = super::RustiQBundle::open(path)?;
         let (mut calculations, sources) = bundle.into_parts();
@@ -115,6 +123,7 @@ impl RustiQData {
     }
 
     /// Returns the normalized pre-resolution request, absent for directory-cache data.
+    #[must_use]
     pub fn request(&self) -> Option<&crate::calculation::CalculationRequest> {
         self.request.as_ref()
     }
@@ -124,6 +133,10 @@ impl RustiQData {
     /// Payloads are loaded and verified only when their scientific stage needs them.
     /// Missing or incompatible artifacts fall back to computation; corrupt compatible
     /// artifacts produce an execution error. The source archive is never modified.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if portable context or request data is missing or incompatible.
     pub fn prepare_calculation(self) -> Result<PreparedCalculation, PortableError> {
         let context = self.context.as_ref().ok_or_else(|| {
             PortableError::InvalidCalculation(
@@ -140,11 +153,16 @@ impl RustiQData {
     }
 
     /// Captured sources are opaque provenance and never affect scientific compatibility.
+    #[must_use = "Consume the iterator to inspect the stored scientific data"]
     pub fn sources(&self) -> impl ExactSizeIterator<Item = &SourceProvenance> {
         self.sources.iter()
     }
 
     /// Captures exact source bytes; the original name is informational, never an archive path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if portable context is absent or provenance exceeds supported size or count limits.
     pub fn add_source(
         &mut self,
         original_name: impl Into<String>,
@@ -184,11 +202,13 @@ impl RustiQData {
     }
 
     /// Returns the portable context, absent only for internal directory-cache data.
+    #[must_use]
     pub fn calculation(&self) -> Option<&CalculationContext> {
         self.context.as_ref()
     }
 
     /// Producer name and version recorded as provenance, not compatibility policy.
+    #[must_use]
     pub fn producer(&self) -> (&str, &str) {
         (
             &self.manifest.producer.name,
@@ -216,6 +236,7 @@ impl RustiQData {
 
     /// Tests AO ERI compatibility with another resolved calculation, without reading arrays.
     /// Requested HF/MP2 methods do not participate in deterministic integral identity.
+    #[must_use]
     pub fn eri_is_compatible(&self, calculation: &PreparedCalculation) -> bool {
         if self.ao_eri.is_some() {
             return self.matches_eri_identity(calculation);
@@ -241,6 +262,10 @@ impl RustiQData {
 
     /// Atomically publishes a portable archive. Never overwrites an existing path.
     /// The source archive is not modified; unloaded artifacts are copied and verified.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if portable context is missing, artifact validation fails, or atomic publication fails.
     pub fn write(&mut self, path: impl AsRef<Path>) -> Result<(), PortableError> {
         if self.context.is_none()
             || self.request.is_none()
@@ -258,6 +283,10 @@ impl RustiQData {
     }
 
     /// Writes a single-calculation V1 bundle with a borrowed AO ERI tensor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the supplied ERI is incompatible or archive validation or publication fails.
     pub fn write_with_eri(
         &mut self,
         path: impl AsRef<Path>,
@@ -277,6 +306,14 @@ impl RustiQData {
 
     /// Validates compatibility and lazily decodes the ERI, then transfers ownership.
     /// Missing, unsupported, incompatible, or corrupt artifacts are errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the ERI is absent, incompatible, corrupt, or cannot be decoded.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a validated, loaded ERI is unexpectedly absent from internal state.
     pub fn take_compatible_eri(
         &mut self,
         calculation: &PreparedCalculation,

@@ -56,6 +56,10 @@ pub(crate) fn new_one_electron_scf<'a>(
     .unwrap()
 }
 
+#[allow(
+    clippy::struct_field_names,
+    reason = "Energy suffixes distinguish the scientific quantities in reference comparisons"
+)]
 pub(crate) struct ScfReferenceResult {
     pub(crate) electronic_energy: f64,
     pub(crate) nuclear_repulsion_energy: f64,

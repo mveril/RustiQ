@@ -18,6 +18,10 @@ const MAX_END_RECORD_BYTES: u64 = 65536;
 pub(super) fn invalid(message: impl Into<String>) -> StorageError {
     StorageError::Archive(message.into())
 }
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "The adapter is passed directly to map_err and consumes its error"
+)]
 pub(super) fn zip_error(error: zip::result::ZipError) -> StorageError {
     invalid(error.to_string())
 }
@@ -72,15 +76,31 @@ pub(super) fn writer(file: File) -> ZipWriter<BufWriter<File>> {
 }
 
 fn u16_at(bytes: &[u8], offset: usize) -> u16 {
-    u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap())
+    u16::from_le_bytes(
+        bytes[offset..offset + 2]
+            .try_into()
+            .expect("the validated byte slice has the fixed integer width"),
+    )
 }
 fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+    u32::from_le_bytes(
+        bytes[offset..offset + 4]
+            .try_into()
+            .expect("the validated byte slice has the fixed integer width"),
+    )
 }
 fn u64_at(bytes: &[u8], offset: usize) -> u64 {
-    u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
+    u64::from_le_bytes(
+        bytes[offset..offset + 8]
+            .try_into()
+            .expect("the validated byte slice has the fixed integer width"),
+    )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep ZIP structural validation and bounds checks together"
+)]
 fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
     let length = file.metadata()?.len();
     let tail_len = length.min(22 + u64::from(u16::MAX));
@@ -185,8 +205,8 @@ fn preflight(file: &mut File) -> Result<(usize, u64), StorageError> {
             return Err(invalid("unsupported encryption, flags or compression"));
         }
         let attributes = u32_at(header, 38);
-        let file_type = (attributes >> 16) & 0o170000;
-        if attributes & 0x10 != 0 || !matches!(file_type, 0 | 0o100000) {
+        let file_type = (attributes >> 16) & 0o170_000;
+        if attributes & 0x10 != 0 || !matches!(file_type, 0 | 0o100_000) {
             return Err(invalid("only regular file members are supported"));
         }
         if u16_at(header, 34) != 0 {

@@ -19,7 +19,10 @@ pub(crate) mod f64_const {
     }
 }
 
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 pub fn binomial(n: u64, k: u64) -> u64 {
     if k > n {
         0
@@ -28,26 +31,39 @@ pub fn binomial(n: u64, k: u64) -> u64 {
     }
 }
 
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Scientific coefficients and analytic functions are evaluated at f64 precision"
+)]
 pub fn hermite_classic(n: u64, x: f64) -> f64 {
+    let n_order = i32::try_from(n).expect("Hermite polynomial order fits in i32");
     let mut sum = 0.0;
 
     for m in 0..=(n / 2) {
+        let m_order = i32::try_from(m).expect("Hermite summation order is bounded by n / 2");
         // Corrected coefficient calculation with proper parentheses
         let coefficient = n.factorial() / (m.factorial() * (n - 2 * m).factorial());
         let term = coefficient as f64
-            * (-1.0_f64).powi(m as i32)
-            * 2.0_f64.powi((n as i32) - (2 * m) as i32)
-            * x.powi((n as i32) - (2 * m) as i32);
+            * (-1.0_f64).powi(m_order)
+            * 2.0_f64.powi(n_order - (2 * m_order))
+            * x.powi(n_order - (2 * m_order));
         sum += term;
     }
 
     sum
 }
 
-#[allow(dead_code, non_snake_case)]
+#[allow(
+    dead_code,
+    non_snake_case,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use; Symbols follow established matrix and Gaussian integral notation"
+)]
 pub fn hermite(n: u64, PA: u32, QA: u32, p: f64, q: f64, f0: f64) -> f64 {
-    let x = (PA as f64 - QA as f64) / (p + q).sqrt();
+    let x = (f64::from(PA) - f64::from(QA)) / (p + q).sqrt();
     f0 * hermite_classic(n, x)
 }
 
@@ -114,6 +130,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "The low-order Hermite polynomial cases have exact integer-valued results"
+    )]
     fn test_hermite_classic() {
         // Hermite polynomials (Physicist's version)
 

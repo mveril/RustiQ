@@ -1,4 +1,7 @@
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 
 use super::function_type::FunctionType;
 use super::utils::{
@@ -51,16 +54,22 @@ pub struct BasisFile {
 
 impl BasisFile {
     /// Loads a basis file from its JSON representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading or deserializing the basis JSON fails.
     pub fn from_reader(reader: impl Read) -> Result<Self, serde_json::Error> {
         serde_json::from_reader(reader)
     }
 
     /// Returns the alternative names declared in the basis file.
+    #[must_use]
     pub fn names(&self) -> &[String] {
         &self.names
     }
 
     /// Returns the function types declared in the basis file.
+    #[must_use]
     pub fn function_types(&self) -> &HashSet<FunctionType> {
         &self.function_types
     }
@@ -71,11 +80,16 @@ impl BasisFile {
     }
 
     /// Returns the identifier derived from the canonical JSON `name` field.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the canonical name is not a valid basis identifier.
     pub fn id(&self) -> Result<BasisId<'_>, InvalidBasisId> {
         BasisId::new(&self.name)
     }
 
     /// Returns the canonical basis-set name as declared in the JSON document.
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }

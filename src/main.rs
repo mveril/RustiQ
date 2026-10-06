@@ -1,3 +1,6 @@
+// User text and filesystem paths require careful handling at the CLI boundary.
+#![deny(clippy::string_slice, clippy::path_buf_push_overwrite)]
+
 use std::env;
 
 use clap::{CommandFactory, FromArgMatches};
@@ -14,12 +17,13 @@ fn main() -> miette::Result<()> {
     let mode = app.color.unwrap_or(mode);
     cli::color::configure(mode);
     let color_enabled = cli::color::enabled_for(cli::color::OutputStream::Stderr);
-    let _ = miette::set_hook(Box::new(move |_| {
+    miette::set_hook(Box::new(move |_| {
         Box::new(
             miette::MietteHandlerOpts::new()
                 .color(color_enabled)
                 .build(),
         )
-    }));
+    }))
+    .map_err(|error| miette::miette!("failed to install diagnostic hook: {error}"))?;
     app.command.run()
 }

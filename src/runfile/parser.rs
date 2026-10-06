@@ -112,7 +112,9 @@ schwarz_threshold = 1e-10
 
         let method_span = hf.method.span.unwrap();
         assert_eq!(
-            &source[method_span.offset()..method_span.offset() + method_span.len()],
+            source
+                .get(method_span.offset()..method_span.offset() + method_span.len())
+                .unwrap(),
             "\"Rhf\""
         );
         assert!(hf.guess.span.is_some());

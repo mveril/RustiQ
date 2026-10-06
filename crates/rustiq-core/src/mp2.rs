@@ -1,3 +1,7 @@
+#![allow(
+    clippy::doc_markdown,
+    reason = "MathJax renders the module MP2 equations as mathematical expressions"
+)]
 //! Second-order Møller--Plesset correlation energy.
 //!
 //! For canonical RHF orbitals, this module evaluates
@@ -554,7 +558,10 @@ fn basis_function_pair_count(basis_functions: usize) -> usize {
     basis_functions * (basis_functions + 1) / 2
 }
 
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 fn mo_two_electron_integral(
     two_electron_integrals: &CompactEri,
     mo_coefficients: &DMatrix<f64>,
@@ -597,6 +604,19 @@ pub struct Mp2BenchResult {
 
 /// Synthetic, deterministic inputs; timing excludes input/ERI construction and SCF.
 #[cfg(feature = "bench-support")]
+///
+/// # Errors
+///
+/// Returns an error if the orbital dimensions, memory budget, denominators, or numerical result are
+/// invalid.
+///
+/// # Panics
+///
+/// Panics if no memory plan is emitted, including when there are no occupied or virtual orbitals.
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Synthetic benchmark inputs intentionally map integer indices to floating-point values"
+)]
 pub fn benchmark_mp2(n: usize, occupied: usize, budget: u64) -> Result<Mp2BenchResult, Mp2Error> {
     use std::time::Instant;
     let coefficients = DMatrix::from_fn(n, n, |i, j| ((i * n + j) as f64 + 0.3).sin() / n as f64);
@@ -649,7 +669,8 @@ pub fn benchmark_mp2(n: usize, occupied: usize, budget: u64) -> Result<Mp2BenchR
         blocked_elapsed,
         dense_energy,
         blocked_energy,
-        memory: memory.unwrap(),
+        memory: memory
+            .expect("the blocked MP2 observer reports a memory plan for nonempty sectors"),
     })
 }
 
@@ -660,6 +681,10 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn test_ao_pair_matrix_matches_previous_builder_bitwise() {
         for threads in [1, 4] {
             let pool = rayon::ThreadPoolBuilder::new()
@@ -688,6 +713,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
+    )]
     fn test_orbital_pair_transform_matches_previous_builder_bitwise() {
         for threads in [1, 4] {
             let pool = rayon::ThreadPoolBuilder::new()
@@ -779,6 +808,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Skipped same-spin contributions must produce exactly zero"
+    )]
     fn test_same_spin_skips_identically_zero_contributions() {
         // Exercise i == j and a == b separately, including a frozen orbital.
         for (occupied, virtuals, frozen) in [(1, 2, 0), (2, 1, 0), (2, 2, 1)] {

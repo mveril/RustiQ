@@ -1,3 +1,7 @@
+#![allow(
+    clippy::unwrap_used,
+    reason = "Integration-test helpers fail immediately on invalid fixtures"
+)]
 use rustiq_core::{
     basis::BasisFile,
     calculation::{
@@ -19,6 +23,10 @@ fn inputs(distance: f64) -> (Geometry, BasisFile) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Artifact reuse must preserve identical execution results and stored values exactly"
+)]
 fn execute_automatically_reuses_portable_eri_and_preserves_mp2_results() {
     let (geometry, basis) = inputs(1.4);
     let original = CalculationBuilder::new(&geometry, &basis)
@@ -60,13 +68,17 @@ fn execute_automatically_reuses_portable_eri_and_preserves_mp2_results() {
     assert_eq!(overridden.ao_eri()[(0, 0, 0, 0)], 0.0);
     let repeated = restored.execute().unwrap();
     let hf_only = restored.run_hf().unwrap();
-    let pointer = &result.hf.ao_eri()[(0, 0, 0, 0)] as *const f64;
-    assert_eq!(pointer, &repeated.hf.ao_eri()[(0, 0, 0, 0)] as *const f64);
-    assert_eq!(pointer, &hf_only.ao_eri()[(0, 0, 0, 0)] as *const f64);
+    let pointer = &raw const result.hf.ao_eri()[(0, 0, 0, 0)];
+    assert_eq!(pointer, &raw const repeated.hf.ao_eri()[(0, 0, 0, 0)]);
+    assert_eq!(pointer, &raw const hf_only.ao_eri()[(0, 0, 0, 0)]);
     assert_eq!(std::fs::read(path).unwrap(), archive_bytes);
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Artifact reuse must preserve identical execution results and stored values exactly"
+)]
 fn missing_eri_are_computed_once_and_retained_for_normal_execution() {
     let (geometry, basis) = inputs(1.4);
     let original = CalculationBuilder::new(&geometry, &basis)
@@ -108,13 +120,17 @@ fn missing_eri_are_computed_once_and_retained_for_normal_execution() {
         expected.hf.summary().scf.total_energy
     );
     assert_eq!(
-        &first.hf.ao_eri()[(0, 0, 0, 0)] as *const f64,
-        &second.hf.ao_eri()[(0, 0, 0, 0)] as *const f64,
+        &raw const first.hf.ao_eri()[(0, 0, 0, 0)],
+        &raw const second.hf.ao_eri()[(0, 0, 0, 0)],
     );
     assert_eq!(std::fs::read(path).unwrap(), archive_bytes);
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Artifact reuse must preserve identical execution results and stored values exactly"
+)]
 fn incompatible_artifacts_fall_back_to_the_current_calculation_and_local_cache() {
     let (source_geometry, basis) = inputs(1.4);
     let source_calculation = CalculationBuilder::new(&source_geometry, &basis)
@@ -156,6 +172,10 @@ fn incompatible_artifacts_fall_back_to_the_current_calculation_and_local_cache()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Artifact reuse must preserve identical execution results and stored values exactly"
+)]
 fn explicit_portable_eri_take_precedence_over_local_cache_and_computation() {
     let (geometry, basis) = inputs(1.4);
     let original = CalculationBuilder::new(&geometry, &basis)
@@ -177,6 +197,10 @@ fn explicit_portable_eri_take_precedence_over_local_cache_and_computation() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Artifact reuse must preserve identical execution results and stored values exactly"
+)]
 fn restored_open_shell_calculation_preserves_requested_units_and_resolved_method() {
     use rustiq_core::{
         config::{DiisConfig, HfConfig, MoleculeConfig, ResolvedHfMethod},
@@ -223,6 +247,10 @@ fn restored_open_shell_calculation_preserves_requested_units_and_resolved_method
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Artifact reuse must preserve identical execution results and stored values exactly"
+)]
 fn resolved_spherical_ao_components_are_restored_without_renormalization() {
     let (geometry, _) = inputs(1.4);
     let mut basis_json: serde_json::Value =

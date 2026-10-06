@@ -1,5 +1,8 @@
 // src/eri.rs
-#![allow(non_snake_case)]
+#![allow(
+    non_snake_case,
+    reason = "Symbols follow established matrix and Gaussian integral notation"
+)]
 
 use std::f64::consts::PI;
 #[cfg(feature = "bench-support")]
@@ -58,7 +61,14 @@ static COULOMB_CACHE_SIZE_BUCKETS: [AtomicU64; 8] = [
 /// # Returns
 ///
 /// The 1D overlap integral.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
+#[allow(
+    clippy::doc_markdown,
+    reason = "MathJax renders Gaussian integral notation as mathematical expressions"
+)]
 pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
     let T = gamma * (PAx - PBx).powi(2);
     (PI / gamma).sqrt() * (-T).exp()
@@ -81,7 +91,14 @@ pub fn overlap_1d(PAx: f64, PBx: f64, gamma: f64) -> f64 {
 /// # Returns
 ///
 /// The 1D kinetic integral.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
+#[allow(
+    clippy::doc_markdown,
+    reason = "MathJax renders Gaussian integral notation as mathematical expressions"
+)]
 pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) -> f64 {
     let S = overlap_1d(PAx, PBx, gamma);
     (alpha_a * alpha_b / gamma) * 3.0 * S
@@ -102,7 +119,15 @@ pub fn kinetic_1d(PAx: f64, PBx: f64, gamma: f64, alpha_a: f64, alpha_b: f64) ->
 /// # Returns
 ///
 /// The value of the primitive ERI integral.
-#[allow(clippy::too_many_arguments, dead_code)]
+#[allow(
+    clippy::too_many_arguments,
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use; Scientific setup requires these distinct inputs; keeping the existing interface avoids a broader refactor"
+)]
+#[allow(
+    clippy::doc_markdown,
+    reason = "MathJax renders the primitive ERI equation as a mathematical expression"
+)]
 pub fn compute_eri_primitive(
     alpha_p: f64,
     alpha_q: f64,
@@ -193,7 +218,10 @@ pub(crate) fn electron_repulsion_ints_with_threshold(
 }
 
 #[cfg(feature = "bench-support")]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 #[derive(Debug, Clone)]
 pub struct EriTimingBreakdown {
     pub basis_functions: usize,
@@ -207,7 +235,10 @@ pub struct EriTimingBreakdown {
 }
 
 #[cfg(feature = "bench-support")]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 #[derive(Debug, Clone)]
 pub struct CacheSizeStats {
     pub count: u64,
@@ -217,8 +248,16 @@ pub struct CacheSizeStats {
 }
 
 #[cfg(feature = "bench-support")]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 impl CacheSizeStats {
+    #[must_use]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Cache statistics are approximate floating-point means, not exact integer counts"
+    )]
     pub fn mean_len(&self) -> f64 {
         if self.count == 0 {
             0.0
@@ -227,6 +266,7 @@ impl CacheSizeStats {
         }
     }
 
+    #[must_use]
     pub fn count_at_most(&self, max_len: usize) -> u64 {
         self.buckets
             .iter()
@@ -237,7 +277,10 @@ impl CacheSizeStats {
 }
 
 #[cfg(feature = "bench-support")]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 pub fn electron_repulsion_ints_timed(
     basis: &Basis,
 ) -> Result<(CompactEri, EriTimingBreakdown), EriError> {
@@ -365,9 +408,12 @@ fn build_pair_expansion(basis: &Basis, i: usize, j: usize) -> PairExpansion {
                         ),
                         coefficient: primitive_i.coefficient * primitive_j.coefficient,
                         max_orders: Vector3::new(
-                            e[0].len() as u8 - 1,
-                            e[1].len() as u8 - 1,
-                            e[2].len() as u8 - 1,
+                            u8::try_from(e[0].len() - 1)
+                                .expect("validated pair Hermite order fits in u8"),
+                            u8::try_from(e[1].len() - 1)
+                                .expect("validated pair Hermite order fits in u8"),
+                            u8::try_from(e[2].len() - 1)
+                                .expect("validated pair Hermite order fits in u8"),
                         ),
                         terms: hermite_terms(&e),
                     });
@@ -557,7 +603,7 @@ impl HermiteCoefficientCache {
                     0.0
                 };
                 let middle = -(reduced_exp * self.qx / self.a) * self.value(lower_i, j, t);
-                let right = (t as f64 + 1.0) * self.value(lower_i, j, t + 1);
+                let right = (f64::from(t) + 1.0) * self.value(lower_i, j, t + 1);
                 left + middle + right
             } else {
                 let lower_j = j - 1;
@@ -567,7 +613,7 @@ impl HermiteCoefficientCache {
                     0.0
                 };
                 let middle = (reduced_exp * self.qx / self.b) * self.value(i, lower_j, t);
-                let right = (t as f64 + 1.0) * self.value(i, lower_j, t + 1);
+                let right = (f64::from(t) + 1.0) * self.value(i, lower_j, t + 1);
                 left + middle + right
             }
         };
@@ -617,6 +663,10 @@ impl CoulombAuxiliaryCache {
         self.value_at(orders.x, orders.y, orders.z, n)
     }
 
+    #[allow(
+        clippy::many_single_char_names,
+        reason = "Indices and exponents follow the standard notation for this integral or contraction"
+    )]
     fn value_at(&mut self, t: u8, u: u8, v: u8, n: u8) -> f64 {
         let index = self.index(t, u, v, n);
         let cached = self.values[index];
@@ -627,11 +677,11 @@ impl CoulombAuxiliaryCache {
         let value = if t == 0 && u == 0 && v == 0 {
             let p = self.p;
             let boys = self.boys[n];
-            (-2.0 * p).powi(n as i32) * boys
+            (-2.0 * p).powi(i32::from(n)) * boys
         } else if t > 0 {
             let pc_x = self.pc.x;
             let lower = if t >= 2 {
-                (t as f64 - 1.0) * self.value_at(t - 2, u, v, n + 1)
+                (f64::from(t) - 1.0) * self.value_at(t - 2, u, v, n + 1)
             } else {
                 0.0
             };
@@ -639,7 +689,7 @@ impl CoulombAuxiliaryCache {
         } else if u > 0 {
             let pc_y = self.pc.y;
             let lower = if u >= 2 {
-                (u as f64 - 1.0) * self.value_at(t, u - 2, v, n + 1)
+                (f64::from(u) - 1.0) * self.value_at(t, u - 2, v, n + 1)
             } else {
                 0.0
             };
@@ -647,7 +697,7 @@ impl CoulombAuxiliaryCache {
         } else {
             let pc_z = self.pc.z;
             let lower = if v >= 2 {
-                (v as f64 - 1.0) * self.value_at(t, u, v - 2, n + 1)
+                (f64::from(v) - 1.0) * self.value_at(t, u, v - 2, n + 1)
             } else {
                 0.0
             };
@@ -700,9 +750,12 @@ mod tests {
     }
 
     /// Structure for a simple contraction (s-orbital, STO-3G).
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     fn create_sto3g_contraction() -> Contraction {
-        let coefficients = vec![0.15432897, 0.53532814, 0.44463454];
+        let coefficients = vec![0.154_328_97, 0.535_328_14, 0.444_634_54];
         // Arguments: l = 0 (s-orbital), pure = false (Cartesian)
         Contraction::new(0, false, coefficients)
     }
@@ -768,7 +821,7 @@ mod tests {
 
         let eri = compute_eri_primitive(alpha_p, alpha_q, alpha_r, alpha_s, A, B, C, D);
 
-        let expected_eri = 12.838834347631737;
+        let expected_eri = 12.838_834_347_631_737;
 
         // Check
         assert_abs_diff_eq!(eri, expected_eri, epsilon = 1e-6);
@@ -787,7 +840,7 @@ mod tests {
         // Select the (0,1,0,1) integral for H2
         let eri = eri_tensor[(0, 1, 0, 1)];
 
-        let expected_eri = 0.039595701902556416;
+        let expected_eri = 0.039_595_701_902_556_416;
 
         // Check
         assert_abs_diff_eq!(eri, expected_eri, epsilon = 1e-6);
@@ -807,7 +860,7 @@ mod tests {
 
         // Approximate expected value for the self-integral (based on theory or other software)
         // This value should be obtained with reference software such as PySCF for better precision.
-        let expected_eri_self = 0.7746059439198978;
+        let expected_eri_self = 0.774_605_943_919_897_8;
 
         // Check
         assert_abs_diff_eq!(eri, expected_eri_self, epsilon = 1e-6);
@@ -849,6 +902,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "The test distinguishes exact screened zeros or verifies that screening changes the computed result"
+    )]
     fn test_eri_schwarz_screening_skips_negligible_pair_products() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_distant_h2_geometry();
@@ -860,6 +917,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "The test distinguishes exact screened zeros or verifies that screening changes the computed result"
+    )]
     fn test_custom_eri_schwarz_threshold_controls_screening() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geom = create_h2_geometry();

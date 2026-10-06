@@ -49,6 +49,7 @@ pub enum HfOutcome {
 
 impl HfOutcome {
     /// Borrows the AO ERI tensor, including when HF did not converge.
+    #[must_use]
     pub fn ao_eri(&self) -> &CompactEri {
         match self {
             Self::Converged(hf) => hf.ao_eri(),
@@ -57,10 +58,12 @@ impl HfOutcome {
     }
 
     /// Returns the resolved Hartree-Fock method, even when HF did not converge.
+    #[must_use]
     pub fn method(&self) -> ResolvedHfMethod {
         self.summary().method
     }
 
+    #[must_use]
     pub fn summary(&self) -> &HfCalculationResult {
         match self {
             Self::Converged(hf) => hf.summary(),
@@ -75,6 +78,7 @@ impl HfOutcome {
         }
     }
 
+    #[must_use]
     pub fn is_converged(&self) -> bool {
         matches!(self, Self::Converged(_))
     }
@@ -82,6 +86,7 @@ impl HfOutcome {
 
 impl<State> HfSolution<State> {
     /// Borrows the retained AO ERI tensor without copying it.
+    #[must_use]
     pub fn ao_eri(&self) -> &CompactEri {
         &self.0.integrals
     }
@@ -123,11 +128,13 @@ impl<State> HfSolution<State> {
         )
     }
 
+    #[must_use]
     pub fn summary(&self) -> &HfCalculationResult {
         &self.0.summary
     }
 
     /// Returns the Hartree-Fock method used to produce this solution.
+    #[must_use]
     pub fn method(&self) -> ResolvedHfMethod {
         self.summary().method
     }
@@ -142,6 +149,11 @@ impl HfSolution<Converged> {
     ///     hf.mp2(Mp2Config::default());
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the MP2 configuration, orbital data, memory budget, or numerical result
+    /// is invalid.
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         self.mp2_with_report(config, &mut |_| {})
     }
@@ -217,12 +229,15 @@ pub struct CalculationExecutionError {
 }
 
 impl CalculationExecutionError {
+    #[must_use]
     pub fn cause(&self) -> &CalculationError {
         &self.cause
     }
+    #[must_use]
     pub fn hf(&self) -> Option<&HfOutcome> {
         self.hf.as_ref()
     }
+    #[must_use]
     pub fn into_hf(self) -> Option<HfOutcome> {
         self.hf
     }

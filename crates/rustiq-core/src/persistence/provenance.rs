@@ -12,9 +12,11 @@ pub struct SourceProvenance {
 }
 
 impl SourceProvenance {
+    #[must_use]
     pub fn original_name(&self) -> &str {
         &self.original_name
     }
+    #[must_use]
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }

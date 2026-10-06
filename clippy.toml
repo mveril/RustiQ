@@ -1,0 +1,7 @@
+# Tests intentionally panic on unexpected failures. Production and benchmarks must explain invariants.
+allow-unwrap-in-tests = true
+allow-panic-in-tests = true
+allow-unwrap-in-consts = false
+
+# Project names also appear in plain-text CLI help generated from documentation.
+doc-valid-idents = ["RustiQ", "RUSTIQ_AUTO_DOWNLOAD", ".."]

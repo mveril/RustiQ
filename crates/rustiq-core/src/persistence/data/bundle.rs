@@ -25,6 +25,10 @@ pub struct RustiQBundle {
 impl RustiQBundle {
     /// Collects portable calculation data, rejecting empty or cache-only collections.
     /// Exact duplicate sources are stored once at the bundle level.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the collection is empty or any calculation lacks portable context or request data.
     pub fn new(mut calculations: Vec<RustiQData>) -> Result<Self, PortableError> {
         if calculations.is_empty() {
             return Err(invalid("portable bundles require at least one calculation"));
@@ -53,6 +57,10 @@ impl RustiQBundle {
     }
 
     /// Opens read-only, validating all snapshots and references without loading arrays.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if archive structure, context, references, or provenance are invalid or cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
         let mut storage = Storage::open_zip(path.as_ref())?;
         let manifest: PortableManifest = storage
@@ -110,6 +118,7 @@ impl RustiQBundle {
     }
 
     /// Entries retain manifest order; each exposes its own typed artifact access.
+    #[must_use]
     pub fn calculations(&self) -> &[RustiQData] {
         &self.calculations
     }
@@ -119,11 +128,16 @@ impl RustiQBundle {
         &mut self.calculations
     }
 
+    #[must_use = "Consume the iterator to inspect the stored scientific data"]
     pub fn sources(&self) -> impl ExactSizeIterator<Item = &SourceProvenance> {
         self.sources.iter()
     }
 
     /// Adds shared exact source bytes; the original name never becomes a member path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if provenance exceeds supported size, name, or count limits.
     pub fn add_source(
         &mut self,
         original_name: impl Into<String>,
@@ -141,6 +155,10 @@ impl RustiQBundle {
     }
 
     /// Publishes a complete validated snapshot atomically, without overwriting a destination.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if provenance or scientific artifacts are invalid or atomic publication fails.
     pub fn write(&mut self, path: impl AsRef<Path>) -> Result<(), PortableError> {
         // Sources attached through individual entry APIs are lifted to shared provenance.
         for data in &mut self.calculations {

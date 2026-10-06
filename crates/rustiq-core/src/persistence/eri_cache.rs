@@ -50,11 +50,16 @@ impl EriCache {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }
+    #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
     }
 
     /// Lists the published ERI cache entries without following symbolic links.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache directory cannot be inspected.
     pub fn entries(&self) -> io::Result<Vec<EriCacheEntry>> {
         let names = super::cache_names::mappings(&self.root).unwrap_or_default();
         let mut result = Vec::new();
@@ -122,6 +127,10 @@ impl EriCache {
 
     /// Assigns persistent aliases to published entries without reading payloads.
     /// Failure leaves all scientific entries intact; callers may still list them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inspecting entries or publishing persistent aliases fails.
     pub fn assign_missing_names(&self) -> io::Result<()> {
         let mut names = super::cache_names::mappings(&self.root)?;
         for fingerprint in self.fingerprints()? {
@@ -132,6 +141,11 @@ impl EriCache {
     }
 
     /// Resolves a persistent alias to a published fingerprint without reading NPY.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inspecting an alias or cache directory fails or an unsafe path is
+    /// encountered.
     pub fn resolve_name(&self, name: &str) -> io::Result<Option<String>> {
         let Some(fingerprint) = super::cache_names::resolve(&self.root, name)? else {
             return Ok(None);
@@ -148,6 +162,10 @@ impl EriCache {
     }
 
     /// Removes an entry by its full fingerprint or persistent alias.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unsafe cache path or if resolving or removing the entry fails.
     pub fn remove_named(&self, target: &str) -> io::Result<bool> {
         if is_fingerprint(target) {
             return self.remove(target);
@@ -162,6 +180,10 @@ impl EriCache {
     ///
     /// Returns `false` when the entry does not exist. Symbolic links and invalid
     /// fingerprints are rejected rather than being followed or interpreted as paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid fingerprint, an unsafe cache path, or a filesystem failure.
     pub fn remove(&self, fingerprint: &str) -> io::Result<bool> {
         if !is_fingerprint(fingerprint) {
             return Err(io::Error::new(
@@ -189,7 +211,8 @@ impl EriCache {
         if let Ok(names) = super::cache_names::mappings(&self.root) {
             for (name, value) in names {
                 if value == fingerprint {
-                    let _ = super::cache_names::remove_alias(&self.root, &name);
+                    // Alias cleanup is best-effort; the scientific cache entry is already removed.
+                    drop(super::cache_names::remove_alias(&self.root, &name));
                 }
             }
         }
@@ -197,6 +220,10 @@ impl EriCache {
     }
 
     /// Removes every published ERI cache entry below this cache root.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if listing or removing a published cache entry fails.
     pub fn remove_all(&self) -> io::Result<()> {
         for fingerprint in self.fingerprints()? {
             self.remove(&fingerprint)?;
@@ -206,7 +233,8 @@ impl EriCache {
                 if fs::symlink_metadata(self.root.join("eri").join(fingerprint))
                     .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
                 {
-                    let _ = super::cache_names::remove_alias(&self.root, &name);
+                    // Alias cleanup is best-effort; the scientific cache entry is already removed.
+                    drop(super::cache_names::remove_alias(&self.root, &name));
                 }
             }
         }
@@ -291,7 +319,8 @@ impl EriCache {
         threshold: Option<PositiveFiniteF64>,
         eri: &CompactEri,
     ) -> io::Result<()> {
-        let _ = self.store_with_reference(molecule, basis, threshold, eri)?;
+        // The caller requested storage only; the optional human-readable alias is not needed here.
+        drop(self.store_with_reference(molecule, basis, threshold, eri)?);
         Ok(())
     }
 
@@ -346,18 +375,21 @@ impl EriCache {
         let temporary_path = temporary.keep();
         if fs::symlink_metadata(&final_entry).is_ok() {
             if self.load_identity(identity, basis_functions).is_some() {
-                let _ = fs::remove_dir_all(temporary_path);
+                // The published winner is valid; temporary cleanup failure does not invalidate it.
+                drop(fs::remove_dir_all(temporary_path));
                 return Ok(());
             }
             if let Err(error) = remove_invalid_entry(&final_entry) {
-                let _ = fs::remove_dir_all(&temporary_path);
+                // Preserve the publication error; cleanup is best-effort on this failure path.
+                drop(fs::remove_dir_all(&temporary_path));
                 return Err(error);
             }
         }
         match fs::rename(&temporary_path, &final_entry) {
             Ok(()) => Ok(()),
             Err(error) => {
-                let _ = fs::remove_dir_all(temporary_path);
+                // The published winner is valid; temporary cleanup failure does not invalidate it.
+                drop(fs::remove_dir_all(temporary_path));
                 if self.load_identity(identity, basis_functions).is_some() {
                     Ok(())
                 } else {
@@ -404,16 +436,14 @@ fn validate_payload(entry: &Path, artifact: &ArtifactManifest, basis_functions: 
         return false;
     }
     let file_path = entry.join(AO_ERI_PATH);
-    let metadata = match fs::symlink_metadata(&file_path) {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
+    let Ok(metadata) = fs::symlink_metadata(&file_path) else {
+        return false;
     };
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return false;
     }
-    let mut file = match File::open(&file_path) {
-        Ok(file) => file,
-        Err(_) => return false,
+    let Ok(mut file) = File::open(&file_path) else {
+        return false;
     };
     if file
         .metadata()
@@ -452,6 +482,14 @@ pub(super) fn is_fingerprint(value: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#[allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
 mod tests {
     use super::*;
     use crate::persistence::MANIFEST_PATH;
@@ -473,6 +511,10 @@ mod tests {
         let basis = load_sto3g_basis(molecule.geometry());
         (molecule, basis)
     }
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The test helper returns the optional threshold accepted by the cache identity API"
+    )]
     fn threshold() -> Option<PositiveFiniteF64> {
         Some(PositiveFiniteF64::try_new(DEFAULT_ERI_SCHWARZ_THRESHOLD).unwrap())
     }

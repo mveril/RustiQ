@@ -54,47 +54,58 @@ impl CalculationContext {
         let counts = DomainCounts::from_snapshot(&snapshot)?;
         Ok(Self(snapshot, counts))
     }
+    #[must_use = "Consume the iterator to inspect the stored scientific data"]
     pub fn atoms(&self) -> impl ExactSizeIterator<Item = (u32, [f64; 3])> + '_ {
         self.0
             .atoms
             .iter()
             .map(|atom| (atom.atomic_number, atom.position))
     }
+    #[must_use]
     pub fn charge(&self) -> i32 {
         self.0.charge
     }
+    #[must_use]
     pub fn multiplicity(&self) -> u8 {
         self.0.multiplicity
     }
     pub fn basis(&self) -> impl ExactSizeIterator<Item = ResolvedAo<'_>> {
         self.0.basis.iter().map(ResolvedAo)
     }
+    #[must_use]
     pub fn hf_method(&self) -> ResolvedHfMethod {
         match self.0.hf.method {
             Method::Rhf => ResolvedHfMethod::Rhf,
             Method::Uhf => ResolvedHfMethod::Uhf,
         }
     }
+    #[must_use]
     pub fn max_iterations(&self) -> usize {
         self.1.max_iterations
     }
+    #[must_use]
     pub fn convergence_threshold(&self) -> f64 {
         self.0.hf.convergence_threshold
     }
+    #[must_use]
     pub fn linear_dependency_threshold(&self) -> f64 {
         self.0.hf.linear_dependency_threshold
     }
+    #[must_use]
     pub fn eri_schwarz_threshold(&self) -> Option<f64> {
         self.0.hf.eri_schwarz_threshold
     }
+    #[must_use]
     pub fn diis_size(&self) -> Option<usize> {
         self.1.diis_size
     }
     /// `None` means HF only; `Some(n)` requests MP2 with n frozen orbitals.
+    #[must_use]
     pub fn mp2_frozen_orbitals(&self) -> Option<usize> {
         self.1.frozen_orbitals
     }
     /// The initial density strategy; random settings do not promise an exact restart.
+    #[must_use]
     pub fn density_guess(&self) -> crate::config::DensityGuessConfig {
         self.0.hf.guess.to_config()
     }
@@ -125,6 +136,7 @@ struct Atom {
 #[derive(Clone, Copy, Debug)]
 pub struct ResolvedAo<'a>(&'a Ao);
 impl<'a> ResolvedAo<'a> {
+    #[must_use]
     pub fn center(&self) -> [f64; 3] {
         self.0.center
     }
@@ -136,10 +148,12 @@ impl<'a> ResolvedAo<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct ResolvedComponent<'a>(&'a Component);
 impl ResolvedComponent<'_> {
+    #[must_use]
     pub fn angular_momentum(&self) -> [u8; 3] {
         self.0.angular_momentum
     }
     /// Returns (exponent, effective normalized coefficient) pairs.
+    #[must_use = "Consume the iterator to inspect the stored scientific data"]
     pub fn primitives(&self) -> impl ExactSizeIterator<Item = (f64, f64)> + '_ {
         self.0
             .primitives
@@ -290,7 +304,7 @@ impl Snapshot {
                     .integral_config()
                     .schwarz_threshold
                     .value
-                    .map(|value| value.into_inner()),
+                    .map(crate::config::validated::PositiveFiniteF64::into_inner),
                 diis_size: hf
                     .diis
                     .enabled
@@ -382,6 +396,10 @@ impl Snapshot {
         Ok(())
     }
 
+    #[allow(
+        clippy::float_cmp,
+        reason = "Portable input validation requires exact configuration values"
+    )]
     pub(crate) fn validate_request(
         &self,
         request: &crate::calculation::CalculationRequest,
@@ -424,7 +442,7 @@ impl Snapshot {
                 .integrals()
                 .schwarz_threshold
                 .value
-                .map(|v| v.into_inner())
+                .map(crate::config::validated::PositiveFiniteF64::into_inner)
                 != self.hf.eri_schwarz_threshold
             || hf
                 .diis
@@ -492,11 +510,9 @@ pub(super) fn resolve_hf_method_v1(
     let closed_shell_singlet =
         molecule.multiplicity().get() == 1 && molecule.total_electrons().is_multiple_of(2);
     match method {
-        HfMethod::Rhf if closed_shell_singlet => Some(ResolvedHfMethod::Rhf),
+        HfMethod::Rhf | HfMethod::Auto if closed_shell_singlet => Some(ResolvedHfMethod::Rhf),
         HfMethod::Rhf => None,
-        HfMethod::Uhf => Some(ResolvedHfMethod::Uhf),
-        HfMethod::Auto if closed_shell_singlet => Some(ResolvedHfMethod::Rhf),
-        HfMethod::Auto => Some(ResolvedHfMethod::Uhf),
+        HfMethod::Uhf | HfMethod::Auto => Some(ResolvedHfMethod::Uhf),
     }
 }
 
@@ -504,6 +520,11 @@ pub(super) fn resolve_hf_method_v1(
 // than inheriting a future physical_constants release. Parse as binary64 and divide.
 const V1_BOHR_IN_ANGSTROM: f64 = 0.529_177_210_903;
 
+#[allow(
+    clippy::float_cmp,
+    clippy::items_after_statements,
+    reason = "The frozen V1 contract compares Bohr values exactly and keeps its ULP ordering helper beside the comparison"
+)]
 fn coordinate_matches_v1(
     requested: f64,
     resolved: f64,
@@ -798,7 +819,10 @@ mod v1_contract_tests {
                     .iter()
                     .find(|element| element.symbol == *symbol)
                     .unwrap();
-                Atom::new(element, point![0.0, 0.0, index as f64])
+                Atom::new(
+                    element,
+                    point![0.0, 0.0, f64::from(u32::try_from(index).unwrap())],
+                )
             })
             .collect();
         Molecule::try_new(

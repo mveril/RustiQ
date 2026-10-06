@@ -1,4 +1,20 @@
-#![allow(dead_code, non_snake_case)]
+// Numerical accuracy and terminal output isolation are library-specific requirements.
+#![deny(
+    clippy::host_endian_bytes,
+    clippy::imprecise_flops,
+    clippy::redundant_clone,
+    clippy::print_stdout,
+    clippy::print_stderr
+)]
+#![allow(
+    dead_code,
+    non_snake_case,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use; Symbols follow established matrix and Gaussian integral notation"
+)]
+#![allow(
+    clippy::doc_markdown,
+    reason = "The crate introduction uses MathJax equations; child modules re-enable Markdown linting"
+)]
 
 //! Reusable domain and scientific implementation used by the CLI and benchmarks.
 //!
@@ -37,22 +53,35 @@
 //! [`calculation`] for the RHF/UHF equations, orthogonalization convention, and
 //! MP2 correction. MP2 is available only from converged, canonical HF orbitals.
 
+#[deny(clippy::doc_markdown)]
 pub mod basis;
+#[deny(clippy::doc_markdown)]
 pub mod calculation;
+#[deny(clippy::doc_markdown)]
 pub mod config;
+#[deny(clippy::doc_markdown)]
 pub(crate) mod eri;
+#[deny(clippy::doc_markdown)]
 pub(crate) mod hf;
+#[deny(clippy::doc_markdown)]
 pub(crate) mod math_utils;
+#[deny(clippy::doc_markdown)]
 pub mod molecules;
+#[deny(clippy::doc_markdown)]
 pub(crate) mod mp2;
+#[deny(clippy::doc_markdown)]
 pub mod persistence;
+#[deny(clippy::doc_markdown)]
 pub mod prelude;
+#[deny(clippy::doc_markdown)]
 pub(crate) mod resources;
 
 #[cfg(test)]
+#[deny(clippy::doc_markdown)]
 pub(crate) mod test_utils;
 
 #[cfg(feature = "bench-support")]
+#[deny(clippy::doc_markdown)]
 pub mod bench_support {
     pub use crate::basis::BasisStore;
     pub use crate::eri::{CacheSizeStats, EriError};
@@ -63,6 +92,14 @@ pub mod bench_support {
     use crate::basis::{Basis, BasisFile};
     use crate::eri::electron_repulsion_ints_timed_with_observer;
     use crate::molecules::geometry::Geometry;
+
+    #[derive(Debug, thiserror::Error)]
+    pub enum EriBenchInputError {
+        #[error(transparent)]
+        Geometry(#[from] crate::molecules::geometry_parse_error::GeometryParseError),
+        #[error(transparent)]
+        Basis(#[from] crate::basis::BasisError),
+    }
 
     pub struct EriBenchInput {
         name: String,
@@ -82,13 +119,21 @@ pub mod bench_support {
     }
 
     impl EriBenchInput {
+        /// Loads a geometry and basis for repeated ERI benchmarks.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if the geometry cannot be read or parsed, or the basis is invalid or unsupported.
+        #[allow(
+            clippy::needless_pass_by_value,
+            reason = "Preserve the public benchmark loader ownership contract"
+        )]
         pub fn load(
             name: impl Into<String>,
             geometry_path: impl AsRef<Path>,
             basis: BasisFile,
-        ) -> Result<Self, crate::basis::BasisError> {
-            let geometry = Geometry::from_path(geometry_path.as_ref())
-                .unwrap_or_else(|err| panic!("failed to read geometry: {err:?}"));
+        ) -> Result<Self, EriBenchInputError> {
+            let geometry = Geometry::from_path(geometry_path.as_ref())?;
             let basis = Basis::try_load(&basis, &geometry)?;
 
             Ok(Self {
@@ -97,10 +142,20 @@ pub mod bench_support {
             })
         }
 
+        /// Computes ERIs once and returns the timing breakdown.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if ERI allocation, size calculations, or numerical evaluation fails.
         pub fn run_once(&self) -> Result<EriBenchResult, EriError> {
             self.run_once_with_observer(|_, _| {})
         }
 
+        /// Computes ERIs once while reporting timings for each stage.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if ERI allocation, size calculations, or numerical evaluation fails.
         pub fn run_once_with_observer(
             &self,
             observer: impl FnMut(&'static str, Duration),

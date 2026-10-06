@@ -6,7 +6,10 @@ use nalgebra::{distance, Isometry3, Matrix3, Point3, Rotation3, Translation3, Ve
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use std::ops::{Index, IndexMut, Range};
 use std::path::Path;
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 use std::{
     fmt::{self, Display},
     fs::File,
@@ -21,10 +24,16 @@ pub struct Geometry {
 }
 
 impl Geometry {
+    #[must_use]
     pub fn new(comment: String, atoms: Vec<Atom>) -> Self {
         Geometry { comment, atoms }
     }
 
+    /// Parses an XYZ geometry with a source name for diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the source is not a valid XYZ geometry.
     pub fn from_source(
         source_name: impl Into<String>,
         source: &str,
@@ -32,27 +41,51 @@ impl Geometry {
         parse_xyz(source_name, source)
     }
 
+    /// Reads and parses an XYZ geometry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading fails or the input is not a valid XYZ geometry.
     pub fn from_reader(mut reader: impl BufRead) -> Result<Self, GeometryParseError> {
         let mut source = String::new();
         reader.read_to_string(&mut source)?;
         Self::from_source("<geometry>", &source)
     }
 
+    /// Reads and parses an XYZ geometry from an open file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading fails or the file is not a valid XYZ geometry.
     pub fn from_file(file: File) -> Result<Self, GeometryParseError> {
         Self::from_reader(BufReader::new(file))
     }
 
+    /// Loads an XYZ geometry from a filesystem path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading fails or the file is not a valid XYZ geometry.
     pub fn from_path(path: &Path) -> Result<Self, GeometryParseError> {
         let source = std::fs::read_to_string(path)?;
         Self::from_source(path.display().to_string(), &source)
     }
 
-    #[allow(clippy::wrong_self_convention)]
+    #[allow(
+        clippy::wrong_self_convention,
+        reason = "The existing consuming writer API is preserved for compatibility"
+    )]
+    /// Writes the geometry in XYZ format.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if writing the XYZ geometry fails.
     pub fn to_writer(self, mut writer: impl Write) -> std::io::Result<()> {
-        write!(writer, "{}", self)?;
+        write!(writer, "{self}")?;
         Ok(())
     }
 
+    #[must_use]
     pub fn nucl_repulsion(&self) -> f64 {
         self.atoms
             .iter()
@@ -64,14 +97,19 @@ impl Geometry {
             })
             .par_bridge()
             .map(|(atom_i, atom_j)| {
-                let z_i = atom_i.element.atomic_number as f64;
-                let z_j = atom_j.element.atomic_number as f64;
+                let z_i = f64::from(atom_i.element.atomic_number);
+                let z_j = f64::from(atom_j.element.atomic_number);
                 let r_ij = distance(&atom_i.position, &atom_j.position);
                 z_i * z_j / r_ij
             })
             .sum()
     }
 
+    #[must_use]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "The allocated atom count is represented in f64 to compute the coordinate average"
+    )]
     pub fn center(&self) -> Point3<f64> {
         (self
             .atoms
@@ -82,6 +120,11 @@ impl Geometry {
             .into()
     }
 
+    /// Computes the center of mass using the element atomic masses.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an element has an unparseable atomic mass.
     pub fn mass_center(&self) -> Result<Point3<f64>, AtomicMassParseError> {
         let total_mass: f64 = self
             .atoms
@@ -105,16 +148,17 @@ impl Geometry {
             .into())
     }
 
+    #[must_use]
     pub fn charge_center(&self) -> Point3<f64> {
         (self
             .atoms
             .iter()
-            .map(|a| a.position.coords * a.element.atomic_number as f64)
+            .map(|a| a.position.coords * f64::from(a.element.atomic_number))
             .sum::<Vector3<f64>>()
             / self
                 .atoms
                 .iter()
-                .map(|a| a.element.atomic_number as f64)
+                .map(|a| f64::from(a.element.atomic_number))
                 .sum::<f64>())
         .into()
     }
@@ -143,6 +187,11 @@ impl Geometry {
         self.translate(translation);
     }
 
+    /// Translates the geometry so that its center of mass is at the origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an element has an unparseable atomic mass.
     pub fn mass_centering(&mut self) -> Result<(), AtomicMassParseError> {
         let mass_center = self.mass_center()?;
         let translation = Translation3::from(-mass_center.coords);
@@ -156,6 +205,11 @@ impl Geometry {
         self.translate(translation);
     }
 
+    /// Computes the inertia tensor about the current coordinate origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an element has an unparseable atomic mass.
     pub fn inertia_tensor(&self) -> Result<Matrix3<f64>, AtomicMassParseError> {
         self.atoms
             .iter()
@@ -168,6 +222,11 @@ impl Geometry {
             })
     }
 
+    /// Centers the geometry by mass and rotates it onto its principal axes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an element has an unparseable atomic mass.
     pub fn orient_along_principal_axes(&mut self) -> Result<(), AtomicMassParseError> {
         self.mass_centering()?;
 
@@ -235,6 +294,10 @@ impl IntoIterator for Geometry {
     }
 }
 
+#[allow(
+    clippy::into_iter_without_iter,
+    reason = "The public atoms collection already provides iter; preserve the existing geometry API"
+)]
 impl<'a> IntoIterator for &'a Geometry {
     type Item = &'a Atom;
     type IntoIter = std::slice::Iter<'a, Atom>;
@@ -367,8 +430,8 @@ H  0.000000  0.000000   0.370000
 
         assert_eq!(geometry.atoms.len(), 2);
 
-        let expected_position1 = point![0.0, 0.0, -0.370000];
-        let expected_position2 = point![0.0, 0.0, 0.370000];
+        let expected_position1 = point![0.0, 0.0, -0.370_000];
+        let expected_position2 = point![0.0, 0.0, 0.370_000];
 
         let atom1 = &geometry.atoms[0];
         let atom2 = &geometry.atoms[1];
@@ -387,12 +450,12 @@ H  0.000000  0.000000   0.370000
 
     #[test]
     fn test_geometry_display() {
-        let point_angstrom = point!(0.0, 0.0, -0.370000);
+        let point_angstrom = point!(0.0, 0.0, -0.370_000);
         let atom1 = Atom::new(&elements::H, point_angstrom);
         let atom2 = Atom::new(&elements::H, Point3::new(0.0, 0.0, -point_angstrom.z));
         let geometry = Geometry::new(
             "Hydrogen molecule (centered)".to_string(),
-            vec![atom1.clone(), atom2.clone()],
+            vec![atom1, atom2],
         );
 
         let expected_output = format!(
@@ -405,7 +468,7 @@ H  0.000000  0.000000   0.370000
             -point_angstrom.z,
         );
 
-        let output = format!("{}", geometry);
+        let output = format!("{geometry}");
         assert_eq!(output, expected_output);
     }
 
@@ -600,9 +663,7 @@ H  0.000000  0.000000   0.370000
         // Check that the calculated energy is close to the expected value
         assert!(
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
-            "Erreur dans E_nuc-nuc pour H2: expected {} found {}",
-            expected_e_nuc_nuc,
-            e_nuc_nuc
+            "Incorrect nuclear repulsion energy for H2: expected {expected_e_nuc_nuc} found {e_nuc_nuc}"
         );
     }
 
@@ -627,22 +688,20 @@ H  0.000000  0.000000   0.370000
         // Check that the calculated energy is close to the expected value
         assert!(
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
-            "Erreur dans E_nuc-nuc pour H3: expected {} found {}",
-            expected_e_nuc_nuc,
-            e_nuc_nuc
+            "Incorrect nuclear repulsion energy for H3: expected {expected_e_nuc_nuc} found {e_nuc_nuc}"
         );
     }
 
     #[test]
     fn test_nucl_repulsion_he_h2() {
         // Create a geometry for a system with one He atom and H2
-        let atom_he = Atom::new(&elements::HE, point![0.0, 0.0, -2.0]);
+        let helium = Atom::new(&elements::HE, point![0.0, 0.0, -2.0]);
         let atom_h1 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
         let atom_h2 = Atom::new(&elements::H, point![0.0, 0.0, 1.0]);
 
         let geometry = Geometry::new(
             "Helium and Hydrogen molecule".to_string(),
-            vec![atom_he, atom_h1, atom_h2],
+            vec![helium, atom_h1, atom_h2],
         );
 
         // Calculate nucleus-nucleus repulsion
@@ -654,9 +713,7 @@ H  0.000000  0.000000   0.370000
         // Check that the calculated energy is close to the expected value
         assert!(
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
-            "Erreur dans E_nuc-nuc pour He-H2: expected {} found {}",
-            expected_e_nuc_nuc,
-            e_nuc_nuc
+            "Incorrect nuclear repulsion energy for He-H2: expected {expected_e_nuc_nuc} found {e_nuc_nuc}"
         );
     }
 }

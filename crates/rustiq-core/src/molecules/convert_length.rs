@@ -26,7 +26,7 @@ mod tests {
         let angstrom_length = convert_length(bohr_length, Units::Bohr, Units::Angstrom);
         // 1 Bohr should be approximately equal to 0.529177 Angstrom.
         assert!(
-            (angstrom_length - 0.52917721092).abs() < 1e-10,
+            (angstrom_length - 0.529_177_210_92).abs() < 1e-10,
             "Bohr to Angstrom conversion failed"
         );
     }
@@ -34,7 +34,7 @@ mod tests {
     // Test conversion from Angstrom to Bohr
     #[test]
     fn test_conversion_angstrom_to_bohr() {
-        let angstrom_length = 0.52917721092; // 0.529177 Å
+        let angstrom_length = 0.529_177_210_92; // 0.529177 Å
         let bohr_length = convert_length(angstrom_length, Units::Angstrom, Units::Bohr);
         // 0.529177 Angstrom should be equivalent to 1 Bohr.
         assert!(
@@ -45,6 +45,10 @@ mod tests {
 
     // Test cases where the source and destination units are identical
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Conversion between identical units must preserve the input value exactly"
+    )]
     fn test_no_conversion() {
         let value = 5.0; // Test an arbitrary length of 5 units
                          // Conversion without unit change (Bohr -> Bohr)

@@ -1,3 +1,12 @@
+#![allow(
+    unknown_lints,
+    reason = "assert_is_empty is only available starting with Clippy 1.99"
+)]
+#![allow(
+    clippy::assert_is_empty,
+    reason = "Idiomatic is_empty assertions express the test intent without typed empty collections"
+)]
+
 use super::super::super::{sha256, AoEriArtifact};
 use super::*;
 use crate::{
@@ -141,8 +150,8 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
         restored.read_eri().unwrap().ordered_values(),
         &[0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
     );
-    let pointer = restored.read_eri().unwrap() as *const CompactEri;
-    assert_eq!(restored.read_eri().unwrap() as *const CompactEri, pointer);
+    let pointer = std::ptr::from_ref(restored.read_eri().unwrap());
+    assert_eq!(std::ptr::from_ref(restored.read_eri().unwrap()), pointer);
     let zip = ZipArchive::new(File::open(&first).unwrap()).unwrap();
     assert_eq!(zip.len(), 4);
     let request = members(&first)
@@ -173,6 +182,10 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Persistence and copy-on-write tests require exact preservation of stored values"
+)]
 fn normalized_request_round_trip_keeps_auto_angstrom_defaults_and_requested_options() {
     use crate::config::{DensityGuessConfig, MemoryLimit, RandomGuessConfig};
     use crate::molecules::units::Units;
@@ -348,7 +361,7 @@ fn request_and_source_integrity_versions_and_limits_are_checked_on_open() {
     ] {
         let mut contents = original.clone();
         edit_json(&mut contents, target, |json| {
-            *json.pointer_mut(field).unwrap() = value
+            *json.pointer_mut(field).unwrap() = value;
         });
         if target == REQUEST_PATH {
             let bytes = &contents
@@ -471,6 +484,7 @@ fn publication_never_overwrites_and_concurrent_writer_has_one_winner() {
 
 #[test]
 fn corrupt_payload_is_lazy_but_cannot_be_read_or_republished() {
+    use crate::calculation::{CalculationError, CalculationExecution};
     let dir = tempfile::tempdir().unwrap();
     let original = dir.path().join("original.rustiq");
     data().write(&original).unwrap();
@@ -488,7 +502,6 @@ fn corrupt_payload_is_lazy_but_cannot_be_read_or_republished() {
         .unwrap()
         .prepare_calculation()
         .unwrap();
-    use crate::calculation::{CalculationError, CalculationExecution};
     let error = portable_calculation.execute().unwrap_err();
     assert!(matches!(
         error.cause(),
@@ -590,7 +603,7 @@ fn rejects_invalid_context_manifest_and_artifact_metadata() {
     ] {
         let mut contents = original.clone();
         edit_json(&mut contents, target, |j| {
-            *j.pointer_mut(field).unwrap() = value
+            *j.pointer_mut(field).unwrap() = value;
         });
         if target == CALCULATION_PATH {
             refresh_snapshot_digest(&mut contents);
@@ -599,7 +612,7 @@ fn rejects_invalid_context_manifest_and_artifact_metadata() {
         write_members(&path, &contents);
         assert!(RustiQData::open(&path).is_err(), "{target} {field}");
     }
-    let mut contents = original.clone();
+    let mut contents = original;
     contents.retain(|(n, _)| n != CALCULATION_PATH);
     let path = dir.path().join("missing.rustiq");
     write_members(&path, &contents);
@@ -773,7 +786,7 @@ fn rejects_links_special_entries_encryption_and_oversized_metadata() {
         .windows(4)
         .position(|w| w == b"PK\x01\x02")
         .unwrap();
-    for mode in [0o120777_u32, 0o020666, 0o040755] {
+    for mode in [0o120_777_u32, 0o020_666, 0o040_755] {
         let mut bytes = original.clone();
         bytes[central + 38..central + 42].copy_from_slice(&(mode << 16).to_le_bytes());
         let path = dir.path().join("special.rustiq");
@@ -797,7 +810,7 @@ fn rejects_links_special_entries_encryption_and_oversized_metadata() {
     let path = dir.path().join("huge.rustiq");
     write_members(&path, &contents);
     assert!(RustiQData::open(path).is_err());
-    let mut bytes = original.clone();
+    let mut bytes = original;
     let end = bytes.len() - 22;
     bytes[end + 8..end + 10].copy_from_slice(&4097_u16.to_le_bytes());
     bytes[end + 10..end + 12].copy_from_slice(&4097_u16.to_le_bytes());
@@ -806,7 +819,7 @@ fn rejects_links_special_entries_encryption_and_oversized_metadata() {
     assert!(RustiQData::open(path).is_err());
     let mut contents = members(&source);
     edit_json(&mut contents, "manifest.json", |m| {
-        m["calculations"][0]["calculation"]["size"] = (MAX_CALCULATION_BYTES + 1).into()
+        m["calculations"][0]["calculation"]["size"] = (MAX_CALCULATION_BYTES + 1).into();
     });
     let path = dir.path().join("snapshot-limit.rustiq");
     write_members(&path, &contents);
@@ -907,7 +920,7 @@ fn unsupported_representation_is_inspectable_but_not_scientifically_usable() {
     data().write(&source).unwrap();
     let mut contents = members(&source);
     edit_json(&mut contents, "manifest.json", |m| {
-        m["calculations"][0]["artifacts"]["ao_eri"]["representation"] = "future-eri-v2".into()
+        m["calculations"][0]["artifacts"]["ao_eri"]["representation"] = "future-eri-v2".into();
     });
     let unknown = dir.path().join("unknown.rustiq");
     write_members(&unknown, &contents);
@@ -953,6 +966,10 @@ fn rewriting_foreign_producer_updates_provenance_only() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Persistence and copy-on-write tests require exact preservation of stored values"
+)]
 fn independently_rounded_python_angstrom_conversion_is_accepted() {
     let fixture =
         include_str!("../../../../tests/data/persistence/portable-python-angstrom-v1.rustiq.hex");
@@ -993,7 +1010,7 @@ fn independently_rounded_python_angstrom_conversion_is_accepted() {
     );
     let mut contents = members(&path);
     edit_json(&mut contents, REQUEST_PATH, |r| {
-        r["atoms"][1]["position"][0] = (requested + 1e-10).into()
+        r["atoms"][1]["position"][0] = (requested + 1e-10).into();
     });
     let request = &contents.iter().find(|(n, _)| n == REQUEST_PATH).unwrap().1;
     let (size, digest) = (request.len(), sha256(request).to_string());
@@ -1089,6 +1106,10 @@ fn published_required_fields_match_v1_decoders() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Persistence and copy-on-write tests require exact preservation of stored values"
+)]
 fn bundle_entries_have_independent_lazy_artifacts_and_shared_sources() {
     use crate::persistence::RustiQBundle;
     let basis = load_minimal_basis_file();
@@ -1206,6 +1227,10 @@ fn bundle_rejects_empty_duplicate_ids_cross_entry_and_conflicting_references() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "Persistence and copy-on-write tests require exact preservation of stored values"
+)]
 fn corrupt_bundle_entry_does_not_prevent_independent_artifact_access_or_publish_partial_output() {
     use crate::persistence::RustiQBundle;
     let dir = tempfile::tempdir().unwrap();

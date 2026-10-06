@@ -123,6 +123,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+    )]
     fn hf_defaults_keep_diis_explicitly_disabled() {
         let config: HfConfig = toml_spanner::from_str("").unwrap();
 
@@ -141,16 +145,20 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Configuration and portable round trips must preserve literal values and identical execution results exactly"
+    )]
     fn nested_diis_and_orthogonalization_deserialize() {
         let config: HfConfig = toml_spanner::from_str(
-            r#"
+            r"
             [diis]
             enabled = true
             max_history = 8
 
             [orthogonalization]
             linear_dependency_threshold = 1e-7
-            "#,
+            ",
         )
         .unwrap();
 

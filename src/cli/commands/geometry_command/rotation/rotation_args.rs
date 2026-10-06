@@ -166,7 +166,7 @@ mod tests {
             y in -100.0f64..100.0f64,
             z in 1.0e-6f64..100.0f64,
         ) {
-            let input = format!("{},{},{}", x, y, z);
+            let input = format!("{x},{y},{z}");
             let axis = RotationAxis::from_str(&input).unwrap();
             let expected = Unit::new_normalize(Vector3::new(x, y, z));
             prop_assert_eq!(*axis, expected);

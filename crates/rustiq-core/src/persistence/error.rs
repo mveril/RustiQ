@@ -48,7 +48,7 @@ impl From<PersistenceReadError> for PortableError {
     fn from(error: PersistenceReadError) -> Self {
         match error {
             PersistenceReadError::Artifact(error) => Self::Artifact(error),
-            other => Self::InvalidArchive(other.to_string()),
+            other @ PersistenceReadError::Manifest(_) => Self::InvalidArchive(other.to_string()),
         }
     }
 }

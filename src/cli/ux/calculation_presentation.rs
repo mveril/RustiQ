@@ -1,6 +1,9 @@
 // Full canonical views are lazy capabilities for inspection and artifact reuse;
 // the normal `run` path uses only the concise summary below.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 
 use std::{
     fmt::Write,

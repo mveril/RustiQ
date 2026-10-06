@@ -1,5 +1,8 @@
 // basis.rs
-#![allow(non_snake_case)]
+#![allow(
+    non_snake_case,
+    reason = "Symbols follow established matrix and Gaussian integral notation"
+)]
 
 use nalgebra::{DMatrix, Point3, Vector3};
 use std::f64::consts::PI;
@@ -249,6 +252,11 @@ impl Basis {
     }
 
     /// Validates and loads a basis, without constructing anything on invalid input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if element data is missing, shell data is invalid, or a basis
+    /// representation is unsupported.
     pub fn try_load(basis_file: &BasisFile, mol: &Geometry) -> Result<Self, BasisError> {
         Self::validate(basis_file, mol)?;
         let mut shells = Vec::new();
@@ -296,6 +304,10 @@ impl Basis {
         Ok(Self::new(shells))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep the complete shell validation and its typed diagnostics together"
+    )]
     fn validate(basis_file: &BasisFile, mol: &Geometry) -> Result<(), BasisError> {
         // File-wide function types also describe elements absent from the molecule.
         // Validate the actual shells of the requested elements below.
@@ -406,6 +418,7 @@ impl Basis {
         Ok(())
     }
 
+    #[must_use]
     pub fn overlap_ints(&self) -> DMatrix<f64> {
         let n = self.angular_momenta.len();
         let mut result = DMatrix::<f64>::zeros(n, n);
@@ -458,6 +471,7 @@ impl Basis {
         result
     }
 
+    #[must_use]
     pub fn kinetic_ints(&self) -> DMatrix<f64> {
         let n: usize = self.angular_momenta.len();
         let mut result = DMatrix::<f64>::zeros(n, n);
@@ -511,6 +525,7 @@ impl Basis {
     }
 
     /// Returns the total number of basis functions.
+    #[must_use]
     pub fn nbasis(&self) -> usize {
         self.angular_momenta.len()
     }
@@ -537,9 +552,9 @@ fn build_normalized_components(
                                 move |(&exponent, &coefficient)| {
                                     let norm = gaussian_norm_const(
                                         exponent,
-                                        angular_momentum.x as u32,
-                                        angular_momentum.y as u32,
-                                        angular_momentum.z as u32,
+                                        u32::from(angular_momentum.x),
+                                        u32::from(angular_momentum.y),
+                                        u32::from(angular_momentum.z),
                                     );
                                     NormalizedPrimitive {
                                         exponent,
@@ -571,6 +586,10 @@ fn generate_angular_momentum_combinations_vector(l: u8) -> Vec<Vector3<u8>> {
     combinations
 }
 
+#[allow(
+    clippy::panic,
+    reason = "Basis::try_load rejects spherical angular momentum above 2 before this internal helper is called"
+)]
 fn generate_angular_components(l: u8, pure: bool) -> Vec<Vec<(Vector3<u8>, f64)>> {
     if !pure || l <= 1 {
         return generate_angular_momentum_combinations_vector(l)
@@ -602,23 +621,27 @@ pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
     let l_factor = if l == 0 {
         1.0
     } else {
-        (2 * l - 1).double_factorial() as f64
+        f64::from((2 * l - 1).double_factorial())
     };
     let m_factor = if m == 0 {
         1.0
     } else {
-        (2 * m - 1).double_factorial() as f64
+        f64::from((2 * m - 1).double_factorial())
     };
     let n_factor = if n == 0 {
         1.0
     } else {
-        (2 * n - 1).double_factorial() as f64
+        f64::from((2 * n - 1).double_factorial())
     };
 
-    ((2.0 * alpha / PI).powf(0.75)) * (4.0 * alpha).powf((l + m + n) as f64 / 2.0)
+    ((2.0 * alpha / PI).powf(0.75)) * (4.0 * alpha).powf(f64::from(l + m + n) / 2.0)
         / ((l_factor * m_factor * n_factor).sqrt())
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "Use the same borrowed angular-momentum interface throughout the primitive integral helpers"
+)]
 pub(crate) fn primitive_overlap(
     l_i: &Vector3<u8>,
     l_j: &Vector3<u8>,
@@ -635,6 +658,10 @@ pub(crate) fn primitive_overlap(
         * hermite_coeff(l_i.z, l_j.z, 0, displacement.z, exp_i, exp_j)
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "Use the same borrowed angular-momentum interface throughout the primitive integral helpers"
+)]
 pub(crate) fn primitive_kinetic(
     l_i: &Vector3<u8>,
     l_j: &Vector3<u8>,
@@ -643,27 +670,30 @@ pub(crate) fn primitive_kinetic(
     exp_i: f64,
     exp_j: f64,
 ) -> f64 {
-    let l_b = [l_j.x as i32, l_j.y as i32, l_j.z as i32];
+    let l_b = [i32::from(l_j.x), i32::from(l_j.y), i32::from(l_j.z)];
     let s = |dx: i32, dy: i32, dz: i32| {
         let shifted = Vector3::new(
-            (l_b[0] + dx).max(0) as u8,
-            (l_b[1] + dy).max(0) as u8,
-            (l_b[2] + dz).max(0) as u8,
+            u8::try_from((l_b[0] + dx).max(0))
+                .expect("validated angular momentum plus a kinetic shift fits in u8"),
+            u8::try_from((l_b[1] + dy).max(0))
+                .expect("validated angular momentum plus a kinetic shift fits in u8"),
+            u8::try_from((l_b[2] + dz).max(0))
+                .expect("validated angular momentum plus a kinetic shift fits in u8"),
         );
         primitive_overlap(l_i, &shifted, origin_i, origin_j, exp_i, exp_j)
     };
 
-    let mut result = exp_j * (2.0 * (l_b[0] + l_b[1] + l_b[2]) as f64 + 3.0) * s(0, 0, 0);
+    let mut result = exp_j * (2.0 * f64::from(l_b[0] + l_b[1] + l_b[2]) + 3.0) * s(0, 0, 0);
     result -= 2.0 * exp_j.powi(2) * (s(2, 0, 0) + s(0, 2, 0) + s(0, 0, 2));
 
     if l_b[0] >= 2 {
-        result -= 0.5 * (l_b[0] * (l_b[0] - 1)) as f64 * s(-2, 0, 0);
+        result -= 0.5 * f64::from(l_b[0] * (l_b[0] - 1)) * s(-2, 0, 0);
     }
     if l_b[1] >= 2 {
-        result -= 0.5 * (l_b[1] * (l_b[1] - 1)) as f64 * s(0, -2, 0);
+        result -= 0.5 * f64::from(l_b[1] * (l_b[1] - 1)) * s(0, -2, 0);
     }
     if l_b[2] >= 2 {
-        result -= 0.5 * (l_b[2] * (l_b[2] - 1)) as f64 * s(0, 0, -2);
+        result -= 0.5 * f64::from(l_b[2] * (l_b[2] - 1)) * s(0, 0, -2);
     }
     result
 }
@@ -689,7 +719,11 @@ pub(crate) fn hermite_terms(e: &[Vec<f64>; 3]) -> Vec<HermiteTerm> {
         for (u, &y) in e_y.iter().enumerate() {
             for (v, &z) in e_z.iter().enumerate() {
                 terms.push(HermiteTerm {
-                    orders: Vector3::new(t as u8, u as u8, v as u8),
+                    orders: Vector3::new(
+                        u8::try_from(t).expect("validated Hermite order fits in u8"),
+                        u8::try_from(u).expect("validated Hermite order fits in u8"),
+                        u8::try_from(v).expect("validated Hermite order fits in u8"),
+                    ),
                     coefficient: x * y * z,
                 });
             }
@@ -698,6 +732,10 @@ pub(crate) fn hermite_terms(e: &[Vec<f64>; 3]) -> Vec<HermiteTerm> {
     terms
 }
 
+#[allow(
+    clippy::many_single_char_names,
+    reason = "Indices and exponents follow the standard notation for this integral or contraction"
+)]
 pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64 {
     if t > i + j {
         return 0.0;
@@ -721,7 +759,7 @@ pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64
             0.0
         };
         let middle = -(reduced_exp * qx / a) * hermite_coeff(lower_i, j, t, qx, a, b);
-        let right = (t as f64 + 1.0) * hermite_coeff(lower_i, j, t + 1, qx, a, b);
+        let right = (f64::from(t) + 1.0) * hermite_coeff(lower_i, j, t + 1, qx, a, b);
         left + middle + right
     } else {
         let lower_j = j - 1;
@@ -731,7 +769,7 @@ pub(crate) fn hermite_coeff(i: u8, j: u8, t: u8, qx: f64, a: f64, b: f64) -> f64
             0.0
         };
         let middle = (reduced_exp * qx / b) * hermite_coeff(i, lower_j, t, qx, a, b);
-        let right = (t as f64 + 1.0) * hermite_coeff(i, lower_j, t + 1, qx, a, b);
+        let right = (f64::from(t) + 1.0) * hermite_coeff(i, lower_j, t + 1, qx, a, b);
         left + middle + right
     }
 }
@@ -740,14 +778,18 @@ pub(crate) fn coulomb_auxiliary(orders: Vector3<u8>, n: u8, p: f64, pc: &Vector3
     coulomb_auxiliary_at(orders.x, orders.y, orders.z, n, p, pc)
 }
 
+#[allow(
+    clippy::many_single_char_names,
+    reason = "Indices and exponents follow the standard notation for this integral or contraction"
+)]
 fn coulomb_auxiliary_at(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -> f64 {
     if t == 0 && u == 0 && v == 0 {
-        return (-2.0 * p).powi(n as i32)
-            * crate::math_utils::boys_function(n as u64, p * pc.norm_squared());
+        return (-2.0 * p).powi(i32::from(n))
+            * crate::math_utils::boys_function(u64::from(n), p * pc.norm_squared());
     }
     if t > 0 {
         let lower = if t >= 2 {
-            (t as f64 - 1.0) * coulomb_auxiliary_at(t - 2, u, v, n + 1, p, pc)
+            (f64::from(t) - 1.0) * coulomb_auxiliary_at(t - 2, u, v, n + 1, p, pc)
         } else {
             0.0
         };
@@ -755,14 +797,14 @@ fn coulomb_auxiliary_at(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -
     }
     if u > 0 {
         let lower = if u >= 2 {
-            (u as f64 - 1.0) * coulomb_auxiliary_at(t, u - 2, v, n + 1, p, pc)
+            (f64::from(u) - 1.0) * coulomb_auxiliary_at(t, u - 2, v, n + 1, p, pc)
         } else {
             0.0
         };
         return lower + pc.y * coulomb_auxiliary_at(t, u - 1, v, n + 1, p, pc);
     }
     let lower = if v >= 2 {
-        (v as f64 - 1.0) * coulomb_auxiliary_at(t, u, v - 2, n + 1, p, pc)
+        (f64::from(v) - 1.0) * coulomb_auxiliary_at(t, u, v - 2, n + 1, p, pc)
     } else {
         0.0
     };
@@ -783,8 +825,8 @@ mod tests {
         let alpha = vec![0.5];
         let contr = vec![Contraction::new(0, false, vec![1.0])];
         let origin = Point3::origin();
-        let shell = Shell::new(alpha.clone(), contr.clone(), origin);
-        let basis = Basis::new(vec![shell.clone()]);
+        let shell = Shell::new(alpha, contr, origin);
+        let basis = Basis::new(vec![shell]);
 
         assert_eq!(basis.shells.len(), 1);
         assert_eq!(basis.shell_ids.len(), 1); // Il y a une seule fonction de base
@@ -804,9 +846,7 @@ mod tests {
         let expected = (PI / gamma).sqrt();
         assert!(
             (computed - expected).abs() < 1e-6,
-            "Overlap_1d simple: attendu {}, obtenu {}",
-            expected,
-            computed
+            "Simple overlap_1d: expected {expected}, got {computed}"
         );
     }
 
@@ -827,9 +867,7 @@ mod tests {
 
         assert!(
             (computed - expected).abs() < 1e-6,
-            "Kinetic_1d simple: attendu {}, obtenu {}",
-            expected,
-            computed
+            "Simple kinetic_1d: expected {expected}, got {computed}"
         );
     }
 
@@ -872,7 +910,7 @@ mod tests {
                         r_exponents: Vec::new(),
                         exponents: vec![13.01, 1.962, 0.4446, 0.122],
                         coefficients: vec![
-                            vec![0.019685, 0.137977, 0.478148, 0.50124],
+                            vec![0.019_685, 0.137_977, 0.478_148, 0.50124],
                             vec![0.0, 0.0, 0.0, 1.0],
                         ],
                     }],
@@ -1054,8 +1092,8 @@ mod tests {
         let alpha = vec![0.5];
         let contr = vec![Contraction::new(0, false, vec![1.0])];
         let origin = point!(0.0, 0.0, 0.0);
-        let shell = Shell::new(alpha.clone(), contr.clone(), origin);
-        let basis = Basis::new(vec![shell.clone(), shell.clone()]);
+        let shell = Shell::new(alpha, contr, origin);
+        let basis = Basis::new(vec![shell.clone(), shell]);
 
         let overlap_matrix = basis.overlap_ints();
         let n = overlap_matrix.nrows();

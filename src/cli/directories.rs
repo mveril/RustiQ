@@ -25,9 +25,10 @@ fn application_data_path() -> PathBuf {
         return PathBuf::from(path).join(APPLICATION_NAME);
     }
 
-    ProjectDirs::from("", "", APPLICATION_NAME)
-        .map(|directories| directories.data_local_dir().to_path_buf())
-        .unwrap_or_else(|| env::temp_dir().join(APPLICATION_NAME))
+    ProjectDirs::from("", "", APPLICATION_NAME).map_or_else(
+        || env::temp_dir().join(APPLICATION_NAME),
+        |directories| directories.data_local_dir().to_path_buf(),
+    )
 }
 
 /// Resolve the application cache root before passing it to the scientific core.
@@ -36,15 +37,19 @@ pub fn cache_path() -> PathBuf {
         return path.into();
     }
 
-    ProjectDirs::from("", "", APPLICATION_NAME)
-        .map(|directories| directories.cache_dir().to_path_buf())
-        .unwrap_or_else(|| env::temp_dir().join(APPLICATION_NAME))
+    ProjectDirs::from("", "", APPLICATION_NAME).map_or_else(
+        || env::temp_dir().join(APPLICATION_NAME),
+        |directories| directories.cache_dir().to_path_buf(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     // The harness-free ERI benchmark includes this module but omits test functions.
-    #[allow(unused_imports)]
+    #[allow(
+        unused_imports,
+        reason = "Harness-free benchmarks include this module but omit its test functions"
+    )]
     use super::*;
 
     #[test]
@@ -83,8 +88,10 @@ mod tests {
     fn basis_store_defaults_to_project_data_directory() {
         temp_env::with_vars([(DATA_HOME, None::<&str>), (BASIS_HOME, None)], || {
             let expected = ProjectDirs::from("", "", APPLICATION_NAME)
-                .map(|directories| directories.data_local_dir().to_path_buf())
-                .unwrap_or_else(|| env::temp_dir().join(APPLICATION_NAME))
+                .map_or_else(
+                    || env::temp_dir().join(APPLICATION_NAME),
+                    |directories| directories.data_local_dir().to_path_buf(),
+                )
                 .join("basis_sets");
 
             assert_eq!(basis_store().path(), expected);
@@ -102,9 +109,10 @@ mod tests {
     #[test]
     fn cache_defaults_to_project_cache_directory() {
         temp_env::with_var(CACHE_HOME, None::<&str>, || {
-            let expected = ProjectDirs::from("", "", APPLICATION_NAME)
-                .map(|directories| directories.cache_dir().to_path_buf())
-                .unwrap_or_else(|| env::temp_dir().join(APPLICATION_NAME));
+            let expected = ProjectDirs::from("", "", APPLICATION_NAME).map_or_else(
+                || env::temp_dir().join(APPLICATION_NAME),
+                |directories| directories.cache_dir().to_path_buf(),
+            );
             assert_eq!(cache_path(), expected);
         });
     }

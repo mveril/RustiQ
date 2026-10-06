@@ -5,7 +5,10 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::f64::consts::PI;
 use std::sync::LazyLock;
 
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+)]
 static SQRT_PI_CUBED: LazyLock<f64> = LazyLock::new(|| PI.powi(3).sqrt());
 
 #[derive(PartialEq, Debug, Clone)]
@@ -28,7 +31,10 @@ impl Shell {
         }
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn nprim(&self) -> usize {
         self.alpha.len()
     }
@@ -44,12 +50,11 @@ impl Shell {
                 c.l
             );
 
-            if alpha.is_empty() {
-                panic!(
-                    "Le vecteur alpha est vide pour une contraction avec l = {}",
-                    c.l
-                );
-            }
+            assert!(
+                !alpha.is_empty(),
+                "The exponent vector is empty for a contraction with l = {}",
+                c.l
+            );
 
             let norm = Self::compute_contraction_norm(alpha, c);
             c.coeff /= norm.sqrt();
@@ -57,14 +62,17 @@ impl Shell {
             let norm_after = Self::compute_contraction_norm(alpha, c);
             debug_assert!(
                 (norm_after - 1.0).abs() < 1e-6,
-                "Norme de la contraction non normalisée: {}",
-                norm_after
+                "Contraction is not normalized: norm = {norm_after}"
             );
         }
 
         Self::update_max_ln_coeff(alpha, contr)
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Gaussian normalization evaluates double factorials at f64 precision"
+    )]
     fn compute_contraction_norm(alpha: &DVector<f64>, c: &Contraction) -> f64 {
         let mut norm = 0.0;
         let np = alpha.len();
@@ -73,15 +81,15 @@ impl Shell {
                 let gamma = alpha[p] + alpha[q];
                 let a = if p == q { 1.0 } else { 2.0 };
 
-                let n_p = (2.0 * alpha[p] / PI).powf(0.75) * (4.0 * alpha[p]).powi(c.l as i32)
-                    / ((2 * c.l as u64 + 1).double_factorial() as f64).sqrt();
-                let n_q = (2.0 * alpha[q] / PI).powf(0.75) * (4.0 * alpha[q]).powi(c.l as i32)
-                    / ((2 * c.l as u64 + 1).double_factorial() as f64).sqrt();
+                let n_p = (2.0 * alpha[p] / PI).powf(0.75) * (4.0 * alpha[p]).powi(i32::from(c.l))
+                    / ((2 * u64::from(c.l) + 1).double_factorial() as f64).sqrt();
+                let n_q = (2.0 * alpha[q] / PI).powf(0.75) * (4.0 * alpha[q]).powi(i32::from(c.l))
+                    / ((2 * u64::from(c.l) + 1).double_factorial() as f64).sqrt();
 
                 let prefactor = n_p * n_q * (PI / gamma).powf(1.5);
-                let exponent = (4.0 * alpha[p] * alpha[q] / gamma.powi(2)).powi(c.l as i32);
+                let exponent = (4.0 * alpha[p] * alpha[q] / gamma.powi(2)).powi(i32::from(c.l));
                 let df_l = if c.l > 0 {
-                    (2 * c.l as u64 - 1).double_factorial() as f64
+                    (2 * u64::from(c.l) - 1).double_factorial() as f64
                 } else {
                     1.0
                 };
@@ -96,7 +104,7 @@ impl Shell {
     pub fn update_max_ln_coeff(alpha: &DVector<f64>, contr: &[Contraction]) -> DVector<f64> {
         let mut ret = DVector::from_element(alpha.len(), f64::NEG_INFINITY);
 
-        for c in contr.iter() {
+        for c in contr {
             let ln_coeffs = c.coeff.map(|coeff| {
                 if coeff.abs() > 0.0 {
                     coeff.abs().ln()
@@ -117,14 +125,26 @@ impl Shell {
         ret
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn cartesian_size(&self) -> usize {
-        self.contr.iter().map(|c| c.cartesian_size()).sum()
+        self.contr
+            .iter()
+            .map(super::contraction::Contraction::cartesian_size)
+            .sum()
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
+    )]
     pub fn size(&self) -> usize {
-        self.contr.iter().map(|c| c.size()).sum()
+        self.contr
+            .iter()
+            .map(super::contraction::Contraction::size)
+            .sum()
     }
 }
 
@@ -145,19 +165,18 @@ mod tests {
         let norm = Shell::compute_contraction_norm(&alpha, &contr[0]);
         assert!(
             (norm - 1.0).abs() < 1e-6,
-            "Normalization failed: norm = {}",
-            norm
+            "Normalization failed: norm = {norm}"
         );
     }
 
     #[test]
     fn test_load_6_31g_hydrogen() {
-        let alpha_values = vec![6.36242139, 1.16864108, 0.38038900];
-        let coeffs = vec![0.15432897, 0.53532814, 0.44463454];
+        let alpha_values = vec![6.362_421_39, 1.168_641_08, 0.380_389_00];
+        let coeffs = vec![0.154_328_97, 0.535_328_14, 0.444_634_54];
         let l = 0;
         let pure = false;
 
-        let alpha = DVector::from_vec(alpha_values.clone());
+        let alpha = DVector::from_vec(alpha_values);
 
         let mut contractions = [Contraction::new(l, pure, coeffs)];
         Shell::renorm(&alpha, &mut contractions);
@@ -165,8 +184,7 @@ mod tests {
 
         assert!(
             (norm - 1.0).abs() < 1e-6,
-            "Normalization failed for 6-31G hydrogen 1s orbital: norm = {}",
-            norm
+            "Normalization failed for 6-31G hydrogen 1s orbital: norm = {norm}"
         );
     }
 
@@ -178,21 +196,21 @@ mod tests {
         let l = 0;
         let pure = false;
 
-        let alpha = DVector::from_vec(alpha_values.clone());
+        let alpha = DVector::from_vec(alpha_values);
 
         let mut contractions = [Contraction::new(l, pure, coeffs)];
         Shell::renorm(&alpha, &mut contractions);
     }
 
     #[test]
-    #[should_panic(expected = "Le vecteur alpha est vide")]
+    #[should_panic(expected = "The exponent vector is empty")]
     fn test_contraction_with_empty_alpha() {
         let alpha_values = vec![]; // Empty exponents
         let coeffs = vec![]; // Matching
         let l = 0;
         let pure = false;
 
-        let alpha = DVector::from_vec(alpha_values.clone());
+        let alpha = DVector::from_vec(alpha_values);
 
         let mut contractions = [Contraction::new(l, pure, coeffs)];
         Shell::renorm(&alpha, &mut contractions);

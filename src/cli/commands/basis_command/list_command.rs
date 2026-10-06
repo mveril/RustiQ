@@ -23,7 +23,7 @@ fn pagin_print(content: &str) {
         .print()
         .is_err()
     {
-        println!("{}", content)
+        println!("{content}");
     }
 }
 
@@ -67,7 +67,7 @@ impl Runnable for ListCommand {
                         .map(BasisTableItem::from)
                 })
                 .collect();
-            pagin_print(&render_table(v.into_diagnostic()?))
+            pagin_print(&render_table(v.into_diagnostic()?));
         } else {
             let mut str = String::new();
             for item in list {

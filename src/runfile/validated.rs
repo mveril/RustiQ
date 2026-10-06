@@ -19,13 +19,19 @@ where
 }
 
 pub(crate) mod positive_finite_f64 {
-    use super::*;
+    use super::{
+        from_toml_via_try_from, Arena, Context, Failed, Item, PositiveFiniteF64, ToTomlError,
+    };
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
         item: &Item<'de>,
     ) -> Result<PositiveFiniteF64, Failed> {
         from_toml_via_try_from::<PositiveFiniteF64, f64>(ctx, item)
     }
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a>(
         value: &'a PositiveFiniteF64,
         _arena: &'a Arena,
@@ -35,13 +41,19 @@ pub(crate) mod positive_finite_f64 {
 }
 
 pub(crate) mod non_negative_finite_f64 {
-    use super::*;
+    use super::{
+        from_toml_via_try_from, Arena, Context, Failed, Item, NonNegativeFiniteF64, ToTomlError,
+    };
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
         item: &Item<'de>,
     ) -> Result<NonNegativeFiniteF64, Failed> {
         from_toml_via_try_from::<NonNegativeFiniteF64, f64>(ctx, item)
     }
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonNegativeFiniteF64,
         _arena: &'a Arena,
@@ -51,7 +63,7 @@ pub(crate) mod non_negative_finite_f64 {
 }
 
 pub(crate) mod optional_positive_finite_f64 {
-    use super::*;
+    use super::{Arena, Context, Failed, FromToml, Item, PositiveFiniteF64, ToTomlError};
 
     pub(crate) trait ToTomlThreshold {
         fn to_item(&self) -> f64;
@@ -83,6 +95,10 @@ pub(crate) mod optional_positive_finite_f64 {
         }
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a, T: ToTomlThreshold>(
         value: &'a T,
         _arena: &'a Arena,
@@ -92,13 +108,17 @@ pub(crate) mod optional_positive_finite_f64 {
 }
 
 pub(crate) mod diis_size {
-    use super::*;
+    use super::{from_toml_via_try_from, Arena, Context, DiisSize, Failed, Item, ToTomlError};
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
         item: &Item<'de>,
     ) -> Result<DiisSize, Failed> {
         from_toml_via_try_from::<DiisSize, usize>(ctx, item)
     }
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a>(
         value: &'a DiisSize,
         _arena: &'a Arena,
@@ -108,7 +128,7 @@ pub(crate) mod diis_size {
 }
 
 pub(crate) mod non_zero_usize {
-    use super::*;
+    use super::{from_toml_via_try_from, Arena, Context, Failed, Item, NonZeroUsize, ToTomlError};
 
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
@@ -117,17 +137,20 @@ pub(crate) mod non_zero_usize {
         from_toml_via_try_from::<NonZeroUsize, usize>(ctx, item)
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonZeroUsize,
-        arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
-        let _ = arena;
         Ok(Item::from(value.get() as i128))
     }
 }
 
 pub(crate) mod usize_as_integer {
-    use super::*;
+    use super::{Arena, Context, Failed, FromToml, Item, ToTomlError};
 
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
@@ -136,14 +159,20 @@ pub(crate) mod usize_as_integer {
         usize::from_toml(ctx, item)
     }
 
-    pub(crate) fn to_toml<'a>(value: &'a usize, arena: &'a Arena) -> Result<Item<'a>, ToTomlError> {
-        let _ = arena;
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
+    pub(crate) fn to_toml<'a>(
+        value: &'a usize,
+        _arena: &'a Arena,
+    ) -> Result<Item<'a>, ToTomlError> {
         Ok(Item::from(*value as i128))
     }
 }
 
 pub(crate) mod non_zero_u8 {
-    use super::*;
+    use super::{from_toml_via_try_from, Arena, Context, Failed, Item, NonZeroU8, ToTomlError};
 
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
@@ -152,17 +181,20 @@ pub(crate) mod non_zero_u8 {
         from_toml_via_try_from::<NonZeroU8, u8>(ctx, item)
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a>(
         value: &'a NonZeroU8,
-        arena: &'a Arena,
+        _arena: &'a Arena,
     ) -> Result<Item<'a>, ToTomlError> {
-        let _ = arena;
-        Ok(Item::from(value.get() as i128))
+        Ok(Item::from(i128::from(value.get())))
     }
 }
 
 pub(crate) mod non_empty_path_buf {
-    use super::*;
+    use super::{Arena, Context, Failed, FromToml, Item, PathBuf, ToToml, ToTomlError};
 
     pub(crate) fn from_toml<'de>(
         ctx: &mut Context<'de>,
@@ -176,6 +208,10 @@ pub(crate) mod non_empty_path_buf {
         Ok(value)
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The TOML adapter must match the fallible serializer callback signature"
+    )]
     pub(crate) fn to_toml<'a>(
         value: &'a PathBuf,
         arena: &'a Arena,

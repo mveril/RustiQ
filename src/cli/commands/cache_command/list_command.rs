@@ -26,8 +26,8 @@ impl Runnable for ListCommand {
     fn run(&self) -> CommandResult {
         let root = self.cache_dir.clone().unwrap_or_else(cache_path);
         let cache = EriCache::new(root);
-        // A read-only cache remains inspectable even when aliases cannot be assigned.
-        let _ = cache.assign_missing_names();
+        // Alias assignment is best-effort; a read-only cache remains inspectable.
+        drop(cache.assign_missing_names());
         let mut stdout = color::stdout();
         writeln!(
             stdout,
@@ -52,20 +52,18 @@ fn render_entries(entries: Vec<EriCacheEntry>) -> String {
     if entries.is_empty() {
         return "No cache entries found.".to_owned();
     }
-    let mut table = Table::new(entries.into_iter().map(|entry| {
-        CacheRow {
-            name: entry.name.unwrap_or_else(|| "-".to_owned()),
-            fingerprint: entry.fingerprint,
-            size: entry
-                .payload_size
-                .map(|size| bytesize::ByteSize(size).to_string())
-                .unwrap_or_else(|| "unknown".to_owned()),
-            status: if entry.verified {
-                "verified"
-            } else {
-                "invalid"
-            },
-        }
+    let mut table = Table::new(entries.into_iter().map(|entry| CacheRow {
+        name: entry.name.unwrap_or_else(|| "-".to_owned()),
+        fingerprint: entry.fingerprint,
+        size: entry.payload_size.map_or_else(
+            || "unknown".to_owned(),
+            |size| bytesize::ByteSize(size).to_string(),
+        ),
+        status: if entry.verified {
+            "verified"
+        } else {
+            "invalid"
+        },
     }));
     if color::enabled_for(OutputStream::Stdout) {
         table.with(Modify::new(Rows::first()).with(Color::FG_CYAN | Color::BOLD));

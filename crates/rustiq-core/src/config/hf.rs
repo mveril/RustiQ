@@ -110,6 +110,11 @@ pub struct HfConfigError {
 }
 
 impl HfConfig {
+    /// Resolves the requested HF method for the molecular electron configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if RHF is requested for a molecule that is not a closed-shell singlet.
     pub fn resolve_method(&self, molecule: &Molecule) -> Result<ResolvedHfMethod, HfConfigError> {
         self.method
             .value
@@ -122,6 +127,11 @@ impl HfConfig {
 }
 
 impl HfMethod {
+    /// Resolves an explicit or automatic HF method for the molecule.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if RHF is requested for a molecule that is not a closed-shell singlet.
     pub fn resolve(
         &self,
         molecule: &Molecule,

@@ -18,7 +18,10 @@ pub fn workspace_path(path: &str) -> Result<PathBuf, Box<dyn std::error::Error>>
     Ok(root.join(path))
 }
 
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Retained helper supports scientific tests and benchmarks"
+)]
 pub fn data_path(filename: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/data");
     std::fs::create_dir_all(&directory)?;
