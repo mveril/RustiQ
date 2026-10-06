@@ -10,7 +10,7 @@ use crate::{
         validated::PositiveFiniteF64, IntegralConfig, OrthogonalizationConfig,
         DEFAULT_ERI_SCHWARZ_THRESHOLD,
     },
-    eri::EriError,
+    eri::{CompactEri, EriError},
     molecules::molecule::Molecule,
     persistence::EriCache,
 };
@@ -70,6 +70,7 @@ pub(crate) fn prepare_scf_setup(
                 .expect("default ERI Schwarz threshold is valid"),
         ),
         None,
+        None,
         progress,
         |_| {},
     )
@@ -83,6 +84,7 @@ pub(crate) fn prepare_configured_scf_setup(
     orthogonalization: &OrthogonalizationConfig,
     integrals: &IntegralConfig,
     eri_cache: Option<&EriCache>,
+    supplied_eri: Option<CompactEri>,
     progress: impl FnMut(ScfSetupStep),
     cache_event: impl FnMut(EriCacheEvent),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
@@ -96,6 +98,7 @@ pub(crate) fn prepare_configured_scf_setup(
             .into_inner(),
         integrals.schwarz_threshold.value,
         eri_cache,
+        supplied_eri,
         progress,
         cache_event,
     )
@@ -109,6 +112,7 @@ fn prepare_scf_setup_with_thresholds(
     linear_dependency_threshold: f64,
     eri_schwarz_threshold: Option<PositiveFiniteF64>,
     eri_cache: Option<&EriCache>,
+    supplied_eri: Option<CompactEri>,
     mut progress: impl FnMut(ScfSetupStep),
     mut cache_event: impl FnMut(EriCacheEvent),
 ) -> Result<PreparedScfSetup, ScfPreparationError> {
@@ -139,7 +143,22 @@ fn prepare_scf_setup_with_thresholds(
 
     progress(ScfSetupStep::ElectronRepulsionIntegrals);
     let step_start = Instant::now();
-    let (electron_repulsion, eri_cache_event) = builder.electron_repulsion()?;
+    let (electron_repulsion, eri_cache_event) = match supplied_eri {
+        Some(eri) => {
+            let basis_functions = basis.nbasis();
+            let expected = CompactEri::storage_len(basis_functions);
+            if eri.len() != expected {
+                return Err(EriError::InvalidValueCount {
+                    basis_functions,
+                    expected,
+                    actual: eri.len(),
+                }
+                .into());
+            }
+            (eri, None)
+        }
+        None => builder.electron_repulsion()?,
+    };
     if let Some(event) = eri_cache_event {
         cache_event(event);
     }

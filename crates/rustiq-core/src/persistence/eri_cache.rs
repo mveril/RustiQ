@@ -341,7 +341,7 @@ impl EriCache {
         let mut entry_data =
             RustiQData::new_with_identity(identity, basis_functions, ManifestKind::IntegralCache);
         entry_data
-            .write_with_eri(Storage::folder(temporary.path()), eri)
+            .write_storage_with_eri(Storage::folder(temporary.path()), eri)
             .map_err(io::Error::other)?;
         let temporary_path = temporary.keep();
         if fs::symlink_metadata(&final_entry).is_ok() {

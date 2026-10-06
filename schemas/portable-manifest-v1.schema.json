@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RustiQ portable manifest V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "format_version",
+    "kind",
+    "producer",
+    "calculations"
+  ],
+  "properties": {
+    "format": {
+      "const": "rustiq-persistence"
+    },
+    "format_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "portable"
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "calculations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/calculation"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "version",
+        "size",
+        "digest"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "version",
+        "digest"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_name",
+        "path",
+        "version",
+        "size",
+        "digest"
+      ],
+      "properties": {
+        "original_name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^sources/[^\\\\]+$"
+        },
+        "version": {
+          "const": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "path",
+        "size",
+        "representation",
+        "digest"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "representation": {
+          "type": "string"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "attributes": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "representation": {
+                "const": "rustiq-compact-eri-v1"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "attributes"
+            ],
+            "properties": {
+              "attributes": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "basis_functions",
+                  "computation_version"
+                ],
+                "properties": {
+                  "basis_functions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18446744073709551615
+                  },
+                  "computation_version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "scientific_identity",
+        "request",
+        "calculation",
+        "artifacts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^calculation-[0-9]+$"
+        },
+        "scientific_identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "request": {
+          "$ref": "#/$defs/snapshot"
+        },
+        "calculation": {
+          "$ref": "#/$defs/snapshot"
+        },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      }
+    }
+  }
+}

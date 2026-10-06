@@ -9,6 +9,7 @@ use super::{Sha256Digest, COMPACT_ERI_REPRESENTATION};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ManifestKind {
     IntegralCache,
+    Portable,
     Unknown(String),
 }
 
@@ -16,6 +17,7 @@ impl ManifestKind {
     pub(crate) fn as_str(&self) -> &str {
         match self {
             Self::IntegralCache => "integral-cache",
+            Self::Portable => "portable",
             Self::Unknown(value) => value,
         }
     }
@@ -38,6 +40,7 @@ impl<'de> Deserialize<'de> for ManifestKind {
         let value = String::deserialize(deserializer)?;
         Ok(match value.as_str() {
             "integral-cache" => Self::IntegralCache,
+            "portable" => Self::Portable,
             _ => Self::Unknown(value),
         })
     }
@@ -51,6 +54,31 @@ pub(crate) struct Manifest {
     pub producer: Producer,
     pub scientific_identity: ScientificIdentityManifest,
     pub artifacts: BTreeMap<String, ArtifactManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calculation: Option<SnapshotManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request: Option<SnapshotManifest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<SourceManifest>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SourceManifest {
+    pub original_name: String,
+    pub path: String,
+    pub version: u32,
+    pub size: u64,
+    pub digest: Sha256Digest,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SnapshotManifest {
+    pub path: String,
+    pub version: u32,
+    pub size: u64,
+    pub digest: Sha256Digest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,11 +104,38 @@ pub(crate) enum ArtifactAttributes {
     Unknown(BTreeMap<String, Value>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AoEriAttributes {
     pub basis_functions: usize,
     pub computation_version: u32,
+}
+
+// Keep the folder-cache/domain API while defining a pointer-width-independent wire record.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AoEriAttributesV1 {
+    basis_functions: u64,
+    computation_version: u32,
+}
+impl Serialize for AoEriAttributes {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        AoEriAttributesV1 {
+            basis_functions: u64::try_from(self.basis_functions)
+                .map_err(serde::ser::Error::custom)?,
+            computation_version: self.computation_version,
+        }
+        .serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for AoEriAttributes {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = AoEriAttributesV1::deserialize(deserializer)?;
+        Ok(Self {
+            basis_functions: usize::try_from(wire.basis_functions)
+                .map_err(serde::de::Error::custom)?,
+            computation_version: wire.computation_version,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -161,6 +216,9 @@ mod tests {
         );
 
         let manifest = Manifest {
+            calculation: None,
+            request: None,
+            sources: Vec::new(),
             format: FORMAT_NAME.to_string(),
             format_version: FORMAT_VERSION,
             kind: ManifestKind::IntegralCache,
@@ -310,4 +368,51 @@ mod tests {
 
         assert!(serde_json::from_str::<Manifest>(json).is_err());
     }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+
+    #[test]
+    fn ao_dimension_wire_is_u64_with_checked_host_conversion() {
+        let encoded = format!(
+            r#"{{"basis_functions":{},"computation_version":1}}"#,
+            u64::MAX
+        );
+        let result = serde_json::from_str::<AoEriAttributes>(&encoded);
+        assert_eq!(result.is_ok(), usize::try_from(u64::MAX).is_ok());
+        if let Ok(attributes) = result {
+            assert_eq!(serde_json::to_string(&attributes).unwrap(), encoded);
+        }
+        for invalid in ["-1", "18446744073709551616"] {
+            assert!(serde_json::from_str::<AoEriAttributes>(
+                &encoded.replace("18446744073709551615", invalid)
+            )
+            .is_err());
+        }
+    }
+}
+
+/// Portable wire format is independent of the single-artifact directory cache.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PortableManifest {
+    pub format: String,
+    pub format_version: u32,
+    pub kind: ManifestKind,
+    pub producer: Producer,
+    #[serde(default)]
+    pub sources: Vec<SourceManifest>,
+    pub calculations: Vec<PortableCalculation>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PortableCalculation {
+    pub id: String,
+    pub scientific_identity: ScientificIdentityManifest,
+    pub request: SnapshotManifest,
+    pub calculation: SnapshotManifest,
+    pub artifacts: BTreeMap<String, ArtifactManifest>,
 }

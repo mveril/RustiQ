@@ -28,6 +28,21 @@ pub struct EriCacheEvent {
     pub fingerprint: String,
 }
 
+/// Per-artifact reuse decision.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArtifactReuseDecision {
+    Reused,
+    Missing,
+    Incompatible,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactReuseEvent {
+    pub artifact: &'static str,
+    pub decision: ArtifactReuseDecision,
+}
+
 /// Results of the requested scientific stages, without presentation choices.
 #[derive(Debug, Clone)]
 pub struct CalculationResult {
@@ -55,6 +70,7 @@ pub enum CalculationEvent<'a> {
         config: &'a HfConfig,
     },
     EriCache(EriCacheEvent),
+    ArtifactReuse(ArtifactReuseEvent),
     ScfSetup(ScfSetupStep),
     ScfIteration(&'a ScfIteration),
     HfCompleted(&'a HfOutcome),

@@ -78,6 +78,7 @@ pub use setup_error::HfSetupError;
 mod solution;
 use crate::hf::scf_result::ScfOutcome;
 pub use solution::{CalculationExecutionError, Converged, HfOutcome, HfSolution, Unconverged};
+mod artifact_reuse;
 mod builder;
 mod execution;
 mod prepared_calculation;
@@ -101,8 +102,8 @@ pub use crate::{
 };
 pub use builder::CalculationBuilder;
 pub use execution::{
-    CalculationEvent, CalculationExecution, CalculationResult, EriCacheAction, EriCacheEvent,
-    HfCalculationResult, Mp2MemoryPlan,
+    ArtifactReuseDecision, ArtifactReuseEvent, CalculationEvent, CalculationExecution,
+    CalculationResult, EriCacheAction, EriCacheEvent, HfCalculationResult, Mp2MemoryPlan,
 };
 pub use prepared_calculation::PreparedCalculation;
 pub use request::CalculationRequest;
@@ -155,6 +156,8 @@ pub enum CalculationError {
     Numerical(#[from] NumericalError),
     #[error(transparent)]
     Diis(#[from] DiisError),
+    #[error(transparent)]
+    Artifact(#[from] crate::persistence::ArtifactError),
     #[error("{error}")]
     Mp2 {
         #[source]
@@ -222,17 +225,20 @@ impl<'a> HfCalculation<'a> {
             config,
             integrals,
             eri_cache,
+            None,
             progress,
             |_| {},
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_with_progress_and_cache(
         molecule: &'a Molecule,
         basis: &'a Basis,
         config: &HfConfig,
         integrals: &IntegralConfig,
         eri_cache: Option<&'a EriCache>,
+        supplied_eri: Option<crate::eri::CompactEri>,
         mut progress: impl FnMut(ScfSetupStep),
         mut cache_event: impl FnMut(EriCacheEvent),
     ) -> Result<Self, CalculationError> {
@@ -251,6 +257,7 @@ impl<'a> HfCalculation<'a> {
             &config.orthogonalization,
             integrals,
             eri_cache,
+            supplied_eri,
             &mut progress,
             &mut cache_event,
         )
