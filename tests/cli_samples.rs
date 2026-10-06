@@ -248,7 +248,11 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
-    assert!(stdout.contains("Calculation\n  Geometry      ../molecule.xyz"));
+    let expected_geometry = Path::new("samples/h2/sto-3g")
+        .join("../molecule.xyz")
+        .display()
+        .to_string();
+    assert!(stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")));
     assert!(stdout.contains("  Atoms         2"));
     assert!(stdout.contains("  Charge        0"));
     assert!(stdout.contains("  Multiplicity  1"));
@@ -297,7 +301,10 @@ fn test_cli_shows_canonical_request_without_original_source_dump() {
     assert!(stdout.contains("Requested geometry (canonical XYZ, Angstrom)"));
     assert!(stdout.contains("H 0 0 -0.3700000001234568"));
     assert!(stdout.contains("Calculation\n"));
-    assert!(stdout.contains("Geometry      molecule.xyz"));
+    assert!(stdout.contains(&format!(
+        "Geometry      {}",
+        input_dir.join("molecule.xyz").display()
+    )));
     assert!(!stdout.contains("Keep the original path and formatting"));
     assert!(!stdout.contains("Hydrogen molecule -- original comment"));
     assert!(!stdout.contains("relative to this file"));
@@ -1204,6 +1211,81 @@ fn run_accepts_bare_filename_in_current_directory() {
         ])
         .output()
         .unwrap();
+    assert_success(&output);
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+}
+
+#[test]
+fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
+    let root = tempfile::tempdir().unwrap();
+    prepare_basis_store(root.path());
+    let inputs = root.path().join("inputs");
+    let nested_inputs = inputs.join("nested");
+    let caller = root.path().join("caller");
+    fs::create_dir_all(&nested_inputs).unwrap();
+    fs::create_dir(&caller).unwrap();
+    fs::write(
+        inputs.join("molecule.xyz"),
+        include_bytes!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    fs::write(
+        nested_inputs.join("calculation.toml"),
+        "[molecule]\ngeometry = \"../molecule.xyz\"\n[basis]\nname = \"sto-3g\"\n[cache]\nenabled = true\n[method.hf]\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .current_dir(&caller)
+        .env("RUSTIQ_DATA_HOME", root.path())
+        .args([
+            "run",
+            "../inputs/nested/calculation.toml",
+            "--no-auto-download",
+            "--cache-dir",
+            "local-cache",
+        ])
+        .output()
+        .unwrap();
+    assert_success(&output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let expected_geometry = Path::new("../inputs/nested")
+        .join("../molecule.xyz")
+        .display()
+        .to_string();
+    assert!(
+        stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")),
+        "{stdout}"
+    );
+    assert!(caller.join("local-cache").exists());
+    assert!(!inputs.join("local-cache").exists());
+}
+
+#[test]
+fn run_resolves_stdin_geometry_from_callers_directory() {
+    use std::{io::Write, process::Stdio};
+    let root = tempfile::tempdir().unwrap();
+    prepare_basis_store(root.path());
+    fs::write(
+        root.path().join("molecule.xyz"),
+        include_bytes!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .current_dir(root.path())
+        .env("RUSTIQ_DATA_HOME", root.path())
+        .args(["run", "--no-auto-download", "--format", "json"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"[basis]\nname = \"sto-3g\"\n")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
     assert_success(&output);
     serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
 }

@@ -74,8 +74,8 @@ impl From<&mp2::Mp2Config> for core::Mp2Config {
         Self {
             frozen_orbitals: value.frozen_orbitals.into(),
             memory_limit: match value.memory_limit {
-                mp2::MemoryLimit::Auto => core::MemoryLimit::Auto,
-                mp2::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
+                crate::config::MemoryLimit::Auto => core::MemoryLimit::Auto,
+                crate::config::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
             }
             .into(),
         }
@@ -239,8 +239,8 @@ impl From<&core::Mp2Config> for mp2::Mp2Config {
         Self {
             frozen_orbitals: value.frozen_orbitals.value,
             memory_limit: match value.memory_limit.value {
-                core::MemoryLimit::Auto => mp2::MemoryLimit::Auto,
-                core::MemoryLimit::Fixed(size) => mp2::MemoryLimit::Fixed(size),
+                core::MemoryLimit::Auto => crate::config::MemoryLimit::Auto,
+                core::MemoryLimit::Fixed(size) => crate::config::MemoryLimit::Fixed(size),
             },
         }
     }

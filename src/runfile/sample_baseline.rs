@@ -532,11 +532,14 @@ fn valid_sample_set_matches_baseline_cases() {
 }
 
 #[test]
-fn omitted_hf_is_currently_absent_from_the_parsed_frontend() {
-    // Existing behavior differs from #94's final contract: the CLI calculation
-    // supplies HF defaults later, while the future resolved DTO always contains HF.
+fn omitted_hf_is_resolved_before_core_conversion() {
+    // The legacy syntax retains omission; the production resolved boundary materializes HF.
     let parsed = parse_runfile("omitted-hf.toml", "[basis]\nname = \"sto-3g\"\n").unwrap();
-    assert!(parsed.hf_config.is_none());
+    assert!(parsed.runfile.method.hf.is_none());
+    let hf = parsed.hf_config.unwrap();
+    assert_eq!(hf.method.value, HfMethod::Auto);
+    assert_eq!(hf.max_iterations.get(), 100);
+    assert!(hf.method.span.is_none());
     assert!(parsed.mp2_config.is_none());
     assert_eq!(
         parsed.runfile.molecule.geometry,

@@ -1,5 +1,5 @@
-//! CLI TOML frontend. Convert these representations to `rustiq_core::config`
-//! before invoking scientific code; parsing is never needed for direct Rust use.
+//! CLI configuration frontend. Production TOML resolves to syntax-neutral DTOs
+//! before conversion to core types; embedded Nickel verifies the migration in tests.
 mod adapter;
 pub mod basis;
 pub mod cache;
@@ -9,9 +9,12 @@ pub mod integrals;
 pub mod method;
 pub mod molecule;
 pub mod mp2;
+#[cfg(test)]
+mod nickel;
 pub mod output;
 pub mod parser;
 pub mod random_config;
+pub mod resolved;
 mod units;
 pub mod validated;
 

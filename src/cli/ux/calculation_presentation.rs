@@ -103,6 +103,7 @@ pub(crate) struct CanonicalPair {
 pub(crate) struct SourceProvenance {
     pub(crate) calculation_name: String,
     pub(crate) calculation: String,
+    pub(crate) geometry_reference: PathBuf,
     pub(crate) geometry_path: PathBuf,
     pub(crate) geometry: String,
 }
@@ -111,12 +112,14 @@ impl SourceProvenance {
     pub(crate) fn new(
         calculation_name: String,
         calculation: String,
+        geometry_reference: PathBuf,
         geometry_path: PathBuf,
         geometry: String,
     ) -> Self {
         Self {
             calculation_name,
             calculation,
+            geometry_reference,
             geometry_path,
             geometry,
         }
@@ -284,13 +287,15 @@ mod tests {
             "calculation.toml".into(),
             toml.into(),
             "../molecule.xyz".into(),
+            "/workspace/molecule.xyz".into(),
             xyz.into(),
         );
 
         assert_eq!(source.calculation, toml);
         assert_eq!(source.geometry, xyz);
         assert_eq!(source.calculation_name, "calculation.toml");
-        assert_eq!(source.geometry_path, Path::new("../molecule.xyz"));
+        assert_eq!(source.geometry_reference, Path::new("../molecule.xyz"));
+        assert_eq!(source.geometry_path, Path::new("/workspace/molecule.xyz"));
     }
 
     #[test]
