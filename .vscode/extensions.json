@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "auricvex.flake-env",
+    "rust-lang.rust-analyzer",
+    "vadimcn.vscode-lldb",
+    "tamasfe.even-better-toml",
+    "esbenp.prettier-vscode",
+    "fill-labs.dependi",
+    "jnoortheen.nix-ide",
+    "ms-python.python",
+    "ms-toolsai.jupyter",
+    "charliermarsh.ruff"
+  ]
+}
