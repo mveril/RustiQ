@@ -229,7 +229,7 @@ fn toml_context(
     source_name: &str,
     toml: &str,
 ) -> Result<(Context, super::source_map::TomlSourceMap), Vec<ConfigurationError>> {
-    // Nickel 0.18's TOML importer cannot represent TOML's non-finite numbers.
+    // Nickel's TOML importer cannot represent TOML's non-finite numbers.
     // This guard covers every internal import entry point; Nickel remains
     // authoritative for configuration structure and validation.
     if let Ok(document) = toml.parse::<toml_edit::DocumentMut>() {
