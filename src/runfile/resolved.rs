@@ -198,26 +198,6 @@ impl<'de> serde::Deserialize<'de> for ResolvedInput {
 }
 
 impl ResolvedCalculationConfig {
-    // Temporary private migration bridge: the production TOML parser still owns defaults.
-    pub(super) fn from_runfile(runfile: &super::RunFile) -> miette::Result<Self> {
-        use miette::IntoDiagnostic;
-        let source = toml_spanner::to_string(runfile).into_diagnostic()?;
-        let mut value: toml::Value = toml::from_str(&source).into_diagnostic()?;
-        let method = value
-            .as_table_mut()
-            .ok_or_else(|| miette::miette!("expected resolved record"))?
-            .entry("method")
-            .or_insert_with(|| toml::Value::Table(toml::Table::new()));
-        if method.get("hf").is_none() {
-            let hf = toml_spanner::to_string(&super::hf::HfConfig::default()).into_diagnostic()?;
-            method
-                .as_table_mut()
-                .ok_or_else(|| miette::miette!("expected method record"))?
-                .insert("hf".into(), toml::from_str(&hf).into_diagnostic()?);
-        }
-        value.try_into().into_diagnostic()
-    }
-
     pub fn resource_path(&self, input: Option<&std::path::Path>) -> PathBuf {
         input
             .and_then(std::path::Path::parent)

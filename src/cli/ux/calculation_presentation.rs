@@ -15,7 +15,6 @@ use rustiq_core::{
     config,
     molecules::{geometry::Geometry, units::Units},
 };
-use toml_spanner::{ToTomlError, Toml};
 
 use crate::runfile::{
     basis::BasisConfig,
@@ -23,25 +22,19 @@ use crate::runfile::{
     integrals::IntegralConfig,
     method::MethodConfig,
     molecule::MoleculeConfig,
-    output::{OutputConfig, ScfOutput},
+    output::{OutputConfig, RenderError, ScfOutput},
 };
 
 /// CLI rendering schema, not a scientific persistence schema. The generated
 /// geometry filename belongs to this TOML/XYZ adapter, never to the core views.
-#[derive(Toml)]
-#[toml(ToToml)]
+#[derive(serde::Serialize)]
 struct CalculationToml {
-    #[toml(style = Header)]
     molecule: MoleculeConfig,
-    #[toml(style = Header)]
     basis: BasisConfig,
-    #[toml(style = Implicit)]
     method: MethodConfig,
-    #[toml(style = Header)]
     integrals: IntegralConfig,
-    #[toml(style = Header)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     cache: Option<CacheConfig>,
-    #[toml(style = Header)]
     output: OutputConfig,
 }
 
@@ -140,7 +133,7 @@ pub(crate) fn requested_calculation(
     request: &CalculationRequest,
     cache_enabled: bool,
     scf_output: ScfOutput,
-) -> Result<CanonicalPair, ToTomlError> {
+) -> Result<CanonicalPair, RenderError> {
     let toml = render_calculation_toml(CalculationToml::requested(
         request,
         cache_enabled,
@@ -153,14 +146,14 @@ pub(crate) fn requested_calculation(
     })
 }
 
-fn render_calculation_toml(configuration: CalculationToml) -> Result<String, ToTomlError> {
+fn render_calculation_toml(configuration: CalculationToml) -> Result<String, RenderError> {
     let cache = configuration.cache;
-    let mut toml = toml_spanner::to_string(&CalculationToml {
+    let mut toml = crate::runfile::output::to_string(&CalculationToml {
         cache: None,
         ..configuration
     })?;
     if let Some(cache) = cache {
-        let cache_toml = toml_spanner::to_string(&cache)?;
+        let cache_toml = crate::runfile::output::to_string(&cache)?;
         toml.push_str("\n[cache]\n");
         toml.push_str(&cache_toml);
     }
@@ -215,7 +208,7 @@ impl ResolvedCalculation {
 
 pub(crate) fn resolved_calculation(
     prepared: &PreparedCalculation,
-) -> Result<ResolvedCalculation, ToTomlError> {
+) -> Result<ResolvedCalculation, RenderError> {
     let molecule = prepared.get_molecule();
     Ok(ResolvedCalculation {
         summary: format!(

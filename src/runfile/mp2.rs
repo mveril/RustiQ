@@ -1,41 +1,21 @@
 use serde::{Deserialize, Serialize};
-use toml_spanner::Toml;
 
 pub use crate::config::MemoryLimit;
 
-#[derive(Debug, Default, Serialize, Deserialize, Toml)]
-#[toml(Toml)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Mp2Config {
-    #[toml(default)]
-    #[toml(with = crate::runfile::validated::usize_as_integer)]
     pub frozen_orbitals: usize,
-    #[toml(default)]
     pub memory_limit: MemoryLimit,
-}
-
-impl<'de> toml_spanner::FromToml<'de> for MemoryLimit {
-    fn from_toml(
-        ctx: &mut toml_spanner::Context<'de>,
-        item: &toml_spanner::Item<'de>,
-    ) -> Result<Self, toml_spanner::Failed> {
-        let text = <String as toml_spanner::FromToml>::from_toml(ctx, item)?;
-        Self::parse(&text).map_err(|error| ctx.report_custom_error(error, item))
-    }
-}
-
-impl toml_spanner::ToToml for MemoryLimit {
-    fn to_toml<'a>(
-        &'a self,
-        arena: &'a toml_spanner::Arena,
-    ) -> Result<toml_spanner::Item<'a>, toml_spanner::ToTomlError> {
-        Ok(toml_spanner::Item::from(arena.alloc_str(&self.exact())))
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use bytesize::ByteSize;
+
+    fn parse_mp2(source: &str) -> miette::Result<Mp2Config> {
+        super::super::parse_section("method.mp2", source).map(|runfile| runfile.method.mp2.unwrap())
+    }
 
     #[test]
     fn memory_sizes_parse_and_round_trip_exactly() {
@@ -54,23 +34,21 @@ mod tests {
             let json = serde_json::to_string(&value).unwrap();
             assert_eq!(serde_json::from_str::<MemoryLimit>(&json).unwrap(), value);
             let source = format!("memory_limit = {text:?}");
-            let parsed: Mp2Config = toml_spanner::from_str(&source).unwrap();
+            let parsed: Mp2Config = parse_mp2(&source).unwrap();
             assert_eq!(parsed.memory_limit, value);
-            let serialized = toml_spanner::to_string(&parsed).unwrap();
-            let restored: Mp2Config = toml_spanner::from_str(&serialized).unwrap();
+            let serialized = crate::runfile::output::to_string(&parsed).unwrap();
+            let restored: Mp2Config = parse_mp2(&serialized).unwrap();
             assert_eq!(restored.memory_limit, value);
         }
-        let config: Mp2Config = toml_spanner::from_str("").unwrap();
+        let config: Mp2Config = parse_mp2("").unwrap();
         assert_eq!(config.memory_limit, MemoryLimit::default());
         for text in ["auto", "AUTO", " Auto "] {
             assert_eq!(MemoryLimit::parse(text).unwrap(), MemoryLimit::Auto);
         }
         assert_eq!(MemoryLimit::Auto.exact(), "auto");
-        let serialized = toml_spanner::to_string(&config).unwrap();
+        let serialized = crate::runfile::output::to_string(&config).unwrap();
         assert_eq!(
-            toml_spanner::from_str::<Mp2Config>(&serialized)
-                .unwrap()
-                .memory_limit,
+            parse_mp2(&serialized).unwrap().memory_limit,
             MemoryLimit::Auto
         );
         let json = serde_json::to_string(&MemoryLimit::Auto).unwrap();
@@ -94,24 +72,21 @@ mod tests {
         ] {
             assert!(MemoryLimit::parse(text).is_err(), "{text}");
             let source = format!("memory_limit = {text:?}");
-            assert!(
-                toml_spanner::from_str::<Mp2Config>(&source).is_err(),
-                "{text}"
-            );
+            assert!(parse_mp2(&source).is_err(), "{text}");
         }
-        assert!(toml_spanner::from_str::<Mp2Config>("memory_limit = 512").is_err());
+        assert!(parse_mp2("memory_limit = 512").is_err());
     }
 
     #[test]
     fn test_mp2_config_defaults_to_no_frozen_orbitals() {
-        let config: Mp2Config = toml_spanner::from_str("").unwrap();
+        let config: Mp2Config = parse_mp2("").unwrap();
 
         assert_eq!(config.frozen_orbitals, 0);
     }
 
     #[test]
     fn test_mp2_config_can_set_frozen_orbitals() {
-        let config: Mp2Config = toml_spanner::from_str("frozen_orbitals = 1").unwrap();
+        let config: Mp2Config = parse_mp2("frozen_orbitals = 1").unwrap();
 
         assert_eq!(config.frozen_orbitals, 1);
     }

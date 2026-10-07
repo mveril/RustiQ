@@ -19,6 +19,7 @@
         "esbenp.prettier-vscode",
         "fill-labs.dependi",
         "jnoortheen.nix-ide",
+        "Tweag.vscode-nickel",
         "ms-python.python",
         "ms-toolsai.jupyter",
         "charliermarsh.ruff"
@@ -47,6 +48,9 @@
         },
         "[toml]": {
           "editor.defaultFormatter": "tamasfe.even-better-toml"
+        },
+        "[nickel]": {
+          "editor.formatOnSave": true
         },
         "[json]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"

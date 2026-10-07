@@ -1,11 +1,30 @@
 # Nickel migration schema
 
-PR 2 of #94 retains the TOML parser as the production authority. Parsed TOML
-crosses `ResolvedInput` before conversion to core configuration. Canonical
-rendering and `init` still use the legacy frontend until PR 5.
+PR 3 of #94 makes the embedded Nickel schema authoritative for TOML defaults
+and validation. Nickel's native TOML import parses the in-memory source once
+and preserves its locations. The source mapper walks Nickel's parsed value and
+supplies spans only; it does not parse TOML or construct configuration.
+Canonical rendering and `init` export TOML through Nickel. Default omission
+resolves one minimal configuration through Nickel, then compares the serialized
+fields with Nickel’s resolved defaults. Required basis names and explicit method
+sections stay in the output.
+Direct `toml` and `toml-spanner` dependencies were removed. `toml_edit` remains
+only as a post-export formatting layer for canonical TOML; it is not a
+configuration schema authority. It also provides a narrow parser-safety check
+for non-finite TOML floats that Nickel 0.18 cannot represent.
 
-The embedded Nickel 2.2 evaluator is exercised only in shadow compatibility
-tests (`src/runfile/nickel.rs`); normal runs do not evaluate inputs twice.
+The private frontend pins `nickel-lang-core` to 0.18.0 because the stable
+`nickel-lang` interface does not expose native in-memory imports or structured
+diagnostic locations. Core API changes must remain isolated in this frontend.
+
+Nickel errors are adapted to miette using original TOML locations when a
+contract error identifies an explicit field. Nickel-injected defaults have no
+source span. After a failed export, the frontend evaluates independent fields
+through Nickel field access and collects their failures as related miette
+diagnostics. Native Nickel labels, source files, and notes are retained as
+related miette details, including TOML syntax errors. A failed parent contract
+is reported once, since its children cannot be validated until the parent is corrected. Successful inputs keep a
+single evaluation pass.
 `calculation.ncl` owns the intended defaults and closed contracts, `resolve.ncl`
 normalizes a record or a non-empty array, and `rebuild-data.ncl` is a private
 migration workaround. No external Nickel executable is needed.
@@ -38,8 +57,5 @@ cargo test --offline --workspace --all-targets --no-default-features
 cargo clippy --offline --workspace --all-targets --all-features -- -D warnings
 ```
 
-One legacy discrepancy found by the additional parity tests is retained:
-`[method.hf.guess]` containing only `type = "Random"` is currently rejected by
-the TOML parser. The intended Nickel contract supplies the default Uniform
-parameters for this input, as validated in POC #96. PR 2 does not make Nickel
-authoritative for production TOML or silently broaden its accepted syntax.
+The accepted `Random` density guess syntax remains unchanged: its distribution
+must be specified explicitly, as before the Nickel migration.

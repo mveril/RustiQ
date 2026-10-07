@@ -9,6 +9,7 @@
     "jnoortheen.nix-ide",
     "ms-python.python",
     "ms-toolsai.jupyter",
-    "charliermarsh.ruff"
+    "charliermarsh.ruff",
+    "Tweag.vscode-nickel"
   ]
 }

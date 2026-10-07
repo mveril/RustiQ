@@ -2,63 +2,77 @@ use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
 #[derive(Debug, Error, Diagnostic)]
-#[error("runfile contains {count} configuration error(s)")]
-#[diagnostic(
-    code(rustiq::runfile::toml_deserialize),
-    help("Fix each reported runfile field error.")
-)]
-struct RunfileDeserializationError {
-    count: usize,
-    #[related]
-    diagnostics: Vec<RunfileFieldDiagnostic>,
-}
-
-#[derive(Debug, Error, Diagnostic)]
 #[error("{message}")]
-#[diagnostic(code(rustiq::runfile::invalid_field))]
-struct RunfileFieldDiagnostic {
-    message: String,
+#[diagnostic(code(rustiq::runfile::nickel))]
+pub(crate) struct NickelRunfileDiagnostic {
     #[source_code]
     source_code: NamedSource<String>,
     #[label("{label}")]
-    span: SourceSpan,
+    span: Option<SourceSpan>,
+    message: String,
     label: String,
+    #[related]
+    details: Vec<NickelDiagnosticDetail>,
 }
 
-pub(crate) trait FromTomlErrorMietteExt {
-    fn into_miette_diagnostic(self, source_name: String, toml_content: &str) -> miette::Report;
+pub(crate) fn nickel_error(
+    source_name: &str,
+    source: &str,
+    message: String,
+    label: String,
+    span: Option<SourceSpan>,
+) -> NickelRunfileDiagnostic {
+    NickelRunfileDiagnostic {
+        source_code: NamedSource::new(source_name, source.to_owned()),
+        span,
+        message: if span.is_some() {
+            message
+        } else {
+            format!("{source_name}: {message}\n{label}")
+        },
+        label,
+        details: Vec::new(),
+    }
 }
 
-impl FromTomlErrorMietteExt for toml_spanner::FromTomlError {
-    fn into_miette_diagnostic(self, source_name: String, toml_content: &str) -> miette::Report {
-        let source_code = NamedSource::new(source_name, toml_content.to_string());
-        let diagnostics: Vec<RunfileFieldDiagnostic> = self
-            .errors
-            .iter()
-            .map(|error| {
-                let (span, default_label) = error
-                    .primary_label()
-                    .unwrap_or_else(|| (error.span(), error.message(toml_content)));
-                let path = error
-                    .path()
-                    .map(std::string::ToString::to_string)
-                    .or_else(|| path_for_span(toml_content, span));
-                let (message, label) = humanized_runfile_error(
-                    path.as_deref(),
-                    &error.message(toml_content),
-                    &default_label,
-                );
+impl NickelRunfileDiagnostic {
+    pub(crate) fn with_details(mut self, details: Vec<NickelDiagnosticDetail>) -> Self {
+        self.details = details;
+        self
+    }
+}
 
-                RunfileFieldDiagnostic {
-                    message,
-                    source_code: source_code.clone(),
-                    span: source_span(span),
-                    label,
-                }
-            })
-            .collect();
+/// Nickel's own labels and notes, grouped by source file for miette.
+#[derive(Debug, Error, Diagnostic)]
+#[error("{message}")]
+#[diagnostic(code(rustiq::runfile::nickel::detail))]
+pub(crate) struct NickelDiagnosticDetail {
+    pub(crate) message: String,
+    #[source_code]
+    pub(crate) source_code: Option<NamedSource<String>>,
+    #[label(collection)]
+    pub(crate) labels: Vec<miette::LabeledSpan>,
+    #[help]
+    pub(crate) notes: Option<String>,
+}
 
-        RunfileDeserializationError {
+#[derive(Debug, Error, Diagnostic)]
+#[error("runfile contains {count} configuration error(s)")]
+#[diagnostic(
+    code(rustiq::runfile::nickel),
+    help("Fix each reported runfile field error.")
+)]
+struct NickelRunfileErrors {
+    count: usize,
+    #[related]
+    diagnostics: Vec<NickelRunfileDiagnostic>,
+}
+
+pub(crate) fn group_nickel_errors(mut diagnostics: Vec<NickelRunfileDiagnostic>) -> miette::Report {
+    if diagnostics.len() == 1 {
+        diagnostics.remove(0).into()
+    } else {
+        NickelRunfileErrors {
             count: diagnostics.len(),
             diagnostics,
         }
@@ -66,56 +80,28 @@ impl FromTomlErrorMietteExt for toml_spanner::FromTomlError {
     }
 }
 
-fn source_span(span: toml_spanner::Span) -> SourceSpan {
-    let start = span.start as usize;
-    let end = span.end as usize;
-    (start, end.saturating_sub(start)).into()
-}
-
-fn path_for_span(toml_content: &str, span: toml_spanner::Span) -> Option<String> {
-    let offset = (span.start as usize).min(toml_content.len());
-    let before = toml_content.get(..offset)?;
-    let after = toml_content.get(offset..)?;
-    let line_start = before.rfind('\n').map_or(0, |index| index + 1);
-    let line_end = after
-        .find('\n')
-        .map_or(toml_content.len(), |index| offset + index);
-    let line = toml_content.get(line_start..line_end)?.trim();
-    let key = line.split_once('=')?.0.trim();
-    if key.is_empty() {
-        return None;
-    }
-
-    let section = toml_content
-        .get(..line_start)?
-        .lines()
-        .rev()
-        .find_map(|line| {
-            let line = line.trim();
-            line.strip_prefix('[')
-                .and_then(|line| line.strip_suffix(']'))
-                .map(str::trim)
-                .filter(|section| !section.is_empty())
-        });
-
-    Some(match section {
-        Some(section) => format!("{section}.{key}"),
-        None => key.to_string(),
-    })
-}
-
 #[allow(
     clippy::case_sensitive_file_extension_comparisons,
     reason = "These are case-sensitive TOML field paths, not filesystem extensions"
 )]
-fn humanized_runfile_error(
+pub(crate) fn humanized_runfile_error(
+    kind: super::nickel::ConfigurationErrorKind,
     path: Option<&str>,
     raw_message: &str,
     default_label: &str,
 ) -> (String, String) {
     let Some(path) = path else {
         return (
-            "The runfile is not valid TOML.".to_string(),
+            match kind {
+                super::nickel::ConfigurationErrorKind::TomlSyntax => {
+                    "The runfile is not valid TOML."
+                }
+                super::nickel::ConfigurationErrorKind::Contract
+                | super::nickel::ConfigurationErrorKind::Domain => {
+                    "The runfile configuration is invalid."
+                }
+            }
+            .to_string(),
             default_label.trim().to_string(),
         );
     };
@@ -173,6 +159,10 @@ fn humanized_runfile_error(
             "The MP2 frozen orbital count must be a non-negative integer.".to_string(),
             "expected a count of frozen orbitals".to_string(),
         ),
+        "method.mp2.memory_limit" => (
+            "The MP2 memory limit must be a positive byte size or auto.".to_string(),
+            "expected a byte size such as \"512 MiB\" or \"auto\"".to_string(),
+        ),
         "method.hf.guess" => (
             "The HF density guess must be configured as a table.".to_string(),
             "expected a density guess configuration".to_string(),
@@ -202,93 +192,210 @@ mod tests {
     use crate::runfile::parser::parse_runfile;
 
     #[test]
-    fn path_for_span_handles_utf8_boundaries() {
-        let source = "# é\n[global]\nbasis = 4\n";
-        let start = u32::try_from(source.find('4').unwrap()).unwrap();
+    fn native_toml_syntax_errors_preserve_utf8_offsets_and_source_name() {
+        let source = "# é\nbasis = { name = 'sto-3g' }\nmethod = { hf = { max_iterations = @ } }\n";
+        let error = parse_runfile("stdin.toml", source).unwrap_err();
+        let label = error.labels().unwrap().next().unwrap();
+        assert_eq!(label.offset(), source.find('@').unwrap());
         assert_eq!(
-            super::path_for_span(
-                source,
-                toml_spanner::Span {
-                    start,
-                    end: start + 1
-                }
-            ),
-            Some("global.basis".to_string())
+            source
+                .get(label.offset()..label.offset() + label.len())
+                .unwrap(),
+            "@ "
         );
-        assert_eq!(
-            super::path_for_span(source, toml_spanner::Span { start: 3, end: 4 }),
-            None
-        );
+        let contents = error
+            .source_code()
+            .unwrap()
+            .read_span(label.inner(), 0, 0)
+            .unwrap();
+        assert_eq!(contents.name(), Some("stdin.toml"));
+        let native = error.related().unwrap().next().unwrap();
+        assert!(native.labels().is_some());
     }
 
     #[test]
-    fn test_from_toml_error_reports_toml_span() {
-        let result = parse_runfile("calculation.toml", "hf = \"not a table\"");
-
-        let err = result.unwrap_err();
-        assert_eq!(
-            err.code().unwrap().to_string(),
-            "rustiq::runfile::toml_deserialize"
-        );
+    fn native_contract_labels_retain_the_original_input_source() {
+        let source = "basis = { name = 'sto-3g' }\nmethod = { hf = { max_iterations = 0 } }\n";
+        let error = parse_runfile("inline.toml", source).unwrap_err();
+        let details = error.related().unwrap().collect::<Vec<_>>();
+        assert!(!details.is_empty());
+        assert!(details.iter().any(|detail| detail.labels().is_some()));
+        assert!(details.iter().any(|detail| {
+            detail.labels().is_some_and(|mut labels| {
+                labels.any(|label| {
+                    detail
+                        .source_code()
+                        .unwrap()
+                        .read_span(label.inner(), 0, 0)
+                        .is_ok_and(|contents| contents.name() == Some("inline.toml"))
+                })
+            })
+        }));
     }
 
     #[test]
-    fn test_from_toml_error_reports_multiple_deserialization_errors() {
-        let result = parse_runfile(
-            "calculation.toml",
-            r#"
-            [basis]
-            name = 4
+    fn nickel_diagnostic_reports_the_original_source_location() {
+        let err = parse_runfile("calculation.toml", "[basis]\nname = 4\n").unwrap_err();
+        assert_eq!(err.code().unwrap().to_string(), "rustiq::runfile::nickel");
+        let labels = err.labels().unwrap().collect::<Vec<_>>();
+        assert_eq!(labels.len(), 1);
+        let contents = err
+            .source_code()
+            .unwrap()
+            .read_span(labels[0].inner(), 0, 0)
+            .unwrap();
+        assert_eq!(std::str::from_utf8(contents.data()).unwrap(), "4");
+        assert_eq!(contents.name(), Some("calculation.toml"));
+    }
 
-            [method.hf]
-            max_iterations = 0
-            convergence_threshold = 0.0
-
-            [method.mp2]
-            frozen_orbitals = "one"
-            "#,
+    #[test]
+    fn grouped_contract_errors_retain_each_original_value_span() {
+        let source = include_str!("../../samples/invalid_diagnostics.toml");
+        let error = parse_runfile("calculation.toml", source).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "runfile contains 4 configuration error(s)"
         );
+        let mut values = error
+            .related()
+            .unwrap()
+            .map(|diagnostic| {
+                let label = diagnostic.labels().unwrap().next().unwrap();
+                let contents = diagnostic
+                    .source_code()
+                    .unwrap()
+                    .read_span(label.inner(), 0, 0)
+                    .unwrap();
+                assert_eq!(contents.name(), Some("calculation.toml"));
+                std::str::from_utf8(contents.data()).unwrap().to_owned()
+            })
+            .collect::<Vec<_>>();
+        values.sort();
+        assert_eq!(values, ["\"one\"", "0", "0.0", "4"]);
+    }
 
-        let err = result.unwrap_err();
-        assert_eq!(err.to_string(), "runfile contains 4 configuration error(s)");
-        let rendered = err
+    #[test]
+    fn grouping_includes_parent_contracts_missing_fields_and_domain_errors() {
+        let source = "[basis]\n[method.hf]\nmax_iterations = 0\n[method.hf.guess]\ntype = 'Unknown'\n[method.mp2]\nmemory_limit = 'nonsense'\n";
+        let error = parse_runfile("calculation.toml", source).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "runfile contains 4 configuration error(s)"
+        );
+        let messages = error
             .related()
             .unwrap()
             .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(rendered.contains("The basis set must be written as a string."));
-        assert!(rendered.contains("The HF iteration limit must be an integer greater than zero."));
-        assert!(rendered.contains("The HF convergence threshold must be a positive finite number."));
-        assert!(rendered.contains("The MP2 frozen orbital count must be a non-negative integer."));
+            .collect::<Vec<_>>();
+        assert!(messages.iter().any(|message| message.contains("basis set")));
+        assert!(messages
+            .iter()
+            .any(|message| message.contains("iteration limit")));
+        assert!(messages
+            .iter()
+            .any(|message| message.contains("density guess")));
+        assert!(messages
+            .iter()
+            .any(|message| message.contains("MP2 memory limit")));
     }
 
     #[test]
-    fn test_from_toml_error_reports_spanned_field_values() {
-        let result = parse_runfile(
-            "calculation.toml",
-            r"
-            [basis]
-            name = 4
-
-            [method.hf]
-            max_iterations = 0
-            convergence_threshold = 0.0
-            ",
+    fn inline_table_diagnostics_label_the_correct_nested_values() {
+        let source = "basis = { name = 'sto-3g' }\nmethod = { hf = { max_iterations = 0, diis = { enabled = 'invalid-diis' } } }\ncache = { enabled = 'invalid-cache' }\n";
+        let error = parse_runfile("inline.toml", source).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "runfile contains 3 configuration error(s)"
         );
+        let mut values = error
+            .related()
+            .unwrap()
+            .map(|diagnostic| {
+                let label = diagnostic.labels().unwrap().next().unwrap();
+                let contents = diagnostic
+                    .source_code()
+                    .unwrap()
+                    .read_span(label.inner(), 0, 0)
+                    .unwrap();
+                assert_eq!(contents.name(), Some("inline.toml"));
+                std::str::from_utf8(contents.data()).unwrap().to_owned()
+            })
+            .collect::<Vec<_>>();
+        values.sort();
+        assert_eq!(values, ["'invalid-cache'", "'invalid-diis'", "0"]);
+    }
 
-        let err = result.unwrap_err();
-        let fields = err.related().unwrap().collect::<Vec<_>>();
-        assert_eq!(fields.len(), 3);
-        for (field, expected) in fields.iter().zip(["4", "0", "0.0"]) {
-            let labels = field.labels().unwrap().collect::<Vec<_>>();
-            assert_eq!(labels.len(), 1);
-            let source = field.source_code().unwrap();
-            let contents = source.read_span(labels[0].inner(), 0, 0).unwrap();
+    #[test]
+    fn nickel_contract_errors_keep_field_specific_messages() {
+        for (source, expected_message, expected_value) in [
+            (
+                "[basis]\nname = 4\n",
+                "The basis set must be written as a string.",
+                "4",
+            ),
+            (
+                "[basis]\nname = \"sto-3g\"\n[method.hf]\nmax_iterations = 0\n",
+                "The HF iteration limit must be an integer greater than zero.",
+                "0",
+            ),
+            (
+                "[basis]\nname = \"sto-3g\"\n[method.hf]\nconvergence_threshold = 0.0\n",
+                "The HF convergence threshold must be a positive finite number.",
+                "0.0",
+            ),
+            (
+                "[basis]\nname = \"sto-3g\"\n[method.mp2]\nfrozen_orbitals = \"one\"\n",
+                "The MP2 frozen orbital count must be a non-negative integer.",
+                "\"one\"",
+            ),
+            (
+                "[basis]\nname = \"sto-3g\"\n[method.mp2]\nmemory_limit = \"0 B\"\n",
+                "The MP2 memory limit must be a positive byte size or auto.",
+                "\"0 B\"",
+            ),
+        ] {
+            let err = parse_runfile("calculation.toml", source).unwrap_err();
+            assert_eq!(err.to_string(), expected_message);
+            let label = err.labels().unwrap().next().unwrap();
+            let contents = err
+                .source_code()
+                .unwrap()
+                .read_span(label.inner(), 0, 0)
+                .unwrap();
             assert!(std::str::from_utf8(contents.data())
                 .unwrap()
-                .contains(expected));
-            assert_eq!(contents.name(), Some("calculation.toml"));
+                .contains(expected_value));
         }
+    }
+
+    #[test]
+    fn non_finite_toml_numbers_are_rejected_with_source_locations() {
+        for source in [
+            "[method.hf]\nconvergence_threshold = inf\n",
+            "[method.hf.orthogonalization]\nlinear_dependency_threshold = nan\n",
+            "[integrals]\nschwarz_threshold = inf\n",
+            "[method.hf.guess]\ntype = \"Random\"\ndistribution = \"Normal\"\nmean = nan\nstd_dev = inf\n",
+            "[method.hf.guess]\ntype = \"Random\"\ndistribution = \"Uniform\"\nmin = -inf\nmax = inf\n",
+            "[[unexpected]]\nvalue = inf\n",
+        ] {
+            let result = std::panic::catch_unwind(|| parse_runfile("non-finite.toml", source));
+            let error = result.expect("non-finite TOML must not panic").unwrap_err();
+            assert!(error.to_string().contains("finite"));
+            assert!(error.to_string().contains("non-finite.toml"));
+        }
+    }
+
+    #[test]
+    fn missing_configuration_fields_do_not_claim_toml_is_malformed() {
+        for source in [
+            "[molecule]\ngeometry = \"molecule.xyz\"\n",
+            "[basis]\n",
+            "[basis]\nname = \"sto-3g\"\n[molecule]\ngeometry = \"molecule.xyz\"\n[method]\nhf = 2\n",
+        ] {
+            let error = parse_runfile("missing.toml", source).unwrap_err();
+            assert!(!error.to_string().contains("not valid TOML"));
+        }
+        let error = parse_runfile("broken.toml", "[molecule\n").unwrap_err();
+        assert!(error.to_string().contains("not valid TOML"));
     }
 }

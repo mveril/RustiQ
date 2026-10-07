@@ -182,7 +182,7 @@ impl Runnable for InitCommand {
             cache: CacheConfig::default(),
             output: OutputConfig::default(),
         };
-        let content = toml_spanner::to_string(&run.output(Defaults::Omit)).into_diagnostic()?;
+        let content = run.output(Defaults::Omit).render().into_diagnostic()?;
         let mut temporary = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
         temporary.write_all(content.as_bytes()).into_diagnostic()?;
         temporary.flush().into_diagnostic()?;
@@ -248,7 +248,7 @@ mod tests {
         command(&input, &output, &["--mp2"]).run().unwrap();
         let content = fs::read_to_string(&output).unwrap();
         let parsed = parse_runfile("calculation.toml", &content).unwrap();
-        let expanded = toml_spanner::to_string(&parsed.runfile.output(Defaults::Include)).unwrap();
+        let expanded = parsed.runfile.output(Defaults::Include).render().unwrap();
         for field in [
             "charge =",
             "multiplicity =",

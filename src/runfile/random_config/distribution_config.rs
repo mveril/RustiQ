@@ -3,34 +3,34 @@ mod uniform_distribution_config;
 pub(crate) use normal_distribution_config::NormalDistributionConfig;
 pub(crate) use uniform_distribution_config::UniformDistributionConfig;
 
-use toml_spanner::{helper::flatten_any, Toml};
-
-#[derive(Debug, Clone, Copy, Toml)]
-#[toml(Toml, tag = "distribution")]
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(tag = "distribution")]
 pub(crate) enum DistributionConfig {
     Uniform {
-        #[toml(flatten, with = flatten_any)]
+        #[serde(flatten)]
         config: UniformDistributionConfig,
     },
     Normal {
-        #[toml(flatten, with = flatten_any)]
+        #[serde(flatten)]
         config: NormalDistributionConfig,
     },
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    fn parse_distribution(source: &str) -> miette::Result<crate::runfile::RunFile> {
+        crate::runfile::parse_section("method.hf.guess", &format!("type = 'Random'\n{source}"))
+    }
 
     #[test]
     fn test_normal_distribution_rejects_non_positive_std_dev() {
-        let zero = toml_spanner::from_str::<DistributionConfig>(
+        let zero = parse_distribution(
             r#"
             distribution = "Normal"
             mean = 0.0
             std_dev = 0.0
             "#,
         );
-        let negative = toml_spanner::from_str::<DistributionConfig>(
+        let negative = parse_distribution(
             r#"
             distribution = "Normal"
             mean = 0.0
@@ -44,14 +44,14 @@ mod tests {
 
     #[test]
     fn test_uniform_distribution_rejects_invalid_range() {
-        let equal = toml_spanner::from_str::<DistributionConfig>(
+        let equal = parse_distribution(
             r#"
             distribution = "Uniform"
             min = 1.0
             max = 1.0
             "#,
         );
-        let reversed = toml_spanner::from_str::<DistributionConfig>(
+        let reversed = parse_distribution(
             r#"
             distribution = "Uniform"
             min = 1.0

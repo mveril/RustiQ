@@ -250,7 +250,6 @@ impl From<&core::Mp2Config> for mp2::Mp2Config {
 mod tests {
     use rustiq_core::config::{DensityGuessConfig, RandomGuessConfig};
     use std::mem::discriminant;
-    use toml_spanner::Toml;
 
     #[test]
     #[allow(
@@ -316,12 +315,6 @@ mod tests {
     }
     #[test]
     fn test_density_guess_type_deserialization() {
-        #[derive(Toml)]
-        #[toml(FromToml)]
-        struct GuessConfig {
-            guess: crate::runfile::hf::DensityGuessConfig,
-        }
-
         for (toml, expected) in [
             (
                 r#"
@@ -357,7 +350,14 @@ mod tests {
                 DensityGuessConfig::CoreHamiltonian { perturbation: None },
             ),
         ] {
-            let config: GuessConfig = toml_spanner::from_str(toml).unwrap();
+            let config = crate::runfile::parse_section(
+                "method.hf",
+                &toml.replace("[guess]", "[method.hf.guess]"),
+            )
+            .unwrap()
+            .method
+            .hf
+            .unwrap();
             assert_eq!(
                 discriminant(&rustiq_core::config::DensityGuessConfig::from(config.guess)),
                 discriminant(&expected)

@@ -1,7 +1,6 @@
+#[cfg(test)]
 use crate::runfile::RunFile;
 use miette::IntoDiagnostic;
-
-use super::diagnostics::FromTomlErrorMietteExt;
 
 #[derive(Debug)]
 pub struct ParsedRunFile {
@@ -20,27 +19,71 @@ pub fn parse_runfile(
     toml_content: &str,
 ) -> miette::Result<ParsedRunFile> {
     let source_name = source_name.into();
-    let arena = toml_spanner::Arena::new();
-    let mut document = toml_spanner::parse(toml_content, &arena)
-        .map_err(toml_spanner::FromTomlError::from)
-        .map_err(|error| error.into_miette_diagnostic(source_name.clone(), toml_content))?;
-    let runfile = document
-        .to::<RunFile>()
-        .map_err(|error| error.into_miette_diagnostic(source_name, toml_content))?;
-
-    let calculation = super::resolved::ResolvedCalculationConfig::from_runfile(&runfile)?;
+    let (resolved, source_map) =
+        super::nickel::resolve_toml_with_locations(&source_name, toml_content);
+    let resolved = resolved.map_err(|errors| {
+        let diagnostics = errors
+            .into_iter()
+            .map(|error| {
+                let (path, span) = match &source_map {
+                    Some(source_map) => {
+                        source_map.error_location(error.path.as_deref(), &error.message)
+                    }
+                    None => (None, error.span),
+                };
+                let default_label = error
+                    .message
+                    .lines()
+                    .next()
+                    .unwrap_or("invalid configuration");
+                let (message, label) = super::diagnostics::humanized_runfile_error(
+                    error.kind,
+                    path.as_deref(),
+                    &error.message,
+                    default_label,
+                );
+                super::diagnostics::nickel_error(&source_name, toml_content, message, label, span)
+                    .with_details(error.details)
+            })
+            .collect();
+        super::diagnostics::group_nickel_errors(diagnostics)
+    })?;
+    let source_map = source_map.expect("successfully parsed input has source locations");
+    let calculation = resolved.single_calculation().into_diagnostic()?;
     let mut hf_config = Some(calculation.hf_config().into_diagnostic()?);
     let mut mp2_config = calculation.mp2_config();
     let mut molecule_config = calculation.molecule_config();
     let mut integral_config = calculation.integral_config().into_diagnostic()?;
-    let resolved = super::resolved::ResolvedInput::new(vec![calculation]).into_diagnostic()?;
 
-    let root = document.into_item();
-    let span = |path: &[&str]| {
-        let item = path.iter().try_fold(&root, |item, key| item[*key].item())?;
-        let span = item.span();
-        Some((span.start as usize, (span.end - span.start) as usize).into())
+    #[cfg(test)]
+    let runfile = RunFile {
+        molecule: super::molecule::MoleculeConfig {
+            geometry: calculation.molecule.geometry.clone(),
+            charge: molecule_config.charge.value,
+            multiplicity: molecule_config.multiplicity.value,
+            units: molecule_config.units,
+        },
+        basis: super::basis::BasisConfig {
+            name: calculation.basis.name.clone(),
+        },
+        method: super::method::MethodConfig {
+            hf: source_map
+                .span(&["method", "hf"])
+                .and_then(|_| hf_config.as_ref().map(Into::into)),
+            mp2: mp2_config.as_ref().map(Into::into),
+        },
+        integrals: (&integral_config).into(),
+        cache: super::cache::CacheConfig {
+            enabled: calculation.cache.enabled,
+        },
+        output: super::output::OutputConfig {
+            scf: match calculation.output.scf {
+                super::resolved::ScfOutput::Normal => super::output::ScfOutput::Normal,
+                super::resolved::ScfOutput::Quiet => super::output::ScfOutput::Quiet,
+            },
+        },
     };
+    let span = |path: &[&str]| source_map.span(path);
 
     if let Some(config) = &mut hf_config {
         config.method.span = span(&["method", "hf", "method"]);

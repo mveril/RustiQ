@@ -38,16 +38,13 @@ rayon = "1"
 relative-path = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.*"
-sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+sysinfo = { version = "0.39.6", default-features = false, features = [
+  "system",
+] }
 temp-env = "0.3"
 tempfile = "3.27.0"
 thiserror = "2"
 tokio = { version = "1", default-features = false }
-toml-spanner = { version = "1", default-features = false, features = [
-  "derive",
-  "from-toml",
-  "to-toml",
-] }
 
 [package]
 name = "RustiQ"
@@ -66,12 +63,10 @@ online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
 bench-support = ["rustiq-core/bench-support"]
 
 [dependencies]
-toml = "0.9"
 bytesize.workspace = true
 rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
 directories = "6"
 miette = { workspace = true, features = ["fancy"] }
-toml-spanner.workspace = true
 clap = { version = "4.6", features = ["cargo", "derive", "env"] }
 anstream = "1"
 anstyle = "1"
@@ -91,9 +86,12 @@ figlet-rs = "1"
 bat = { workspace = true, features = ["paging"] }
 cfg-if = "1"
 tempfile.workspace = true
+# Native in-memory TOML imports and structured diagnostics require the core API.
+nickel-lang-core = { version = "=0.19.0", default-features = false }
+# Preserve Nickel's TOML layout while choosing readable float representations.
+toml_edit = "0.25"
 
 [dev-dependencies]
-nickel-lang = "=2.2.0"
 approx.workspace = true
 rstest = "0.27"
 proptest.workspace = true

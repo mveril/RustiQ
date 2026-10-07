@@ -32,7 +32,7 @@ MP2 from converged HF orbitals.
 Implemented today:
 
 - `clap`-based command-line interface;
-- TOML runfiles parsed through `toml-spanner`;
+- TOML runfiles resolved through the embedded Nickel schema;
 - source-span diagnostics for invalid input through `miette`;
 - XYZ geometry parsing and unit conversion;
 - geometry inspection and transformation commands for info, rotation,
@@ -69,8 +69,9 @@ The repository is intentionally split into small domains:
 - `src/cli/` handles command dispatch, terminal output, and user-facing reports.
 - `crates/rustiq-core/src/config/` owns scientific options and optional source locations;
   `calculation/` prepares the molecule/basis and orchestrates HF and optional MP2.
-- `src/runfile/` is the CLI TOML adapter: input schema,
-  parsing diagnostics, and explicit conversion to scientific configuration.
+- `src/runfile/` is the CLI configuration frontend: Nickel owns TOML parsing,
+  defaults, validation, and source locations, and resolved DTOs
+  convert fallibly to scientific configuration.
 - `crates/rustiq-core/src/molecules/` owns atoms, elements, geometry parsing, units, charge,
   multiplicity, electron-count logic, and geometry transforms.
 - `crates/rustiq-core/src/basis/` owns basis-set files, cache management, Gaussian shells, and
@@ -122,8 +123,8 @@ RustiQ deliberately uses community crates where they make the code clearer:
 - `ndarray` for array-shaped reference data in compact tensor tests;
 - `rayon` for data parallelism in integral and post-HF paths;
 - `clap` for declarative command-line parsing;
-- `serde`, `serde_json`, and `toml-spanner` for structured data and recoverable
-  TOML parsing;
+- `serde` and `serde_json` for resolved DTOs, and `nickel-lang-core` for
+  TOML parsing, configuration resolution, source locations, and TOML rendering;
 - `miette` for diagnostics that point at invalid TOML fields and XYZ geometry
   lines;
 - `thiserror` for explicit error handling;
@@ -238,13 +239,15 @@ Docker image and Nix store.
 The container is based on Debian Bookworm and installs only Nix and direnv at
 the system level. The FlakeEnv extension loads `devShells.default` directly and
 propagates its environment to terminals, tasks, debuggers, and language
-servers. Rust, Nix, TOML, dependency, Python, Jupyter, and LLDB support is
-installed as a small explicit extension list rather than through extension
+servers. Rust, Nix, TOML, Nickel, dependency, Python, Jupyter, and LLDB support
+is installed as a small explicit extension list rather than through extension
 packs with overlapping behavior.
 
-The Rust toolchain, rust-analyzer, nixd, nixfmt, Ruff, scientific Python stack,
-and development utilities remain pinned by `flake.lock`. The first activation
-can take several minutes; later starts reuse the persistent Nix store.
+The Rust toolchain, rust-analyzer, nixd, nixfmt, Nickel, its language server,
+Ruff, scientific Python stack, and development utilities are provided by the
+Nix shell. VS Code installs the Nickel extension for syntax highlighting,
+language-server support, and formatting. The first activation can take several
+minutes; later starts reuse the persistent Nix store.
 Because `.envrc` execution requires explicit trust, run `direnv allow` once in
 the container if FlakeEnv reports that it is blocked, then run **FlakeEnv:
 Reload Environment**.
@@ -793,7 +796,7 @@ resolved configuration and XYZ in Bohr. These canonical pairs can each be
 copied into `calculation.toml` and `molecule.xyz` to recreate the corresponding
 semantic input. Canonical XYZ retains enough coordinate digits for an exact
 floating-point round trip. Canonical TOML uses typed CLI adapters and
-`toml-spanner`, without cache or terminal options. The requested basis label is
+Nickel export, without cache or terminal options. The requested basis label is
 distinct from the resolved basis name and AO contents; only the resolved
 scientific state determines artifact compatibility. Source provenance is
 optional and never needed to render either semantic view. TOML and XYZ are CLI
@@ -810,7 +813,7 @@ Both `HfOutcome::method()` and `HfSolution::method()` return the resolved
 the calculation did not converge.
 
 TOML parsing belongs to the CLI package in `src/runfile/`. The core has no
-`toml-spanner` dependency or runfile feature, even with all its features enabled.
+Nickel dependency or runfile feature, even with all its features enabled.
 Application directories and `RUSTIQ_DATA_HOME` / `RUSTIQ_DATA_BASIS` are
 resolved by `src/cli/directories.rs`; environment-only behavior remains in
 `src/cli/env.rs`. Core consumers provide their own path to `BasisStore::new`.

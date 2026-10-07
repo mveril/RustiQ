@@ -741,17 +741,23 @@ scf = "Quiet"
 }
 
 #[test]
-fn test_cli_invalid_runfile_reports_grouped_diagnostics() {
+fn test_cli_invalid_runfile_reports_grouped_nickel_diagnostics() {
     let output = run_rustiq(&["run", "samples/invalid_diagnostics.toml"]);
 
     assert_error(&output);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("runfile contains 4 configuration error(s)"));
+    assert!(stderr.contains("rustiq::runfile::nickel"));
+    assert!(
+        stderr.contains("runfile contains 4 configuration error(s)"),
+        "{stderr}"
+    );
     assert!(stderr.contains("The basis set must be written as a string."));
     assert!(stderr.contains("The HF iteration limit must be an integer greater than zero."));
     assert!(stderr.contains("The HF convergence threshold must be a positive finite number."));
+    assert!(stderr.contains("samples/invalid_diagnostics.toml:9:19"));
     assert!(stderr.contains("The MP2 frozen orbital count must be a non-negative integer."));
+    assert!(stderr.contains("expected a count of frozen orbitals"));
 }
 
 #[test]
