@@ -376,6 +376,7 @@ mod tests {
             "[integrals]\nschwarz_threshold = inf\n",
             "[method.hf.guess]\ntype = \"Random\"\ndistribution = \"Normal\"\nmean = nan\nstd_dev = inf\n",
             "[method.hf.guess]\ntype = \"Random\"\ndistribution = \"Uniform\"\nmin = -inf\nmax = inf\n",
+            "[[unexpected]]\nvalue = inf\n",
         ] {
             let result = std::panic::catch_unwind(|| parse_runfile("non-finite.toml", source));
             let error = result.expect("non-finite TOML must not panic").unwrap_err();

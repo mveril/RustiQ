@@ -229,6 +229,21 @@ fn toml_context(
     source_name: &str,
     toml: &str,
 ) -> Result<(Context, super::source_map::TomlSourceMap), Vec<ConfigurationError>> {
+    // Nickel 0.18's TOML importer cannot represent TOML's non-finite numbers.
+    // This guard covers every internal import entry point; Nickel remains
+    // authoritative for configuration structure and validation.
+    if let Ok(document) = toml.parse::<toml_edit::DocumentMut>() {
+        if let Some((path, span)) = non_finite_value(&document, &mut Vec::new()) {
+            return Err(vec![ConfigurationError {
+                kind: ConfigurationErrorKind::Domain,
+                path: Some(path.join(".")),
+                message: "non-finite TOML numbers are unsupported".to_owned(),
+                span,
+                details: Vec::new(),
+            }]);
+        }
+    }
+
     let mut context = Context::new();
     let id = context.vm.import_resolver.sources.add_string(
         SourcePath::Path(source_name.into(), InputFormat::Toml),
@@ -266,24 +281,6 @@ pub(crate) fn resolve_toml_with_locations(
     Result<ResolvedInput, Vec<ConfigurationError>>,
     Option<super::source_map::TomlSourceMap>,
 ) {
-    // Nickel 0.18's TOML importer cannot represent TOML's non-finite numbers.
-    // Validate only this parser limitation here; Nickel remains authoritative
-    // for all configuration structure and validation.
-    if let Ok(document) = toml.parse::<toml_edit::DocumentMut>() {
-        if let Some((path, span)) = non_finite_value(&document, &mut Vec::new()) {
-            let path_text = path.join(".");
-            return (
-                Err(vec![ConfigurationError {
-                    kind: ConfigurationErrorKind::Domain,
-                    path: Some(path_text),
-                    message: "non-finite TOML numbers are unsupported".to_owned(),
-                    span,
-                    details: Vec::new(),
-                }]),
-                None,
-            );
-        }
-    }
     match toml_context(source_name, toml) {
         Ok((context, locations)) => (
             evaluate_input_with_context("Input", context),
@@ -310,7 +307,10 @@ fn non_finite_value(
                     })
             }),
             toml_edit::Item::Table(table) => non_finite_value(table, path),
-            _ => None,
+            toml_edit::Item::ArrayOfTables(tables) => tables
+                .iter()
+                .find_map(|table| non_finite_value(table, path)),
+            toml_edit::Item::None => None,
         };
         path.pop();
         if found.is_some() {
