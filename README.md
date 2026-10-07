@@ -32,7 +32,8 @@ MP2 from converged HF orbitals.
 Implemented today:
 
 - `clap`-based command-line interface;
-- TOML runfiles resolved through the embedded Nickel schema;
+- TOML and native Nickel inputs resolved through the embedded Nickel schema;
+- sequential Nickel batches with ordered JSON results and individual errors;
 - source-span diagnostics for invalid input through `miette`;
 - XYZ geometry parsing and unit conversion;
 - geometry inspection and transformation commands for info, rotation,
@@ -558,6 +559,37 @@ output remains the human-oriented default.
 ```sh
 cargo run -- run samples/h2/sto-3g/calculation.toml --format json
 ```
+
+Native Nickel supports imports, computed configuration, and batches without an
+external Nickel executable:
+
+```sh
+cargo run -- run samples/h2/sto-3g/calculation.ncl
+cargo run -- run samples/h2/study.ncl --format json
+```
+
+`calculation.ncl` runs one H₂ calculation. `study.ncl` maps over
+`["sto-3g", "6-31g"]` to run two calculations on the same geometry. Both bases
+must be available locally, or enable their download with `--auto-download`.
+The `run` command detects TOML and Nickel from the input extension; no input
+format flag is needed.
+
+A record or an array containing one calculation retains the individual JSON V1
+contract. Larger arrays run sequentially in source order and emit one document
+following [the batch V1 schema](schemas/batch-output-v1.schema.json):
+`{ "schema_version": 1, "kind": "batch", "calculations": [...] }`.
+Each entry has a zero-based `index` and a `status` of `success`,
+`non_converged`, or `error`. Successful and non-converged entries contain
+`result` using the individual V1 contract; errors contain `error.message`.
+All configuration is validated before execution. Runtime failures do not stop
+later calculations, and the batch exits with a nonzero status if any calculation
+fails or does not converge. JSON stdout remains a complete document even then.
+Text mode prints a report per calculation and a final count of outcomes.
+
+Nickel imports resolve relative to the file containing the import. Geometry
+paths resolve relative to the top-level input, including values supplied by an
+import. Empty arrays are rejected. TOML and `rustiq init` remain single-calculation
+formats; standard input continues to accept TOML.
 
 Schema version 1 reports the resolved HF method, convergence and final SCF
 energies, orthogonalization rank information, and (when requested) MP2 energies.
