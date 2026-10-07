@@ -134,7 +134,7 @@ fn configuration_errors_abort_before_execution_and_keep_import_sources() {
         fs::write(&input, source).unwrap();
         let output = run(directory.path(), &input, "json");
         assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
+        assert_eq!(output.stdout, [] as [u8; 0]);
     }
     let bad = directory.path().join("inputs/nested/bad.ncl");
     for source in ["{ basis.name = 42 }", "{ basis.name = "] {
