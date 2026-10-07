@@ -37,6 +37,7 @@ pub fn parse_runfile(
                     .next()
                     .unwrap_or("invalid configuration");
                 let (message, label) = super::diagnostics::humanized_runfile_error(
+                    error.kind,
                     path.as_deref(),
                     &error.message,
                     default_label,

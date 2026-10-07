@@ -85,13 +85,23 @@ pub(crate) fn group_nickel_errors(mut diagnostics: Vec<NickelRunfileDiagnostic>)
     reason = "These are case-sensitive TOML field paths, not filesystem extensions"
 )]
 pub(crate) fn humanized_runfile_error(
+    kind: super::nickel::ConfigurationErrorKind,
     path: Option<&str>,
     raw_message: &str,
     default_label: &str,
 ) -> (String, String) {
     let Some(path) = path else {
         return (
-            "The runfile is not valid TOML.".to_string(),
+            match kind {
+                super::nickel::ConfigurationErrorKind::TomlSyntax => {
+                    "The runfile is not valid TOML."
+                }
+                super::nickel::ConfigurationErrorKind::Contract
+                | super::nickel::ConfigurationErrorKind::Domain => {
+                    "The runfile configuration is invalid."
+                }
+            }
+            .to_string(),
             default_label.trim().to_string(),
         );
     };
@@ -356,5 +366,35 @@ mod tests {
                 .unwrap()
                 .contains(expected_value));
         }
+    }
+
+    #[test]
+    fn non_finite_toml_numbers_are_rejected_with_source_locations() {
+        for source in [
+            "[method.hf]\nconvergence_threshold = inf\n",
+            "[method.hf.orthogonalization]\nlinear_dependency_threshold = nan\n",
+            "[integrals]\nschwarz_threshold = inf\n",
+            "[method.hf.guess]\ntype = \"Random\"\ndistribution = \"Normal\"\nmean = nan\nstd_dev = inf\n",
+            "[method.hf.guess]\ntype = \"Random\"\ndistribution = \"Uniform\"\nmin = -inf\nmax = inf\n",
+        ] {
+            let result = std::panic::catch_unwind(|| parse_runfile("non-finite.toml", source));
+            let error = result.expect("non-finite TOML must not panic").unwrap_err();
+            assert!(error.to_string().contains("finite"));
+            assert!(error.to_string().contains("non-finite.toml"));
+        }
+    }
+
+    #[test]
+    fn missing_configuration_fields_do_not_claim_toml_is_malformed() {
+        for source in [
+            "[molecule]\ngeometry = \"molecule.xyz\"\n",
+            "[basis]\n",
+            "[basis]\nname = \"sto-3g\"\n[molecule]\ngeometry = \"molecule.xyz\"\n[method]\nhf = 2\n",
+        ] {
+            let error = parse_runfile("missing.toml", source).unwrap_err();
+            assert!(!error.to_string().contains("not valid TOML"));
+        }
+        let error = parse_runfile("broken.toml", "[molecule\n").unwrap_err();
+        assert!(error.to_string().contains("not valid TOML"));
     }
 }

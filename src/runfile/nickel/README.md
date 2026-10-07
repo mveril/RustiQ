@@ -8,7 +8,10 @@ Canonical rendering and `init` export TOML through Nickel. Default omission
 resolves one minimal configuration through Nickel, then compares the serialized
 fields with Nickel’s resolved defaults. Required basis names and explicit method
 sections stay in the output.
-There are no direct TOML parser or serializer dependencies in RustiQ.
+Direct `toml` and `toml-spanner` dependencies were removed. `toml_edit` remains
+only as a post-export formatting layer for canonical TOML; it is not a
+configuration schema authority. It also provides a narrow parser-safety check
+for non-finite TOML floats that Nickel 0.18 cannot represent.
 
 The private frontend pins `nickel-lang-core` to 0.18.0 because the stable
 `nickel-lang` interface does not expose native in-memory imports or structured

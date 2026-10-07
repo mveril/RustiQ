@@ -89,6 +89,7 @@ impl Context {
             }
         }
         ConfigurationError {
+            kind: ConfigurationErrorKind::Contract,
             path,
             message: messages.join("\n"),
             span,
@@ -98,10 +99,18 @@ impl Context {
 }
 
 pub(crate) struct ConfigurationError {
+    pub(crate) kind: ConfigurationErrorKind,
     pub(crate) path: Option<String>,
     pub(crate) message: String,
     pub(crate) span: Option<miette::SourceSpan>,
     pub(crate) details: Vec<super::diagnostics::NickelDiagnosticDetail>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConfigurationErrorKind {
+    TomlSyntax,
+    Contract,
+    Domain,
 }
 
 fn evaluate_input_with_context(
@@ -141,6 +150,7 @@ fn evaluate_input_with_context(
         let path = (message.contains("MP2 memory limit") || message.contains("couldn't parse"))
             .then(|| "method.mp2.memory_limit".to_owned());
         vec![ConfigurationError {
+            kind: ConfigurationErrorKind::Domain,
             path,
             message,
             span: None,
@@ -231,7 +241,9 @@ fn toml_context(
             .import_resolver
             .parse_to_term(&mut context.vm.pos_table, id, InputFormat::Toml)
     {
-        return Err(vec![context.configuration_error(None, error.into())]);
+        let mut error = context.configuration_error(None, error.into());
+        error.kind = ConfigurationErrorKind::TomlSyntax;
+        return Err(vec![error]);
     }
     let value = context
         .vm
@@ -254,12 +266,86 @@ pub(crate) fn resolve_toml_with_locations(
     Result<ResolvedInput, Vec<ConfigurationError>>,
     Option<super::source_map::TomlSourceMap>,
 ) {
+    // Nickel 0.18's TOML importer cannot represent TOML's non-finite numbers.
+    // Validate only this parser limitation here; Nickel remains authoritative
+    // for all configuration structure and validation.
+    if let Ok(document) = toml.parse::<toml_edit::DocumentMut>() {
+        if let Some((path, span)) = non_finite_value(&document, &mut Vec::new()) {
+            let path_text = path.join(".");
+            return (
+                Err(vec![ConfigurationError {
+                    kind: ConfigurationErrorKind::Domain,
+                    path: Some(path_text),
+                    message: "non-finite TOML numbers are unsupported".to_owned(),
+                    span,
+                    details: Vec::new(),
+                }]),
+                None,
+            );
+        }
+    }
     match toml_context(source_name, toml) {
         Ok((context, locations)) => (
             evaluate_input_with_context("Input", context),
             Some(locations),
         ),
         Err(errors) => (Err(errors), None),
+    }
+}
+
+fn non_finite_value(
+    table: &toml_edit::Table,
+    path: &mut Vec<String>,
+) -> Option<(Vec<String>, Option<miette::SourceSpan>)> {
+    for (key, item) in table {
+        path.push(key.to_owned());
+        let found = match item {
+            toml_edit::Item::Value(value) => non_finite_item_value(value, path).or_else(|| {
+                (matches!(value, toml_edit::Value::Float(number) if !number.value().is_finite()))
+                    .then(|| {
+                        (
+                            path.clone(),
+                            item.span().map(|span| (span.start, span.len()).into()),
+                        )
+                    })
+            }),
+            toml_edit::Item::Table(table) => non_finite_value(table, path),
+            _ => None,
+        };
+        path.pop();
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
+}
+
+fn non_finite_item_value(
+    value: &toml_edit::Value,
+    path: &mut Vec<String>,
+) -> Option<(Vec<String>, Option<miette::SourceSpan>)> {
+    if matches!(value, toml_edit::Value::Float(number) if !number.value().is_finite()) {
+        return Some((
+            path.clone(),
+            value.span().map(|span| (span.start, span.len()).into()),
+        ));
+    }
+    match value {
+        toml_edit::Value::Array(array) => array
+            .iter()
+            .find_map(|value| non_finite_item_value(value, path)),
+        toml_edit::Value::InlineTable(table) => {
+            for (key, value) in table {
+                path.push(key.to_owned());
+                let found = non_finite_item_value(value, path);
+                path.pop();
+                if found.is_some() {
+                    return found;
+                }
+            }
+            None
+        }
+        _ => None,
     }
 }
 
@@ -291,6 +377,7 @@ fn collect_errors(
                 if let Some(text) = value.as_string().map(|text| text.as_str()) {
                     if let Err(message) = crate::config::MemoryLimit::parse(text) {
                         errors.push(ConfigurationError {
+                            kind: ConfigurationErrorKind::Domain,
                             path: Some("method.mp2.memory_limit".to_owned()),
                             message,
                             span: None,
