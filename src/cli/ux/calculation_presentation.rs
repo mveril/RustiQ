@@ -35,7 +35,8 @@ struct CalculationToml {
     integrals: IntegralConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     cache: Option<CacheConfig>,
-    output: OutputConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output: Option<OutputConfig>,
 }
 
 impl CalculationToml {
@@ -58,7 +59,7 @@ impl CalculationToml {
             cache: Some(CacheConfig {
                 enabled: cache_enabled,
             }),
-            output: OutputConfig { scf: scf_output },
+            output: Some(OutputConfig { scf: scf_output }),
         }
     }
 
@@ -80,7 +81,7 @@ impl CalculationToml {
             },
             integrals: (&prepared.integral_config()).into(),
             cache: None,
-            output: OutputConfig::default(),
+            output: None,
         }
     }
 }
@@ -141,6 +142,21 @@ pub(crate) fn requested_calculation(
     ))?;
     Ok(CanonicalPair {
         toml,
+        xyz: geometry_xyz(request.geometry(), "Requested geometry"),
+        units: unit_name(request.molecule().units),
+    })
+}
+
+/// Renders only the scientific request captured in a portable snapshot.
+/// Cache and terminal settings are frontend choices and were not persisted.
+pub(crate) fn portable_requested_calculation(
+    request: &CalculationRequest,
+) -> Result<CanonicalPair, RenderError> {
+    let mut configuration = CalculationToml::requested(request, false, ScfOutput::Quiet);
+    configuration.cache = None;
+    configuration.output = None;
+    Ok(CanonicalPair {
+        toml: render_calculation_toml(configuration)?,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
         units: unit_name(request.molecule().units),
     })

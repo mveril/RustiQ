@@ -51,6 +51,8 @@ Important options:
 | `--color MODE` (`auto`, `always`, or `never`) | Control ANSI colors globally; also accepts `RUSTIQ_COLOR`. Use `--color never` when redirecting pretty JSON. |
 | `--auto-download` / `--no-auto-download` | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
 | `--cache-dir DIR` | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching. |
+| `--reuse PATH` | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation. |
+| `--artifact PATH` | Write the current calculation or batch as a portable `.rustiq` bundle, independently of text or JSON output. |
 
 The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
@@ -79,7 +81,7 @@ single HF run is a result, not a runtime failure.
 | Nickel | One calculation or an ordered study/batch; see the checked-in [study example](../user-guide/nickel-studies.md). |
 | JSON | Versioned single-calculation and batch results, selected with `run --format json`; schemas are linked below. |
 | AO ERI cache | Optional local reuse through `[cache].enabled` and `--cache-dir`; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral. |
-| Portable `.rustiq` bundle | V1 format and Rust APIs exist; no create, reuse, or inspect command is exposed by the current CLI. |
+| Portable `.rustiq` bundle | Create and reuse bundles with `run --artifact` and `run --reuse`; inspect them with `artifact inspect`. |
 | Scientific status | Experimental; selected checks do not establish research-grade correctness. See [scientific scope and limitations](../scientific-scope.md). |
 
 Basis downloads and online basis listing require a build with the `online`
@@ -160,11 +162,44 @@ or a portable calculation file.
 
 Portable `.rustiq` bundles use the V1 ZIP/ZIP64 format described by the
 [authoritative persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md).
-The current CLI does not expose `--artifact`, `--reuse`, or `artifact inspect`;
-portable bundles are accessed through the Rust persistence APIs. The
-[reference index](index.md#authoritative-references) links both the
-specification and Rust API documentation. Do not treat cache commands as
-portable-bundle operations.
+They are separate from the disposable local AO ERI cache. Reuse opens its source
+read-only. For each requested calculation, RustiQ selects the first compatible,
+supported AO ERI in bundle order; when none is available, an enabled local cache
+is checked before recomputation. A corrupt selected payload is an error. A
+source entry can supply data to multiple calculations in a Nickel batch.
+
+```sh
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
+cargo run --locked -- artifact inspect h2.rustiq --format json
+# Replace the source bundle only after successful execution:
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
+```
+
+Publication captures the current requested calculation collection and its
+compatible known artifacts. It does not append history. An existing destination
+is accepted only when it resolves to the explicit `--reuse` source; otherwise
+the command fails without replacing it. Publication happens after all requested
+calculations finish successfully, and a failed batch leaves the destination
+unchanged. Non-converged HF can still contribute its AO ERI, but HF orbitals,
+SCF restart state, DIIS history, and MP2 results are not persisted.
+
+When `--reuse` or `--artifact` is used, JSON calculation results include an
+optional `artifacts` array. `decision` reports archive selection (`reused`,
+`missing`, `incompatible`, or `ignored`); `origin` reports the ERI actually used
+(`archive`, `cache`, or `computation`). A reused item includes its zero-based
+`source_index`. Without these options the existing JSON result shape is retained.
+Publication failures are reported on stderr and return a failing exit status;
+JSON results for a completed calculation or batch may already have been written.
+
+`artifact inspect PATH` displays requested and resolved scientific snapshots,
+producer details, artifact representations, and captured source names and sizes.
+It does not execute calculations or fully verify numeric payloads. JSON output
+follows the [artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
+The archive captures exact bytes of the main input and geometry files as shared
+provenance; it does not capture Nickel's full import graph. See the
+[persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
+for the archive contract and API details.
 
 ## Output contracts
 

@@ -46,6 +46,12 @@ batch output uses
 These versioned schemas are authoritative; this guide does not repeat their
 field definitions. See also the [reference index](../reference/index.md).
 
+When `run` uses `--reuse` or `--artifact`, calculation results add an optional
+`artifacts` field describing AO ERI selection and its origin. This field is
+omitted when neither option is used. See the [CLI reference](../reference/cli.md#cache-and-portable-bundles)
+for its values and portable bundle behavior; batch entries carry the field on
+each individual calculation result.
+
 ## Nickel batch JSON
 
 The checked-in [Nickel study](nickel-studies.md) runs two calculations. Follow

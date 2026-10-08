@@ -34,8 +34,9 @@ including HF/MP2 calculations, Nickel studies, and JSON output. A comprehensive
 CLI reference remains planned for PR C1 in
 [issue #106](https://github.com/mveril/RustiQ/issues/106).
 
-Portable `.rustiq` bundles are available through Rust APIs. The proposed CLI
-artifact workflow is tracked in [issue #108](https://github.com/mveril/RustiQ/issues/108);
-this edition does not present its commands as shipped behavior.
+Portable `.rustiq` bundles can be written, reused, and inspected from the CLI
+as well as through Rust APIs. See the [CLI reference](reference/cli.md#cache-and-portable-bundles)
+for commands and the [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
+for the archive contract.
 The [authoritative references](reference/index.md) page links to the roadmap
 for plans and to the files that define existing contracts.

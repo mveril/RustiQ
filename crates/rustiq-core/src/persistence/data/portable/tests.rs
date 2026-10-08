@@ -1355,3 +1355,96 @@ fn portable_manifest_golden_and_schema_required_fields_match_decoder() {
         assert!(serde_json::from_value::<PortableManifest>(candidate).is_err());
     }
 }
+
+#[test]
+fn selects_supported_eri_by_compatibility_and_preserves_ignored_state() {
+    use crate::{calculation::ArtifactReuseDecision, persistence::RustiQBundle};
+    let prepared = calculation();
+    let basis = load_minimal_basis_file();
+    let changed = CalculationBuilder::new(prepared.get_molecule(), &basis)
+        .with_integrals(crate::config::IntegralConfig {
+            schwarz_threshold: None.into(),
+        })
+        .prepare()
+        .unwrap();
+    let mut incompatible = RustiQData::from_calculation(&changed).unwrap();
+    incompatible.set_eri(CompactEri::Zeroed(2)).unwrap();
+    let mut bundle = RustiQBundle::new(vec![incompatible, data(), data()]).unwrap();
+    let ignored = bundle.select_ao_eri(&prepared, false).unwrap();
+    assert_eq!(ignored.decision, ArtifactReuseDecision::Ignored);
+    assert_eq!(ignored.source_index, Some(1));
+    assert!(ignored.value.is_none());
+    assert!(bundle.calculations()[1].ao_eri.is_some());
+    let selected = bundle.select_ao_eri(&prepared, true).unwrap();
+    assert_eq!(selected.decision, ArtifactReuseDecision::Reused);
+    assert_eq!(selected.source_index, Some(1));
+    let second = bundle.select_ao_eri(&prepared, true).unwrap();
+    assert_eq!(
+        selected.value.unwrap().ordered_values(),
+        second.value.unwrap().ordered_values()
+    );
+
+    let empty = RustiQData::from_calculation(&prepared).unwrap();
+    let mut missing = RustiQBundle::new(vec![empty]).unwrap();
+    assert_eq!(
+        missing.select_ao_eri(&prepared, true).unwrap().decision,
+        ArtifactReuseDecision::Missing
+    );
+    let mut unsupported = data();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("unsupported.rustiq");
+    unsupported.write(&path).unwrap();
+    let mut contents = members(&path);
+    edit_json(&mut contents, "manifest.json", |manifest| {
+        manifest["calculations"][0]["artifacts"]["ao_eri"]["representation"] =
+            "future-eri-v99".into();
+    });
+    write_members(&path, &contents);
+    let mut unsupported = RustiQBundle::open(&path).unwrap();
+    assert_eq!(
+        unsupported.select_ao_eri(&prepared, true).unwrap().decision,
+        ArtifactReuseDecision::Incompatible
+    );
+}
+
+#[test]
+fn replacement_validates_before_publication_and_collects_entry_sources() {
+    use crate::persistence::RustiQBundle;
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("state.rustiq");
+    let mut original = data();
+    original.write(&path).unwrap();
+    let original_bytes = fs::read(&path).unwrap();
+    let mut corrupt = members(&path);
+    *corrupt
+        .iter_mut()
+        .find(|(name, _)| name == AO_ERI_PATH)
+        .unwrap()
+        .1
+        .last_mut()
+        .unwrap() ^= 1;
+    let corrupt_path = directory.path().join("corrupt.rustiq");
+    write_members(&corrupt_path, &corrupt);
+    let mut invalid = RustiQBundle::open(&corrupt_path).unwrap();
+    assert!(invalid.replace(&path).is_err());
+    assert_eq!(fs::read(&path).unwrap(), original_bytes);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
+    let mut replacement =
+        RustiQBundle::new(vec![RustiQData::from_calculation(&calculation()).unwrap()]).unwrap();
+    replacement.calculations_mut()[0]
+        .add_source("latest.toml", b"exact source".as_slice())
+        .unwrap();
+    replacement.calculations_mut()[0]
+        .set_eri(CompactEri::Zeroed(2))
+        .unwrap();
+    replacement.replace(&path).unwrap();
+    let mut restored = RustiQBundle::open(&path).unwrap();
+    assert_eq!(restored.sources().next().unwrap().bytes(), b"exact source");
+    assert!(restored.calculations_mut()[0]
+        .read_eri()
+        .unwrap()
+        .ordered_values()
+        .iter()
+        .all(|value| *value == 0.0));
+    assert_ne!(fs::read(&path).unwrap(), original_bytes);
+}
