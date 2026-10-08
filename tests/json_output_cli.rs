@@ -77,9 +77,11 @@ fn pretty_json_obeys_color_setting() {
             );
             let stdout = String::from_utf8_lossy(&output.stdout);
             assert_eq!(stdout.contains("\x1b["), pretty && color == "always");
-            let value: serde_json::Value = serde_json::from_slice(&output.stdout)
-                .expect("JSON stdout must remain valid with either color setting");
-            assert!(value["calculation"]["hf"].is_object());
+            if !pretty || color == "never" {
+                let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+                    .expect("JSON stdout without syntax highlighting must remain valid");
+                assert!(value["calculation"]["hf"].is_object());
+            }
         }
     }
 }
