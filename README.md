@@ -592,6 +592,55 @@ paths resolve relative to the top-level input, including values supplied by an
 import. Empty arrays are rejected. TOML and `rustiq init` remain single-calculation
 formats; standard input continues to accept TOML.
 
+Portable scientific artifacts are separate from text or JSON results:
+
+```sh
+cargo run -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+cargo run -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
+cargo run -- artifact inspect h2.rustiq --format json
+# Explicitly replace the existing snapshot after successful execution:
+cargo run -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
+```
+
+Reuse opens the source read-only. For each requested calculation, RustiQ selects
+compatible AO ERI from any entry of the source bundle, then falls back to an
+enabled local cache or computation. Corrupt selected payloads fail explicitly.
+The first compatible supported entry in manifest order wins; positions are
+reported as zero-based `source_index` values. A single entry can serve several
+calculations in a Nickel batch.
+
+`--artifact` publishes the current requested collection as one validated atomic
+snapshot. An existing destination is accepted only when it is also the explicit
+reuse source (including symbolic aliases); otherwise it is rejected. A failed
+calculation prevents publication of the entire collection and preserves any
+previous snapshot. HF non-convergence permits saving the ERI, without saving HF
+state; existing single/batch exit-status behavior is preserved. No converged HF,
+SCF restart, DIIS, or MP2 state is persisted yet.
+
+When either artifact option is used, individual JSON results include an optional
+`artifacts` array. For example, reuse adds:
+
+```json
+"artifacts": [
+  { "name": "ao_eri", "decision": "reused", "origin": "archive", "source_index": 0 }
+]
+```
+
+`decision` describes archive selection (`reused`, `missing`, `incompatible`, or
+internally policy-filtered `ignored`); `origin` describes the ERI actually used
+(`archive`, `cache`, or `computation`). `computation` reports recomputation after
+missing or incompatible state. Results without artifact options retain their
+existing JSON shape. Publication errors produce a nonzero exit status and a
+stderr diagnostic after the complete calculation or batch JSON is emitted.
+
+Inspection renders requested and resolved scientific snapshots, lists artifact
+representations and captured source names/sizes, and works without the original
+inputs or basis store. It does not execute a calculation or fully verify numeric
+payloads. Its JSON follows [the inspection V1 schema](schemas/artifact-inspection-v1.schema.json).
+Exact bytes of the main input and geometries are retained as shared provenance;
+Nickel's complete import graph is not captured. The authoritative disk contract
+is [the persistence V1 specification](docs/persistence-format-v1.md).
+
 Schema version 1 reports the resolved HF method, convergence and final SCF
 energies, orthogonalization rank information, and (when requested) MP2 energies.
 For UHF, `calculation.hf.spin` additionally reports `s_squared` (the expectation

@@ -34,6 +34,8 @@ impl From<&CalculationResult> for CalculationOutput {
 pub(crate) struct CalculationOutput {
     pub schema_version: u32,
     pub calculation: CalculationResultOutput,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifacts: Option<Vec<crate::cli::commands::artifact_session::ArtifactReport>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -94,6 +96,7 @@ impl CalculationOutput {
         };
         Self {
             schema_version: 1,
+            artifacts: None,
             calculation: CalculationResultOutput {
                 hf: HfResultOutput::from((method, hf, converged)),
                 mp2: mp2.map(|result| Mp2ResultOutput {

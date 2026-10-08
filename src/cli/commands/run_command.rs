@@ -8,6 +8,7 @@ use std::{
 use clap::{ArgAction, ValueEnum};
 use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report, WrapErr};
 
+use super::artifact_session::ArtifactSession;
 use super::batch_orchestration::{self, BatchSummary, Executable, ExecutionError, ExecutionResult};
 use crate::cli::{
     self, directories,
@@ -59,6 +60,14 @@ pub struct RunCommand {
     /// Directory used to cache calculation artifacts for this execution.
     #[arg(long, value_name = "DIR")]
     cache_dir: Option<PathBuf>,
+
+    /// Read-only portable source of reusable scientific artifacts.
+    #[arg(long, value_name = "PATH")]
+    reuse: Option<PathBuf>,
+
+    /// Write a portable snapshot independently of the result output format.
+    #[arg(long, value_name = "PATH")]
+    artifact: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
@@ -104,6 +113,7 @@ impl ExecutionError for CalculationExecutionError {
 
 struct CalculationTask<'a> {
     command: &'a RunCommand,
+    artifacts: &'a ArtifactSession,
     parsed: miette::Result<crate::runfile::parser::ParsedRunFile>,
     source_name: &'a str,
     source_content: &'a str,
@@ -125,9 +135,12 @@ impl Executable for CalculationTask<'_> {
         let parsed = self
             .parsed
             .map_err(CalculationExecutionError::recoverable)?;
-        let result =
-            self.command
-                .execute_calculation(parsed, self.source_name, self.source_content)?;
+        let result = self.command.execute_calculation(
+            parsed,
+            self.source_name,
+            self.source_content,
+            self.artifacts,
+        )?;
         if self.batch_position.is_some() {
             result
                 .ensure_finite()
@@ -207,6 +220,7 @@ impl RunCommand {
 
 impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
+        let artifacts = ArtifactSession::open(self.reuse.as_deref(), self.artifact.as_deref())?;
         let json_output = self.format == CalculationOutputFormat::Json;
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
@@ -226,7 +240,13 @@ impl Runnable for RunCommand {
             .is_some_and(|extension| extension.eq_ignore_ascii_case("ncl"));
         if !nickel {
             let parsed = parse_runfile(source_name.clone(), &source_content)?;
-            return self.execute_single(parsed, &source_name, &source_content, json_output);
+            return self.execute_single(
+                parsed,
+                &source_name,
+                &source_content,
+                json_output,
+                &artifacts,
+            );
         }
         let resolved = crate::runfile::parser::resolve_nickel(&source_name, &source_content)?;
         if resolved.calculations().len() == 1 {
@@ -234,9 +254,21 @@ impl Runnable for RunCommand {
                 miette!("validated Nickel input unexpectedly contained no calculations")
             })?;
             let parsed = crate::runfile::parser::parsed_calculation(calculation)?;
-            return self.execute_single(parsed, &source_name, &source_content, json_output);
+            return self.execute_single(
+                parsed,
+                &source_name,
+                &source_content,
+                json_output,
+                &artifacts,
+            );
         }
-        self.execute_batch(resolved, &source_name, &source_content, json_output)
+        self.execute_batch(
+            resolved,
+            &source_name,
+            &source_content,
+            json_output,
+            &artifacts,
+        )
     }
 }
 
@@ -247,9 +279,11 @@ impl RunCommand {
         source_name: &str,
         source_content: &str,
         json_output: bool,
+        artifacts: &ArtifactSession,
     ) -> CommandResult {
         let result = CalculationTask {
             command: self,
+            artifacts,
             parsed: Ok(parsed),
             source_name,
             source_content,
@@ -257,6 +291,8 @@ impl RunCommand {
         }
         .execute()
         .map_err(CalculationExecutionError::into_report)?;
+        result.ensure_finite().into_diagnostic()?;
+        let publication = artifacts.publish();
         if json_output {
             let mut json = Vec::new();
             result
@@ -270,7 +306,7 @@ impl RunCommand {
                 writeln!(stdout).into_diagnostic()?;
             }
         }
-        Ok(())
+        publication
     }
 
     fn execute_batch(
@@ -279,6 +315,7 @@ impl RunCommand {
         source_name: &str,
         source_content: &str,
         json_output: bool,
+        artifacts: &ArtifactSession,
     ) -> CommandResult {
         let total = resolved.calculations().len();
         let tasks = resolved
@@ -286,6 +323,7 @@ impl RunCommand {
             .enumerate()
             .map(|(index, calculation)| CalculationTask {
                 command: self,
+                artifacts,
                 parsed: crate::runfile::parser::parsed_calculation(calculation),
                 source_name,
                 source_content,
@@ -299,6 +337,11 @@ impl RunCommand {
             non_converged,
             failed,
         } = BatchSummary::from_results(&outcomes);
+        let publication = if failed == 0 {
+            artifacts.publish()
+        } else {
+            Ok(())
+        };
         let entries = outcomes
             .into_iter()
             .enumerate()
@@ -344,6 +387,7 @@ impl RunCommand {
             )
             .into_diagnostic()?;
         }
+        publication?;
         if failed + non_converged > 0 {
             return Err(miette!(
                 "batch contains {failed} failed and {non_converged} non-converged calculations"
@@ -363,6 +407,7 @@ impl RunCommand {
         parsed: crate::runfile::parser::ParsedRunFile,
         source_name: &str,
         source_content: &str,
+        artifacts: &ArtifactSession,
     ) -> Result<CalculationOutput, CalculationExecutionError> {
         let json_output = self.format == CalculationOutputFormat::Json;
         let run = parsed
@@ -438,6 +483,9 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
+        let (prepared, mut artifact_report) = artifacts
+            .prepare(prepared)
+            .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let output_format = match run.output.scf {
                 ScfOutput::Normal => crate::runfile::output::ScfOutput::Normal,
@@ -483,7 +531,12 @@ impl RunCommand {
         let result = {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
-            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            let outcome = prepared.execute_with_events(|event| {
+                if let Some(report) = &mut artifact_report {
+                    report.on_event(&event);
+                }
+                reporter.on_event(event);
+            });
             if let Some(error) = reporter.take_error() {
                 return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
@@ -491,7 +544,39 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        Ok(CalculationOutput::from(&result))
+        let mut output = CalculationOutput::from(&result);
+        output
+            .ensure_finite()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        artifacts
+            .retain(
+                &prepared,
+                &result,
+                [
+                    (source_name, source_content.as_bytes()),
+                    (&molecule_path.display().to_string(), xyz_content.as_bytes()),
+                ],
+            )
+            .map_err(CalculationExecutionError::recoverable)?;
+        if let Some(report) = artifact_report {
+            if !json_output {
+                writeln!(
+                    cli::color::stdout(),
+                    "Artifact {}: {}; origin {}{}",
+                    report.name,
+                    report.decision,
+                    report.origin,
+                    report
+                        .source_index
+                        .map_or_else(String::new, |index| format!("; source index {index}"))
+                )
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
+            }
+            output.artifacts = Some(vec![report]);
+        }
+        Ok(output)
     }
 }
 
@@ -548,6 +633,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -565,6 +652,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert!(command.resolve_auto_download());
@@ -578,6 +667,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert!(!command.resolve_auto_download());
@@ -595,6 +686,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert!(!command.resolve_auto_download());

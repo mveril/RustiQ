@@ -644,3 +644,41 @@ cargo run -p rustiq-core --example copy_rustiq
 The examples read and write archives in the ignored
 `crates/rustiq-core/examples/data/` directory. The read examples expect
 `h2.rustiq` to have been created by `write_rustiq`.
+
+
+## CLI publication and bundle selection
+
+`run --artifact PATH` writes the current non-empty calculation collection using
+this V1 format. TOML and single Nickel inputs produce one entry; Nickel batches
+produce one entry per requested calculation. Exact main-input and geometry bytes
+are optional shared provenance, not scientific compatibility inputs. Imports are
+not recursively captured.
+
+`run --reuse PATH` opens the bundle read-only. `RustiQBundle::select_ao_eri`
+selects the first compatible, supported AO ERI in manifest order for each effective
+calculation, independently of labels or source order. Missing or incompatible
+state falls through to an enabled local cache and then computation. A corrupt
+selected payload is an explicit error. Selection can also return `Ignored` for
+an internally disabled reuse policy, without decoding or deleting the artifact.
+The CLI does not expose selection filters.
+
+`RustiQBundle::write` publishes without overwriting. `RustiQBundle::replace`
+writes, finalizes, syncs and validates a complete sibling temporary archive before
+atomic replacement. The CLI uses replacement only when `--reuse` and `--artifact`
+resolve to the same canonical path; symbolic aliases preserve the symlink and
+replace its target. Other existing destinations, including different hard links,
+are rejected. Source archive handles are closed before replacement. Failures
+before publication leave the previous bytes intact.
+
+The CLI publishes only after all requested calculations have produced results.
+Non-converged HF calculations can contribute their AO ERI; HF state itself is not
+persisted. Any preparation or execution error prevents publication of the whole
+collection. New snapshots contain only the current requested collection and its
+compatible known artifacts, not a history of the source bundle.
+
+`artifact inspect` uses typed versioned snapshots without arbitrary extraction or
+scientific execution. It lists unknown artifact representations too. Inspection
+validates archive structure and request/resolved snapshots, but does not claim
+full numeric payload verification. Requested cache and terminal settings are
+not reconstructed because they are frontend policy, absent from the scientific
+snapshots. See the README for commands and JSON presentation contracts.

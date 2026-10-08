@@ -7,6 +7,10 @@
   "required": ["schema_version", "calculation"],
   "properties": {
     "schema_version": { "const": 1 },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
     "calculation": {
       "type": "object",
       "additionalProperties": false,
@@ -18,6 +22,17 @@
     }
   },
   "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "decision", "origin"],
+      "properties": {
+        "name": { "const": "ao_eri" },
+        "decision": { "enum": ["reused", "missing", "incompatible", "ignored"] },
+        "origin": { "enum": ["archive", "cache", "computation"] },
+        "source_index": { "type": "integer", "minimum": 0 }
+      }
+    },
     "hf": {
       "type": "object",
       "additionalProperties": false,
