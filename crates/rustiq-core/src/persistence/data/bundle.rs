@@ -10,8 +10,9 @@ use relative_path::{RelativePath, RelativePathBuf};
 use super::{portable, rustiq_data::MAX_MANIFEST_BYTES, RustiQData};
 use crate::persistence::{
     manifest::{PortableCalculation, PortableManifest, SourceManifest},
-    ArtifactAttributes, Manifest, ManifestKind, PortableError, Producer, SourceProvenance, Storage,
-    COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
+    AoEriArtifact, Artifact, ArtifactAttributes, CompactEri, Manifest, ManifestKind, PortableError,
+    Producer, SourceProvenance, Storage, COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION,
+    MANIFEST_PATH,
 };
 
 /// A portable snapshot containing one or more independently reusable calculations.
@@ -20,6 +21,14 @@ use crate::persistence::{
 pub struct RustiQBundle {
     calculations: Vec<RustiQData>,
     sources: Vec<SourceProvenance>,
+}
+
+/// A typed AO ERI selection, with the zero-based source position when selected.
+#[derive(Debug)]
+pub struct AoEriReuse {
+    pub value: Option<CompactEri>,
+    pub decision: crate::calculation::ArtifactReuseDecision,
+    pub source_index: Option<usize>,
 }
 
 impl RustiQBundle {
@@ -117,6 +126,48 @@ impl RustiQBundle {
         })
     }
 
+    /// Selects the first scientifically compatible, supported AO ERI in manifest order.
+    /// One source can serve several requested calculations. Labels do not affect selection.
+    /// `enabled = false` deliberately ignores compatible state without decoding or deleting it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a selected compatible artifact cannot be validated or decoded.
+    pub fn select_ao_eri(
+        &mut self,
+        calculation: &crate::calculation::PreparedCalculation,
+        enabled: bool,
+    ) -> Result<AoEriReuse, PortableError> {
+        use crate::calculation::ArtifactReuseDecision;
+        let mut decision = ArtifactReuseDecision::Missing;
+        for (source_index, data) in self.calculations.iter_mut().enumerate() {
+            if !AoEriArtifact::is_present(data) {
+                continue;
+            }
+            decision = ArtifactReuseDecision::Incompatible;
+            if !data.eri_is_compatible(calculation) {
+                continue;
+            }
+            if !enabled {
+                return Ok(AoEriReuse {
+                    value: None,
+                    decision: ArtifactReuseDecision::Ignored,
+                    source_index: Some(source_index),
+                });
+            }
+            return Ok(AoEriReuse {
+                value: data.get::<AoEriArtifact>()?.cloned(),
+                decision: ArtifactReuseDecision::Reused,
+                source_index: Some(source_index),
+            });
+        }
+        Ok(AoEriReuse {
+            value: None,
+            decision,
+            source_index: None,
+        })
+    }
+
     /// Entries retain manifest order; each exposes its own typed artifact access.
     #[must_use]
     pub fn calculations(&self) -> &[RustiQData] {
@@ -160,6 +211,11 @@ impl RustiQBundle {
     ///
     /// Returns an error if provenance or scientific artifacts are invalid or atomic publication fails.
     pub fn write(&mut self, path: impl AsRef<Path>) -> Result<(), PortableError> {
+        self.collect_sources()?;
+        write_bundle(&mut self.calculations, &self.sources, path.as_ref())
+    }
+
+    fn collect_sources(&mut self) -> Result<(), PortableError> {
         // Sources attached through individual entry APIs are lifted to shared provenance.
         for data in &mut self.calculations {
             for source in &data.sources {
@@ -169,7 +225,31 @@ impl RustiQBundle {
             }
         }
         validate_sources(&self.sources)?;
-        write_bundle(&mut self.calculations, &self.sources, path.as_ref())
+        Ok(())
+    }
+
+    /// Consumes the container, retaining its ordered independent calculation entries.
+    /// Shared provenance is available through `sources()` before consumption.
+    #[must_use]
+    pub fn into_calculations(self) -> Vec<RustiQData> {
+        self.calculations
+    }
+
+    /// Atomically replaces an explicitly selected destination with a validated snapshot.
+    /// The previous archive remains intact if writing or validation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if snapshot validation or atomic replacement fails.
+    pub fn replace(&mut self, path: impl AsRef<Path>) -> Result<(), PortableError> {
+        self.collect_sources()?;
+        publish_bundle(
+            &mut self.calculations,
+            &self.sources,
+            path.as_ref(),
+            None,
+            true,
+        )
     }
 
     pub(super) fn into_parts(self) -> (Vec<RustiQData>, Vec<SourceProvenance>) {
@@ -218,6 +298,16 @@ pub(super) fn write_bundle_with_eri(
     path: &Path,
     eri: Option<&crate::eri::CompactEri>,
 ) -> Result<(), PortableError> {
+    publish_bundle(calculations, sources, path, eri, false)
+}
+
+fn publish_bundle(
+    calculations: &mut [RustiQData],
+    sources: &[SourceProvenance],
+    path: &Path,
+    eri: Option<&crate::eri::CompactEri>,
+    replace: bool,
+) -> Result<(), PortableError> {
     if calculations.is_empty() {
         return Err(invalid("portable bundles require at least one calculation"));
     }
@@ -227,10 +317,12 @@ pub(super) fn write_bundle_with_eri(
         ));
     }
     validate_sources(sources)?;
-    match std::fs::symlink_metadata(path) {
-        Ok(_) => return Err(PortableError::AlreadyExists),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
+    if !replace {
+        match std::fs::symlink_metadata(path) {
+            Ok(_) => return Err(PortableError::AlreadyExists),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
     }
     let parent = path
         .parent()
@@ -244,7 +336,12 @@ pub(super) fn write_bundle_with_eri(
         eri,
     )?;
     drop(RustiQBundle::open(temporary.path())?);
-    temporary.persist_noclobber(path).map_err(|error| {
+    let publication = if replace {
+        temporary.persist(path)
+    } else {
+        temporary.persist_noclobber(path)
+    };
+    publication.map_err(|error| {
         if error.error.kind() == std::io::ErrorKind::AlreadyExists {
             PortableError::AlreadyExists
         } else {

@@ -35,6 +35,8 @@ pub enum ArtifactReuseDecision {
     Reused,
     Missing,
     Incompatible,
+    /// Compatible state deliberately excluded by the reuse policy.
+    Ignored,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

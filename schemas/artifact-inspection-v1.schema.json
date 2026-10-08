@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mveril/RustiQ/schemas/artifact-inspection-v1.schema.json",
+  "title": "RustiQ artifact inspection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "payloads_verified",
+    "sources",
+    "calculations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "artifact-inspection"
+    },
+    "payloads_verified": {
+      "const": false
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "original_name",
+          "size"
+        ],
+        "properties": {
+          "original_name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "calculations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_index",
+          "producer",
+          "requested",
+          "resolved",
+          "artifacts"
+        ],
+        "properties": {
+          "source_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "producer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          },
+          "requested": {
+            "$ref": "#/$defs/canonical"
+          },
+          "resolved": {
+            "$ref": "#/$defs/canonical"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "representation"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "representation": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "canonical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configuration",
+        "geometry"
+      ],
+      "properties": {
+        "configuration": {
+          "type": "string"
+        },
+        "geometry": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

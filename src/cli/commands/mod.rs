@@ -1,3 +1,5 @@
+mod artifact_command;
+pub(crate) mod artifact_session;
 mod basis_command;
 pub(crate) mod batch_orchestration;
 mod cache_command;
@@ -31,6 +33,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: CacheCommands,
     },
+    /// Inspect portable scientific artifact bundles
+    Artifact {
+        #[command(subcommand)]
+        command: artifact_command::ArtifactCommands,
+    },
     /// Inspect and transform molecular geometry files
     Geometry {
         #[command(subcommand)]
@@ -45,6 +52,7 @@ impl Runnable for Commands {
             Commands::Run(command) => command,
             Commands::Basis { command } => command,
             Commands::Cache { command } => command,
+            Commands::Artifact { command } => command,
             Commands::Geometry { command } => command,
         } {
             fn run(&self) -> CommandResult;
