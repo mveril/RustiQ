@@ -88,15 +88,18 @@ impl CalculationOutput {
     /// to emit a partial or misleading calculation result in that situation.
     pub(crate) fn write_json<W: Write>(
         &self,
-        writer: W,
+        mut writer: W,
         pretty: bool,
     ) -> Result<(), serde_json::Error> {
         self.ensure_finite()?;
-        if pretty {
-            serde_json::to_writer_pretty(writer, self)
+        // Finish serialization before touching the destination. A serde error
+        // must never leave a truncated JSON document in stdout or another writer.
+        let json = if pretty {
+            serde_json::to_vec_pretty(self)?
         } else {
-            serde_json::to_writer(writer, self)
-        }
+            serde_json::to_vec(self)?
+        };
+        writer.write_all(&json).map_err(serde_json::Error::io)
     }
 
     fn ensure_finite(&self) -> Result<(), serde_json::Error> {
@@ -251,7 +254,9 @@ mod tests {
         let mut result = scf_result();
         result.total_energy = f64::NAN;
         let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, true, None);
-        assert!(output.write_json(Vec::new(), false).is_err());
+        let mut bytes = Vec::new();
+        assert!(output.write_json(&mut bytes, false).is_err());
+        assert!(bytes.is_empty(), "serialization failure must write nothing");
     }
 
     #[test]

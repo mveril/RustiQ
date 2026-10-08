@@ -62,26 +62,26 @@ fn run_command_with_options(
 
 #[test]
 fn pretty_json_obeys_color_setting() {
-    let colored = run_command_with_options(
-        "samples/h2/sto-3g/calculation.toml",
-        Some("json"),
-        Some("always"),
-        true,
-    );
-    assert!(colored.status.success());
-    assert!(String::from_utf8_lossy(&colored.stdout).contains("\x1b["));
-
-    let plain = run_command_with_options(
-        "samples/h2/sto-3g/calculation.toml",
-        Some("json"),
-        Some("never"),
-        true,
-    );
-    assert!(plain.status.success());
-    assert!(!String::from_utf8_lossy(&plain.stdout).contains("\x1b["));
-    let value: serde_json::Value =
-        serde_json::from_slice(&plain.stdout).expect("uncolored pretty output must be valid JSON");
-    assert!(value["calculation"]["hf"].is_object());
+    for pretty in [false, true] {
+        for color in ["always", "never"] {
+            let output = run_command_with_options(
+                "samples/h2/sto-3g/calculation.toml",
+                Some("json"),
+                Some(color),
+                pretty,
+            );
+            assert!(
+                output.status.success(),
+                "{color}, pretty={pretty}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert_eq!(stdout.contains("\x1b["), pretty && color == "always");
+            let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+                .expect("JSON stdout must remain valid with either color setting");
+            assert!(value["calculation"]["hf"].is_object());
+        }
+    }
 }
 
 #[test]

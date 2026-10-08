@@ -52,7 +52,7 @@ pub struct RunCommand {
     format: CalculationOutputFormat,
 
     /// Pretty-print JSON output and syntax-highlight it when color is enabled.
-    #[arg(long, requires = "format")]
+    #[arg(long)]
     pretty: bool,
 
     /// Directory used to cache calculation artifacts for this execution.
