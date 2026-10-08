@@ -89,6 +89,26 @@ pub(crate) fn validate_run_arguments(matches: &clap::ArgMatches) -> Result<(), c
 #[error("failed to write calculation report: {0}")]
 struct ReportWriteError(#[source] io::Error);
 
+#[derive(Debug)]
+enum CalculationExecutionError {
+    Recoverable(Report),
+    FatalInfrastructure(Report),
+}
+
+impl CalculationExecutionError {
+    fn recoverable(error: impl Into<Report>) -> Self {
+        Self::Recoverable(error.into())
+    }
+    fn fatal(error: impl Into<Report>) -> Self {
+        Self::FatalInfrastructure(error.into())
+    }
+    fn into_report(self) -> Report {
+        match self {
+            Self::Recoverable(error) | Self::FatalInfrastructure(error) => error,
+        }
+    }
+}
+
 impl RunCommand {
     #[cfg(feature = "online")]
     fn resolve_auto_download(&self) -> bool {
@@ -148,7 +168,7 @@ impl Runnable for RunCommand {
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
-        let (source_name, toml_content) = if let Some(path_toml) = &self.input {
+        let (source_name, source_content) = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml).into_diagnostic()?;
             (path_toml.display().to_string(), content)
         } else {
@@ -162,18 +182,18 @@ impl Runnable for RunCommand {
             .and_then(|path| path.extension())
             .is_some_and(|extension| extension.eq_ignore_ascii_case("ncl"));
         if !nickel {
-            let parsed = parse_runfile(source_name.clone(), &toml_content)?;
-            return self.execute_single(parsed, &source_name, &toml_content, json_output);
+            let parsed = parse_runfile(source_name.clone(), &source_content)?;
+            return self.execute_single(parsed, &source_name, &source_content, json_output);
         }
-        let resolved = crate::runfile::parser::resolve_nickel(&source_name, &toml_content)?;
+        let resolved = crate::runfile::parser::resolve_nickel(&source_name, &source_content)?;
         if resolved.calculations().len() == 1 {
             let calculation = resolved.into_iter().next().ok_or_else(|| {
                 miette!("validated Nickel input unexpectedly contained no calculations")
             })?;
             let parsed = crate::runfile::parser::parsed_calculation(calculation)?;
-            return self.execute_single(parsed, &source_name, &toml_content, json_output);
+            return self.execute_single(parsed, &source_name, &source_content, json_output);
         }
-        self.execute_batch(resolved, &source_name, &toml_content, json_output)
+        self.execute_batch(resolved, &source_name, &source_content, json_output)
     }
 }
 
@@ -185,7 +205,9 @@ impl RunCommand {
         source_content: &str,
         json_output: bool,
     ) -> CommandResult {
-        let result = self.execute_calculation(parsed, source_name, source_content)?;
+        let result = self
+            .execute_calculation(parsed, source_name, source_content)
+            .map_err(CalculationExecutionError::into_report)?;
         if json_output {
             let mut json = Vec::new();
             result.write_json(&mut json).into_diagnostic()?;
@@ -212,20 +234,26 @@ impl RunCommand {
                 if !json_output {
                     writeln!(cli::color::stdout(), "\nCalculation {position}/{total}")
                         .map_err(ReportWriteError)
-                        .into_diagnostic()?;
+                        .into_diagnostic()
+                        .map_err(CalculationExecutionError::fatal)?;
                 }
                 crate::runfile::parser::parsed_calculation(calculation)
+                    .map_err(CalculationExecutionError::recoverable)
                     .and_then(|parsed| {
                         self.execute_calculation(parsed, source_name, source_content)
                     })
                     .and_then(|result| {
-                        result.ensure_finite().into_diagnostic()?;
+                        result
+                            .ensure_finite()
+                            .into_diagnostic()
+                            .map_err(CalculationExecutionError::recoverable)?;
                         Ok(result)
                     })
             },
             |result| result.calculation.hf.converged,
-            |error: &Report| error.downcast_ref::<ReportWriteError>().is_some(),
-        )?;
+            |error| matches!(error, CalculationExecutionError::FatalInfrastructure(_)),
+        )
+        .map_err(CalculationExecutionError::into_report)?;
 
         let mut succeeded = 0;
         let mut non_converged = 0;
@@ -245,13 +273,19 @@ impl RunCommand {
                     }
                     super::batch_orchestration::BatchExecutionOutcome::Error(error) => {
                         failed += 1;
+                        let error = error.into_report();
                         if !json_output {
-                            writeln!(io::stderr().lock(), "Calculation {}: {error:?}", index + 1)
-                                .into_diagnostic()?;
+                            writeln!(
+                                io::stderr().lock(),
+                                "Calculation {}: {:?}",
+                                index + 1,
+                                error
+                            )
+                            .into_diagnostic()?;
                         }
                         BatchOutcome::Error {
                             error: BatchError {
-                                message: format!("{error:#}"),
+                                message: format!("{error}"),
                             },
                         }
                     }
@@ -295,22 +329,31 @@ impl RunCommand {
         parsed: crate::runfile::parser::ParsedRunFile,
         source_name: &str,
         source_content: &str,
-    ) -> miette::Result<CalculationOutput> {
+    ) -> Result<CalculationOutput, CalculationExecutionError> {
         let json_output = self.format == CalculationOutputFormat::Json;
-        let run = parsed.resolved.single_calculation().into_diagnostic()?;
+        let run = parsed
+            .resolved
+            .single_calculation()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
         let molecule_path = run.resource_path(self.input.as_deref());
         let xyz_content = fs::read_to_string(&molecule_path)
             .into_diagnostic()
-            .wrap_err_with(|| format!("failed to read geometry {}", molecule_path.display()))?;
+            .wrap_err_with(|| format!("failed to read geometry {}", molecule_path.display()))
+            .map_err(CalculationExecutionError::recoverable)?;
         let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
-            .into_diagnostic()?;
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let mut stdout = cli::color::stdout();
             writeln!(stdout, "{}", cli::color::title("Loading basis set..."))
-                .map_err(ReportWriteError)?;
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
         }
         let step_start = Instant::now();
-        let basis_file = self.resolve_basis(&run.basis.name)?;
+        let basis_file = self
+            .resolve_basis(&run.basis.name)
+            .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let mut stdout = cli::color::stdout();
             writeln!(
@@ -319,14 +362,16 @@ impl RunCommand {
                 cli::color::value(basis_file.name()),
                 basis_file.function_types()
             )
-            .map_err(ReportWriteError)?;
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
             writeln!(
                 stdout,
                 "{} {}",
                 cli::color::title("Basis file loaded in"),
                 humantime::format_duration(step_start.elapsed())
             )
-            .map_err(ReportWriteError)?;
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
         }
         let show_scf = run.output.scf != ScfOutput::Quiet;
         let calculation = CalculationBuilder::new(&geom, &basis_file)
@@ -353,9 +398,11 @@ impl RunCommand {
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let prepared = calculation.prepare_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
-                return Err(ReportWriteError(error).into());
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
-            prepared.map_err(|error| with_input_source(error, source_name, source_content))?
+            prepared
+                .map_err(|error| with_input_source(error, source_name, source_content))
+                .map_err(CalculationExecutionError::recoverable)?
         };
         if !json_output {
             let output_format = match run.output.scf {
@@ -364,7 +411,8 @@ impl RunCommand {
             };
             let requested =
                 requested_calculation(prepared.request(), run.cache.enabled, output_format)
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(CalculationExecutionError::recoverable)?;
             {
                 let mut stdout = cli::color::stdout();
                 writeln!(
@@ -372,7 +420,8 @@ impl RunCommand {
                     "\n{}",
                     cli::color::title("Requested calculation (canonical TOML)")
                 )
-                .map_err(ReportWriteError)?;
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
             }
             bat::print_toml(&requested.toml);
             {
@@ -385,7 +434,8 @@ impl RunCommand {
                         requested.units
                     ))
                 )
-                .map_err(ReportWriteError)?;
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
             }
             bat::print_xyz(&requested.xyz);
             writeln!(
@@ -393,16 +443,19 @@ impl RunCommand {
                 "\n{}",
                 calculation_summary(&prepared, &molecule_path)
             )
-            .map_err(ReportWriteError)?;
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
         }
         let result = {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
-                return Err(ReportWriteError(error).into());
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
-            outcome.map_err(|error| with_input_source(error, source_name, source_content))?
+            outcome
+                .map_err(|error| with_input_source(error, source_name, source_content))
+                .map_err(CalculationExecutionError::recoverable)?
         };
         Ok(CalculationOutput::new(
             result.hf.summary().method,
