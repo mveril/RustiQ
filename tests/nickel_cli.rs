@@ -5,7 +5,6 @@
 
 use std::{
     fs,
-    fs::File,
     path::Path,
     process::{Command, Output},
 };
@@ -209,9 +208,11 @@ fn batch_reports_non_convergence_and_mp2_error_then_continues() {
     assert_eq!(value["calculations"][2]["status"], "success");
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 #[test]
 fn json_output_write_failure_is_fatal() {
+    use std::fs::File;
+
     let directory = fixture();
     let input = directory.path().join("inputs/batch.ncl");
     fs::write(
