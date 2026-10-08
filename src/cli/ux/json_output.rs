@@ -91,6 +91,11 @@ impl CalculationOutput {
         serde_json::to_writer(writer, self)
     }
 
+    pub(crate) fn write_json_pretty<W: Write>(&self, writer: W) -> Result<(), serde_json::Error> {
+        self.ensure_finite()?;
+        serde_json::to_writer_pretty(writer, self)
+    }
+
     fn ensure_finite(&self) -> Result<(), serde_json::Error> {
         let hf = &self.calculation.hf;
         let mut values = vec![

@@ -2,7 +2,7 @@ mod basis_command;
 mod cache_command;
 mod init_command;
 mod run_command;
-use run_command::RunCommand;
+pub(crate) use run_command::{validate_run_arguments, RunCommand};
 mod geometry_command;
 mod runnable;
 use basis_command::BasisCommands;

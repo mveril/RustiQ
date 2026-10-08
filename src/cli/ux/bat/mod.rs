@@ -27,6 +27,19 @@ pub(crate) fn print_toml(content: &str) {
     }
 }
 
+pub(crate) fn print_json(content: &[u8]) {
+    if PrettyPrinter::new()
+        .colored_output(color::enabled_for(OutputStream::Stdout))
+        .input_from_bytes(content)
+        .paging_mode(::bat::PagingMode::Never)
+        .language("json")
+        .print()
+        .is_err()
+    {
+        print!("{}", String::from_utf8_lossy(content));
+    }
+}
+
 pub(crate) fn print_xyz(content: &str) {
     if !color::enabled_for(OutputStream::Stdout) {
         print!("{content}");
