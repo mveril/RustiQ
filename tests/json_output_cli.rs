@@ -21,6 +21,15 @@ fn run_command(sample: &str, format: Option<&str>) -> Output {
 }
 
 fn run_command_with_color(sample: &str, format: Option<&str>, color: Option<&str>) -> Output {
+    run_command_with_options(sample, format, color, false)
+}
+
+fn run_command_with_options(
+    sample: &str,
+    format: Option<&str>,
+    color: Option<&str>,
+    pretty: bool,
+) -> Output {
     let data_home = TempDir::new().expect("temporary data home");
     let basis_store = data_home.path().join("RustiQ/basis_sets");
     fs::create_dir_all(&basis_store).expect("basis store directory");
@@ -45,7 +54,69 @@ fn run_command_with_color(sample: &str, format: Option<&str>, color: Option<&str
     if let Some(format) = format {
         command.args(["--format", format]);
     }
+    if pretty {
+        command.arg("--pretty");
+    }
     command.output().expect("run RustiQ")
+}
+
+#[test]
+fn pretty_json_obeys_color_setting() {
+    for pretty in [false, true] {
+        for color in ["always", "never"] {
+            let output = run_command_with_options(
+                "samples/h2/sto-3g/calculation.toml",
+                Some("json"),
+                Some(color),
+                pretty,
+            );
+            assert!(
+                output.status.success(),
+                "{color}, pretty={pretty}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert_eq!(stdout.contains("\x1b["), pretty && color == "always");
+            if !pretty || color == "never" {
+                let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+                    .expect("JSON stdout without syntax highlighting must remain valid");
+                assert!(value["calculation"]["hf"].is_object());
+                if pretty {
+                    assert!(stdout.contains("\n  \"calculation\""));
+                } else {
+                    assert!(stdout
+                        .starts_with("{\"schema_version\":1,\"calculation\":{\"hf\":{\"method\":"));
+                    assert_eq!(stdout.bytes().filter(|byte| *byte == b'\n').count(), 1);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn pretty_requires_json_format() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args([
+            "run",
+            "samples/h2/sto-3g/calculation.toml",
+            "--pretty",
+            "--format",
+            "text",
+        ])
+        .output()
+        .expect("run RustiQ");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--pretty requires --format json"));
+}
+
+#[test]
+fn pretty_without_format_requires_json_format() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["run", "samples/h2/sto-3g/calculation.toml", "--pretty"])
+        .output()
+        .expect("run RustiQ");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--pretty requires --format json"));
 }
 
 fn json_output(sample: &str) -> serde_json::Value {

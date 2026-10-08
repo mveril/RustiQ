@@ -8,6 +8,7 @@ use crate::cli::color::{self, OutputStream};
 use ::bat::{
     assets::HighlightingAssets, config::Config, controller::Controller, Input, PrettyPrinter,
 };
+use miette::IntoDiagnostic;
 
 const BAT_SYNTAXES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bat-assets/syntaxes.bin"));
 const BAT_THEMES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bat-assets/themes.bin"));
@@ -25,6 +26,17 @@ pub(crate) fn print_toml(content: &str) {
     {
         println!("{content}");
     }
+}
+
+pub(crate) fn print_json(content: &[u8]) -> miette::Result<()> {
+    PrettyPrinter::new()
+        .colored_output(color::enabled_for(OutputStream::Stdout))
+        .input_from_bytes(content)
+        .paging_mode(::bat::PagingMode::Never)
+        .language("json")
+        .print()
+        .into_diagnostic()
+        .map(|_| ())
 }
 
 pub(crate) fn print_xyz(content: &str) {

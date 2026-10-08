@@ -51,16 +51,38 @@ pub struct RunCommand {
     #[arg(long, value_enum, default_value_t = CalculationOutputFormat::Text)]
     format: CalculationOutputFormat,
 
+    /// Pretty-print JSON output and syntax-highlight it when color is enabled.
+    #[arg(long)]
+    pretty: bool,
+
     /// Directory used to cache calculation artifacts for this execution.
     #[arg(long, value_name = "DIR")]
     cache_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
-enum CalculationOutputFormat {
+pub(crate) enum CalculationOutputFormat {
     #[default]
     Text,
     Json,
+}
+
+pub(crate) fn validate_run_arguments(matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+    let Some(matches) = matches.subcommand_matches("run") else {
+        return Ok(());
+    };
+    let pretty = matches.get_one::<bool>("pretty").copied().unwrap_or(false);
+    let format = matches
+        .get_one::<CalculationOutputFormat>("format")
+        .copied()
+        .unwrap_or_default();
+    if pretty && format != CalculationOutputFormat::Json {
+        return Err(clap::Error::raw(
+            clap::error::ErrorKind::ArgumentConflict,
+            "--pretty requires --format json",
+        ));
+    }
+    Ok(())
 }
 
 impl RunCommand {
@@ -249,15 +271,20 @@ impl Runnable for RunCommand {
         };
         if json_output {
             let stdout = io::stdout();
-            CalculationOutput::new(
+            let output = CalculationOutput::new(
                 result.hf.summary().method,
                 &result.hf.summary().scf,
                 matches!(result.hf, rustiq_core::calculation::HfOutcome::Converged(_)),
                 result.mp2.as_ref(),
-            )
-            .write_json(stdout.lock())
-            .into_diagnostic()?;
-            println!();
+            );
+            if self.pretty {
+                let mut json = Vec::new();
+                output.write_json(&mut json, true).into_diagnostic()?;
+                bat::print_json(&json)?;
+            } else {
+                output.write_json(stdout.lock(), false).into_diagnostic()?;
+                println!();
+            }
         }
 
         Ok(())
@@ -307,6 +334,7 @@ mod tests {
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
+                pretty: false,
                 cache_dir: None,
             };
 
@@ -323,6 +351,7 @@ mod tests {
                 auto_download: true,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
+                pretty: false,
                 cache_dir: None,
             };
 
@@ -335,6 +364,7 @@ mod tests {
                 auto_download: false,
                 no_auto_download: true,
                 format: CalculationOutputFormat::Text,
+                pretty: false,
                 cache_dir: None,
             };
 
@@ -351,6 +381,7 @@ mod tests {
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
+                pretty: false,
                 cache_dir: None,
             };
 

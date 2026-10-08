@@ -14,6 +14,9 @@ fn main() -> miette::Result<()> {
     let mode = cli::color::from_process_args(env::args_os().skip(1));
     let command = Cli::command().color(mode);
     let matches = command.get_matches();
+    if let Err(error) = cli::commands::validate_run_arguments(&matches) {
+        error.exit();
+    }
     let app = Cli::from_arg_matches(&matches).expect("clap command matches Cli definition");
     let mode = app.color.unwrap_or(mode);
     cli::color::configure(mode);

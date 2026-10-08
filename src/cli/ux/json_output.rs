@@ -86,9 +86,20 @@ impl CalculationOutput {
 
     /// JSON has no representation for non-finite floating-point values. Refuse
     /// to emit a partial or misleading calculation result in that situation.
-    pub(crate) fn write_json<W: Write>(&self, writer: W) -> Result<(), serde_json::Error> {
+    pub(crate) fn write_json<W: Write>(
+        &self,
+        mut writer: W,
+        pretty: bool,
+    ) -> Result<(), serde_json::Error> {
         self.ensure_finite()?;
-        serde_json::to_writer(writer, self)
+        // Finish serialization before touching the destination. A serde error
+        // must never leave a truncated JSON document in stdout or another writer.
+        let json = if pretty {
+            serde_json::to_vec_pretty(self)?
+        } else {
+            serde_json::to_vec(self)?
+        };
+        writer.write_all(&json).map_err(serde_json::Error::io)
     }
 
     fn ensure_finite(&self) -> Result<(), serde_json::Error> {
@@ -201,7 +212,7 @@ mod tests {
     fn json_output_is_valid_and_preserves_hf_values() {
         let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &scf_result(), true, None);
         let mut bytes = Vec::new();
-        output.write_json(&mut bytes).unwrap();
+        output.write_json(&mut bytes, false).unwrap();
         let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
 
         assert_eq!(value["schema_version"], 1);
@@ -243,7 +254,9 @@ mod tests {
         let mut result = scf_result();
         result.total_energy = f64::NAN;
         let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, true, None);
-        assert!(output.write_json(Vec::new()).is_err());
+        let mut bytes = Vec::new();
+        assert!(output.write_json(&mut bytes, false).is_err());
+        assert!(bytes.is_empty(), "serialization failure must write nothing");
     }
 
     #[test]
@@ -255,6 +268,6 @@ mod tests {
             spin_contamination: 0.0,
         });
         let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &result, true, None);
-        assert!(output.write_json(Vec::new()).is_err());
+        assert!(output.write_json(Vec::new(), false).is_err());
     }
 }
