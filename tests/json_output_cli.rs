@@ -38,6 +38,11 @@ fn run_command_with_options(
         basis_store.join("sto-3g.json"),
     )
     .expect("copy STO-3G basis fixture");
+    fs::copy(
+        repo_root().join("tests/data/reference/RustiQ/basis_sets/6-31g.json"),
+        basis_store.join("6-31g.json"),
+    )
+    .expect("copy 6-31G basis fixture");
 
     let mut command = Command::new(env!("CARGO_BIN_EXE_RustiQ"));
     command
@@ -129,6 +134,98 @@ fn json_output(sample: &str) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("JSON-only stdout")
 }
 
+fn batch_validator() -> jsonschema::Validator {
+    let mut schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/batch-output-v1.schema.json")).unwrap();
+    let calculation_schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/calculation-output-v1.schema.json")).unwrap();
+    schema["$defs"] = serde_json::json!({ "calculation": calculation_schema });
+    for outcome in schema["properties"]["calculations"]["items"]["oneOf"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if outcome["properties"]["result"].is_object() {
+            outcome["properties"]["result"]["$ref"] =
+                serde_json::Value::String("#/$defs/calculation".to_owned());
+        }
+    }
+    jsonschema::validator_for(&schema).expect("valid batch JSON Schema")
+}
+
+#[test]
+fn nickel_sample_batch_preserves_individual_v1_results_and_batch_schema() {
+    let value = json_output("samples/h2/study.ncl");
+    assert!(
+        batch_validator().is_valid(&value),
+        "invalid batch JSON: {value}"
+    );
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/batch-output-v1.schema.json")).unwrap();
+    assert_eq!(
+        value["schema_version"],
+        schema["properties"]["schema_version"]["const"]
+    );
+    assert_eq!(value["kind"], schema["properties"]["kind"]["const"]);
+    assert_eq!(value.as_object().unwrap().len(), 3);
+    let entries = value["calculations"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    let success_schema = &schema["properties"]["calculations"]["items"]["oneOf"][0];
+    assert_eq!(
+        success_schema["properties"]["result"]["$ref"],
+        "calculation-output-v1.schema.json"
+    );
+    for entry in entries {
+        assert_eq!(entry["status"], "success");
+        assert_eq!(entry.as_object().unwrap().len(), 2);
+        for field in success_schema["required"].as_array().unwrap() {
+            assert!(entry.get(field.as_str().unwrap()).is_some());
+        }
+        assert_v1_shape(&entry["result"]);
+    }
+    for (index, basis) in ["sto-3g", "6-31g"].iter().enumerate() {
+        let baseline = json_output(&format!("samples/h2/{basis}/calculation.toml"));
+        let hf = &entries[index]["result"]["calculation"]["hf"];
+        assert_abs_diff_eq!(
+            hf["total_energy"].as_f64().unwrap(),
+            baseline["calculation"]["hf"]["total_energy"]
+                .as_f64()
+                .unwrap(),
+            epsilon = 1e-9
+        );
+        assert_eq!(
+            hf["orthogonalization"]["ao_basis_dimension"],
+            baseline["calculation"]["hf"]["orthogonalization"]["ao_basis_dimension"]
+        );
+    }
+    let text = run_command("samples/h2/study.ncl", Some("text"));
+    assert!(
+        text.status.success(),
+        "{}",
+        String::from_utf8_lossy(&text.stderr)
+    );
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(text.contains("Calculation 1/2"));
+    assert!(text.contains("Calculation 2/2"));
+    assert!(text.contains("2 succeeded, 0 non-converged, 0 failed"));
+}
+
+#[test]
+fn single_nickel_sample_runs_transparently_like_toml() {
+    let native = json_output("samples/h2/sto-3g/calculation.ncl");
+    let toml = json_output("samples/h2/sto-3g/calculation.toml");
+    assert_v1_shape(&native);
+    assert_eq!(native, toml);
+    let output = run_command("samples/h2/sto-3g/calculation.ncl", None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("Requested calculation (canonical TOML)")
+    );
+}
+
 #[test]
 fn mp2_human_memory_budget_reaches_cli_and_preserves_json() {
     let directory = TempDir::new().unwrap();
@@ -171,6 +268,11 @@ fn assert_v1_shape(output: &serde_json::Value) {
         "/schemas/calculation-output-v1.schema.json"
     )))
     .expect("valid calculation output schema");
+    let validator = jsonschema::validator_for(&schema).expect("valid calculation JSON Schema");
+    assert!(
+        validator.is_valid(output),
+        "invalid calculation JSON: {output}"
+    );
     assert_eq!(
         schema["$schema"],
         "https://json-schema.org/draft/2020-12/schema"

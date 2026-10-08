@@ -3,9 +3,31 @@ use std::io::Write;
 use serde::Serialize;
 
 use rustiq_core::{
-    calculation::{Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics},
+    calculation::{
+        CalculationResult, Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics,
+    },
     config::ResolvedHfMethod,
 };
+
+use crate::cli::commands::batch_orchestration::ExecutionResult;
+
+impl ExecutionResult for CalculationOutput {
+    fn is_converged(&self) -> bool {
+        self.calculation.hf.converged
+    }
+}
+
+impl From<&CalculationResult> for CalculationOutput {
+    fn from(result: &CalculationResult) -> Self {
+        let hf = result.hf.summary();
+        Self::new(
+            hf.method,
+            &hf.scf,
+            result.hf.is_converged(),
+            result.mp2.as_ref(),
+        )
+    }
+}
 
 /// Version 1 of `RustiQ`'s stable, machine-readable calculation-output contract.
 #[derive(Debug, Serialize)]
@@ -102,7 +124,7 @@ impl CalculationOutput {
         writer.write_all(&json).map_err(serde_json::Error::io)
     }
 
-    fn ensure_finite(&self) -> Result<(), serde_json::Error> {
+    pub(crate) fn ensure_finite(&self) -> Result<(), serde_json::Error> {
         let hf = &self.calculation.hf;
         let mut values = vec![
             hf.electronic_energy,
@@ -134,6 +156,32 @@ impl CalculationOutput {
             ))
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct BatchOutput {
+    pub schema_version: u32,
+    pub kind: &'static str,
+    pub calculations: Vec<BatchEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct BatchEntry {
+    #[serde(flatten)]
+    pub outcome: BatchOutcome,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub(crate) enum BatchOutcome {
+    Success { result: CalculationOutput },
+    NonConverged { result: CalculationOutput },
+    Error { error: BatchError },
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct BatchError {
+    pub message: String,
 }
 
 impl From<(ResolvedHfMethod, &ScfResult, bool)> for HfResultOutput {
@@ -269,5 +317,13 @@ mod tests {
         });
         let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &result, true, None);
         assert!(output.write_json(Vec::new(), false).is_err());
+    }
+
+    #[test]
+    fn batch_cannot_turn_non_finite_result_into_json_null() {
+        let mut result = scf_result();
+        result.residual_norm = f64::INFINITY;
+        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, false, None);
+        assert!(output.ensure_finite().is_err());
     }
 }

@@ -1,6 +1,6 @@
 # Nickel migration schema
 
-PR 3 of #94 makes the embedded Nickel schema authoritative for TOML defaults
+PR #101 makes the embedded Nickel schema authoritative for TOML defaults
 and validation. Nickel's native TOML import parses the in-memory source once
 and preserves its locations. The source mapper walks Nickel's parsed value and
 supplies spans only; it does not parse TOML or construct configuration.
@@ -11,9 +11,9 @@ sections stay in the output.
 Direct `toml` and `toml-spanner` dependencies were removed. `toml_edit` remains
 only as a post-export formatting layer for canonical TOML; it is not a
 configuration schema authority. It also provides a narrow parser-safety check
-for non-finite TOML floats that Nickel 0.18 cannot represent.
+for non-finite TOML floats that Nickel's importer cannot represent.
 
-The private frontend pins `nickel-lang-core` to 0.18.0 because the stable
+The private frontend pins `nickel-lang-core` to 0.19.0 because the stable
 `nickel-lang` interface does not expose native in-memory imports or structured
 diagnostic locations. Core API changes must remain isolated in this frontend.
 
@@ -29,7 +29,7 @@ single evaluation pass.
 normalizes a record or a non-empty array, and `rebuild-data.ncl` is a private
 migration workaround. No external Nickel executable is needed.
 
-Nickel 2.2.0 / nickel-lang-core 0.18.0 asserts `value.is_constant()` in
+The Nickel 2.2.0 / nickel-lang-core 0.18.0 migration exposed an assertion on `value.is_constant()` in
 `eval/fixpoint.rs` when a nested deserialized record receives a record contract.
 Recursive mapping rebuilds records and arrays into deferred computations before
 contract application, avoiding the assertion without patching dependencies or
@@ -37,6 +37,14 @@ disabling debug assertions. Imported TOML compatibility tests and nested JSON
 regression tests must remain while this workaround is needed. Replace it after
 an upstream fix has been verified against those tests. It is not part of the
 public input schema. See exploratory POC #96 for the diagnosis.
+
+Native `.ncl` inputs use the same contracts and normalization. Input sources
+are registered under their real paths and prepared with Nickel's import
+resolver, retaining imported-file diagnostics. Imports resolve relative to the
+importing file; runtime geometry paths resolve relative to the top-level input.
+All batch entries are validated before execution. The CLI executes them in
+order and continues after individual runtime errors. Scientific configuration
+converted from Nickel expressions has no fabricated byte spans.
 
 Memory limits use the existing Rust byte-size parser, shared by TOML and Serde.
 Source spans are attached separately after fallible conversion to core types.

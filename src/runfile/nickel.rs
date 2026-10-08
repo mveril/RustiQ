@@ -225,6 +225,49 @@ pub(crate) fn resolve_toml(toml: &str) -> Result<ResolvedInput, Vec<Configuratio
     evaluate_input_with_context("Input", context)
 }
 
+pub(crate) fn resolve_nickel(source_name: &str, source: &str) -> miette::Result<ResolvedInput> {
+    let mut context = Context::new();
+    let id = context.vm.import_resolver.sources.add_string(
+        SourcePath::Path(source_name.into(), InputFormat::Nickel),
+        source.to_owned(),
+    );
+    context.input_id = Some(id);
+    if let Err(error) = context.vm.prepare_eval(id) {
+        let error = context.configuration_error(None, error);
+        return Err(super::diagnostics::group_nickel_errors(vec![
+            super::diagnostics::nickel_error(
+                source_name,
+                source,
+                error.message,
+                "invalid Nickel input".to_owned(),
+                error.span,
+            )
+            .with_details(error.details),
+        ]));
+    }
+    context.vm = context.vm.with_extend_env(vec![(
+        Ident::new("Input"),
+        NickelValue::term_posless(Term::ResolvedImport(id)),
+    )]);
+    evaluate_input_with_context("Input", context).map_err(|errors| {
+        super::diagnostics::group_nickel_errors(
+            errors
+                .into_iter()
+                .map(|error| {
+                    super::diagnostics::nickel_error(
+                        source_name,
+                        source,
+                        error.message,
+                        "invalid Nickel configuration".to_owned(),
+                        error.span,
+                    )
+                    .with_details(error.details)
+                })
+                .collect(),
+        )
+    })
+}
+
 fn toml_context(
     source_name: &str,
     toml: &str,

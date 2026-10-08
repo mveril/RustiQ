@@ -39,7 +39,10 @@ grows:
 
 RustiQ currently provides:
 
-- TOML runfiles and XYZ geometries with source-located diagnostics;
+- TOML and native Nickel inputs with embedded contracts/defaults, composition,
+  imports, and source-aware configuration diagnostics;
+- sequential Nickel batch execution with per-calculation results and errors;
+- XYZ geometries with source-located diagnostics;
 - local and optional online basis-set management;
 - Gaussian basis construction;
 - RHF and UHF with DIIS;
@@ -49,6 +52,8 @@ RustiQ currently provides:
 - structured calculation preparation through `CalculationRequest` and
   `PreparedCalculation`;
 - local directory-backed AO ERI reuse through typed persistence primitives;
+- portable V1 multi-calculation containers with integrity checks and atomic
+  publication (#88);
 - versioned machine-readable calculation output;
 - unit, integration, sample, and PySCF reference tests;
 - benchmark support for important ERI and MP2 paths.
@@ -68,7 +73,7 @@ portable persistence V1
 frontend-neutral resolved configuration
         |
         v
-Nickel configuration and batch resolution
+Nickel configuration, batch resolution, and CLI batch execution
         |
         v
 portable-artifact CLI orchestration
@@ -83,22 +88,13 @@ scientific validation / stable public APIs
 Some independent validation, documentation, and performance work may proceed in
 parallel when it does not change these boundaries.
 
-### 1. Finalize portable persistence V1 (#79, #88)
+### 1. Portable persistence V1 — delivered (#79, #88)
 
-The immediate persistence milestone is a portable, versioned `.rustiq`
-container built on the typed persistence work already present in
-`rustiq-core`.
-
-Before the portable format is considered stable:
-
-- finish the ZIP/ZIP64 container, integrity checks, snapshot validation, atomic
-  publication, and Rust/Python interoperability work;
-- keep source provenance, normalized requested state, resolved scientific
-  state, and numerical artifacts distinct;
-- keep physical ZIP details behind typed persistence APIs;
-- fix the remaining CI failures in #88;
-- make the portable V1 manifest natively multi-calculation before publishing it
-  as a durable contract.
+Delivered by #88: a portable, versioned ZIP/ZIP64 `.rustiq` container with
+integrity checks, snapshot validation, atomic publication, interoperability
+coverage, and a natively multi-calculation V1 manifest. Source provenance,
+requested/resolved state, and artifacts remain distinct behind typed APIs.
+Normal CLI artifact orchestration remains a downstream milestone under #79.
 
 #### Portable manifest is multi-calculation from V1
 
@@ -148,11 +144,11 @@ Consequences:
 - the machine-local cache remains calculation/artifact-oriented and does not
   need to become a batch container.
 
-The exact wire layout and stable calculation identifiers belong to #79/#88.
-They should be deterministic and should not make source ordering, user-facing
-labels, or an aggregate batch hash part of scientific compatibility.
+The wire layout and stable calculation identifiers are defined by #88 under
+#79. Source ordering, user-facing labels, and aggregate batch hashes must not
+become part of scientific compatibility.
 
-### 2. Make Nickel the canonical configuration frontend (#94)
+### 2. Canonical Nickel configuration frontend — delivered (#94)
 
 The exploratory POC in #96 has validated the key frontend decisions before the
 production migration starts:
@@ -171,10 +167,9 @@ contracts to imported/deserialized data. #94 must track an upstream-safe
 resolution or keep any temporary workaround private to the frontend; the
 workaround must not become part of RustiQ's public configuration contract.
 
-With those feasibility questions answered, stabilize the production frontend
-boundary after the portable V1 container shape is fixed.
+The production frontend boundary now builds on the merged portable V1 shape.
 
-The target flow is:
+The production flow is:
 
 ```text
 .toml ----\
@@ -185,24 +180,31 @@ The target flow is:
                                       rustiq-core
 ```
 
-Implement #94 incrementally:
+Delivered incrementally:
 
-1. characterize the current TOML behavior with regression tests;
-2. introduce frontend-neutral fully resolved DTOs;
-3. implement Nickel contracts/defaults/validation in shadow mode;
-4. switch TOML resolution to the Nickel-backed schema;
-5. add native `.ncl` support;
-6. normalize both one-calculation and multi-calculation inputs to a non-empty
-   `ResolvedInput { calculations: Vec<_> }` and reject empty batches;
-7. separate source mapping from configuration validation;
-8. migrate canonical TOML generation and `rustiq init`;
-9. remove `toml-spanner` once it has no remaining responsibility.
+1. #99 established the sample configuration compatibility baseline.
+2. #100 introduced resolved DTOs, fallible core conversion, and maintained
+   Nickel schema verification.
+3. #101 made Nickel authoritative for TOML, preserved source mapping and
+   grouped diagnostics, migrated canonical TOML and `init`, and removed direct
+   `toml` and `toml-spanner` dependencies.
+4. Native `.ncl` inputs now support imports, one record or a non-empty array,
+   full batch resolution, and sequential execution of every calculation.
+
+Batch execution continues after individual preparation/execution failures.
+JSON batches report ordered successes, non-convergence, and errors; individual
+calculations retain the existing JSON V1 contract. Imports use Nickel semantics,
+while geometry paths are relative to the top-level input. Computed scientific
+values have no fabricated source spans.
+
+This completes the frontend responsibility of #94 and delivers basic CLI batch
+orchestration. Persistence/reuse integration and HF restart remain under #79.
 
 Nickel owns user-facing structure, defaults, composition, and configuration
 validation. `rustiq-core` continues to enforce scientific invariants for
 direct Rust API consumers.
 
-### 3. Integrate portable artifacts into execution and the CLI (#79)
+### 3. Integrate portable artifacts into execution and the CLI — next (#79)
 
 After the frontend boundary is stable, introduce portable reuse into the normal
 execution planner instead of bolting archive handling onto the current
@@ -229,8 +231,8 @@ The CLI milestone includes:
 - `rustiq artifact inspect`;
 - explicit reporting of reused, missing, incompatible, ignored, and recomputed
   state;
-- execution of every calculation in a resolved Nickel batch without silently
-  dropping entries.
+- artifact/result orchestration for every calculation in an already executable
+  Nickel batch, with independent compatibility and reuse decisions.
 
 Batch orchestration should consume `ResolvedInput`; it must not leak batch
 concepts into individual scientific calculation APIs.

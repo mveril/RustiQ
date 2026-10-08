@@ -93,6 +93,7 @@ toml_edit = "0.25"
 
 [dev-dependencies]
 approx.workspace = true
+jsonschema = { version = "0.29", default-features = false }
 rstest = "0.27"
 proptest.workspace = true
 temp-env.workspace = true

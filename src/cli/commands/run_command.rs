@@ -6,15 +6,16 @@ use std::{
 };
 
 use clap::{ArgAction, ValueEnum};
-use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report};
+use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report, WrapErr};
 
+use super::batch_orchestration::{self, BatchSummary, Executable, ExecutionError, ExecutionResult};
 use crate::cli::{
-    self,
+    self, directories,
     ux::{
         bat,
-        calculation_presentation::{calculation_summary, requested_calculation, SourceProvenance},
+        calculation_presentation::{calculation_summary, requested_calculation},
         calculation_report::CalculationReporter,
-        json_output::CalculationOutput,
+        json_output::{BatchEntry, BatchError, BatchOutcome, BatchOutput, CalculationOutput},
     },
 };
 use crate::runfile::{parser::parse_runfile, resolved::ScfOutput};
@@ -29,7 +30,7 @@ use super::{CommandResult, Runnable};
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
-    /// The toml file used for the calculation. If not specified, the standard input is used.
+    /// TOML or Nickel calculation input. If omitted, read TOML from standard input.
     pub input: Option<PathBuf>,
     /// Enable automatic download of basis sets for this execution (the default behavoir is determined by the env variable RUSTIQ_AUTO_DOWNLOAD)
     #[arg(
@@ -85,6 +86,72 @@ pub(crate) fn validate_run_arguments(matches: &clap::ArgMatches) -> Result<(), c
     Ok(())
 }
 
+#[derive(Debug, thiserror::Error, Diagnostic)]
+#[error("failed to write calculation report: {0}")]
+struct ReportWriteError(#[source] io::Error);
+
+#[derive(Debug)]
+enum CalculationExecutionError {
+    Recoverable(Report),
+    FatalInfrastructure(Report),
+}
+
+impl ExecutionError for CalculationExecutionError {
+    fn is_fatal(&self) -> bool {
+        matches!(self, Self::FatalInfrastructure(_))
+    }
+}
+
+struct CalculationTask<'a> {
+    command: &'a RunCommand,
+    parsed: miette::Result<crate::runfile::parser::ParsedRunFile>,
+    source_name: &'a str,
+    source_content: &'a str,
+    batch_position: Option<(usize, usize)>,
+}
+
+impl Executable for CalculationTask<'_> {
+    type Output = CalculationOutput;
+    type Error = CalculationExecutionError;
+
+    fn execute(self) -> Result<Self::Output, Self::Error> {
+        if let Some((position, total)) = self.batch_position {
+            if self.command.format == CalculationOutputFormat::Text {
+                writeln!(cli::color::stdout(), "\nCalculation {position}/{total}")
+                    .map_err(ReportWriteError)
+                    .map_err(CalculationExecutionError::fatal)?;
+            }
+        }
+        let parsed = self
+            .parsed
+            .map_err(CalculationExecutionError::recoverable)?;
+        let result =
+            self.command
+                .execute_calculation(parsed, self.source_name, self.source_content)?;
+        if self.batch_position.is_some() {
+            result
+                .ensure_finite()
+                .into_diagnostic()
+                .map_err(CalculationExecutionError::recoverable)?;
+        }
+        Ok(result)
+    }
+}
+
+impl CalculationExecutionError {
+    fn recoverable(error: impl Into<Report>) -> Self {
+        Self::Recoverable(error.into())
+    }
+    fn fatal(error: impl Into<Report>) -> Self {
+        Self::FatalInfrastructure(error.into())
+    }
+    fn into_report(self) -> Report {
+        match self {
+            Self::Recoverable(error) | Self::FatalInfrastructure(error) => error,
+        }
+    }
+}
+
 impl RunCommand {
     #[cfg(feature = "online")]
     fn resolve_auto_download(&self) -> bool {
@@ -105,7 +172,7 @@ impl RunCommand {
         )
     )]
     fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
-        let basis_store = crate::cli::directories::basis_store();
+        let basis_store = directories::basis_store();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "online")] {
@@ -139,16 +206,12 @@ impl RunCommand {
 }
 
 impl Runnable for RunCommand {
-    #[allow(
-        clippy::too_many_lines,
-        reason = "Keep calculation setup, execution, and result publication in their execution order"
-    )]
     fn run(&self) -> CommandResult {
         let json_output = self.format == CalculationOutputFormat::Json;
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
-        let (source_name, toml_content) = if let Some(path_toml) = &self.input {
+        let (source_name, source_content) = if let Some(path_toml) = &self.input {
             let content = fs::read_to_string(path_toml).into_diagnostic()?;
             (path_toml.display().to_string(), content)
         } else {
@@ -156,28 +219,175 @@ impl Runnable for RunCommand {
             io::stdin().read_to_string(&mut content).into_diagnostic()?;
             ("<stdin>".to_string(), content)
         };
-        let parsed = parse_runfile(source_name.clone(), &toml_content)?;
-        let run = parsed.resolved.single_calculation().into_diagnostic()?;
-        let molecule_path = run.resource_path(self.input.as_deref());
-        let xyz_content = fs::read_to_string(&molecule_path).into_diagnostic()?;
-        let source = SourceProvenance::new(
+        let nickel = self
+            .input
+            .as_ref()
+            .and_then(|path| path.extension())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("ncl"));
+        if !nickel {
+            let parsed = parse_runfile(source_name.clone(), &source_content)?;
+            return self.execute_single(parsed, &source_name, &source_content, json_output);
+        }
+        let resolved = crate::runfile::parser::resolve_nickel(&source_name, &source_content)?;
+        if resolved.calculations().len() == 1 {
+            let calculation = resolved.into_iter().next().ok_or_else(|| {
+                miette!("validated Nickel input unexpectedly contained no calculations")
+            })?;
+            let parsed = crate::runfile::parser::parsed_calculation(calculation)?;
+            return self.execute_single(parsed, &source_name, &source_content, json_output);
+        }
+        self.execute_batch(resolved, &source_name, &source_content, json_output)
+    }
+}
+
+impl RunCommand {
+    fn execute_single(
+        &self,
+        parsed: crate::runfile::parser::ParsedRunFile,
+        source_name: &str,
+        source_content: &str,
+        json_output: bool,
+    ) -> CommandResult {
+        let result = CalculationTask {
+            command: self,
+            parsed: Ok(parsed),
             source_name,
-            toml_content,
-            run.molecule.geometry.clone(),
-            molecule_path.clone(),
-            xyz_content,
-        );
-        let source_code =
-            NamedSource::new(source.calculation_name.clone(), source.calculation.clone());
-        let geom =
-            Geometry::from_source(source.geometry_path.display().to_string(), &source.geometry)
+            source_content,
+            batch_position: None,
+        }
+        .execute()
+        .map_err(CalculationExecutionError::into_report)?;
+        if json_output {
+            let mut json = Vec::new();
+            result
+                .write_json(&mut json, self.pretty)
                 .into_diagnostic()?;
+            if self.pretty {
+                bat::print_json(&json)?;
+            } else {
+                let mut stdout = io::stdout().lock();
+                stdout.write_all(&json).into_diagnostic()?;
+                writeln!(stdout).into_diagnostic()?;
+            }
+        }
+        Ok(())
+    }
+
+    fn execute_batch(
+        &self,
+        resolved: crate::runfile::resolved::ResolvedInput,
+        source_name: &str,
+        source_content: &str,
+        json_output: bool,
+    ) -> CommandResult {
+        let total = resolved.calculations().len();
+        let tasks = resolved
+            .into_iter()
+            .enumerate()
+            .map(|(index, calculation)| CalculationTask {
+                command: self,
+                parsed: crate::runfile::parser::parsed_calculation(calculation),
+                source_name,
+                source_content,
+                batch_position: Some((index + 1, total)),
+            });
+        let outcomes = batch_orchestration::execute_batch(tasks)
+            .map_err(CalculationExecutionError::into_report)?;
+
+        let BatchSummary {
+            succeeded,
+            non_converged,
+            failed,
+        } = BatchSummary::from_results(&outcomes);
+        let entries = outcomes
+            .into_iter()
+            .enumerate()
+            .map(|(index, outcome)| {
+                let outcome = match outcome {
+                    Ok(result) if result.is_converged() => BatchOutcome::Success { result },
+                    Ok(result) => BatchOutcome::NonConverged { result },
+                    Err(error) => {
+                        let error = error.into_report();
+                        if !json_output {
+                            writeln!(
+                                io::stderr().lock(),
+                                "Calculation {}: {:?}",
+                                index + 1,
+                                error
+                            )
+                            .into_diagnostic()?;
+                        }
+                        BatchOutcome::Error {
+                            error: BatchError {
+                                message: format!("{error}"),
+                            },
+                        }
+                    }
+                };
+                Ok(BatchEntry { outcome })
+            })
+            .collect::<miette::Result<Vec<_>>>()?;
+        if json_output {
+            let json = serde_json::to_vec(&BatchOutput {
+                schema_version: 1,
+                kind: "batch",
+                calculations: entries,
+            })
+            .into_diagnostic()?;
+            let mut stdout = io::stdout().lock();
+            stdout.write_all(&json).into_diagnostic()?;
+            writeln!(stdout).into_diagnostic()?;
+        } else {
+            writeln!(
+                cli::color::stdout(),
+                "\nBatch: {succeeded} succeeded, {non_converged} non-converged, {failed} failed"
+            )
+            .into_diagnostic()?;
+        }
+        if failed + non_converged > 0 {
+            return Err(miette!(
+                "batch contains {failed} failed and {non_converged} non-converged calculations"
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl RunCommand {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep preparation and execution in their scientific order"
+    )]
+    fn execute_calculation(
+        &self,
+        parsed: crate::runfile::parser::ParsedRunFile,
+        source_name: &str,
+        source_content: &str,
+    ) -> Result<CalculationOutput, CalculationExecutionError> {
+        let json_output = self.format == CalculationOutputFormat::Json;
+        let run = parsed
+            .resolved
+            .single_calculation()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        let molecule_path = run.resource_path(self.input.as_deref());
+        let xyz_content = fs::read_to_string(&molecule_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("failed to read geometry {}", molecule_path.display()))
+            .map_err(CalculationExecutionError::recoverable)?;
+        let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let mut stdout = cli::color::stdout();
-            writeln!(stdout, "{}", cli::color::title("Loading basis set...")).into_diagnostic()?;
+            writeln!(stdout, "{}", cli::color::title("Loading basis set..."))
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
         }
         let step_start = Instant::now();
-        let basis_file = self.resolve_basis(&run.basis.name)?;
+        let basis_file = self
+            .resolve_basis(&run.basis.name)
+            .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let mut stdout = cli::color::stdout();
             writeln!(
@@ -186,14 +396,16 @@ impl Runnable for RunCommand {
                 cli::color::value(basis_file.name()),
                 basis_file.function_types()
             )
-            .into_diagnostic()?;
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
             writeln!(
                 stdout,
                 "{} {}",
                 cli::color::title("Basis file loaded in"),
                 humantime::format_duration(step_start.elapsed())
             )
-            .into_diagnostic()?;
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
         }
         let show_scf = run.output.scf != ScfOutput::Quiet;
         let calculation = CalculationBuilder::new(&geom, &basis_file)
@@ -220,9 +432,11 @@ impl Runnable for RunCommand {
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let prepared = calculation.prepare_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
-                return Err(miette!("failed to write calculation report: {error}"));
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
-            prepared.map_err(|error| with_source(error, &source_code))?
+            prepared
+                .map_err(|error| with_input_source(error, source_name, source_content))
+                .map_err(CalculationExecutionError::recoverable)?
         };
         if !json_output {
             let output_format = match run.output.scf {
@@ -231,7 +445,8 @@ impl Runnable for RunCommand {
             };
             let requested =
                 requested_calculation(prepared.request(), run.cache.enabled, output_format)
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(CalculationExecutionError::recoverable)?;
             {
                 let mut stdout = cli::color::stdout();
                 writeln!(
@@ -239,7 +454,8 @@ impl Runnable for RunCommand {
                     "\n{}",
                     cli::color::title("Requested calculation (canonical TOML)")
                 )
-                .into_diagnostic()?;
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
             }
             bat::print_toml(&requested.toml);
             {
@@ -252,42 +468,30 @@ impl Runnable for RunCommand {
                         requested.units
                     ))
                 )
-                .into_diagnostic()?;
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
             }
             bat::print_xyz(&requested.xyz);
-            println!(
+            writeln!(
+                cli::color::stdout(),
                 "\n{}",
-                calculation_summary(&prepared, &source.geometry_path)
-            );
+                calculation_summary(&prepared, &molecule_path)
+            )
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
         }
         let result = {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
             if let Some(error) = reporter.take_error() {
-                return Err(miette!("failed to write calculation report: {error}"));
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
-            outcome.map_err(|error| with_source(error, &source_code))?
+            outcome
+                .map_err(|error| with_input_source(error, source_name, source_content))
+                .map_err(CalculationExecutionError::recoverable)?
         };
-        if json_output {
-            let stdout = io::stdout();
-            let output = CalculationOutput::new(
-                result.hf.summary().method,
-                &result.hf.summary().scf,
-                matches!(result.hf, rustiq_core::calculation::HfOutcome::Converged(_)),
-                result.mp2.as_ref(),
-            );
-            if self.pretty {
-                let mut json = Vec::new();
-                output.write_json(&mut json, true).into_diagnostic()?;
-                bat::print_json(&json)?;
-            } else {
-                output.write_json(stdout.lock(), false).into_diagnostic()?;
-                println!();
-            }
-        }
-
-        Ok(())
+        Ok(CalculationOutput::from(&result))
     }
 }
 
@@ -296,6 +500,14 @@ where
     E: Diagnostic + Send + Sync + 'static,
 {
     Report::new(error).with_source_code(source.clone())
+}
+
+fn with_input_source<E>(error: E, name: &str, content: &str) -> Report
+where
+    E: Diagnostic + Send + Sync + 'static,
+{
+    let source = NamedSource::new(name, content.to_owned());
+    with_source(error, &source)
 }
 
 #[cfg(test)]

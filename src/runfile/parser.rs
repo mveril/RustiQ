@@ -2,6 +2,8 @@
 use crate::runfile::RunFile;
 use miette::IntoDiagnostic;
 
+pub(crate) use super::nickel::resolve_nickel;
+
 #[derive(Debug)]
 pub struct ParsedRunFile {
     #[cfg(test)]
@@ -12,6 +14,44 @@ pub struct ParsedRunFile {
     pub mp2_config: Option<rustiq_core::config::Mp2Config>,
     pub molecule_config: rustiq_core::config::MoleculeConfig,
     pub integral_config: rustiq_core::config::IntegralConfig,
+}
+
+pub fn parsed_calculation(
+    calculation: super::resolved::ResolvedCalculationConfig,
+) -> miette::Result<ParsedRunFile> {
+    Ok(ParsedRunFile {
+        #[cfg(test)]
+        runfile: super::RunFile {
+            molecule: super::molecule::MoleculeConfig {
+                geometry: calculation.molecule.geometry.clone(),
+                charge: calculation.molecule.charge,
+                multiplicity: calculation.molecule.multiplicity,
+                units: calculation.molecule_config().units,
+            },
+            basis: super::basis::BasisConfig {
+                name: calculation.basis.name.clone(),
+            },
+            method: super::method::MethodConfig {
+                hf: Some((&calculation.hf_config().into_diagnostic()?).into()),
+                mp2: calculation.mp2_config().as_ref().map(Into::into),
+            },
+            integrals: (&calculation.integral_config().into_diagnostic()?).into(),
+            cache: super::cache::CacheConfig {
+                enabled: calculation.cache.enabled,
+            },
+            output: super::output::OutputConfig {
+                scf: match calculation.output.scf {
+                    super::resolved::ScfOutput::Normal => super::output::ScfOutput::Normal,
+                    super::resolved::ScfOutput::Quiet => super::output::ScfOutput::Quiet,
+                },
+            },
+        },
+        hf_config: Some(calculation.hf_config().into_diagnostic()?),
+        mp2_config: calculation.mp2_config(),
+        molecule_config: calculation.molecule_config(),
+        integral_config: calculation.integral_config().into_diagnostic()?,
+        resolved: super::resolved::ResolvedInput::new(vec![calculation]).into_diagnostic()?,
+    })
 }
 
 pub fn parse_runfile(
@@ -118,6 +158,44 @@ pub fn parse_runfile(
 #[cfg(test)]
 mod tests {
     use super::parse_runfile;
+
+    #[test]
+    fn computed_nickel_configuration_has_no_scientific_spans() {
+        let input = super::resolve_nickel(
+            "input.ncl",
+            r#"
+            let iterations = 50 + 50 in {
+                basis.name = "sto-3g",
+                method.hf.max_iterations = iterations,
+                method.hf.method = "Rhf",
+                method.mp2 = {},
+                molecule.charge = 0,
+            }
+        "#,
+        )
+        .unwrap();
+        let parsed = super::parsed_calculation(input.calculations()[0].clone()).unwrap();
+        let hf = parsed.hf_config.as_ref().unwrap();
+        assert!(hf.method.span.is_none());
+        assert!(hf.guess.span.is_none());
+        assert!(hf.diis.max_history.span.is_none());
+        assert!(parsed.molecule_config.charge.span.is_none());
+        assert!(parsed.integral_config.schwarz_threshold.span.is_none());
+        assert!(parsed
+            .mp2_config
+            .as_ref()
+            .unwrap()
+            .frozen_orbitals
+            .span
+            .is_none());
+        let canonical = parsed
+            .runfile
+            .output(super::super::output::Defaults::Include)
+            .render()
+            .unwrap();
+        let replay = parse_runfile("canonical.toml", &canonical).unwrap();
+        assert_eq!(parsed.resolved, replay.resolved);
+    }
 
     #[test]
     fn parser_preserves_nested_configuration_spans() {

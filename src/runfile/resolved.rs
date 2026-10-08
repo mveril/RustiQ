@@ -197,6 +197,15 @@ impl<'de> serde::Deserialize<'de> for ResolvedInput {
     }
 }
 
+impl IntoIterator for ResolvedInput {
+    type Item = ResolvedCalculationConfig;
+    type IntoIter = std::vec::IntoIter<ResolvedCalculationConfig>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.calculations.into_iter()
+    }
+}
+
 impl ResolvedCalculationConfig {
     pub fn resource_path(&self, input: Option<&std::path::Path>) -> PathBuf {
         input
