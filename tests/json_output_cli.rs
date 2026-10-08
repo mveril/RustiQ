@@ -81,6 +81,13 @@ fn pretty_json_obeys_color_setting() {
                 let value: serde_json::Value = serde_json::from_slice(&output.stdout)
                     .expect("JSON stdout without syntax highlighting must remain valid");
                 assert!(value["calculation"]["hf"].is_object());
+                if pretty {
+                    assert!(stdout.contains("\n  \"calculation\""));
+                } else {
+                    assert!(stdout
+                        .starts_with("{\"schema_version\":1,\"calculation\":{\"hf\":{\"method\":"));
+                    assert_eq!(stdout.bytes().filter(|byte| *byte == b'\n').count(), 1);
+                }
             }
         }
     }
@@ -96,6 +103,16 @@ fn pretty_requires_json_format() {
             "--format",
             "text",
         ])
+        .output()
+        .expect("run RustiQ");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--pretty requires --format json"));
+}
+
+#[test]
+fn pretty_without_format_requires_json_format() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        .args(["run", "samples/h2/sto-3g/calculation.toml", "--pretty"])
         .output()
         .expect("run RustiQ");
     assert!(!output.status.success());
