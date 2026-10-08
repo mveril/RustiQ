@@ -16,9 +16,8 @@
           {
             "type": "object",
             "additionalProperties": false,
-            "required": ["index", "status", "result"],
+            "required": ["status", "result"],
             "properties": {
-              "index": { "type": "integer", "minimum": 0 },
               "status": { "enum": ["success", "non_converged"] },
               "result": { "$ref": "calculation-output-v1.schema.json" }
             }
@@ -26,9 +25,8 @@
           {
             "type": "object",
             "additionalProperties": false,
-            "required": ["index", "status", "error"],
+            "required": ["status", "error"],
             "properties": {
-              "index": { "type": "integer", "minimum": 0 },
               "status": { "const": "error" },
               "error": {
                 "type": "object",

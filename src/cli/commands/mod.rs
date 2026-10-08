@@ -1,4 +1,5 @@
 mod basis_command;
+pub(crate) mod batch_orchestration;
 mod cache_command;
 mod init_command;
 mod run_command;

@@ -578,9 +578,10 @@ A record or an array containing one calculation retains the individual JSON V1
 contract. Larger arrays run sequentially in source order and emit one document
 following [the batch V1 schema](schemas/batch-output-v1.schema.json):
 `{ "schema_version": 1, "kind": "batch", "calculations": [...] }`.
-Each entry has a zero-based `index` and a `status` of `success`,
-`non_converged`, or `error`. Successful and non-converged entries contain
-`result` using the individual V1 contract; errors contain `error.message`.
+Each entry has a `status` of `success`, `non_converged`, or `error`; array
+position preserves source and execution order. Successful and non-converged
+entries contain `result` using the individual V1 contract; errors contain
+`error.message`.
 All configuration is validated before execution. Runtime failures do not stop
 later calculations, and the batch exits with a nonzero status if any calculation
 fails or does not converge. JSON stdout remains a complete document even then.

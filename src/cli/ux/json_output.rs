@@ -145,7 +145,6 @@ pub(crate) struct BatchOutput {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct BatchEntry {
-    pub index: usize,
     #[serde(flatten)]
     pub outcome: BatchOutcome,
 }

@@ -134,9 +134,31 @@ fn json_output(sample: &str) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("JSON-only stdout")
 }
 
+fn batch_validator() -> jsonschema::Validator {
+    let mut schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/batch-output-v1.schema.json")).unwrap();
+    let calculation_schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/calculation-output-v1.schema.json")).unwrap();
+    schema["$defs"] = serde_json::json!({ "calculation": calculation_schema });
+    for outcome in schema["properties"]["calculations"]["items"]["oneOf"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if outcome["properties"]["result"].is_object() {
+            outcome["properties"]["result"]["$ref"] =
+                serde_json::Value::String("#/$defs/calculation".to_owned());
+        }
+    }
+    jsonschema::validator_for(&schema).expect("valid batch JSON Schema")
+}
+
 #[test]
 fn nickel_sample_batch_preserves_individual_v1_results_and_batch_schema() {
     let value = json_output("samples/h2/study.ncl");
+    assert!(
+        batch_validator().is_valid(&value),
+        "invalid batch JSON: {value}"
+    );
     let schema: serde_json::Value =
         serde_json::from_str(include_str!("../schemas/batch-output-v1.schema.json")).unwrap();
     assert_eq!(
@@ -152,10 +174,9 @@ fn nickel_sample_batch_preserves_individual_v1_results_and_batch_schema() {
         success_schema["properties"]["result"]["$ref"],
         "calculation-output-v1.schema.json"
     );
-    for (index, entry) in entries.iter().enumerate() {
-        assert_eq!(entry["index"], index);
+    for entry in entries {
         assert_eq!(entry["status"], "success");
-        assert_eq!(entry.as_object().unwrap().len(), 3);
+        assert_eq!(entry.as_object().unwrap().len(), 2);
         for field in success_schema["required"].as_array().unwrap() {
             assert!(entry.get(field.as_str().unwrap()).is_some());
         }
@@ -247,6 +268,11 @@ fn assert_v1_shape(output: &serde_json::Value) {
         "/schemas/calculation-output-v1.schema.json"
     )))
     .expect("valid calculation output schema");
+    let validator = jsonschema::validator_for(&schema).expect("valid calculation JSON Schema");
+    assert!(
+        validator.is_valid(output),
+        "invalid calculation JSON: {output}"
+    );
     assert_eq!(
         schema["$schema"],
         "https://json-schema.org/draft/2020-12/schema"
