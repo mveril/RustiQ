@@ -279,10 +279,10 @@ impl Runnable for RunCommand {
             );
             if self.pretty {
                 let mut json = Vec::new();
-                output.write_json_pretty(&mut json).into_diagnostic()?;
-                bat::print_json(&json);
+                output.write_json(&mut json, true).into_diagnostic()?;
+                bat::print_json(&json)?;
             } else {
-                output.write_json(stdout.lock()).into_diagnostic()?;
+                output.write_json(stdout.lock(), false).into_diagnostic()?;
                 println!();
             }
         }
