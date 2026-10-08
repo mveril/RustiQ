@@ -8,8 +8,9 @@ use std::{
 use clap::{ArgAction, ValueEnum};
 use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report, WrapErr};
 
+use super::batch_orchestration::{self, BatchSummary, Executable, ExecutionError, ExecutionResult};
 use crate::cli::{
-    self,
+    self, directories,
     ux::{
         bat,
         calculation_presentation::{calculation_summary, requested_calculation},
@@ -95,6 +96,48 @@ enum CalculationExecutionError {
     FatalInfrastructure(Report),
 }
 
+impl ExecutionError for CalculationExecutionError {
+    fn is_fatal(&self) -> bool {
+        matches!(self, Self::FatalInfrastructure(_))
+    }
+}
+
+struct CalculationTask<'a> {
+    command: &'a RunCommand,
+    parsed: miette::Result<crate::runfile::parser::ParsedRunFile>,
+    source_name: &'a str,
+    source_content: &'a str,
+    batch_position: Option<(usize, usize)>,
+}
+
+impl Executable for CalculationTask<'_> {
+    type Output = CalculationOutput;
+    type Error = CalculationExecutionError;
+
+    fn execute(self) -> Result<Self::Output, Self::Error> {
+        if let Some((position, total)) = self.batch_position {
+            if self.command.format == CalculationOutputFormat::Text {
+                writeln!(cli::color::stdout(), "\nCalculation {position}/{total}")
+                    .map_err(ReportWriteError)
+                    .map_err(CalculationExecutionError::fatal)?;
+            }
+        }
+        let parsed = self
+            .parsed
+            .map_err(CalculationExecutionError::recoverable)?;
+        let result =
+            self.command
+                .execute_calculation(parsed, self.source_name, self.source_content)?;
+        if self.batch_position.is_some() {
+            result
+                .ensure_finite()
+                .into_diagnostic()
+                .map_err(CalculationExecutionError::recoverable)?;
+        }
+        Ok(result)
+    }
+}
+
 impl CalculationExecutionError {
     fn recoverable(error: impl Into<Report>) -> Self {
         Self::Recoverable(error.into())
@@ -129,7 +172,7 @@ impl RunCommand {
         )
     )]
     fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
-        let basis_store = crate::cli::directories::basis_store();
+        let basis_store = directories::basis_store();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "online")] {
@@ -205,15 +248,27 @@ impl RunCommand {
         source_content: &str,
         json_output: bool,
     ) -> CommandResult {
-        let result = self
-            .execute_calculation(parsed, source_name, source_content)
-            .map_err(CalculationExecutionError::into_report)?;
+        let result = CalculationTask {
+            command: self,
+            parsed: Ok(parsed),
+            source_name,
+            source_content,
+            batch_position: None,
+        }
+        .execute()
+        .map_err(CalculationExecutionError::into_report)?;
         if json_output {
             let mut json = Vec::new();
-            result.write_json(&mut json).into_diagnostic()?;
-            let mut stdout = io::stdout().lock();
-            stdout.write_all(&json).into_diagnostic()?;
-            writeln!(stdout).into_diagnostic()?;
+            result
+                .write_json(&mut json, self.pretty)
+                .into_diagnostic()?;
+            if self.pretty {
+                bat::print_json(&json)?;
+            } else {
+                let mut stdout = io::stdout().lock();
+                stdout.write_all(&json).into_diagnostic()?;
+                writeln!(stdout).into_diagnostic()?;
+            }
         }
         Ok(())
     }
@@ -226,53 +281,32 @@ impl RunCommand {
         json_output: bool,
     ) -> CommandResult {
         let total = resolved.calculations().len();
-        let mut position = 0;
-        let outcomes = super::batch_orchestration::execute_batch(
-            resolved,
-            |calculation| {
-                position += 1;
-                if !json_output {
-                    writeln!(cli::color::stdout(), "\nCalculation {position}/{total}")
-                        .map_err(ReportWriteError)
-                        .into_diagnostic()
-                        .map_err(CalculationExecutionError::fatal)?;
-                }
-                crate::runfile::parser::parsed_calculation(calculation)
-                    .map_err(CalculationExecutionError::recoverable)
-                    .and_then(|parsed| {
-                        self.execute_calculation(parsed, source_name, source_content)
-                    })
-                    .and_then(|result| {
-                        result
-                            .ensure_finite()
-                            .into_diagnostic()
-                            .map_err(CalculationExecutionError::recoverable)?;
-                        Ok(result)
-                    })
-            },
-            |result| result.calculation.hf.converged,
-            |error| matches!(error, CalculationExecutionError::FatalInfrastructure(_)),
-        )
-        .map_err(CalculationExecutionError::into_report)?;
+        let tasks = resolved
+            .into_iter()
+            .enumerate()
+            .map(|(index, calculation)| CalculationTask {
+                command: self,
+                parsed: crate::runfile::parser::parsed_calculation(calculation),
+                source_name,
+                source_content,
+                batch_position: Some((index + 1, total)),
+            });
+        let outcomes = batch_orchestration::execute_batch(tasks)
+            .map_err(CalculationExecutionError::into_report)?;
 
-        let mut succeeded = 0;
-        let mut non_converged = 0;
-        let mut failed = 0;
+        let BatchSummary {
+            succeeded,
+            non_converged,
+            failed,
+        } = BatchSummary::from_results(&outcomes);
         let entries = outcomes
             .into_iter()
             .enumerate()
             .map(|(index, outcome)| {
                 let outcome = match outcome {
-                    super::batch_orchestration::BatchExecutionOutcome::Success(result) => {
-                        succeeded += 1;
-                        BatchOutcome::Success { result }
-                    }
-                    super::batch_orchestration::BatchExecutionOutcome::NonConverged(result) => {
-                        non_converged += 1;
-                        BatchOutcome::NonConverged { result }
-                    }
-                    super::batch_orchestration::BatchExecutionOutcome::Error(error) => {
-                        failed += 1;
+                    Ok(result) if result.is_converged() => BatchOutcome::Success { result },
+                    Ok(result) => BatchOutcome::NonConverged { result },
+                    Err(error) => {
                         let error = error.into_report();
                         if !json_output {
                             writeln!(
@@ -457,12 +491,7 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        Ok(CalculationOutput::new(
-            result.hf.summary().method,
-            &result.hf.summary().scf,
-            matches!(result.hf, rustiq_core::calculation::HfOutcome::Converged(_)),
-            result.mp2.as_ref(),
-        ))
+        Ok(CalculationOutput::from(&result))
     }
 }
 

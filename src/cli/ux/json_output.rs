@@ -3,9 +3,31 @@ use std::io::Write;
 use serde::Serialize;
 
 use rustiq_core::{
-    calculation::{Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics},
+    calculation::{
+        CalculationResult, Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics,
+    },
     config::ResolvedHfMethod,
 };
+
+use crate::cli::commands::batch_orchestration::ExecutionResult;
+
+impl ExecutionResult for CalculationOutput {
+    fn is_converged(&self) -> bool {
+        self.calculation.hf.converged
+    }
+}
+
+impl From<&CalculationResult> for CalculationOutput {
+    fn from(result: &CalculationResult) -> Self {
+        let hf = result.hf.summary();
+        Self::new(
+            hf.method,
+            &hf.scf,
+            result.hf.is_converged(),
+            result.mp2.as_ref(),
+        )
+    }
+}
 
 /// Version 1 of `RustiQ`'s stable, machine-readable calculation-output contract.
 #[derive(Debug, Serialize)]
