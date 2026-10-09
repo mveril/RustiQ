@@ -1,8 +1,21 @@
 # Interpreting output
 
-The report shows original sources, normalized requested options, resolved
-scientific options, and results. These views explain defaults and conversions;
-they represent the same calculation.
+The standard `run` report has three visible parts:
+
+- **Requested options:** a canonical TOML representation of the requested
+  calculation and a canonical XYZ representation of its input geometry. These
+  show the options after parsing and normalization; they do not reproduce the
+  original source text or comments.
+- **Resolved settings:** a concise summary of the scientific setup used for the
+  calculation, including atom count, charge, multiplicity, coordinate units,
+  resolved HF method, and basis name and size.
+- **Numerical results:** SCF convergence information, energy values, overlap
+  rank, energy components, and timings. The H₂ sample's total HF energy is
+  reported as `-1.116759` Hartree.
+
+The original TOML and XYZ source text, along with full canonical views of the
+resolved configuration and geometry, are retained as internal representations;
+the standard CLI report does not display them.
 
 The first sample resolves to neutral singlet H₂, RHF, STO-3G, and two basis
 functions. Input coordinates are Angstrom; resolved coordinates are Bohr.

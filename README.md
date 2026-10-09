@@ -10,6 +10,15 @@ and versioned JSON output.
 Do not use results for research conclusions without independent validation
 against established quantum chemistry packages.
 
+## Purpose
+
+RustiQ explores what modern Rust software engineering can bring to quantum
+chemistry through strong typing, memory safety, explicit error handling,
+modularity, and maintainability. These engineering goals go hand in hand with
+scientific correctness, numerical validation, and performance; RustiQ does not
+claim superiority over mature quantum chemistry packages or established
+Fortran implementations.
+
 ## Quick start
 
 Install Git and Rust through [rustup](https://rustup.rs/), or enter

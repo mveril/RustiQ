@@ -259,8 +259,7 @@ the repository and unloads it when you leave. To select a lighter shell for one
 checkout, create an ignored `.envrc.local`, then allow the updated environment:
 
 ```sh
-printf '%s\
-' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
+printf '%s\n' 'export RUSTIQ_DEV_SHELL=rust' > .envrc.local
 direnv allow
 ```
 
