@@ -1,0 +1,15 @@
+[book]
+title = "RustiQ Manual"
+authors = ["RustiQ contributors"]
+description = "A guide to the experimental RustiQ quantum chemistry application."
+language = "en"
+src = "src"
+
+[build]
+create-missing = false
+
+[output.html]
+mathjax-support = true
+site-url = "/RustiQ/"
+git-repository-url = "https://github.com/mveril/RustiQ"
+edit-url-template = "https://github.com/mveril/RustiQ/edit/main/docs/{path}"

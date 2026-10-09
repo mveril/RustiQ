@@ -141,6 +141,13 @@ For changes to integrals, SCF, MP2, basis handling, or geometry parsing:
 
 ## Documentation
 
+The [RustiQ manual](https://mveril.github.io/RustiQ/) is built from `docs/src/`.
+The Nix `rust` and `full` development shells provide mdBook. Preview changes with
+`mdbook serve docs --open`, and run `nix build .#book` to build the manual,
+validate Rust snippets, and check local links. See
+[documentation checks](docs/src/development/documentation.md) for coverage and
+[development environments](docs/src/development/environments.md) for setup.
+
 Document scientific conventions when they matter: units, normalization,
 spin assumptions, integral ordering, and energy definitions.
 

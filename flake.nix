@@ -177,6 +177,7 @@
             hyperfine
             just
             jq
+            mdbook
             nixd
             nixfmt
             nickel
@@ -263,10 +264,41 @@
               RUSTIQ_BIN="${rustiq}/bin/RustiQ" exec pytest "$reference_tests" "$@"
             '';
           };
+
+          book =
+            pkgs.runCommand "rustiq-book"
+              {
+                src = pkgs.lib.fileset.toSource {
+                  root = sourceRoot;
+                  fileset = pkgs.lib.fileset.unions [
+                    ./docs/book.toml
+                    ./docs/src
+                    ./samples/h2
+                    ./tools/check-book-links.py
+                    ./tools/test_book_links.py
+                  ];
+                };
+                nativeBuildInputs = [
+                  pkgs.mdbook
+                  pkgs.python3
+                  rustToolchain
+                ];
+              }
+              ''
+                cp -r "$src" source
+                chmod -R u+w source
+                cd source
+                mdbook build docs
+                mdbook test docs
+                python -m unittest discover -s tools -p test_book_links.py
+                python tools/check-book-links.py docs/book --config docs/book.toml
+                mv docs/book "$out"
+              '';
         in
         {
           packages = {
             default = rustiq;
+            inherit book;
             cargo-artifacts = cargoArtifacts;
             pyscf-environment = pythonPyscf;
           };
@@ -310,6 +342,7 @@
           );
 
           checks.unit-tests = rustiq;
+          checks.book = book;
         };
     };
 }
