@@ -15,7 +15,7 @@ use crate::cli::{
         bat,
         calculation_presentation::{calculation_summary, requested_calculation},
         calculation_report::CalculationReporter,
-        json_output::{BatchEntry, BatchError, BatchOutcome, BatchOutput, CalculationOutput},
+        json_output::{self, BatchEntry, BatchError, BatchOutcome, BatchOutput, CalculationOutput},
     },
 };
 use crate::runfile::{parser::parse_runfile, resolved::ScfOutput};
@@ -258,17 +258,8 @@ impl RunCommand {
         .execute()
         .map_err(CalculationExecutionError::into_report)?;
         if json_output {
-            let mut json = Vec::new();
-            result
-                .write_json(&mut json, self.pretty)
-                .into_diagnostic()?;
-            if self.pretty {
-                bat::print_json(&json)?;
-            } else {
-                let mut stdout = io::stdout().lock();
-                stdout.write_all(&json).into_diagnostic()?;
-                writeln!(stdout).into_diagnostic()?;
-            }
+            result.ensure_finite().into_diagnostic()?;
+            json_output::print_json(&result, self.pretty)?;
         }
         Ok(())
     }
@@ -333,19 +324,7 @@ impl RunCommand {
                 kind: "batch",
                 calculations: entries,
             };
-            let json = if self.pretty {
-                serde_json::to_vec_pretty(&batch)
-            } else {
-                serde_json::to_vec(&batch)
-            }
-            .into_diagnostic()?;
-            if self.pretty {
-                bat::print_json(&json)?;
-            } else {
-                let mut stdout = io::stdout().lock();
-                stdout.write_all(&json).into_diagnostic()?;
-                writeln!(stdout).into_diagnostic()?;
-            }
+            json_output::print_json(&batch, self.pretty)?;
         } else {
             writeln!(
                 cli::color::stdout(),
