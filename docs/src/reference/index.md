@@ -11,6 +11,8 @@ These documents remain the sources of truth:
 - [Rustdoc](../development/contributing.md): public Rust API reference.
 - [CONTRIBUTING.md](https://github.com/mveril/RustiQ/blob/main/CONTRIBUTING.md):
   contribution requirements.
+- [CITATION.cff](https://github.com/mveril/RustiQ/blob/main/CITATION.cff):
+  project citation metadata.
 - [ROADMAP.md](https://github.com/mveril/RustiQ/blob/main/ROADMAP.md)
   and [issues](https://github.com/mveril/RustiQ/issues): future work.
 
