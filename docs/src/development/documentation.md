@@ -18,7 +18,7 @@ Open `result/index.html` for the generated manual. The derivation runs:
 ```sh
 mdbook build docs
 mdbook test docs
-python -m unittest discover -s tools -p test_book_links.py
+pytest tools/test_book_links.py
 python tools/check-book-links.py docs/book --config docs/book.toml
 ```
 

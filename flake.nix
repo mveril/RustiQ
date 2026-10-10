@@ -281,6 +281,7 @@
                 nativeBuildInputs = [
                   pkgs.mdbook
                   pkgs.python3
+                  pkgs.python3Packages.pytest
                   rustToolchain
                 ];
               }
@@ -290,7 +291,7 @@
                 cd source
                 mdbook build docs
                 mdbook test docs
-                python -m unittest discover -s tools -p test_book_links.py
+                pytest tools/test_book_links.py
                 python tools/check-book-links.py docs/book --config docs/book.toml
                 mv docs/book "$out"
               '';
