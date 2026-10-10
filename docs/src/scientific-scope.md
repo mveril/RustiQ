@@ -66,14 +66,14 @@ correlation beyond exchange. Convergence establishes a self-consistent solution
 within the selected orbital space; it does not establish that the solution is
 the lowest-energy HF state. Different initial guesses can find different
 solutions. UHF can lower its energy by breaking spin symmetry, so inspect
-\(\langle S^2\rangle\) and spin contamination as well as the energy.
+\\(\langle S^2\rangle\\) and spin contamination as well as the energy.
 
 Bond stretching, dissociation, and near-degenerate states can require several
 important electronic configurations. A converged single-determinant reference
 can then be physically inadequate. MP2 is a perturbative correction to that
 reference, not a general remedy for strong correlation. Its energy terms contain
-denominators \(\epsilon_i + \epsilon_j - \epsilon_a - \epsilon_b\), with
-occupied indices \(i,j\) and virtual indices \(a,b\). Small denominators can
+denominators \\(\epsilon_i + \epsilon_j - \epsilon_a - \epsilon_b\\), with
+occupied indices \\(i,j\\) and virtual indices \\(a,b\\). Small denominators can
 produce excessively large corrections. Lee and Head-Gordon discuss these
 denominator problems and bond-breaking examples in their
 [study of regularized MP2](https://arxiv.org/abs/1807.06185).

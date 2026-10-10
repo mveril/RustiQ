@@ -34,9 +34,9 @@ Both RHF and UHF require `delta_energy` and `residual_norm` to be below
 `method.hf.convergence_threshold` (default `1e-8`). `delta_energy` is the
 absolute change in electronic energy between successive iterations, in Hartree.
 `residual_norm` is the Frobenius norm of the AO matrix residual
-\(FPS - SPF\), where \(F\), \(P\), and \(S\) are the Fock, density, and
+\\(FPS - SPF\\), where \\(F\\), \\(P\\), and \\(S\\) are the Fock, density, and
 overlap matrices. UHF combines the alpha and beta norms as
-\(\sqrt{r_\alpha^2 + r_\beta^2}\). The same numerical threshold is applied
+\\(\sqrt{r_\alpha^2 + r_\beta^2}\\). The same numerical threshold is applied
 to both diagnostics; it is not an error bound on the final energy.
 
 Final canonicalization also checks that orbitals obtained from the final Fock
@@ -48,7 +48,7 @@ density before accepting convergence.
 `Overlap effective rank` is the number of retained independent basis directions.
 With `method.hf.orthogonalization.linear_dependency_threshold = t`, eigenvectors
 of the overlap matrix are retained only when their eigenvalue exceeds
-\(t\lambda_{\max}\). The default is `1e-8`. A report of `9/10` means one
+\\(t\lambda_{\max}\\). The default is `1e-8`. A report of `9/10` means one
 direction was discarded, reducing the orbital space used by HF and MP2.
 Increasing this threshold can change energies. Setting it to zero retains all
 directions only if the overlap matrix is strictly positive definite.
