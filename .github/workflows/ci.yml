@@ -54,8 +54,8 @@ jobs:
 
       - name: Check the standalone core
         run: |
-          cargo check -p rustiq-core --no-default-features
-          cargo test -p rustiq-core --no-default-features
+          cargo check -p rustiq-chem-core --no-default-features
+          cargo test -p rustiq-chem-core --no-default-features
 
   uv:
     name: Python tooling with uv

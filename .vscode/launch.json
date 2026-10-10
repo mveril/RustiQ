@@ -8,11 +8,11 @@
       "type": "lldb",
       "request": "launch",
       "env": { "RUST_BACKTRACE": "1" },
-      "name": "Debug executable 'RustiQ'",
+      "name": "Debug executable 'rustiq'",
       "cargo": {
-        "args": ["build", "--bin=RustiQ", "--package=RustiQ"],
+        "args": ["build", "--bin=rustiq", "--package=rustiq-chem"],
         "filter": {
-          "name": "RustiQ",
+          "name": "rustiq",
           "kind": "bin"
         }
       },
@@ -22,11 +22,11 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in executable 'RustiQ'",
+      "name": "Debug unit tests in executable 'rustiq'",
       "cargo": {
-        "args": ["test", "--no-run", "--bin=RustiQ", "--package=RustiQ"],
+        "args": ["test", "--no-run", "--bin=rustiq", "--package=rustiq-chem"],
         "filter": {
-          "name": "RustiQ",
+          "name": "rustiq",
           "kind": "bin"
         }
       },

@@ -3,42 +3,6 @@
 version = 4
 
 [[package]]
-name = "RustiQ"
-version = "0.1.0-alpha.1"
-dependencies = [
- "anstream",
- "anstyle",
- "approx",
- "bat",
- "bytesize 2.7.0",
- "cfg-if",
- "clap",
- "delegate",
- "directories",
- "figlet-rs",
- "humantime",
- "indicatif",
- "jsonschema",
- "miette",
- "nalgebra",
- "nickel-lang-core",
- "periodic_table",
- "proptest",
- "rand 0.10.2",
- "rayon",
- "rstest",
- "rustiq-core",
- "serde",
- "serde_json",
- "tabled",
- "temp-env",
- "tempfile",
- "thiserror",
- "tokio",
- "toml_edit",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3288,7 +3252,43 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustiq-core"
+name = "rustiq-chem"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "approx",
+ "bat",
+ "bytesize 2.7.0",
+ "cfg-if",
+ "clap",
+ "delegate",
+ "directories",
+ "figlet-rs",
+ "humantime",
+ "indicatif",
+ "jsonschema",
+ "miette",
+ "nalgebra",
+ "nickel-lang-core",
+ "periodic_table",
+ "proptest",
+ "rand 0.10.2",
+ "rayon",
+ "rstest",
+ "rustiq-chem-core",
+ "serde",
+ "serde_json",
+ "tabled",
+ "temp-env",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml_edit",
+]
+
+[[package]]
+name = "rustiq-chem-core"
 version = "0.1.0-alpha.1"
 dependencies = [
  "approx",

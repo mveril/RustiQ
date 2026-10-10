@@ -1,11 +1,15 @@
 [package]
-name = "rustiq-core"
+name = "rustiq-chem-core"
 description = "Reusable domain model and quantum chemistry implementation for RustiQ"
 authors = ["Mickaël Véril"]
 version = "0.1.0-alpha.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mveril/RustiQ"
+
+# Preserve the Rust import name independently of the Cargo package name.
+[lib]
+name = "rustiq_core"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "docs/rustdoc-mathjax.html"]

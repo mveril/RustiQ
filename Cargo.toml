@@ -47,7 +47,7 @@ thiserror = "2"
 tokio = { version = "1", default-features = false }
 
 [package]
-name = "RustiQ"
+name = "rustiq-chem"
 description = "The modern rust quantum chemistry software"
 authors = ["Mickaël Véril"]
 version = "0.1.0-alpha.1"
@@ -57,6 +57,10 @@ repository = "https://github.com/mveril/RustiQ"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "rustiq"
+path = "src/main.rs"
+
 [features]
 default = ["online"]
 online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
@@ -64,7 +68,7 @@ bench-support = ["rustiq-core/bench-support"]
 
 [dependencies]
 bytesize.workspace = true
-rustiq-core = { path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
+rustiq-core = { package = "rustiq-chem-core", path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
 directories = "6"
 miette = { workspace = true, features = ["fancy"] }
 clap = { version = "4.6", features = ["cargo", "derive", "env"] }
