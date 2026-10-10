@@ -1,7 +1,7 @@
 # Glossary
 
 This short glossary connects the scientific and software vocabulary used in
-this initial manual. It is an orientation aid; method definitions and API
+this manual. It is an orientation aid; method definitions and API
 contracts remain in their authoritative references.
 
 | Term                      | Meaning in this manual                                                                                                                                                                                               |
@@ -30,3 +30,12 @@ contracts remain in their authoritative references.
 | Dev Container             | A prepared Linux development environment running through Docker, with editor integration.                                                                                                                            |
 | Cache / portable artifact | Disposable local data used to avoid repeated work / an intentional scientific snapshot. Portable `.rustiq` bundles currently use Rust APIs; the proposed artifact CLI is not part of this manual's shipped commands. |
 | Validation / tolerance    | Comparison against independent evidence / the allowed difference in a particular numerical check. Passing selected checks does not validate every calculation.                                                       |
+| Contracted Gaussian       | A basis function formed by a weighted sum of primitive Gaussian functions that share a center and angular momentum.                                                                                                   |
+| Primitive Gaussian        | A Gaussian function used as a component of a contracted basis function.                                                                                                                                               |
+| Occupied / virtual orbital| An orbital assigned electrons in the reference determinant / an unoccupied orbital available as an excitation destination.                                                                                           |
+| Fock matrix               | The effective one-electron matrix built from the current electron density in Hartree–Fock.                                                                                                                            |
+| Density matrix            | A matrix encoding which molecular orbitals are occupied and their contributions in the atomic-orbital basis.                                                                                                           |
+| Overlap matrix            | The matrix of pairwise integrals between basis functions; its off-diagonal values reflect that these functions need not be orthogonal.                                                                                 |
+| Cartesian / spherical Gaussian | Two ways to represent the angular part of Gaussian basis functions. Their function counts differ for d and higher angular momentum.                                                                                 |
+| Correlation energy        | The energy correction beyond the chosen HF reference; RustiQ reports MP2 correlation separately from the HF and total energies.                                                                                        |
+| Linear dependence         | Near-redundancy among basis functions, which can make the overlap matrix numerically singular. RustiQ may discard the affected directions.                                                                              |
