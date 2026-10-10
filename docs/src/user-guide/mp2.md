@@ -67,7 +67,7 @@ memory_limit = "500 MB"
 ```
 
 If the budget is below the minimum workspace needed for one occupied block,
-RustiQ reports an MP2 error instead of starting the transformation. Automatic
+that sector cannot be transformed and the MP2 calculation errors. Automatic
 budget resolution follows the shared [resource policy](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/resources.rs).
 
 The H₂/STO-3G RHF-MP2 comparison checks the HF energy within \\(2\times10^{-10}\\)

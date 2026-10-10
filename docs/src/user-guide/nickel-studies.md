@@ -8,9 +8,11 @@ The checked-in single-calculation `.ncl` input is a small starting point:
 {{#include ../../../samples/h2/sto-3g/calculation.ncl}}
 ```
 
-Run it with the same command as TOML:
+Make sure STO-3G is in the local basis store, then run it with the same command
+as TOML:
 
 ```sh
+cargo run --locked -- basis import tests/data/sto-3g.json
 cargo run --locked -- run samples/h2/sto-3g/calculation.ncl
 ```
 
@@ -46,8 +48,9 @@ See [configuration](configuration.md) and the
 [Nickel contract source](../reference/index.md).
 
 RustiQ validates all study entries before it starts running them. Calculations
-then run in source order. A calculation that fails at runtime or does not
-converge is recorded for that entry, and later entries are still attempted.
+then run in source order. A calculation that has a recoverable runtime error
+or does not converge is recorded for that entry, and later entries are still
+attempted. Fatal infrastructure errors stop the batch.
 The batch returns an unsuccessful process status if any entry fails or does
 not converge, while retaining per-calculation results. A configuration error
 prevents execution of the batch.

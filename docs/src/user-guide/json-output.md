@@ -28,7 +28,8 @@ A TOML input produces one calculation result. A one-entry Nickel array also
 uses the single-result schema. A multi-entry Nickel study produces a batch
 document with one outcome per input, in source order. Each entry can be
 `success`, `non_converged`, or `error`. Later calculations continue after a
-runtime error, but any error or nonconvergence makes the overall command exit
+recoverable per-calculation error, but fatal infrastructure errors stop the
+batch. Any recorded error or nonconvergence makes the overall command exit
 unsuccessfully. A valid JSON document can therefore accompany a failing exit
 status. A single calculation that does not converge still produces the single
 result document with `converged: false`; its energy and diagnostics describe
