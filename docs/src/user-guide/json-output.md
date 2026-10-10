@@ -46,6 +46,22 @@ batch output uses
 These versioned schemas are authoritative; this guide does not repeat their
 field definitions. See also the [reference index](../reference/index.md).
 
+## Nickel batch JSON
+
+The checked-in [Nickel study](nickel-studies.md) runs two calculations. Follow
+that guide's basis-set setup first, especially when running offline, then
+produce pretty JSON with colors disabled:
+
+```sh
+cargo run --locked -- run samples/h2/study.ncl --format json --pretty --color never
+```
+
+The output follows the versioned batch schema. Each successful calculation
+contains a result following the single-calculation schema linked above. Inspect
+the `status` of every calculation; a batch can include non-converged or failed
+entries even when it produces valid JSON. `--color never` prevents ANSI escape
+sequences in redirected output.
+
 Energies are in Hartree. JSON preserves full floating-point values for
 comparison and downstream processing, while terminal tables round energies
 for readability. Do not compare a rounded terminal value against a tight

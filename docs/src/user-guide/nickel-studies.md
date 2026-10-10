@@ -31,6 +31,18 @@ cargo run --locked -- basis import tests/data/reference/RustiQ/basis_sets/6-31g.
 cargo run --locked -- run samples/h2/study.ncl
 ```
 
+When both calculations succeed, selected output excerpts are:
+
+```text
+Calculation 1/2
+Calculation 2/2
+2 succeeded, 0 non-converged, 0 failed
+```
+
+The example runs two calculations sequentially, using STO-3G and 6-31G. Both
+must succeed for this success summary to appear. These are selected lines, not
+the complete terminal output.
+
 The Nickel file uses `molecule.geometry`, `basis.name`, and an HF DIIS setting
 to create one calculation for each list item. Geometry paths resolve relative
 to the top-level `.ncl` file; Nickel imports resolve relative to the file that

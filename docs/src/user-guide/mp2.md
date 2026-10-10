@@ -24,6 +24,26 @@ Total MP2 energy is HF electronic energy plus MP2 correlation energy plus
 nuclear repulsion. The correlation energy is usually negative, but its sign
 and size depend on the system and reference.
 
+## Open-shell UHF-MP2 example
+
+OH is an open-shell doublet (multiplicity 2). For this input, `Auto` selects
+UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
+
+```toml
+{{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
+```
+
+Run it from the repository root after making STO-3G available, as described in
+the [basis-set guide](basis-sets.md):
+
+```sh
+cargo run --locked -- run samples/oh/sto-3g/mp2_calculation.toml
+```
+
+The calculation reports a UHF-MP2 correlation energy. Existing PySCF
+comparisons cover this specific example within the tolerances documented
+below; they do not establish general chemical accuracy.
+
 ## Frozen occupied orbitals
 
 Occupied orbitals contain electrons in the HF reference; virtual orbitals are
