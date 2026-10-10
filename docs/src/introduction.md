@@ -29,8 +29,9 @@ operational guidance while the complete guides are developed.
 
 Implemented capabilities include RHF, UHF, MP2, XYZ geometries, Gaussian basis
 sets, TOML and native Nickel input, sequential studies, and versioned JSON.
-This initial edition covers the first HF calculation. Practical guides and
-a complete CLI reference are follow-ups in
+The [practical user guides](user-guide/geometry.md) now cover these capabilities,
+including HF/MP2 calculations, Nickel studies, and JSON output. A comprehensive
+CLI reference remains planned for PR C1 in
 [issue #106](https://github.com/mveril/RustiQ/issues/106).
 
 Portable `.rustiq` bundles are available through Rust APIs. The proposed CLI

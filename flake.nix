@@ -274,6 +274,7 @@
                     ./docs/book.toml
                     ./docs/src
                     ./samples/h2
+                    ./samples/oh
                     ./tools/check-book-links.py
                     ./tools/test_book_links.py
                   ];

@@ -42,3 +42,7 @@ Run the documentation checks described in `docs/AGENTS.md` for book changes. Inc
 Use English exclusively for all repository and GitHub content, including code comments, documentation, commit messages, branch names, pull request titles and descriptions, and review comments.
 
 Avoid broad refactors while addressing targeted issues. Preserve existing sample and fixture files unless the task explicitly requires updating expected behavior. Do not remove user-created local changes; inspect the working tree before large edits.
+
+## Documentation Review Agents
+
+For substantial practical guides, the main Codex agent owns every Markdown edit. Use the project-level read-only `implementation_auditor` and `pedagogical_reviewer` agents for independent review; invoke `scientific_reviewer` when the guide interprets scientific methods, equations, numerical results, or methodological limits. Run independent reviews in parallel when practical, wait for the relevant findings, and reconcile them before finalizing. Resolve conflicting findings through source code, tests, or authoritative scientific references rather than reviewer consensus. Trivial documentation edits do not require delegation. Follow `docs/AGENTS.md` for scientific and verification requirements.

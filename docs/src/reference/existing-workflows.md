@@ -1,9 +1,15 @@
 # Existing calculation workflows
 
-This page preserves operational guidance from the former README while the
-practical guides are developed. Commands below run from the repository root;
-Cargo builds and launches the CLI. An installed binary can replace `cargo run
---locked --` with `rustiq` (the executable name is case-sensitive).
+This page preserves operational details from the former README. For the
+progressive workflows, start with the [geometry](../user-guide/geometry.md),
+[basis set](../user-guide/basis-sets.md),
+[configuration](../user-guide/configuration.md),
+[Nickel](../user-guide/nickel-studies.md),
+[MP2](../user-guide/mp2.md), and
+[JSON](../user-guide/json-output.md) guides. Commands below run from the
+repository root; Cargo builds and launches the CLI. The Cargo package is
+`rustiq-chem`, and the installed executable is `rustiq`. Replace
+`cargo run --locked --` with `rustiq` to use the installed binary.
 See the [glossary](../glossary.md) for scientific and development terms.
 
 ## Create input from an XYZ geometry
