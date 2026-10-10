@@ -100,7 +100,7 @@ when ignoring a returned value is likely to be a mistake.
 
 The crate roots add checks specific to their responsibilities:
 
-- `rustiq-core` denies `host_endian_bytes` to keep persisted bytes portable and
+- `rustiq-chem-core` denies `host_endian_bytes` to keep persisted bytes portable and
   `redundant_clone` where ownership makes a clone unnecessary. It also denies
   `imprecise_flops` to catch avoidable precision loss, such as `exp(x) - 1`
   instead of `exp_m1(x)`, and denies `print_stdout`

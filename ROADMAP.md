@@ -13,7 +13,7 @@ pull requests.
 The roadmap follows a few boundaries that should remain stable as the project
 grows:
 
-- `rustiq-core` owns scientific domain types, calculation preparation,
+- `rustiq-chem-core` owns scientific domain types, calculation preparation,
   execution, and scientific invariants. It must not depend on TOML, Nickel,
   terminal presentation, or application-directory policy.
 - User-facing configuration is normalized before entering the scientific
@@ -104,7 +104,7 @@ case where the collection contains exactly one entry.
 
 This is a container-level capability only. It must not introduce a scientific
 `BatchConfig`, `SingleOrBatch`, or other batch abstraction into
-`rustiq-core` calculation APIs.
+`rustiq-chem-core` calculation APIs.
 
 The conceptual shape is:
 
@@ -201,7 +201,7 @@ This completes the frontend responsibility of #94 and delivers basic CLI batch
 orchestration. Persistence/reuse integration and HF restart remain under #79.
 
 Nickel owns user-facing structure, defaults, composition, and configuration
-validation. `rustiq-core` continues to enforce scientific invariants for
+validation. `rustiq-chem-core` continues to enforce scientific invariants for
 direct Rust API consumers.
 
 ### 3. Integrate portable artifacts into execution and the CLI — next (#79)
@@ -282,7 +282,7 @@ configuration behavior.
 
 After the architecture work above:
 
-- refresh the Python bindings against the current `rustiq-core` public API;
+- refresh the Python bindings against the current `rustiq-chem-core` public API;
 - expose domain-native molecule, geometry, basis, HF, and MP2 operations;
 - keep Python configuration ergonomic without mirroring the Nickel/TOML
   frontend internally;

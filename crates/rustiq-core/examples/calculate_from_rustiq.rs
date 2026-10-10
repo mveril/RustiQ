@@ -1,6 +1,6 @@
 //! Restore a calculation and its AO ERI from a single `.rustiq` archive.
-//! Create the default archive with `cargo run -p rustiq-core --example write_rustiq`,
-//! then run this example with `cargo run -p rustiq-core --example calculate_from_rustiq`.
+//! Create the default archive with `cargo run -p rustiq-chem-core --example write_rustiq`,
+//! then run this example with `cargo run -p rustiq-chem-core --example calculate_from_rustiq`.
 #[allow(
     dead_code,
     reason = "Retained helper supports scientific tests and benchmarks"

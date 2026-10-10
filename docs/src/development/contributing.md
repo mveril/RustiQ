@@ -5,7 +5,7 @@ owns branch naming, lint policy, and verification commands.
 See [development environments](environments.md) for setup.
 
 The workspace keeps CLI parsing and presentation in the root package and
-scientific configuration and calculations in `rustiq-core`. The core's
+scientific configuration and calculations in `rustiq-chem-core`. The core's
 `calculation` module orchestrates work in `molecules`, `basis`, `eri`,
 `hf`, and `mp2`.
 
