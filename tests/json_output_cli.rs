@@ -99,6 +99,82 @@ fn pretty_json_obeys_color_setting() {
 }
 
 #[test]
+fn pretty_batch_json_obeys_color_setting() {
+    let sample = "samples/h2/study.ncl";
+    let compact = run_command_with_options(sample, Some("json"), Some("never"), false);
+    assert!(
+        compact.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compact.stderr)
+    );
+    let expected: serde_json::Value = serde_json::from_slice(&compact.stdout).unwrap();
+    assert!(batch_validator().is_valid(&expected));
+
+    for pretty in [false, true] {
+        for color in ["always", "never"] {
+            let output = run_command_with_options(sample, Some("json"), Some(color), pretty);
+            assert!(
+                output.status.success(),
+                "{color}, pretty={pretty}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert_eq!(stdout.contains("\x1b["), pretty && color == "always");
+            if !pretty || color == "never" {
+                let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+                    .expect("batch JSON without highlighting must remain valid");
+                assert_eq!(value, expected);
+                assert!(batch_validator().is_valid(&value));
+                if pretty {
+                    assert!(stdout.contains("\n  \"calculations\": ["));
+                    assert!(stdout.contains("\n    {"));
+                } else {
+                    assert_eq!(stdout.bytes().filter(|byte| *byte == b'\n').count(), 1);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn pretty_batch_preserves_outcomes_and_failure_status() {
+    let directory = TempDir::new().unwrap();
+    fs::copy(
+        repo_root().join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let input = directory.path().join("mixed.ncl");
+    fs::write(
+        &input,
+        r#"[
+            { basis.name = "sto-3g", molecule.geometry = "molecule.xyz" },
+            { basis.name = "sto-3g", molecule.geometry = "missing.xyz" },
+            { basis.name = "sto-3g", molecule.geometry = "molecule.xyz" },
+        ]"#,
+    )
+    .unwrap();
+    let sample = input.to_str().unwrap();
+    let compact = run_command_with_options(sample, Some("json"), Some("never"), false);
+    let pretty = run_command_with_options(sample, Some("json"), Some("never"), true);
+    assert!(!compact.status.success());
+    assert!(!pretty.status.success());
+
+    let compact_json: serde_json::Value = serde_json::from_slice(&compact.stdout).unwrap();
+    let pretty_json: serde_json::Value = serde_json::from_slice(&pretty.stdout).unwrap();
+    assert_eq!(pretty_json, compact_json);
+    assert!(batch_validator().is_valid(&pretty_json));
+    let entries = pretty_json["calculations"].as_array().unwrap();
+    assert_eq!(entries.len(), 3);
+    assert_eq!(entries[0]["status"], "success");
+    assert_eq!(entries[1]["status"], "error");
+    assert_eq!(entries[2]["status"], "success");
+    assert_eq!(entries[0]["result"], entries[2]["result"]);
+    assert!(String::from_utf8_lossy(&pretty.stdout).contains("\n  \"calculations\": ["));
+    assert!(String::from_utf8_lossy(&pretty.stderr).contains("batch contains 1 failed"));
+}
+
+#[test]
 fn pretty_requires_json_format() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
