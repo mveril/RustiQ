@@ -126,7 +126,7 @@ Use the latter as an explicit numerical optimization audit, followed by focused
 scientific tests and reference comparisons:
 
 ```bash
-cargo clippy -p rustiq-core --all-targets --all-features -- -W clippy::suboptimal_flops
+cargo clippy -p rustiq-chem-core --all-targets --all-features -- -W clippy::suboptimal_flops
 ```
 
 ## Numerical Changes
