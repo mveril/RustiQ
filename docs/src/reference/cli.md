@@ -47,7 +47,7 @@ Important options:
 | Option | Behavior |
 | --- | --- |
 | `--format FORMAT` (`text` or `json`) | Select text output (default) or versioned JSON. JSON result data is written to standard output. |
-| `--pretty` | Pretty-print JSON, optionally with syntax highlighting. Requires `--format json`. |
+| `--pretty` | Pretty-print single-calculation or Nickel batch JSON, optionally with syntax highlighting. Requires `--format json`. |
 | `--color MODE` (`auto`, `always`, or `never`) | Control ANSI colors globally; also accepts `RUSTIQ_COLOR`. Use `--color never` when redirecting pretty JSON. |
 | `--auto-download` / `--no-auto-download` | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
 | `--cache-dir DIR` | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching. |
@@ -88,21 +88,34 @@ listing, and removal. Geometry transformations are CLI utilities, not
 calculation input transformations unless their output file is then used as an
 input.
 
-From the repository root, these checked-in examples connect the primary
-interfaces to executable sample coverage:
+From the repository root, import the checked-in STO-3G and 6-31G basis
+fixtures before running these examples:
 
 ```sh
+cargo run --locked -- basis import tests/data/sto-3g.json tests/data/reference/RustiQ/basis_sets/6-31g.json
 cargo run --locked -- run samples/h2/sto-3g/calculation.toml
-cargo run --locked -- run samples/h2/study.ncl --format json
-cargo run --locked -- run samples/h2/sto-3g/calculation-cache.toml --cache-dir /tmp/rustiq-cache
-cargo run --locked -- cache list --cache-dir /tmp/rustiq-cache
+cargo run --locked -- run samples/h2/study.ncl --format json --pretty --color never
+cargo run --locked -- run samples/h2/sto-3g/calculation-cache.toml --cache-dir ./rustiq-cache
+cargo run --locked -- cache list --cache-dir ./rustiq-cache
 ```
 
-The H₂ TOML and Nickel examples are covered by `tests/cli_samples.rs`,
-`tests/nickel_cli.rs`, and `tests/json_output_cli.rs`. The cache-enabled input
-is `samples/h2/sto-3g/calculation-cache.toml`; its cache behavior is exercised
-by the Rust core persistence tests. These commands require STO-3G to be
-available locally or basis auto-download to be enabled in an online build.
+The Nickel study uses **both STO-3G and 6-31G**; importing only STO-3G is
+insufficient unless basis auto-download is enabled in an online build.
+The TOML and cache examples require only STO-3G. See the
+[Nickel studies guide](../user-guide/nickel-studies.md) for the individual
+import commands. The relative `./rustiq-cache` directory is resolved from
+the caller's working directory on Windows, Linux, and macOS.
+
+The H₂ TOML and Nickel examples are exercised by
+[`tests/cli_samples.rs`](https://github.com/mveril/RustiQ/blob/main/tests/cli_samples.rs),
+[`tests/nickel_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/nickel_cli.rs),
+and [`tests/json_output_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/json_output_cli.rs).
+The JSON tests also check pretty-printing of Nickel batches. The
+cache-enabled input is `samples/h2/sto-3g/calculation-cache.toml`; its
+store-then-hit behavior is covered by
+`test_cli_h2_sample_uses_eri_cache_when_enabled_in_runfile` in
+[`tests/cli_samples.rs`](https://github.com/mveril/RustiQ/blob/main/tests/cli_samples.rs),
+in addition to the Rust core persistence tests.
 
 ## Calculation input contracts
 
