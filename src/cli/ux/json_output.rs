@@ -3,8 +3,6 @@ use std::io::{self, Write};
 use miette::IntoDiagnostic;
 use serde::Serialize;
 
-use crate::cli::ux::bat;
-
 use rustiq_core::{
     calculation::{
         CalculationResult, Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics,
@@ -12,7 +10,7 @@ use rustiq_core::{
     config::ResolvedHfMethod,
 };
 
-use crate::cli::commands::batch_orchestration::ExecutionResult;
+use crate::cli::{commands::batch_orchestration::ExecutionResult, ux::bat};
 
 /// Serialize before writing to stdout so a serialization error cannot emit partial JSON.
 fn serialize_json<T: Serialize>(value: &T, pretty: bool) -> serde_json::Result<Vec<u8>> {
