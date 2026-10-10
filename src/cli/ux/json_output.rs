@@ -1,6 +1,9 @@
-use std::io::Write;
+use std::io::{self, Write};
 
+use miette::IntoDiagnostic;
 use serde::Serialize;
+
+use crate::cli::ux::bat;
 
 use rustiq_core::{
     calculation::{
@@ -10,6 +13,27 @@ use rustiq_core::{
 };
 
 use crate::cli::commands::batch_orchestration::ExecutionResult;
+
+/// Serialize before writing to stdout so a serialization error cannot emit partial JSON.
+fn serialize_json<T: Serialize>(value: &T, pretty: bool) -> serde_json::Result<Vec<u8>> {
+    if pretty {
+        serde_json::to_vec_pretty(value)
+    } else {
+        serde_json::to_vec(value)
+    }
+}
+
+/// Use the same JSON presentation for single calculations and Nickel batches.
+pub(crate) fn print_json<T: Serialize>(value: &T, pretty: bool) -> miette::Result<()> {
+    let json = serialize_json(value, pretty).into_diagnostic()?;
+    if pretty {
+        bat::print_json(&json)
+    } else {
+        let mut stdout = io::stdout().lock();
+        stdout.write_all(&json).into_diagnostic()?;
+        writeln!(stdout).into_diagnostic()
+    }
+}
 
 impl ExecutionResult for CalculationOutput {
     fn is_converged(&self) -> bool {
@@ -106,24 +130,7 @@ impl CalculationOutput {
         }
     }
 
-    /// JSON has no representation for non-finite floating-point values. Refuse
-    /// to emit a partial or misleading calculation result in that situation.
-    pub(crate) fn write_json<W: Write>(
-        &self,
-        mut writer: W,
-        pretty: bool,
-    ) -> Result<(), serde_json::Error> {
-        self.ensure_finite()?;
-        // Finish serialization before touching the destination. A serde error
-        // must never leave a truncated JSON document in stdout or another writer.
-        let json = if pretty {
-            serde_json::to_vec_pretty(self)?
-        } else {
-            serde_json::to_vec(self)?
-        };
-        writer.write_all(&json).map_err(serde_json::Error::io)
-    }
-
+    /// Reject values that JSON would silently convert to null before serializing.
     pub(crate) fn ensure_finite(&self) -> Result<(), serde_json::Error> {
         let hf = &self.calculation.hf;
         let mut values = vec![
@@ -259,8 +266,7 @@ mod tests {
     #[test]
     fn json_output_is_valid_and_preserves_hf_values() {
         let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &scf_result(), true, None);
-        let mut bytes = Vec::new();
-        output.write_json(&mut bytes, false).unwrap();
+        let bytes = serialize_json(&output, false).unwrap();
         let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
 
         assert_eq!(value["schema_version"], 1);
@@ -302,9 +308,7 @@ mod tests {
         let mut result = scf_result();
         result.total_energy = f64::NAN;
         let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, true, None);
-        let mut bytes = Vec::new();
-        assert!(output.write_json(&mut bytes, false).is_err());
-        assert!(bytes.is_empty(), "serialization failure must write nothing");
+        assert!(output.ensure_finite().is_err());
     }
 
     #[test]
@@ -316,7 +320,7 @@ mod tests {
             spin_contamination: 0.0,
         });
         let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &result, true, None);
-        assert!(output.write_json(Vec::new(), false).is_err());
+        assert!(output.ensure_finite().is_err());
     }
 
     #[test]
