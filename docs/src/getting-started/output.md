@@ -71,8 +71,9 @@ shows the exact runnable input:
 
 [MP2 sample source on GitHub](https://github.com/mveril/RustiQ/blob/main/samples/h2/sto-3g/mp2_calculation.toml)
 
-Its `h2-sto-3g-rhf-mp2` PySCF comparison is executable evidence for a future
-dedicated guide; see the book's [reference comparison coverage](../scientific-scope.md#reference-comparisons).
+Its `h2-sto-3g-rhf-mp2` PySCF comparison provides executable evidence for the
+[MP2 guide](../user-guide/mp2.md); see the book's
+[reference comparison coverage](../scientific-scope.md#reference-comparisons).
 
 A successful small-basis H₂ test does not validate every molecule, basis,
 open-shell state, or chemical prediction. Review the book's
