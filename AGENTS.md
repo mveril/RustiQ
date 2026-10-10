@@ -29,6 +29,14 @@ Name every task branch using the `type/name` format, with a lowercase type and a
 
 Use clear, imperative commit messages, for example `Add XYZ geometry parser` or `Fix SCF convergence threshold`. Pull requests should include a short summary, the commands used for verification, and any relevant input files or numerical output changes. Link related issues when available. For CLI or output formatting changes, include before/after snippets rather than screenshots unless terminal rendering is visually important.
 
+## Book Maintenance
+
+The mdBook manual lives in `docs/src/`, with its chapter list in `docs/src/SUMMARY.md` and configuration in `docs/book.toml`. Keep the book up to date with every change, in the same task and pull request. Review the affected user, scientific, and architectural guidance even when the implementation change is outside `docs/`. Read `docs/AGENTS.md` before updating the book.
+
+Update the relevant chapters whenever commands, input defaults or validation, output contracts, scientific methods or conventions, numerical diagnostics, API lifecycles, persistence, resource policies, development environments, or verification procedures change. Update executable examples and their documented expected results together. For a change with no effect on the manual, explicitly record why no book edit is needed in the task handoff or pull request; do not add unrelated text merely to touch a documentation file.
+
+Run the documentation checks described in `docs/AGENTS.md` for book changes. Include the documentation impact and verification results in the task handoff or pull request.
+
 ## Agent-Specific Instructions
 
 Use English exclusively for all repository and GitHub content, including code comments, documentation, commit messages, branch names, pull request titles and descriptions, and review comments.
