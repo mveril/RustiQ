@@ -41,7 +41,7 @@ When using the tools directly, run the equivalent checks from the repository roo
 ```sh
 mdbook build docs
 mdbook test docs
-pytest tools/test_book_links.py
+python -m unittest discover -s tools -p test_book_links.py
 python tools/check-book-links.py docs/book --config docs/book.toml
 git diff --check
 ```
