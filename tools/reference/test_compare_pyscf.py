@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import tomllib
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
@@ -68,6 +69,17 @@ def test_rustiq_matches_pyscf(
         assert float(mp2["correlation_energy"]) == pytest.approx(
             pyscf_mp2_energy, abs=case.mp2_tolerance, rel=0.0
         )
+
+
+
+@pytest.mark.parametrize("name", ["oh-sto-3g-uhf", "oh-sto-3g-uhf-mp2"])
+def test_oh_sample_scf_threshold_matches_pyscf_reference(name: str) -> None:
+    """Guard the explicitly aligned numerical thresholds of the OH reference inputs."""
+    case = next(case for case in compare_pyscf.CASES if case.name == name)
+    config = tomllib.loads(case.runfile.read_text(encoding="utf-8"))
+
+    # Identical numbers do not imply identical SCF stopping criteria.
+    assert config["method"]["hf"]["convergence_threshold"] == case.conv_tol
 
 
 def test_rustiq_result_rejects_malformed_json(

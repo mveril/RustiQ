@@ -8,7 +8,7 @@ multiplicity = 2
 
 [method.hf]
 method = "Auto"
-convergence_threshold = 1e-5
+convergence_threshold = 1e-10
 
 [method.hf.guess]
 type = "CoreHamiltonian"

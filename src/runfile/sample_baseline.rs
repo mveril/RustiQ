@@ -404,7 +404,7 @@ const SAMPLE_EXPECTATIONS: &[SampleExpectation] = &[
         charge: 0,
         multiplicity: 2,
         max_iterations: 100,
-        convergence_threshold: 1e-5,
+        convergence_threshold: 1e-10,
         diis: DiisExpectation {
             enabled: true,
             max_history: 6,
