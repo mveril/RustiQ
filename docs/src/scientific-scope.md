@@ -59,6 +59,32 @@ undetected. It also does not prove basis completeness, adequacy of HF/MP2 for a
 chemical problem, or agreement with experiment. UHF spin contamination is an
 additional physical concern even for converged solutions.
 
+## Physical limits of HF and MP2
+
+HF represents the state with a single Slater determinant and omits electron
+correlation beyond exchange. Convergence establishes a self-consistent solution
+within the selected orbital space; it does not establish that the solution is
+the lowest-energy HF state. Different initial guesses can find different
+solutions. UHF can lower its energy by breaking spin symmetry, so inspect
+\(\langle S^2\rangle\) and spin contamination as well as the energy.
+
+Bond stretching, dissociation, and near-degenerate states can require several
+important electronic configurations. A converged single-determinant reference
+can then be physically inadequate. MP2 is a perturbative correction to that
+reference, not a general remedy for strong correlation. Its energy terms contain
+denominators \(\epsilon_i + \epsilon_j - \epsilon_a - \epsilon_b\), with
+occupied indices \(i,j\) and virtual indices \(a,b\). Small denominators can
+produce excessively large corrections. Lee and Head-Gordon discuss these
+denominator problems and bond-breaking examples in their
+[study of regularized MP2](https://arxiv.org/abs/1807.06185).
+
+RustiQ rejects non-finite denominators and absolute denominator values at or
+below `1e-12` Hartree. This numerical guard is not a physical suitability test:
+passing it does not establish that the perturbation expansion is reliable.
+Agreement with another HF/MP2 implementation tests numerical consistency under
+matched conventions; judging a chemical prediction also requires an appropriate
+method, basis, and molecular state.
+
 ## Major limitations
 
 The current calculation methods do not provide DFT, analytic gradients,

@@ -67,6 +67,49 @@ storage environment variables are CLI policy. The core has no default features;
 its optional `online` feature enables online basis support. See the runnable
 examples and public API tests above for complete construction and error handling.
 
+### Data preparation, execution, and reuse
+
+The lifecycle is:
+
+```text
+CLI TOML/Nickel adapter or another frontend
+    -> geometry + basis data + scientific options
+    -> CalculationBuilder::prepare()
+       molecule in Bohr, Gaussian basis, resolved HF method and random seeds
+    -> PreparedCalculation::run_hf()
+       one-electron integrals, overlap orthogonalization, AO ERI acquisition
+       -> iterative SCF and final canonicalization
+       -> HfOutcome::Converged or HfOutcome::Unconverged
+    -> converged HfSolution::mp2()
+       blocked AO-to-MO transformation and correlation energy
+```
+
+`prepare()` constructs reusable input data; it does not compute integrals or
+solve HF. Each normal `run_hf()` call builds a new HF execution state, including
+one-electron integrals and the orthogonalizer. Without an explicit reuse source,
+AO ERIs are recomputed too. Repeated execution of a prepared calculation does
+not itself memoize these numerical arrays. Random seeds resolved at preparation
+are retained for repeated executions.
+
+An optional `EriCache` can load compatible AO ERIs from a directory or store
+newly computed ones. It is disposable local storage. A supplied `CompactEri`
+through `run_hf_with_eri()` bypasses AO ERI computation and cache lookup after
+compatibility checks. HF solutions retain their AO ERIs, and cloned solutions
+share immutable result data; these retained results are distinct from the
+prepared input data.
+
+Portable `.rustiq` bundles use the core persistence APIs to save scientific
+inputs and optional AO ERIs. Preparing a calculation from a bundle uses its
+artifact compatibility policy to decide reuse; it does not turn a local cache
+directory into a portable artifact. See the
+[persistence contract](../reference/index.md) and runnable API examples for
+restoration and explicit ERI transfer.
+
+This distinction matters for performance: compact AO ERI storage still grows
+as the fourth power of basis dimension, and the MP2 workspace budget covers
+additional transformation buffers rather than the full HF data or process
+memory. See [MP2 memory policy](../reference/existing-workflows.md#mp2-and-its-memory-budget).
+
 ## Build profiles and performance investigation
 
 Cargo's default development and test builds favor development speed. Release

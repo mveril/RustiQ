@@ -138,8 +138,19 @@ cargo run --locked -- run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
 `frozen_orbitals` excludes the lowest occupied orbitals from correlation;
-zero correlates all occupied orbitals. The allowed partition is checked for
-the chosen reference. Defaults and validation belong to [Nickel](index.md).
+zero correlates all occupied orbitals. For RHF, it counts spatial orbitals:
+`frozen_orbitals = 1` freezes one doubly occupied orbital (two electrons).
+For UHF, the same count applies separately to the alpha and beta occupied
+spaces: `1` freezes the lowest occupied alpha orbital and the lowest occupied
+beta orbital, also excluding two electrons. These spin orbitals can have
+different spatial shapes. The CLI option does not specify separate spin counts
+or arbitrary orbital indices.
+
+RHF requires the count to be smaller than the occupied-orbital count. UHF
+requires it not to exceed either spin's occupied count; a spin channel may have
+no active occupied orbitals left. Choose the frozen space explicitly when
+comparing packages. Defaults and input validation belong to [Nickel](index.md);
+the core also checks the reference-specific orbital partition during MP2.
 The [PySCF comparisons](../scientific-scope.md#reference-comparisons)
 include RHF/UHF MP2, frozen orbitals, and different workspace budgets.
 
