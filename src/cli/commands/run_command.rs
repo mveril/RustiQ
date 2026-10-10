@@ -328,15 +328,24 @@ impl RunCommand {
             })
             .collect::<miette::Result<Vec<_>>>()?;
         if json_output {
-            let json = serde_json::to_vec(&BatchOutput {
+            let batch = BatchOutput {
                 schema_version: 1,
                 kind: "batch",
                 calculations: entries,
-            })
+            };
+            let json = if self.pretty {
+                serde_json::to_vec_pretty(&batch)
+            } else {
+                serde_json::to_vec(&batch)
+            }
             .into_diagnostic()?;
-            let mut stdout = io::stdout().lock();
-            stdout.write_all(&json).into_diagnostic()?;
-            writeln!(stdout).into_diagnostic()?;
+            if self.pretty {
+                bat::print_json(&json)?;
+            } else {
+                let mut stdout = io::stdout().lock();
+                stdout.write_all(&json).into_diagnostic()?;
+                writeln!(stdout).into_diagnostic()?;
+            }
         } else {
             writeln!(
                 cli::color::stdout(),
