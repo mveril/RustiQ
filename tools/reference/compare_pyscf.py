@@ -247,7 +247,7 @@ def prepare_rustiq_env() -> dict[str, str]:
     env["RUSTIQ_DATA_HOME"] = str(data_home)
     env["RUSTIQ_AUTO_DOWNLOAD"] = "0"
     fixture_store = REPO_ROOT / "tests/data/reference/RustiQ/basis_sets"
-    basis_store = data_home / "RustiQ/basis_sets"
+    basis_store = data_home / "rustiq/basis_sets"
     basis_store.mkdir(parents=True)
     for basis_name in sorted({case.basis for case in CASES}):
         shutil.copyfile(

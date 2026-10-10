@@ -634,11 +634,11 @@ one workflow. `calculate_from_rustiq` uses only the archive; the other examples
 load geometry and basis from repository sample and test data:
 
 ```sh
-cargo run -p rustiq-core --example hf_calculation
-cargo run -p rustiq-core --example write_rustiq
-cargo run -p rustiq-core --example read_rustiq
-cargo run -p rustiq-core --example calculate_from_rustiq
-cargo run -p rustiq-core --example copy_rustiq
+cargo run -p rustiq-chem-core --example hf_calculation
+cargo run -p rustiq-chem-core --example write_rustiq
+cargo run -p rustiq-chem-core --example read_rustiq
+cargo run -p rustiq-chem-core --example calculate_from_rustiq
+cargo run -p rustiq-chem-core --example copy_rustiq
 ```
 
 The examples read and write archives in the ignored

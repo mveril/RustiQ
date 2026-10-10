@@ -11,7 +11,7 @@ use std::{
 use tempfile::TempDir;
 
 fn run(directory: &Path, input: &Path, format: &str) -> Output {
-    let store = directory.join("data/RustiQ/basis_sets");
+    let store = directory.join("data/rustiq/basis_sets");
     fs::create_dir_all(&store).unwrap();
     fs::write(
         store.join("sto-3g.json"),
@@ -220,7 +220,7 @@ fn json_output_write_failure_is_fatal() {
         "[{ basis.name = \"sto-3g\" }, { basis.name = \"sto-3g\" }]",
     )
     .unwrap();
-    let store = directory.path().join("data/RustiQ/basis_sets");
+    let store = directory.path().join("data/rustiq/basis_sets");
     fs::create_dir_all(&store).unwrap();
     fs::write(
         store.join("sto-3g.json"),

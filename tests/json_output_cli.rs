@@ -31,7 +31,7 @@ fn run_command_with_options(
     pretty: bool,
 ) -> Output {
     let data_home = TempDir::new().expect("temporary data home");
-    let basis_store = data_home.path().join("RustiQ/basis_sets");
+    let basis_store = data_home.path().join("rustiq/basis_sets");
     fs::create_dir_all(&basis_store).expect("basis store directory");
     fs::copy(
         repo_root().join("tests/data/sto-3g.json"),

@@ -103,8 +103,9 @@ outside the Dev Container or an active Nix development shell.
 The versioned store under `tests/data/reference/` contains unmodified basis files
 downloaded from Basis Set Exchange with RustiQ. At session startup, pytest copies
 the required files into a temporary store, so all comparisons run offline. To
-refresh a fixture while keeping the source explicit, point `RUSTIQ_DATA_HOME` at
-`tests/data/reference` and run `cargo run -- basis download <name>`.
+refresh a fixture while keeping the source explicit, point
+`RUSTIQ_DATA_BASIS` at `tests/data/reference/RustiQ/basis_sets` and run
+`cargo run -- basis download <name>`.
 `uv.lock` records the wheels and
 hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.

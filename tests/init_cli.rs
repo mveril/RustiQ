@@ -6,7 +6,7 @@ fn init_generates_runnable_hf_and_mp2_calculations() {
     let temp = tempfile::tempdir().unwrap();
     fs::write(temp.path().join("h2.xyz"), "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
     let data = temp.path().join("data");
-    let store = BasisStore::new(&data.join("RustiQ/basis_sets"));
+    let store = BasisStore::new(&data.join("rustiq/basis_sets"));
     store
         .import(Cursor::new(include_bytes!("data/sto-3g.json")))
         .unwrap();

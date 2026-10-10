@@ -2,7 +2,7 @@ use ::directories::ProjectDirs;
 use rustiq_core::basis::BasisStore;
 use std::{env, path::PathBuf};
 
-const APPLICATION_NAME: &str = "RustiQ";
+const APPLICATION_NAME: &str = "rustiq";
 const DATA_HOME: &str = "RUSTIQ_DATA_HOME";
 const BASIS_HOME: &str = "RUSTIQ_DATA_BASIS";
 const CACHE_HOME: &str = "RUSTIQ_CACHE_HOME";
@@ -63,7 +63,7 @@ mod tests {
             || {
                 assert_eq!(
                     basis_store().path(),
-                    directory.path().join("RustiQ/basis_sets")
+                    directory.path().join("rustiq/basis_sets")
                 );
             },
         );
