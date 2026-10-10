@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-RustiQ is a Rust 2021 Cargo workspace with two crates. The root `RustiQ` package is the CLI binary: `src/main.rs` is its entry point, `src/cli/` handles commands and reports, and `src/runfile/` parses TOML, reports input errors, and converts runfile options to scientific configuration. The reusable `rustiq-core` library lives in `crates/rustiq-core/`; its `src/config/` and `src/calculation/` modules define and run calculations, while `src/molecules/`, `src/basis/`, `src/eri/`, `src/hf/`, and `src/mp2/` contain the scientific implementation. Keep runfile parsing and terminal presentation in the CLI crate. Example inputs are in `samples/`, CLI fixtures are in `tests/data/`, and core fixtures are in `crates/rustiq-core/tests/data/`.
+RustiQ is a Rust 2021 Cargo workspace with two crates. The root `rustiq-chem` package provides the `rustiq` CLI binary: `src/main.rs` is its entry point, `src/cli/` handles commands and reports, and `src/runfile/` parses TOML, reports input errors, and converts runfile options to scientific configuration. The reusable `rustiq-chem-core` library (imported as `rustiq_core`) lives in `crates/rustiq-core/`; its `src/config/` and `src/calculation/` modules define and run calculations, while `src/molecules/`, `src/basis/`, `src/eri/`, `src/hf/`, and `src/mp2/` contain the scientific implementation. Keep runfile parsing and terminal presentation in the CLI crate. Example inputs are in `samples/`, CLI fixtures are in `tests/data/`, and core fixtures are in `crates/rustiq-core/tests/data/`.
 
 ## Build, Test, and Development Commands
 
@@ -13,7 +13,7 @@ RustiQ is a Rust 2021 Cargo workspace with two crates. The root `RustiQ` package
 - `cargo test --workspace --all-targets --all-features`: run tests with all features enabled.
 - `cargo test --workspace --all-targets --no-default-features`: check the offline configuration.
 
-Keep `Cargo.lock` committed because the workspace includes an application. The CLI enables the `online` feature by default; `rustiq-core` has no default features and can be checked independently with `cargo test -p rustiq-core --no-default-features`.
+Keep `Cargo.lock` committed because the workspace includes an application. The CLI enables the `online` feature by default; `rustiq-core` has no default features and can be checked independently with `cargo test -p rustiq-chem-core --no-default-features`.
 
 ## Coding Style & Naming Conventions
 

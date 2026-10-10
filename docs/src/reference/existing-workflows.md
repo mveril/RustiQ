@@ -3,7 +3,7 @@
 This page preserves operational guidance from the former README while the
 practical guides are developed. Commands below run from the repository root;
 Cargo builds and launches the CLI. An installed binary can replace `cargo run
---locked --` with `RustiQ` (the executable name is case-sensitive).
+--locked --` with `rustiq` (the executable name is case-sensitive).
 See the [glossary](../glossary.md) for scientific and development terms.
 
 ## Create input from an XYZ geometry

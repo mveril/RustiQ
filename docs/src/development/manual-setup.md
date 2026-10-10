@@ -62,8 +62,8 @@ To install into Cargo's binary directory:
 
 ```sh
 cargo install --locked --path .
-RustiQ --help
+rustiq --help
 ```
 
-The executable is named `RustiQ`; case matters on Linux. Ensure Cargo's binary
+The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase on case-sensitive systems. Ensure Cargo's binary
 directory is on `PATH`. Keep the checkout for the tutorial's sample files.

@@ -3,7 +3,7 @@
 [![CI](https://github.com/mveril/RustiQ/actions/workflows/ci.yml/badge.svg)](https://github.com/mveril/RustiQ/actions/workflows/ci.yml)
 
 RustiQ is an experimental Rust quantum chemistry application and reusable
-`rustiq-core` library, licensed under MIT OR Apache-2.0. It supports RHF, UHF,
+`rustiq-chem-core` library, licensed under MIT OR Apache-2.0. It supports RHF, UHF,
 MP2, XYZ geometries, Gaussian basis sets, TOML/Nickel inputs, sequential studies,
 and versioned JSON output.
 
@@ -34,6 +34,12 @@ cargo run --locked -- run samples/h2/sto-3g/calculation.toml
 
 The checked-in basis fixture avoids online basis downloads for this first
 calculation. Run these commands from the repository root.
+
+The product is called **RustiQ**; its Cargo packages are `rustiq-chem`
+(CLI) and `rustiq-chem-core` (library). The executable is `rustiq`
+(`rustiq.exe` on Windows), and the Rust library import remains `rustiq_core`.
+To install from this checkout: `cargo install --locked --path .`.
+
 
 ## Documentation
 
