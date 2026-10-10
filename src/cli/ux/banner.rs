@@ -3,14 +3,13 @@ use std::io::{self, Write};
 use figlet_rs::FIGlet;
 use rand::RngExt;
 
-use crate::cli::color;
+use crate::cli::{color, BRANDING_NAME};
 
 const BANNER_STYLE_COUNT: u8 = 4;
 
 pub(crate) fn print_startup_banner() -> io::Result<()> {
-    let package_name = env!("CARGO_PKG_NAME");
     let package_version = env!("CARGO_PKG_VERSION");
-    let banner = render_package_name(package_name);
+    let banner = render_branding_name(BRANDING_NAME);
     let style = rand::rng().random_range(0..BANNER_STYLE_COUNT);
     let mut stdout = color::stdout().lock();
 
@@ -24,12 +23,12 @@ pub(crate) fn print_startup_banner() -> io::Result<()> {
     writeln!(stdout)
 }
 
-fn render_package_name(package_name: &str) -> String {
+fn render_branding_name(branding_name: &str) -> String {
     match FIGlet::standard() {
         Ok(font) => font
-            .convert(package_name)
-            .map_or_else(|| package_name.to_string(), |figure| figure.to_string()),
-        Err(_) => package_name.to_string(),
+            .convert(branding_name)
+            .map_or_else(|| branding_name.to_string(), |figure| figure.to_string()),
+        Err(_) => branding_name.to_string(),
     }
 }
 

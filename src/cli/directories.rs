@@ -2,7 +2,8 @@ use ::directories::ProjectDirs;
 use rustiq_core::basis::BasisStore;
 use std::{env, path::PathBuf};
 
-const APPLICATION_NAME: &str = "RustiQ";
+use crate::cli::BRANDING_NAME;
+
 const DATA_HOME: &str = "RUSTIQ_DATA_HOME";
 const BASIS_HOME: &str = "RUSTIQ_DATA_BASIS";
 const CACHE_HOME: &str = "RUSTIQ_CACHE_HOME";
@@ -22,11 +23,11 @@ fn basis_path() -> PathBuf {
 
 fn application_data_path() -> PathBuf {
     if let Some(path) = env::var_os(DATA_HOME) {
-        return PathBuf::from(path).join(APPLICATION_NAME);
+        return PathBuf::from(path).join(BRANDING_NAME);
     }
 
-    ProjectDirs::from("", "", APPLICATION_NAME).map_or_else(
-        || env::temp_dir().join(APPLICATION_NAME),
+    ProjectDirs::from("", "", BRANDING_NAME).map_or_else(
+        || env::temp_dir().join(BRANDING_NAME),
         |directories| directories.data_local_dir().to_path_buf(),
     )
 }
@@ -37,8 +38,8 @@ pub fn cache_path() -> PathBuf {
         return path.into();
     }
 
-    ProjectDirs::from("", "", APPLICATION_NAME).map_or_else(
-        || env::temp_dir().join(APPLICATION_NAME),
+    ProjectDirs::from("", "", BRANDING_NAME).map_or_else(
+        || env::temp_dir().join(BRANDING_NAME),
         |directories| directories.cache_dir().to_path_buf(),
     )
 }
@@ -63,7 +64,7 @@ mod tests {
             || {
                 assert_eq!(
                     basis_store().path(),
-                    directory.path().join("RustiQ/basis_sets")
+                    directory.path().join(BRANDING_NAME).join("basis_sets")
                 );
             },
         );
@@ -87,9 +88,9 @@ mod tests {
     #[test]
     fn basis_store_defaults_to_project_data_directory() {
         temp_env::with_vars([(DATA_HOME, None::<&str>), (BASIS_HOME, None)], || {
-            let expected = ProjectDirs::from("", "", APPLICATION_NAME)
+            let expected = ProjectDirs::from("", "", BRANDING_NAME)
                 .map_or_else(
-                    || env::temp_dir().join(APPLICATION_NAME),
+                    || env::temp_dir().join(BRANDING_NAME),
                     |directories| directories.data_local_dir().to_path_buf(),
                 )
                 .join("basis_sets");
@@ -109,8 +110,8 @@ mod tests {
     #[test]
     fn cache_defaults_to_project_cache_directory() {
         temp_env::with_var(CACHE_HOME, None::<&str>, || {
-            let expected = ProjectDirs::from("", "", APPLICATION_NAME).map_or_else(
-                || env::temp_dir().join(APPLICATION_NAME),
+            let expected = ProjectDirs::from("", "", BRANDING_NAME).map_or_else(
+                || env::temp_dir().join(BRANDING_NAME),
                 |directories| directories.cache_dir().to_path_buf(),
             );
             assert_eq!(cache_path(), expected);

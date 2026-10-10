@@ -3,6 +3,9 @@ pub mod commands;
 pub(crate) mod directories;
 pub(crate) mod env;
 pub mod ux;
+
+pub(crate) const BRANDING_NAME: &str = "RustiQ";
+
 use clap::{ColorChoice, Parser};
 use commands::Commands;
 
