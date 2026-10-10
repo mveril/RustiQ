@@ -1,7 +1,7 @@
 # Introduction
 
 RustiQ is an experimental Rust quantum chemistry application and reusable
-`rustiq-core` library. This manual serves scientific users, Rust contributors,
+`rustiq-chem-core` library. This manual serves scientific users, Rust contributors,
 and theoretical chemists.
 
 **Do not use RustiQ results for research conclusions without independent

@@ -18,7 +18,7 @@ fn run(directory: &Path, input: &Path, format: &str) -> Output {
         include_bytes!("data/sto-3g.json"),
     )
     .unwrap();
-    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .current_dir(directory)
         .env("RUSTIQ_DATA_HOME", directory.join("data"))
         .env("RUSTIQ_AUTO_DOWNLOAD", "0")
@@ -227,7 +227,7 @@ fn json_output_write_failure_is_fatal() {
         include_bytes!("data/sto-3g.json"),
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .current_dir(directory.path())
         .env("RUSTIQ_DATA_HOME", directory.path().join("data"))
         .env("RUSTIQ_AUTO_DOWNLOAD", "0")

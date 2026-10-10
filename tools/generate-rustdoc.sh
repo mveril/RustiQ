@@ -17,5 +17,5 @@ case "${1:-}" in
 esac
 
 cd "$repo_root"
-cargo rustdoc --package rustiq-core "${open_args[@]}" -- \
+cargo rustdoc --package rustiq-chem-core "${open_args[@]}" -- \
     --html-in-header "$repo_root/crates/rustiq-core/docs/rustdoc-mathjax.html"

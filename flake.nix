@@ -121,7 +121,7 @@
           };
 
           commonCargoArgs = {
-            pname = "RustiQ";
+            pname = "rustiq";
             version = cargoToml.package.version;
             src = cargoSource;
             strictDeps = true;
@@ -261,7 +261,7 @@
                 exit 2
               fi
 
-              RUSTIQ_BIN="${rustiq}/bin/RustiQ" exec pytest "$reference_tests" "$@"
+              RUSTIQ_BIN="${rustiq}/bin/rustiq" exec pytest "$reference_tests" "$@"
             '';
           };
 

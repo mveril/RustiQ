@@ -44,7 +44,7 @@ fn run_command_with_options(
     )
     .expect("copy 6-31G basis fixture");
 
-    let mut command = Command::new(env!("CARGO_BIN_EXE_RustiQ"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rustiq"));
     command
         .current_dir(repo_root())
         .env("RUSTIQ_DATA_HOME", data_home.path())
@@ -100,7 +100,7 @@ fn pretty_json_obeys_color_setting() {
 
 #[test]
 fn pretty_requires_json_format() {
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
             "run",
             "samples/h2/sto-3g/calculation.toml",
@@ -116,7 +116,7 @@ fn pretty_requires_json_format() {
 
 #[test]
 fn pretty_without_format_requires_json_format() {
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["run", "samples/h2/sto-3g/calculation.toml", "--pretty"])
         .output()
         .expect("run RustiQ");

@@ -2,7 +2,7 @@
 //!
 //! This module defines the stable logical persistence representation and storage
 //! components such as the directory-backed deterministic artifact cache. Cache
-//! location policy remains outside `rustiq-core`.
+//! location policy remains outside `rustiq-chem-core`.
 
 mod cache_names;
 mod calculation;

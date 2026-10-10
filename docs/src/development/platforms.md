@@ -2,7 +2,7 @@
 
 RustiQ is written almost entirely in Rust, which makes it portable across a
 wide range of operating systems and processor architectures. The CLI and the
-`rustiq-core` library are known to work on the platforms below. Automated build
+`rustiq-chem-core` library are known to work on the platforms below. Automated build
 and test checks help maintain that compatibility as the project evolves.
 
 | Operating system | Processor architecture | Available setup |

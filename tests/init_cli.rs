@@ -11,7 +11,7 @@ fn init_generates_runnable_hf_and_mp2_calculations() {
         .import(Cursor::new(include_bytes!("data/sto-3g.json")))
         .unwrap();
     for options in [vec![], vec!["--mp2", "--force"]] {
-        let result = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        let result = Command::new(env!("CARGO_BIN_EXE_rustiq"))
             .current_dir(temp.path())
             .args(["init", "h2.xyz"])
             .args(&options)
@@ -22,7 +22,7 @@ fn init_generates_runnable_hf_and_mp2_calculations() {
             "{}",
             String::from_utf8_lossy(&result.stderr)
         );
-        let result = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        let result = Command::new(env!("CARGO_BIN_EXE_rustiq"))
             .current_dir(temp.path())
             .env("RUSTIQ_DATA_HOME", &data)
             .args([

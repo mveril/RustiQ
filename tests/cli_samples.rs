@@ -43,14 +43,14 @@ fn prepare_basis_store(temp_root: &Path) {
 }
 
 fn run_rustiq(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(args)
         .output()
         .unwrap()
 }
 
 fn run_rustiq_with_data_home(args: &[&str], data_home: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(args)
         .env("RUSTIQ_DATA_HOME", data_home)
         .env("RUSTIQ_CACHE_HOME", data_home.join("cache"))
@@ -63,7 +63,7 @@ fn run_rustiq_with_data_and_cache_home(
     data_home: &Path,
     cache_home: &Path,
 ) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(args)
         .env("RUSTIQ_DATA_HOME", data_home)
         .env("RUSTIQ_CACHE_HOME", cache_home)
@@ -89,7 +89,7 @@ fn assert_error(output: &Output) {
 
 #[test]
 fn color_options_and_environment_control_terminal_styling() {
-    let always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let always = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
             "--color",
             "always",
@@ -108,7 +108,7 @@ fn color_options_and_environment_control_terminal_styling() {
         "--color always should force ANSI: {stdout}"
     );
 
-    let never = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let never = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
             "--color",
             "never",
@@ -122,7 +122,7 @@ fn color_options_and_environment_control_terminal_styling() {
     assert_success(&never);
     assert!(!String::from_utf8_lossy(&never.stdout).contains("\x1b["));
 
-    let env_always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let env_always = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["geometry", "info", "samples/h2/molecule.xyz"])
         .env("RUSTIQ_COLOR", "always")
         .env("NO_COLOR", "1")
@@ -134,7 +134,7 @@ fn color_options_and_environment_control_terminal_styling() {
 
 #[test]
 fn color_option_applies_to_help_even_when_stdout_is_piped() {
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["--color", "always", "--help"])
         .env_remove("NO_COLOR")
         .env_remove("RUSTIQ_COLOR")
@@ -146,7 +146,7 @@ fn color_option_applies_to_help_even_when_stdout_is_piped() {
 
 #[test]
 fn color_option_controls_runtime_diagnostics() {
-    let always = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let always = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["--color", "always", "geometry", "info", "missing.xyz"])
         .env_remove("NO_COLOR")
         .env_remove("RUSTIQ_COLOR")
@@ -155,7 +155,7 @@ fn color_option_controls_runtime_diagnostics() {
     assert_error(&always);
     assert!(String::from_utf8_lossy(&always.stderr).contains("\x1b["));
 
-    let never = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let never = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["--color", "never", "geometry", "info", "missing.xyz"])
         .env_remove("NO_COLOR")
         .env_remove("RUSTIQ_COLOR")
@@ -189,7 +189,7 @@ fn strip_ansi(input: &str) -> String {
 #[test]
 #[cfg(feature = "online")]
 fn test_online_basis_commands_are_available_with_default_features() {
-    let basis_help = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let basis_help = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["basis", "--help"])
         .output()
         .unwrap();
@@ -199,7 +199,7 @@ fn test_online_basis_commands_are_available_with_default_features() {
         "basis help should expose download when the online feature is enabled"
     );
 
-    let list_help = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let list_help = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["basis", "list", "--help"])
         .output()
         .unwrap();
@@ -213,7 +213,7 @@ fn test_online_basis_commands_are_available_with_default_features() {
 #[test]
 #[cfg(not(feature = "online"))]
 fn test_online_basis_commands_are_hidden_without_online_feature() {
-    let basis_help = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let basis_help = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["basis", "--help"])
         .output()
         .unwrap();
@@ -223,7 +223,7 @@ fn test_online_basis_commands_are_hidden_without_online_feature() {
         "basis help should hide download when the online feature is disabled"
     );
 
-    let list_help = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let list_help = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["basis", "list", "--help"])
         .output()
         .unwrap();
@@ -801,7 +801,7 @@ fn test_cli_scientific_errors_label_the_original_runfile() {
             format!("# user source\n[basis]\nname = 'sto-3g'\n{fields}"),
         )
         .unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+        let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
             .args(["run", path.to_str().unwrap(), "--format", "json"])
             .env("RUSTIQ_DATA_HOME", directory.path())
             .env("RUSTIQ_AUTO_DOWNLOAD", "0")
@@ -982,7 +982,7 @@ fn test_geometry_translate_writes_output_file() {
     let output_path = temp_root.join("translated.xyz");
     fs::create_dir_all(&temp_root).unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
             "geometry",
             "translate",
@@ -1026,7 +1026,7 @@ fn test_geometry_center_supports_geometric_centering() {
     fs::create_dir_all(&temp_root).unwrap();
     fs::write(&input_path, "2\nLinear\nH 0.0 0.0 0.0\nHe 2.0 0.0 0.0\n").unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
             "geometry",
             "center",
@@ -1054,7 +1054,7 @@ fn test_geometry_oriente_centers_mass_and_diagonalizes_inertia() {
     )
     .unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(["geometry", "oriente", input_path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -1095,7 +1095,7 @@ fn test_geometry_isometry_applies_rotation_and_translation() {
     fs::create_dir_all(&temp_root).unwrap();
     fs::write(&input_path, "1\nPoint\nH 1.0 0.0 0.0\n").unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args([
             "geometry",
             "isometry",
@@ -1205,7 +1205,7 @@ fn run_accepts_bare_filename_in_current_directory() {
         "[basis]\nname = \"sto-3g\"\n[molecule]\ngeometry = \"molecule.xyz\"\n[method.hf]\n",
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .current_dir(root.path())
         .env("RUSTIQ_DATA_HOME", root.path())
         .args([
@@ -1240,7 +1240,7 @@ fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
         "[molecule]\ngeometry = \"../molecule.xyz\"\n[basis]\nname = \"sto-3g\"\n[cache]\nenabled = true\n[method.hf]\n",
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .current_dir(&caller)
         .env("RUSTIQ_DATA_HOME", root.path())
         .args([
@@ -1276,7 +1276,7 @@ fn run_resolves_stdin_geometry_from_callers_directory() {
         include_bytes!("../samples/h2/molecule.xyz"),
     )
     .unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .current_dir(root.path())
         .env("RUSTIQ_DATA_HOME", root.path())
         .args(["run", "--no-auto-download", "--format", "json"])
