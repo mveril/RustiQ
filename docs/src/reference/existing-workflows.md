@@ -79,10 +79,12 @@ Prefer absolute paths for these overrides. If the platform directory cannot be
 determined, the fallback is `<system temporary directory>/rustiq/basis_sets`;
 the operating system may remove its contents.
 
-Older alpha installations used `~/.local/share/RustiQ/basis_sets` on Linux
-and `%LOCALAPPDATA%\RustiQ\basis_sets` on Windows. There is no automatic
-migration or lookup there. Copy existing bases to the current location or set
-`RUSTIQ_DATA_BASIS` to the old directory. The policy and override tests live in
+Older alpha installations used `~/.local/share/RustiQ/basis_sets` on Linux,
+`%LOCALAPPDATA%\RustiQ\basis_sets` on Windows, and
+`~/Library/Application Support/RustiQ/basis_sets` on macOS. There is no
+automatic migration or lookup there. Copy existing bases to the current
+location or set `RUSTIQ_DATA_BASIS` to the old directory. The policy and
+override tests live in
 [directories.rs](https://github.com/mveril/RustiQ/blob/main/src/cli/directories.rs).
 The basis store is separate from the disposable integral cache and portable
 scientific bundles described under [authoritative references](index.md).
