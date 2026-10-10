@@ -1,19 +1,16 @@
 # Installation
 
-For a guided setup with the tools prepared for you, start with
-[Development environments](../development/environments.md). That chapter
-introduces VS Code, Docker, Dev Containers, Nix, and WSL before explaining how
-to use them. See [Known supported platforms](../development/platforms.md) to
-choose a setup for your computer.
+Compare [Docker, Nix, and manual installation](../development/environments.md)
+before choosing your setup. Each has a dedicated page with prerequisites,
+commands, advantages, and limitations. Docker always runs the supplied
+workspace under Linux, including on Windows and macOS hosts. For native host
+execution, use [manual installation](../development/manual-setup.md), or
+[Nix](../development/nix-setup.md) on a supported platform.
+See [known supported platforms](../development/platforms.md) for details.
 
-The instructions below describe the alternative of installing the build tools
-yourself. Rust is the language used to implement RustiQ; Cargo, included with
-Rust, compiles the source code into the executable that runs your calculations.
-
-Install Git and stable Rust through [rustup](https://rustup.rs/).
-Native dependencies also need a C/C++ build toolchain and CMake.
-On Windows, use the MSVC toolchain and Visual Studio C++ Build Tools.
-Cargo CI covers Linux, Windows, Apple Silicon macOS, and Intel macOS.
+The quick commands below use the manual setup. Install Git, Rust through
+[rustup](https://rustup.rs/), a C/C++ build toolchain, and CMake as described in
+the [manual setup page](../development/manual-setup.md#install-and-build).
 
 Build from source:
 

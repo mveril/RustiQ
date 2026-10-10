@@ -34,8 +34,10 @@ Verification coverage is deliberately explicit:
   [first-calculation chapter](../getting-started/first-calculation.md) identifies
   its sample test, numerical reference, tolerance, and reproduction command.
 
-The isolated Documentation workflow builds pull requests and pushes to `main`.
-Only successful builds from `main` deploy to GitHub Pages.
+The Documentation workflow builds and validates pull requests and can also be
+run manually. A separate Publish documentation workflow runs on pushes to
+`main`, including merges, and deploys to GitHub Pages after successful validation.
+The publication job does not appear in pull request checks.
 Maintainers must select **GitHub Actions** as the repository's Pages source
 before the first deployment. PR builds have no Pages write permission.
 

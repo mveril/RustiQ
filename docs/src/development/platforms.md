@@ -32,7 +32,7 @@ The pinned nixpkgs revision no longer supports Intel macOS, so use native
 Cargo or the Linux Dev Container on that platform. Native Windows users can also use Cargo; Nix requires a Linux
 environment such as WSL2.
 
-The recommended VS Code Dev Container provides a Linux environment through
+The optional VS Code Dev Container provides a Linux environment through
 Docker. It is an option on all the host platforms in the table, including
 Linux and Windows ARM64, provided Docker can run Linux containers on the host.
 Inside the container, Nix uses `x86_64-linux` or `aarch64-linux` according to
