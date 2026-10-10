@@ -23,6 +23,7 @@
 
 # Reference and development
 
+- [Command-line reference](reference/cli.md)
 - [Existing calculation workflows](reference/existing-workflows.md)
 - [Authoritative references](reference/index.md)
 - [Development environments](development/environments.md)

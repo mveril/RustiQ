@@ -1,5 +1,9 @@
 # Existing calculation workflows
 
+For a concise catalog of shipped commands, input settings, JSON behavior, and
+feature availability, see the [command-line reference](cli.md). This page
+keeps the longer workflow examples.
+
 This page preserves operational details from the former README. For the
 progressive workflows, start with the [geometry](../user-guide/geometry.md),
 [basis set](../user-guide/basis-sets.md),

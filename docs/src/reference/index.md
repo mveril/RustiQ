@@ -2,6 +2,12 @@
 
 These documents remain the sources of truth:
 
+- [Command-line reference](cli.md): shipped commands, principal options,
+  output behavior, and availability boundaries.
+- [TOML calculation configuration](../user-guide/configuration.md) and
+  [Nickel studies](../user-guide/nickel-studies.md): runnable inputs linked to
+  the authoritative Nickel defaults and validation below.
+
 - [Persistence V1 specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md):
   the portable ZIP/ZIP64 `.rustiq` contract.
 - [Calculation JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/calculation-output-v1.schema.json)
