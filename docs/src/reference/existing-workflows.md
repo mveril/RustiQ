@@ -69,14 +69,14 @@ The CLI uses the platform's local application data directory, then appends
 | Platform | Default basis directory                           |
 | -------- | ------------------------------------------------- |
 | Linux    | `~/.local/share/rustiq/basis_sets`                |
-| Windows  | `%LOCALAPPDATA%\RustiQ\data\basis_sets`           |
-| macOS    | `~/Library/Application Support/RustiQ/basis_sets` |
+| Windows  | `%LOCALAPPDATA%\rustiq\data\basis_sets`           |
+| macOS    | `~/Library/Application Support/rustiq/basis_sets` |
 
 An absolute `XDG_DATA_HOME` replaces `~/.local/share` on Linux.
 `RUSTIQ_DATA_BASIS` overrides the entire basis directory and takes precedence
-over `RUSTIQ_DATA_HOME`, which selects `<root>/RustiQ/basis_sets`.
+over `RUSTIQ_DATA_HOME`, which selects `<root>/rustiq/basis_sets`.
 Prefer absolute paths for these overrides. If the platform directory cannot be
-determined, the fallback is `<system temporary directory>/RustiQ/basis_sets`;
+determined, the fallback is `<system temporary directory>/rustiq/basis_sets`;
 the operating system may remove its contents.
 
 Older alpha installations used `~/.local/share/RustiQ/basis_sets` on Linux

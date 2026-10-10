@@ -33,7 +33,7 @@ fn temp_root(test_name: &str) -> PathBuf {
 }
 
 fn prepare_basis_store(temp_root: &Path) {
-    let basis_dir = temp_root.join("RustiQ").join("basis_sets");
+    let basis_dir = temp_root.join("rustiq").join("basis_sets");
     // This is test setup cleanup; a missing temporary directory is harmless.
     drop(fs::remove_dir_all(temp_root));
     let store = BasisStore::new(&basis_dir);
@@ -914,7 +914,7 @@ fn test_basis_remove_ignores_missing_names() {
     let output = run_rustiq_with_data_home(&["basis", "remove", "sto-3g", "missing"], &temp_root);
 
     assert_success(&output);
-    let store = BasisStore::new(&temp_root.join("RustiQ").join("basis_sets"));
+    let store = BasisStore::new(&temp_root.join("rustiq").join("basis_sets"));
     assert!(matches!(store.get("sto-3g"), Ok(None)));
 }
 
