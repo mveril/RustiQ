@@ -16,16 +16,31 @@ multiplicity specifies the intended spin state. RustiQ checks that the electron
 count and multiplicity have compatible parity, but this check does not identify
 the physical ground state. See the [configuration guide](configuration.md).
 
+`geometry info` reports atom and center information, including a nuclear
+repulsion value.
+
+> [!WARNING]
+> **Nuclear repulsion: beware of XYZ coordinate units.**
+>
+> `geometry info` **does not convert coordinates from Angstrom to Bohr**.
+> XYZ files have no unit metadata, so this command evaluates nuclear
+> repulsion directly from the supplied numbers, effectively treating them
+> as **Bohr**. For an XYZ file written in **Angstrom** (including the H₂
+> sample below), its reported nuclear-repulsion value is **not a physically
+> meaningful energy in Hartree**. **Do not interpret or compare it with
+> energies from a molecular calculation.**
+>
+> Unlike `geometry info`, `rustiq run` converts input coordinates using
+> `[molecule].units` (default: `"Angstrom"`) before computing energies.
+> This setting does not apply to the standalone geometry command.
+
 From the repository root, inspect a geometry with:
 
 ```sh
 cargo run --locked -- geometry info samples/h2/molecule.xyz
 ```
 
-`geometry info` reports atom and center information, including a nuclear
-repulsion value. The `info` command uses raw coordinate values without
-conversion; its nuclear-repulsion number is in Hartree only when those
-coordinates are in Bohr. The geometry tools can rotate, translate, center, or orient
+The geometry tools can rotate, translate, center, or orient
 XYZ coordinates. For example, transformations read and write XYZ and can use
 standard input/output:
 
