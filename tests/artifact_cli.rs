@@ -33,7 +33,7 @@ fn fixture() -> TempDir {
 }
 
 fn command(root: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_RustiQ"))
+    Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .current_dir(root)
         .env("RUSTIQ_DATA_HOME", root.join("data"))
         .env("RUSTIQ_CACHE_HOME", root.join("cache"))

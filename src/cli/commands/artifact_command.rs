@@ -185,74 +185,73 @@ impl InspectCommand {
 impl Runnable for InspectCommand {
     fn run(&self) -> CommandResult {
         let inspection = self.inspect()?;
-        let mut stdout = io::stdout().lock();
         if self.format == CalculationOutputFormat::Json {
-            serde_json::to_writer(&mut stdout, &inspection).into_diagnostic()?;
-            writeln!(stdout).into_diagnostic()?;
+            serde_json::to_writer(io::stdout().lock(), &inspection).into_diagnostic()?;
+            writeln!(io::stdout().lock()).into_diagnostic()?;
         } else {
             writeln!(
-                stdout,
+                io::stdout().lock(),
                 "Portable RustiQ V1: {} calculations",
                 inspection.calculations.len()
             )
             .into_diagnostic()?;
-            writeln!(stdout, "Numeric payloads have not been fully verified.").into_diagnostic()?;
+            writeln!(
+                io::stdout().lock(),
+                "Numeric payloads have not been fully verified."
+            )
+            .into_diagnostic()?;
             for source in &inspection.sources {
                 writeln!(
-                    stdout,
+                    io::stdout().lock(),
                     "Source: {} ({} bytes)",
-                    source.original_name, source.size
+                    source.original_name,
+                    source.size
                 )
                 .into_diagnostic()?;
             }
             for entry in &inspection.calculations {
                 writeln!(
-                    stdout,
+                    io::stdout().lock(),
                     "\nCalculation index {} ({} {})",
-                    entry.source_index, entry.producer.name, entry.producer.version
+                    entry.source_index,
+                    entry.producer.name,
+                    entry.producer.version
                 )
                 .into_diagnostic()?;
                 writeln!(
-                    stdout,
+                    io::stdout().lock(),
                     "{}",
                     crate::cli::color::title("Requested calculation (canonical TOML)")
                 )
                 .into_diagnostic()?;
-                drop(stdout);
                 bat::print_toml(&entry.requested.configuration);
-                let mut stdout = io::stdout().lock();
                 writeln!(
-                    stdout,
+                    io::stdout().lock(),
                     "{}",
                     crate::cli::color::title("Requested geometry (canonical XYZ)")
                 )
                 .into_diagnostic()?;
-                drop(stdout);
                 bat::print_xyz(&entry.requested.geometry);
-                let mut stdout = io::stdout().lock();
                 writeln!(
-                    stdout,
+                    io::stdout().lock(),
                     "{}",
                     crate::cli::color::title("Resolved calculation (canonical TOML)")
                 )
                 .into_diagnostic()?;
-                drop(stdout);
                 bat::print_toml(&entry.resolved.configuration);
-                let mut stdout = io::stdout().lock();
                 writeln!(
-                    stdout,
+                    io::stdout().lock(),
                     "{}",
                     crate::cli::color::title("Resolved geometry (Bohr)")
                 )
                 .into_diagnostic()?;
-                drop(stdout);
                 bat::print_xyz(&entry.resolved.geometry);
-                let mut stdout = io::stdout().lock();
                 for artifact in &entry.artifacts {
                     writeln!(
-                        stdout,
+                        io::stdout().lock(),
                         "Artifact {}: {}",
-                        artifact.name, artifact.representation
+                        artifact.name,
+                        artifact.representation
                     )
                     .into_diagnostic()?;
                 }
