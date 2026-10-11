@@ -10,13 +10,15 @@ options supported by the installed build.
 | Command | Purpose |
 | --- | --- |
 | `rustiq init <XYZ>` | Create a TOML calculation input that refers to an XYZ geometry. |
-| `rustiq run [INPUT]` | Run one TOML or Nickel input. With no path, read TOML from standard input. A Nickel array with multiple calculations runs as a batch. |
+| `rustiq run [INPUT]` | Run TOML or Nickel input, or rerun calculations from a `.rustiq` bundle. With no path, read TOML from standard input. Multi-entry inputs run as batches. |
 | `rustiq basis import <PATH>...` | Import basis JSON files into the local basis store. |
 | `rustiq basis list [--online] [--verbose]` | List locally stored bases; online listing is available in builds with the `online` feature. |
 | `rustiq basis download <NAME>` | Download a basis in builds with the `online` feature. |
 | `rustiq basis remove <NAME>...` / `--all` | Remove selected bases or the local basis store contents. |
 | `rustiq cache list [--cache-dir DIR]` | Inspect AO ERI cache entries and their validation status. |
 | `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries. |
+| `rustiq artifact inspect <PATH> [--format FORMAT]` | Inspect portable `.rustiq` calculation snapshots and artifact metadata. |
+| `rustiq artifact verify <PATH>` | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle. |
 | `rustiq geometry info [XYZ]` | Print basic geometry information; read XYZ from standard input when no path is given. |
 | `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry` | Transform a geometry and write the result; each subcommand has its own help. |
 
@@ -35,22 +37,31 @@ workflows](existing-workflows.md) documents path and overwrite behavior.
 
 ## `run` options and input selection
 
-The input filename extension selects TOML or Nickel (`.ncl`). TOML describes a
-single calculation. Nickel can describe one calculation or an ordered array;
-an array of one uses the single-calculation output contract, while a larger
-array uses the batch contract. Nickel imports resolve relative to the importing
+The input filename extension selects TOML, Nickel (`.ncl`), or a portable
+`.rustiq` bundle. TOML describes a single calculation. Nickel can describe one
+calculation or an ordered array; an array of one uses the single-calculation
+output contract, while a larger array uses the batch contract. A `.rustiq`
+input reconstructs and reruns its archived resolved calculation(s); multi-entry
+bundles use the batch contract. Nickel imports resolve relative to the importing
 file. Geometry paths resolve relative to the top-level input file; for TOML
 read from standard input, they resolve from the current working directory.
+Direct archive reruns cannot be combined with `--reuse`, `--artifact`,
+`--cache-dir`, `--auto-download`, or `--no-auto-download`; the source bundle is
+read-only and provides its resolved basis and inputs. Archive reruns do not use
+the local ERI cache or basis-download settings. Text output shows SCF progress;
+JSON output suppresses progress and writes only the result document.
 
 Important options:
 
 | Option | Behavior |
 | --- | --- |
 | `--format FORMAT` (`text` or `json`) | Select text output (default) or versioned JSON. JSON result data is written to standard output. |
-| `--pretty` | Pretty-print single-calculation or Nickel batch JSON, optionally with syntax highlighting. Requires `--format json`. |
+| `--pretty` | Pretty-print single-calculation or batch JSON, optionally with syntax highlighting. Requires `--format json`. |
 | `--color MODE` (`auto`, `always`, or `never`) | Control ANSI colors globally; also accepts `RUSTIQ_COLOR`. Use `--color never` when redirecting pretty JSON. |
 | `--auto-download` / `--no-auto-download` | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
 | `--cache-dir DIR` | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching. |
+| `--reuse PATH` | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation. |
+| `--artifact PATH` | Write the current calculation or batch as a portable `.rustiq` bundle, independently of text or JSON output. |
 
 The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
@@ -60,8 +71,8 @@ The CLI reports input, basis, preparation, and single-run calculation errors
 as diagnostics. A single HF calculation that reaches its iteration limit
 returns its final-iteration result with a successful process status and, in
 JSON, `converged: false`. MP2 requires converged HF. For a multi-calculation
-Nickel batch, recoverable per-entry errors do not prevent later entries from
-running; the JSON document records each outcome, but any error or
+Nickel or `.rustiq` batch, recoverable per-entry errors do not prevent later
+entries from running; the JSON document records each outcome, but any error or
 non-convergence makes the overall process exit unsuccessfully. Fatal
 infrastructure failures stop the batch. JSON output for an unsuccessful batch
 is still a valid document. The exact output fields are defined by the
@@ -79,7 +90,7 @@ single HF run is a result, not a runtime failure.
 | Nickel | One calculation or an ordered study/batch; see the checked-in [study example](../user-guide/nickel-studies.md). |
 | JSON | Versioned single-calculation and batch results, selected with `run --format json`; schemas are linked below. |
 | AO ERI cache | Optional local reuse through `[cache].enabled` and `--cache-dir`; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral. |
-| Portable `.rustiq` bundle | V1 format and Rust APIs exist; no create, reuse, or inspect command is exposed by the current CLI. |
+| Portable `.rustiq` bundle | Create with `run --artifact`, rerun with `run FILE.rustiq`, reuse artifacts with `run INPUT --reuse FILE.rustiq`, inspect with `artifact inspect`, and validate stored AO ERIs with `artifact verify`. Reruns start a fresh HF calculation. See the [portable bundle guide](../user-guide/portable-bundles.md). |
 | Scientific status | Experimental; selected checks do not establish research-grade correctness. See [scientific scope and limitations](../scientific-scope.md). |
 
 Basis downloads and online basis listing require a build with the `online`
@@ -160,11 +171,70 @@ or a portable calculation file.
 
 Portable `.rustiq` bundles use the V1 ZIP/ZIP64 format described by the
 [authoritative persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md).
-The current CLI does not expose `--artifact`, `--reuse`, or `artifact inspect`;
-portable bundles are accessed through the Rust persistence APIs. The
-[reference index](index.md#authoritative-references) links both the
-specification and Rust API documentation. Do not treat cache commands as
-portable-bundle operations.
+The format is conceptually inspired by [EZFIO](https://gitlab.com/scemama/EZFIO)
+in [Quantum Package 2 (`qp2`)](https://github.com/QuantumPackage/qp2), but uses
+an independent archive structure and APIs; see the
+[comparison](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#relationship-to-ezfio).
+For a guided create, inspect, and reuse workflow, see the
+[portable bundle guide](../user-guide/portable-bundles.md).
+Bundles are separate from the disposable local AO ERI cache. Reuse opens its source
+read-only. For each requested calculation, RustiQ selects the first compatible,
+supported AO ERI in bundle order; when none is available, an enabled local cache
+is checked before recomputation. A corrupt selected payload is an error. A
+source entry can supply data to multiple calculations in a Nickel batch.
+
+```sh
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
+cargo run --locked -- artifact inspect h2.rustiq --format json
+cargo run --locked -- artifact verify h2.rustiq
+cargo run --locked -- run h2.rustiq
+# Replace the source bundle after all requested calculations produce results:
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
+```
+
+Publication captures the current requested calculation collection and its
+compatible known artifacts. It does not append history. An existing destination
+is accepted only when it resolves to the explicit `--reuse` source; otherwise
+the command fails without replacing it. Publication happens after every requested
+calculation produces a result. Preparation or execution errors prevent
+publication of the collection and leave the destination unchanged. An HF-only
+non-converged result can contribute its AO ERI. A Nickel batch containing only
+non-converged HF-only results can publish its bundle even though the command
+exits unsuccessfully. If MP2 was requested but HF does not converge, execution
+fails and the bundle is not published. HF orbitals, SCF restart state, DIIS
+history, and MP2 results are not persisted.
+
+When `--reuse` or `--artifact` is used, JSON calculation results include an
+optional `artifacts` array. `decision` reports archive selection (`reused`,
+`missing`, or `incompatible`); `origin` reports the ERI actually used
+(`archive`, `cache`, or `computation`). A reused item includes its zero-based
+`source_index`. Without these options the existing JSON result shape is retained.
+`run FILE.rustiq --format json` uses the regular single-calculation or batch
+result schema but does not include this reuse-decision array: the bundle is the
+implicit artifact source for that mode.
+Publication failures are reported on stderr and return a failing exit status;
+JSON results for a completed calculation or batch may already have been written.
+
+`artifact inspect PATH` displays requested and resolved scientific snapshots,
+producer details, artifact representations, and captured source names and sizes.
+In text mode, canonical TOML and XYZ are syntax-highlighted when color is
+enabled by `--color` or `RUSTIQ_COLOR`; JSON output remains structured JSON.
+It validates the archive index, provenance, snapshots, and declared artifact
+sizes, but does not hash or decode numeric payloads. Use `artifact verify` to
+check supported payloads eagerly; otherwise, execution checks a payload when
+its scientific stage selects and reads it. Inspection does not execute
+calculations or establish scientific validity. JSON output follows the
+[artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
+`artifact verify PATH` eagerly reads and validates supported numerical
+payloads. It currently checks compact AO ERI payload hashes, NPY encoding,
+array dimensions, and consistency with the declared AO basis. It reports an
+error for an invalid payload or unsupported representation. Verification does
+not run a calculation or establish scientific validity.
+The archive captures exact bytes of the main input and geometry files as shared
+provenance; it does not capture Nickel's full import graph. See the
+[persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
+for the archive contract and API details.
 
 ## Output contracts
 

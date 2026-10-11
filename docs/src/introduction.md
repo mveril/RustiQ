@@ -25,17 +25,19 @@ validation against established quantum chemistry packages.**
 
 The [glossary](glossary.md) explains unfamiliar scientific and software terms.
 [Existing workflow notes](reference/existing-workflows.md) preserve useful
-operational guidance while the complete guides are developed.
+operational guidance alongside the user guides and CLI reference.
 
 Implemented capabilities include RHF, UHF, MP2, XYZ geometries, Gaussian basis
 sets, TOML and native Nickel input, sequential studies, and versioned JSON.
 The [practical user guides](user-guide/geometry.md) now cover these capabilities,
-including HF/MP2 calculations, Nickel studies, and JSON output. A comprehensive
-CLI reference remains planned for PR C1 in
-[issue #106](https://github.com/mveril/RustiQ/issues/106).
+including HF/MP2 calculations, Nickel studies, JSON output, and portable
+calculation bundles. The [command-line reference](reference/cli.md) describes
+the shipped commands and options.
 
-Portable `.rustiq` bundles are available through Rust APIs. The proposed CLI
-artifact workflow is tracked in [issue #108](https://github.com/mveril/RustiQ/issues/108);
-this edition does not present its commands as shipped behavior.
+Portable `.rustiq` bundles can be written, reused, and inspected from the CLI
+as well as through Rust APIs. Start with the
+[portable bundle guide](user-guide/portable-bundles.md) for a runnable CLI
+workflow, then see the [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
+for the archive contract.
 The [authoritative references](reference/index.md) page links to the roadmap
 for plans and to the files that define existing contracts.

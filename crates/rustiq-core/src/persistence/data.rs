@@ -10,4 +10,4 @@ pub(crate) use rustiq_data::AO_ERI_ARTIFACT;
 mod portable;
 
 mod bundle;
-pub use bundle::RustiQBundle;
+pub use bundle::{AoEriReuse, RustiQBundle};

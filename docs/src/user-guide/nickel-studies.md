@@ -71,4 +71,6 @@ The integration coverage is in
 [`tests/nickel_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/nickel_cli.rs)
 and [`tests/json_output_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/json_output_cli.rs).
 For structured outcomes, see [JSON output](json-output.md).
+To save a study's calculation entries and reusable AO ERIs in one portable
+bundle, see [portable calculation bundles](portable-bundles.md).
 See the [glossary](../glossary.md) for Nickel and calculation terminology.

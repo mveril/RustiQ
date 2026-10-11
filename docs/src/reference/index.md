@@ -12,6 +12,7 @@ These documents remain the sources of truth:
   the portable ZIP/ZIP64 `.rustiq` contract.
 - [Calculation JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/calculation-output-v1.schema.json)
   and [batch JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/batch-output-v1.schema.json).
+- [Artifact inspection JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
 - [Embedded Nickel schema](https://github.com/mveril/RustiQ/tree/main/src/runfile/nickel):
   input defaults and validation.
 - [Rustdoc](../development/contributing.md): public Rust API reference.
@@ -24,4 +25,4 @@ These documents remain the sources of truth:
 
 The directory-backed local AO ERI cache is disposable, machine-local storage.
 A portable `.rustiq` bundle is a deliberate scientific snapshot accessed by
-the current Rust APIs. A cache directory is not a portable bundle.
+the CLI and Rust APIs. A cache directory is not a portable bundle.

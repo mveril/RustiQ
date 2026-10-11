@@ -8,6 +8,7 @@ use std::{
 use clap::{ArgAction, ValueEnum};
 use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report, WrapErr};
 
+use super::artifact_session::ArtifactSession;
 use super::batch_orchestration::{self, BatchSummary, Executable, ExecutionError, ExecutionResult};
 use crate::cli::{
     self, directories,
@@ -23,14 +24,14 @@ use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
     molecules::geometry::Geometry,
-    persistence::EriCache,
+    persistence::{EriCache, RustiQBundle, RustiQData},
 };
 
 use super::{CommandResult, Runnable};
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
-    /// TOML or Nickel calculation input. If omitted, read TOML from standard input.
+    /// TOML or Nickel input, or a portable .rustiq bundle to rerun. If omitted, read TOML from standard input.
     pub input: Option<PathBuf>,
     /// Enable automatic download of basis sets for this execution (the default behavoir is determined by the env variable RUSTIQ_AUTO_DOWNLOAD)
     #[arg(
@@ -59,6 +60,14 @@ pub struct RunCommand {
     /// Directory used to cache calculation artifacts for this execution.
     #[arg(long, value_name = "DIR")]
     cache_dir: Option<PathBuf>,
+
+    /// Read-only portable source of reusable scientific artifacts.
+    #[arg(long, value_name = "PATH")]
+    reuse: Option<PathBuf>,
+
+    /// Write a portable snapshot independently of the result output format.
+    #[arg(long, value_name = "PATH")]
+    artifact: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
@@ -104,6 +113,7 @@ impl ExecutionError for CalculationExecutionError {
 
 struct CalculationTask<'a> {
     command: &'a RunCommand,
+    artifacts: &'a ArtifactSession,
     parsed: miette::Result<crate::runfile::parser::ParsedRunFile>,
     source_name: &'a str,
     source_content: &'a str,
@@ -125,9 +135,12 @@ impl Executable for CalculationTask<'_> {
         let parsed = self
             .parsed
             .map_err(CalculationExecutionError::recoverable)?;
-        let result =
-            self.command
-                .execute_calculation(parsed, self.source_name, self.source_content)?;
+        let result = self.command.execute_calculation(
+            parsed,
+            self.source_name,
+            self.source_content,
+            self.artifacts,
+        )?;
         if self.batch_position.is_some() {
             result
                 .ensure_finite()
@@ -208,6 +221,42 @@ impl RunCommand {
 impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
         let json_output = self.format == CalculationOutputFormat::Json;
+        if let Some(path) = self.input.as_ref().filter(|path| {
+            path.extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("rustiq"))
+        }) {
+            if self.reuse.is_some() {
+                return Err(miette!("--reuse cannot be combined with a .rustiq input; the input archive already supplies reusable artifacts"));
+            }
+            if self.artifact.is_some() {
+                return Err(miette!(
+                    "--artifact is not supported when rerunning a .rustiq input"
+                ));
+            }
+            if self.cache_dir.is_some() {
+                return Err(miette!(
+                    "--cache-dir is not supported when rerunning a .rustiq input"
+                ));
+            }
+            if self.auto_download || self.no_auto_download {
+                return Err(miette!(
+                    "basis download options are not supported when rerunning a .rustiq input"
+                ));
+            }
+            if !json_output {
+                cli::ux::print_startup_banner().into_diagnostic()?;
+            }
+            let bundle = RustiQBundle::open(path).into_diagnostic()?;
+            let calculations = bundle.into_calculations();
+            if calculations.len() == 1 {
+                let data = calculations.into_iter().next().ok_or_else(|| {
+                    miette!("portable archive unexpectedly contained no calculations")
+                })?;
+                return self.execute_portable_single(data, json_output);
+            }
+            return self.execute_portable_batch(calculations, json_output);
+        }
+        let artifacts = ArtifactSession::open(self.reuse.as_deref(), self.artifact.as_deref())?;
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
@@ -226,7 +275,13 @@ impl Runnable for RunCommand {
             .is_some_and(|extension| extension.eq_ignore_ascii_case("ncl"));
         if !nickel {
             let parsed = parse_runfile(source_name.clone(), &source_content)?;
-            return self.execute_single(parsed, &source_name, &source_content, json_output);
+            return self.execute_single(
+                parsed,
+                &source_name,
+                &source_content,
+                json_output,
+                &artifacts,
+            );
         }
         let resolved = crate::runfile::parser::resolve_nickel(&source_name, &source_content)?;
         if resolved.calculations().len() == 1 {
@@ -234,22 +289,150 @@ impl Runnable for RunCommand {
                 miette!("validated Nickel input unexpectedly contained no calculations")
             })?;
             let parsed = crate::runfile::parser::parsed_calculation(calculation)?;
-            return self.execute_single(parsed, &source_name, &source_content, json_output);
+            return self.execute_single(
+                parsed,
+                &source_name,
+                &source_content,
+                json_output,
+                &artifacts,
+            );
         }
-        self.execute_batch(resolved, &source_name, &source_content, json_output)
+        self.execute_batch(
+            resolved,
+            &source_name,
+            &source_content,
+            json_output,
+            &artifacts,
+        )
     }
 }
 
 impl RunCommand {
+    fn execute_portable_single(&self, data: RustiQData, json_output: bool) -> CommandResult {
+        let result = self
+            .execute_portable_calculation(data)
+            .map_err(CalculationExecutionError::into_report)?;
+        result.ensure_finite().into_diagnostic()?;
+        if json_output {
+            json_output::print_json(&result, self.pretty)?;
+        }
+        Ok(())
+    }
+
+    fn execute_portable_batch(
+        &self,
+        calculations: Vec<RustiQData>,
+        json_output: bool,
+    ) -> CommandResult {
+        let total = calculations.len();
+        let mut outcomes = Vec::with_capacity(total);
+        for (index, data) in calculations.into_iter().enumerate() {
+            if !json_output {
+                writeln!(
+                    cli::color::stdout(),
+                    "\nCalculation {}/{}",
+                    index + 1,
+                    total
+                )
+                .into_diagnostic()?;
+            }
+            match self.execute_portable_calculation(data) {
+                Err(error) if error.is_fatal() => {
+                    return Err(CalculationExecutionError::into_report(error));
+                }
+                outcome => outcomes.push(outcome),
+            }
+        }
+        let summary = BatchSummary::from_results(&outcomes);
+        let mut entries = Vec::with_capacity(outcomes.len());
+        for (index, outcome) in outcomes.into_iter().enumerate() {
+            let outcome = match outcome {
+                Ok(result) if result.is_converged() => BatchOutcome::Success { result },
+                Ok(result) => BatchOutcome::NonConverged { result },
+                Err(error) => {
+                    let error = error.into_report();
+                    if !json_output {
+                        writeln!(io::stderr().lock(), "Calculation {}: {error:?}", index + 1)
+                            .into_diagnostic()?;
+                    }
+                    BatchOutcome::Error {
+                        error: BatchError {
+                            message: format!("{error}"),
+                        },
+                    }
+                }
+            };
+            entries.push(BatchEntry { outcome });
+        }
+        if json_output {
+            json_output::print_json(
+                &BatchOutput {
+                    schema_version: 1,
+                    kind: "batch",
+                    calculations: entries,
+                },
+                self.pretty,
+            )?;
+        } else {
+            writeln!(
+                cli::color::stdout(),
+                "\nBatch: {} succeeded, {} non-converged, {} failed",
+                summary.succeeded,
+                summary.non_converged,
+                summary.failed
+            )
+            .into_diagnostic()?;
+        }
+        if summary.failed + summary.non_converged > 0 {
+            return Err(miette!(
+                "batch contains {} failed and {} non-converged calculations",
+                summary.failed,
+                summary.non_converged
+            ));
+        }
+        Ok(())
+    }
+
+    fn execute_portable_calculation(
+        &self,
+        data: RustiQData,
+    ) -> Result<CalculationOutput, CalculationExecutionError> {
+        let prepared = data
+            .prepare_calculation()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        let show_scf = true;
+        let json_output = self.format == CalculationOutputFormat::Json;
+        let result = {
+            let stdout = cli::color::stdout();
+            let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
+            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            if let Some(error) = reporter.take_error() {
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
+            }
+            outcome
+                .into_diagnostic()
+                .map_err(CalculationExecutionError::recoverable)?
+        };
+        let output = CalculationOutput::from(&result);
+        output
+            .ensure_finite()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        Ok(output)
+    }
+
     fn execute_single(
         &self,
         parsed: crate::runfile::parser::ParsedRunFile,
         source_name: &str,
         source_content: &str,
         json_output: bool,
+        artifacts: &ArtifactSession,
     ) -> CommandResult {
         let result = CalculationTask {
             command: self,
+            artifacts,
             parsed: Ok(parsed),
             source_name,
             source_content,
@@ -257,11 +440,13 @@ impl RunCommand {
         }
         .execute()
         .map_err(CalculationExecutionError::into_report)?;
+        result.ensure_finite().into_diagnostic()?;
+        let publication = artifacts.publish();
         if json_output {
             result.ensure_finite().into_diagnostic()?;
             json_output::print_json(&result, self.pretty)?;
         }
-        Ok(())
+        publication
     }
 
     fn execute_batch(
@@ -270,6 +455,7 @@ impl RunCommand {
         source_name: &str,
         source_content: &str,
         json_output: bool,
+        artifacts: &ArtifactSession,
     ) -> CommandResult {
         let total = resolved.calculations().len();
         let tasks = resolved
@@ -277,6 +463,7 @@ impl RunCommand {
             .enumerate()
             .map(|(index, calculation)| CalculationTask {
                 command: self,
+                artifacts,
                 parsed: crate::runfile::parser::parsed_calculation(calculation),
                 source_name,
                 source_content,
@@ -290,6 +477,11 @@ impl RunCommand {
             non_converged,
             failed,
         } = BatchSummary::from_results(&outcomes);
+        let publication = if failed == 0 {
+            artifacts.publish()
+        } else {
+            Ok(())
+        };
         let entries = outcomes
             .into_iter()
             .enumerate()
@@ -332,6 +524,7 @@ impl RunCommand {
             )
             .into_diagnostic()?;
         }
+        publication?;
         if failed + non_converged > 0 {
             return Err(miette!(
                 "batch contains {failed} failed and {non_converged} non-converged calculations"
@@ -351,6 +544,7 @@ impl RunCommand {
         parsed: crate::runfile::parser::ParsedRunFile,
         source_name: &str,
         source_content: &str,
+        artifacts: &ArtifactSession,
     ) -> Result<CalculationOutput, CalculationExecutionError> {
         let json_output = self.format == CalculationOutputFormat::Json;
         let run = parsed
@@ -426,6 +620,9 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
+        let (prepared, mut artifact_report) = artifacts
+            .prepare(prepared)
+            .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let output_format = match run.output.scf {
                 ScfOutput::Normal => crate::runfile::output::ScfOutput::Normal,
@@ -471,7 +668,12 @@ impl RunCommand {
         let result = {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
-            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            let outcome = prepared.execute_with_events(|event| {
+                if let Some(report) = &mut artifact_report {
+                    report.on_event(&event);
+                }
+                reporter.on_event(event);
+            });
             if let Some(error) = reporter.take_error() {
                 return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
@@ -479,7 +681,39 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        Ok(CalculationOutput::from(&result))
+        let mut output = CalculationOutput::from(&result);
+        output
+            .ensure_finite()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        artifacts
+            .retain(
+                &prepared,
+                &result,
+                [
+                    (source_name, source_content.as_bytes()),
+                    (&molecule_path.display().to_string(), xyz_content.as_bytes()),
+                ],
+            )
+            .map_err(CalculationExecutionError::recoverable)?;
+        if let Some(report) = artifact_report {
+            if !json_output {
+                writeln!(
+                    cli::color::stdout(),
+                    "Artifact {}: {}; origin {}{}",
+                    report.name,
+                    report.decision,
+                    report.origin,
+                    report
+                        .source_index
+                        .map_or_else(String::new, |index| format!("; source index {index}"))
+                )
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
+            }
+            output.artifacts = Some(vec![report]);
+        }
+        Ok(output)
     }
 }
 
@@ -536,6 +770,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -553,6 +789,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert!(command.resolve_auto_download());
@@ -566,6 +804,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert!(!command.resolve_auto_download());
@@ -583,6 +823,8 @@ mod tests {
                 format: CalculationOutputFormat::Text,
                 pretty: false,
                 cache_dir: None,
+                reuse: None,
+                artifact: None,
             };
 
             assert!(!command.resolve_auto_download());

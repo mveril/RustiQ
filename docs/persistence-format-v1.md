@@ -237,6 +237,29 @@ unchanged.
 
 ## Portable `.rustiq` V1
 
+### Relationship to EZFIO
+
+A `.rustiq` bundle adapts the idea of keeping calculation inputs and reusable
+scientific data together in a structured, inspectable store from
+[EZFIO](https://gitlab.com/scemama/EZFIO), the data format used by
+[Quantum Package 2 (`qp2`)](https://github.com/QuantumPackage/qp2).
+`.rustiq` is an independent RustiQ format: it is not an EZFIO implementation,
+does not use its directory layout or APIs, and is not binary-compatible with
+EZFIO.
+
+| Aspect | EZFIO in Quantum Package | RustiQ `.rustiq` |
+| --- | --- | --- |
+| Main role | Working database for Quantum Package calculation inputs and data generated or consumed across its methods. | Portable snapshot of one or more RustiQ calculations, used to inspect scientific state and reuse compatible artifacts. |
+| Storage | Hierarchical directory whose filesystem layout organizes the data; the Quantum Package guide describes its entries as plain-text files. | One ZIP/ZIP64 archive with a versioned manifest, request and resolved snapshots, optional source files, and per-calculation artifacts. |
+| Access | EZFIO generates data access APIs used by Quantum Package, with documented Fortran, Python, OCaml, and Bash interfaces. | RustiQ's typed Rust persistence APIs and CLI commands read, write, reuse, and inspect the archive. |
+| Data scope | Broad Quantum Package data, including molecular input and state created during its workflows, such as molecular orbitals. | RustiQ scientific snapshots and currently supported atomic-orbital electron-repulsion integral (AO ERI) data; HF orbitals, SCF restart state, DIIS history, and MP2 results are not persisted. |
+| Update model | Quantum Package methods use the EZFIO database as their shared calculation state. | Reuse opens the source bundle read-only. RustiQ publishes one new snapshot after every requested calculation has produced a result; preparation or execution errors prevent publication, while HF-only non-convergence can still publish AO ERIs. Replacing the source requires explicitly selecting the same resolved destination as both `--reuse` and `--artifact`. |
+| Reuse selection | Programs read and update the selected EZFIO database through its generated APIs; later methods can reuse stored molecular orbitals. | RustiQ checks per-artifact scientific compatibility, then can fall back to its enabled local AO ERI cache or recomputation. |
+
+The EZFIO characteristics above follow the Quantum Package
+[quick-start guide](https://quantum-package.readthedocs.io/en/master/users_guide/quickstart.html)
+and its [EZFIO programmer guide](https://quantum-package.readthedocs.io/en/master/programmers_guide/ezfio.html).
+
 A portable artifact is a ZIP archive with ZIP64 support, containing a non-empty
 collection of independently reusable calculations. Single-calculation archives
 use the same V1 format with exactly one entry. The normative root schema is
@@ -482,7 +505,9 @@ unsupported representation is never silently treated as usable scientific data.
 `eri_is_compatible` compares effective integral inputs with another prepared
 calculation without loading arrays. Changing an HF-only request to MP2 does not
 invalidate AO ERIs. Compatibility does not imply that the payload has already
-been verified. There is no CLI reuse orchestration in this API release.
+been verified. The CLI exposes bundle selection and publication through the
+`run --reuse`, `run --artifact`, and `artifact inspect` commands described
+below.
 
 Every new archive written by RustiQ records producer name `RustiQ` and the
 current package version, including when rewriting an older or foreign archive.
@@ -623,10 +648,13 @@ separate in-memory typed data facade for subsequent executions. Compact ERI clon
 share immutable storage; mutation detaches that storage. Neither ordinary reuse nor
 this memory retention rewrites the source snapshot or stores runtime scratch data.
 
-For callers managing tensors explicitly, `take_compatible_eri`,
-`execute_with_eri`, and `run_hf_with_eri` remain available. This explicit path
-rejects missing, incompatible, corrupt, or unsupported artifacts, and validates
-tensor dimensions. ERIs remain accessible in the HF solution and are reused by MP2.
+For callers managing portable data explicitly, `take_compatible_eri` checks
+scientific compatibility before returning the tensor. The lower-level
+`execute_with_eri` and `run_hf_with_eri` APIs accept a caller-supplied
+`CompactEri` and validate its expected element count, but cannot establish that
+the tensor came from matching geometry, AO ordering, or screening settings. The
+caller owns that provenance check. ERIs remain accessible in the HF solution
+and are reused by MP2.
 
 A complete H2/STO-3G example set is in
 [`crates/rustiq-core/examples`](../crates/rustiq-core/examples). Each file shows
@@ -644,3 +672,46 @@ cargo run -p rustiq-chem-core --example copy_rustiq
 The examples read and write archives in the ignored
 `crates/rustiq-core/examples/data/` directory. The read examples expect
 `h2.rustiq` to have been created by `write_rustiq`.
+
+
+## CLI publication and bundle selection
+
+`run --artifact PATH` writes the current non-empty calculation collection using
+this V1 format. TOML and single Nickel inputs produce one entry; Nickel batches
+produce one entry per requested calculation. Exact main-input and geometry bytes
+are optional shared provenance, not scientific compatibility inputs. Imports are
+not recursively captured.
+
+`run --reuse PATH` opens the bundle read-only. `RustiQBundle::select_ao_eri`
+selects the first compatible, supported AO ERI in manifest order for each effective
+calculation, independently of labels or source order. Missing or incompatible
+state falls through to an enabled local cache and then computation. A corrupt
+selected payload is an explicit error. Selection can also return `Ignored` for
+an internally disabled reuse policy, without decoding or deleting the artifact.
+The CLI does not expose selection filters.
+
+`RustiQBundle::write` publishes without overwriting. `RustiQBundle::replace`
+writes, finalizes, syncs and validates a complete sibling temporary archive before
+atomic replacement. The CLI uses replacement only when `--reuse` and `--artifact`
+resolve to the same canonical destination; symbolic aliases preserve the
+symlink and replace its target. Other existing destinations, including
+different hard links, are rejected. Source archive handles are closed before
+replacement. Failures
+before publication leave the previous bytes intact.
+
+The CLI publishes only after all requested calculations have produced results.
+An HF-only calculation that reaches its iteration limit still returns a result
+and can contribute its AO ERI. If MP2 was requested but HF does not converge,
+execution fails and prevents publication. Any preparation or execution error
+prevents publication of the whole collection. New snapshots contain only the
+current requested collection and its compatible known artifacts, not a history
+of the source bundle.
+
+`artifact inspect` uses typed versioned snapshots without arbitrary extraction or
+scientific execution. It lists unknown artifact representations too. Inspection
+validates the archive index, provenance, request/resolved snapshots, scientific
+identity, and declared artifact sizes. It does not hash or decode numeric
+payloads; those checks are deferred until a calculation selects and reads a
+payload. Requested cache and terminal settings are not reconstructed because
+they are frontend policy, absent from the scientific snapshots. The CLI
+reference documents commands and JSON presentation.
