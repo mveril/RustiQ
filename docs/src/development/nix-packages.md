@@ -34,7 +34,6 @@ environments](environments.md).
 | `cargo-watch` | Runs Cargo commands when files change | `rust`, `full` |
 | `git` | Source control commands | `rust`, `full` |
 | `hyperfine` | Repeats and compares command-line benchmarks | `rust`, `full` |
-| `just` | Runs project recipes when a `justfile` is used | `rust`, `full` |
 | `jq` | Reads and transforms JSON from the command line | `rust`, `full` |
 | `mdbook` | Builds and previews this manual | `rust`, `full` |
 | `nixd` | Nix language server for editor support | `rust`, `full` |
