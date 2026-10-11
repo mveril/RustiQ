@@ -37,6 +37,20 @@ cargo install --locked --path .
 rustiq --help
 ```
 
+This command installs from the checked-out source. Once the current package
+prerelease has been published to crates.io, install it from the registry with
+`cargo install --locked rustiq-chem --version 0.1.0-alpha.1`. For later stable
+releases, omit `--version` to install the latest stable version. Tagged binary
+archives and verification instructions are described in
+[Releasing RustiQ](../development/releasing.md).
+
+When a tagged binary release is available, download the archive matching your
+operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases),
+extract it, and put `rustiq` (or `rustiq.exe` on Windows) in a directory on
+`PATH`. Prebuilt binaries also use the default online basis lookup; provide
+the basis data required by the calculation as described in the
+[basis-set guide](../user-guide/basis-sets.md).
+
 The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase on case-sensitive systems. Ensure Cargo's binary
 directory is on `PATH`. The tutorial still needs the checked-in samples.
 
