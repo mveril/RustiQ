@@ -125,7 +125,7 @@
             version = cargoToml.package.version;
             src = cargoSource;
             strictDeps = true;
-            cargoExtraArgs = "--locked --workspace --all-features";
+            cargoExtraArgs = "--locked --workspace";
           };
 
           cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
@@ -175,7 +175,6 @@
             cargo-watch
             git
             hyperfine
-            just
             jq
             mdbook
             nixd
