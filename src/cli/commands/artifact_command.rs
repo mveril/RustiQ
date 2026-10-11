@@ -5,18 +5,21 @@ use std::{
 
 use clap::Subcommand;
 use miette::{miette, IntoDiagnostic};
-use rustiq_core::persistence::RustiQBundle;
+use rustiq_core::persistence::{AoEriArtifact, Artifact, RustiQBundle};
 use serde::Serialize;
 
 use super::{run_command::CalculationOutputFormat, CommandResult, Runnable};
-use crate::cli::ux::calculation_presentation::{
-    portable_requested_calculation, resolved_calculation,
+use crate::cli::ux::{
+    bat,
+    calculation_presentation::{portable_requested_calculation, resolved_calculation},
 };
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum ArtifactCommands {
     /// Inspect versioned requested/resolved snapshots without executing calculations.
     Inspect(InspectCommand),
+    /// Verify the stored payloads in a portable bundle.
+    Verify(VerifyCommand),
 }
 
 #[derive(Debug, clap::Args)]
@@ -24,6 +27,11 @@ pub(crate) struct InspectCommand {
     path: PathBuf,
     #[arg(long, value_enum, default_value_t = CalculationOutputFormat::Text)]
     format: CalculationOutputFormat,
+}
+
+#[derive(Debug, clap::Args)]
+pub(crate) struct VerifyCommand {
+    path: PathBuf,
 }
 
 #[derive(Serialize)]
@@ -70,7 +78,48 @@ impl Runnable for ArtifactCommands {
     fn run(&self) -> CommandResult {
         match self {
             Self::Inspect(command) => command.run(),
+            Self::Verify(command) => command.run(),
         }
+    }
+}
+
+impl Runnable for VerifyCommand {
+    fn run(&self) -> CommandResult {
+        let bundle = RustiQBundle::open(&self.path).into_diagnostic()?;
+        let calculation_count = bundle.calculations().len();
+        let mut verified = 0;
+
+        for (calculation_index, data) in bundle.into_calculations().into_iter().enumerate() {
+            let artifacts = data
+                .artifact_representations()
+                .map(|(name, representation)| (name.to_owned(), representation.to_owned()))
+                .collect::<Vec<_>>();
+            let mut data = data;
+            for (name, representation) in artifacts {
+                match name.as_str() {
+                    name if name == AoEriArtifact::NAME
+                        && representation == "rustiq-compact-eri-v1" =>
+                    {
+                        data.get::<AoEriArtifact>()
+                            .into_diagnostic()?
+                            .ok_or_else(|| miette!("AO ERI payload is missing"))?;
+                        verified += 1;
+                    }
+                    _ => {
+                        return Err(miette!(
+                            "cannot verify unsupported artifact {name} ({representation}) in calculation {calculation_index}"
+                        ));
+                    }
+                }
+            }
+        }
+
+        writeln!(
+            io::stdout().lock(),
+            "Verified {verified} payload(s) across {calculation_count} calculation(s)."
+        )
+        .into_diagnostic()?;
+        Ok(())
     }
 }
 
@@ -165,16 +214,40 @@ impl Runnable for InspectCommand {
                 .into_diagnostic()?;
                 writeln!(
                     stdout,
-                    "Requested calculation (canonical TOML):\n{}\nRequested geometry:\n{}",
-                    entry.requested.configuration, entry.requested.geometry
+                    "{}",
+                    crate::cli::color::title("Requested calculation (canonical TOML)")
                 )
                 .into_diagnostic()?;
+                drop(stdout);
+                bat::print_toml(&entry.requested.configuration);
+                let mut stdout = io::stdout().lock();
                 writeln!(
                     stdout,
-                    "Resolved calculation (canonical TOML):\n{}\nResolved geometry (Bohr):\n{}",
-                    entry.resolved.configuration, entry.resolved.geometry
+                    "{}",
+                    crate::cli::color::title("Requested geometry (canonical XYZ)")
                 )
                 .into_diagnostic()?;
+                drop(stdout);
+                bat::print_xyz(&entry.requested.geometry);
+                let mut stdout = io::stdout().lock();
+                writeln!(
+                    stdout,
+                    "{}",
+                    crate::cli::color::title("Resolved calculation (canonical TOML)")
+                )
+                .into_diagnostic()?;
+                drop(stdout);
+                bat::print_toml(&entry.resolved.configuration);
+                let mut stdout = io::stdout().lock();
+                writeln!(
+                    stdout,
+                    "{}",
+                    crate::cli::color::title("Resolved geometry (Bohr)")
+                )
+                .into_diagnostic()?;
+                drop(stdout);
+                bat::print_xyz(&entry.resolved.geometry);
+                let mut stdout = io::stdout().lock();
                 for artifact in &entry.artifacts {
                     writeln!(
                         stdout,

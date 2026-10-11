@@ -24,14 +24,14 @@ use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
     molecules::geometry::Geometry,
-    persistence::EriCache,
+    persistence::{EriCache, RustiQBundle, RustiQData},
 };
 
 use super::{CommandResult, Runnable};
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
-    /// TOML or Nickel calculation input. If omitted, read TOML from standard input.
+    /// TOML or Nickel input, or a portable .rustiq bundle to rerun. If omitted, read TOML from standard input.
     pub input: Option<PathBuf>,
     /// Enable automatic download of basis sets for this execution (the default behavoir is determined by the env variable RUSTIQ_AUTO_DOWNLOAD)
     #[arg(
@@ -220,8 +220,43 @@ impl RunCommand {
 
 impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
-        let artifacts = ArtifactSession::open(self.reuse.as_deref(), self.artifact.as_deref())?;
         let json_output = self.format == CalculationOutputFormat::Json;
+        if let Some(path) = self.input.as_ref().filter(|path| {
+            path.extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("rustiq"))
+        }) {
+            if self.reuse.is_some() {
+                return Err(miette!("--reuse cannot be combined with a .rustiq input; the input archive already supplies reusable artifacts"));
+            }
+            if self.artifact.is_some() {
+                return Err(miette!(
+                    "--artifact is not supported when rerunning a .rustiq input"
+                ));
+            }
+            if self.cache_dir.is_some() {
+                return Err(miette!(
+                    "--cache-dir is not supported when rerunning a .rustiq input"
+                ));
+            }
+            if self.auto_download || self.no_auto_download {
+                return Err(miette!(
+                    "basis download options are not supported when rerunning a .rustiq input"
+                ));
+            }
+            if !json_output {
+                cli::ux::print_startup_banner().into_diagnostic()?;
+            }
+            let bundle = RustiQBundle::open(path).into_diagnostic()?;
+            let calculations = bundle.into_calculations();
+            if calculations.len() == 1 {
+                let data = calculations.into_iter().next().ok_or_else(|| {
+                    miette!("portable archive unexpectedly contained no calculations")
+                })?;
+                return self.execute_portable_single(data, json_output);
+            }
+            return self.execute_portable_batch(calculations, json_output);
+        }
+        let artifacts = ArtifactSession::open(self.reuse.as_deref(), self.artifact.as_deref())?;
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
@@ -273,6 +308,120 @@ impl Runnable for RunCommand {
 }
 
 impl RunCommand {
+    fn execute_portable_single(&self, data: RustiQData, json_output: bool) -> CommandResult {
+        let result = self
+            .execute_portable_calculation(data)
+            .map_err(CalculationExecutionError::into_report)?;
+        result.ensure_finite().into_diagnostic()?;
+        if json_output {
+            json_output::print_json(&result, self.pretty)?;
+        }
+        Ok(())
+    }
+
+    fn execute_portable_batch(
+        &self,
+        calculations: Vec<RustiQData>,
+        json_output: bool,
+    ) -> CommandResult {
+        let total = calculations.len();
+        let mut outcomes = Vec::with_capacity(total);
+        for (index, data) in calculations.into_iter().enumerate() {
+            if !json_output {
+                writeln!(
+                    cli::color::stdout(),
+                    "\nCalculation {}/{}",
+                    index + 1,
+                    total
+                )
+                .into_diagnostic()?;
+            }
+            match self.execute_portable_calculation(data) {
+                Err(error) if error.is_fatal() => {
+                    return Err(CalculationExecutionError::into_report(error));
+                }
+                outcome => outcomes.push(outcome),
+            }
+        }
+        let summary = BatchSummary::from_results(&outcomes);
+        let mut entries = Vec::with_capacity(outcomes.len());
+        for (index, outcome) in outcomes.into_iter().enumerate() {
+            let outcome = match outcome {
+                Ok(result) if result.is_converged() => BatchOutcome::Success { result },
+                Ok(result) => BatchOutcome::NonConverged { result },
+                Err(error) => {
+                    let error = error.into_report();
+                    if !json_output {
+                        writeln!(io::stderr().lock(), "Calculation {}: {error:?}", index + 1)
+                            .into_diagnostic()?;
+                    }
+                    BatchOutcome::Error {
+                        error: BatchError {
+                            message: format!("{error}"),
+                        },
+                    }
+                }
+            };
+            entries.push(BatchEntry { outcome });
+        }
+        if json_output {
+            json_output::print_json(
+                &BatchOutput {
+                    schema_version: 1,
+                    kind: "batch",
+                    calculations: entries,
+                },
+                self.pretty,
+            )?;
+        } else {
+            writeln!(
+                cli::color::stdout(),
+                "\nBatch: {} succeeded, {} non-converged, {} failed",
+                summary.succeeded,
+                summary.non_converged,
+                summary.failed
+            )
+            .into_diagnostic()?;
+        }
+        if summary.failed + summary.non_converged > 0 {
+            return Err(miette!(
+                "batch contains {} failed and {} non-converged calculations",
+                summary.failed,
+                summary.non_converged
+            ));
+        }
+        Ok(())
+    }
+
+    fn execute_portable_calculation(
+        &self,
+        data: RustiQData,
+    ) -> Result<CalculationOutput, CalculationExecutionError> {
+        let prepared = data
+            .prepare_calculation()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        let show_scf = true;
+        let json_output = self.format == CalculationOutputFormat::Json;
+        let result = {
+            let stdout = cli::color::stdout();
+            let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
+            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            if let Some(error) = reporter.take_error() {
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
+            }
+            outcome
+                .into_diagnostic()
+                .map_err(CalculationExecutionError::recoverable)?
+        };
+        let output = CalculationOutput::from(&result);
+        output
+            .ensure_finite()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        Ok(output)
+    }
+
     fn execute_single(
         &self,
         parsed: crate::runfile::parser::ParsedRunFile,

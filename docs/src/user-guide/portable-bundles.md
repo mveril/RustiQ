@@ -1,9 +1,10 @@
 # Portable calculation bundles
 
 A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
-reusable atomic-orbital electron-repulsion integrals (AO ERIs). It lets later
-calculations reuse compatible AO ERIs without carrying a machine-local cache.
-The bundle does not save a Hartree–Fock wavefunction or skip a new SCF run.
+optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
+lets users rerun saved calculations or reuse compatible AO ERIs in new ones
+without carrying a machine-local cache. The bundle does not save a
+Hartree–Fock wavefunction or skip a new SCF run.
 
 ## Create and inspect a bundle
 
@@ -32,28 +33,80 @@ Inspection displays canonical requested and resolved calculation snapshots,
 producer information, artifact representations, and captured source names and
 sizes. Requested values may differ from resolved values: for example, an
 `Auto` HF method can resolve to RHF, and requested Angstrom coordinates appear
-as resolved Bohr coordinates. The optional JSON `payloads_verified` field is
+as resolved Bohr coordinates. Text output syntax-highlights the canonical TOML
+and XYZ when color is enabled by `--color` or `RUSTIQ_COLOR`; use
+`--color never` for plain text. The optional JSON `payloads_verified` field is
 `false`: inspection validates the archive index, provenance, scientific
 snapshots and declared artifact sizes, but does not hash or decode numerical
-payloads. A payload is fully checked when execution selects and reads it.
+payloads. Use `artifact verify` to check supported payloads eagerly; otherwise,
+execution checks a payload when its scientific stage selects and reads it.
 Inspection is structural, not a calculation or an independent scientific
 validation.
 
+Use `artifact verify` to eagerly read and validate every supported numerical
+payload in the bundle:
+
+```sh
+cargo run --locked -- artifact verify h2.rustiq
+```
+
+The command checks compact AO ERI payload hashes, NPY encoding, array dimensions,
+and consistency with the declared AO basis. It reports the number of verified
+payloads and calculations on standard output, and exits unsuccessfully if a
+payload is invalid or has an unsupported representation. A bundle with no
+numerical payloads can successfully report zero verified payloads. Verification
+does not execute the calculation or establish that the scientific method or
+result is valid. For the H₂ bundle created above, the output is:
+
+```text
+Verified 1 payload(s) across 1 calculation(s).
+```
+
+## Rerun a saved calculation
+
+Run a `.rustiq` bundle directly to reconstruct and execute its archived
+calculation settings, without the original runfile, geometry file, or basis
+store:
+
+```sh
+cargo run --locked -- run h2.rustiq
+cargo run --locked -- run h2.rustiq --format json --pretty --color never
+```
+
+For a multi-calculation bundle, RustiQ reruns every entry in manifest order and
+reports a batch, like a multi-entry Nickel study. This is a fresh calculation:
+RustiQ restores the resolved scientific inputs and reuses compatible AO ERIs
+when present; otherwise it recomputes them. A corrupt compatible AO ERI payload
+causes an execution error. It then runs HF again and MP2 again when requested.
+It does not restore orbitals,
+density matrices, DIIS history, or prior results, so this command does not
+resume an SCF trajectory. A saved random seed is restored as an input; it does
+not guarantee bitwise-identical results across software versions or platforms.
+
+To use different settings, supply a TOML or Nickel input and use `--reuse`
+instead. A direct archive rerun cannot be combined with `--reuse`, `--artifact`,
+`--cache-dir`, `--auto-download`, or `--no-auto-download`.
+With `--format json`, the rerun uses the normal single-calculation or batch
+result schema and omits the `artifacts` reuse-decision array because the bundle
+is the implicit artifact source. The source bundle remains unchanged; direct
+reruns do not use the local AO ERI cache or download basis sets.
+
 ## Reuse AO ERIs in a new calculation
 
-The CLI still needs a TOML or Nickel input, its geometry, and an available basis.
-`--reuse` does not run the calculation saved in the bundle or restore its
+This workflow needs a TOML or Nickel input, its geometry, and an available
+basis. `--reuse` does not run the calculation saved in the bundle or restore its
 captured source files. Instead, RustiQ prepares the supplied input, checks the
 bundle for compatible AO ERIs, and runs HF again; it also runs MP2 again if the
-new input requests MP2.
+new input requests MP2. The archive itself supplies reusable artifacts and
+remains read-only.
 
 ```sh
 cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
   --reuse h2.rustiq --format json --pretty --color never
 ```
 
-The JSON result includes an `artifacts` entry when either portable artifact
-option is used. A reused AO ERI is reported like this:
+When a runfile is executed with `--reuse` or `--artifact`, its JSON result
+includes an `artifacts` entry. A reused AO ERI is reported like this:
 
 ```json
 {
@@ -98,8 +151,9 @@ cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
 ## What can be reused?
 
 AO ERIs are reusable when the effective integral inputs match. RustiQ checks the
-ordered nuclear coordinates in Bohr, effective AO basis functions, Schwarz
-screening setting, and integral representation and computation versions. A
+ordered atomic numbers and nuclear coordinates in Bohr, effective AO basis
+functions, Schwarz screening setting, and integral representation and
+computation versions. A
 matching basis-set label or atom count alone is not enough. HF method and
 convergence settings, and whether MP2 is requested, do not change AO ERI
 compatibility. The [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#scientific-identity-v1)
@@ -116,9 +170,8 @@ store HF energies, convergence status, orbitals, density matrices, DIIS history,
 or MP2 results. Save the result JSON separately when those outputs matter.
 Captured input and geometry bytes are provenance for inspection; they do not
 affect compatibility, and Nickel imports are not captured recursively.
-Rust callers can reconstruct a calculation from the archived scientific
-snapshots without a runfile; see the Rust API examples in the
-[persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#single-calculation-execution-apis).
+The same reconstruction is available to Rust callers; see the Rust API
+examples in the [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#single-calculation-execution-apis).
 
 ## Publication and failures
 
