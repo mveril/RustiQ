@@ -1,0 +1,109 @@
+name: Publish crates.io packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-crates-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate versions and find unpublished packages
+        id: packages
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_TAG" != v* ]]; then
+            echo "release tag must match vX.Y.Z or vX.Y.Z-prerelease" >&2
+            exit 1
+          fi
+          jq -en --arg tag "$RELEASE_TAG" \
+            '$tag | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")' >/dev/null || {
+            echo "release tag must match vX.Y.Z or vX.Y.Z-prerelease" >&2
+            exit 1
+          }
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$(git rev-parse HEAD)" FETCH_HEAD; then
+            echo "release tags must point to a commit on main" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          cargo metadata --locked --format-version 1 --no-deps > metadata.json
+          jq --exit-status --arg version "$version" '
+            [.packages[] | select(.name == "rustiq-chem")] as $cli
+            | [.packages[] | select(.name == "rustiq-chem-core")] as $core
+            | ($cli | length) == 1
+              and ($core | length) == 1
+              and $cli[0].version == $version
+              and $core[0].version == $version
+              and any($cli[0].dependencies[];
+                .name == "rustiq-chem-core" and .req == ("^" + $version))
+          ' metadata.json
+
+          excluded=()
+          for package in rustiq-chem-core rustiq-chem; do
+            status=$(curl --silent --show-error --output "${package}.json" \
+              --write-out '%{http_code}' \
+              "https://crates.io/api/v1/crates/${package}/${version}")
+            case "$status" in
+              200)
+                jq --exit-status --arg version "$version" \
+                  '.version.num == $version' "${package}.json" >/dev/null
+                excluded+=("$package")
+                echo "$package $version is already published; it will be skipped."
+                ;;
+              404)
+                echo "$package $version is not published yet."
+                ;;
+              *)
+                echo "crates.io returned HTTP $status while checking $package $version" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          printf 'excluded=%s\n' "${excluded[*]}" >> "$GITHUB_OUTPUT"
+          if [[ ${#excluded[@]} -eq 2 ]]; then
+            echo 'all-published=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish remaining workspace packages
+        if: steps.packages.outputs.all-published != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          EXCLUDED_PACKAGES: ${{ steps.packages.outputs.excluded }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$CARGO_REGISTRY_TOKEN" ]]; then
+            echo "CARGO_REGISTRY_TOKEN is required to publish crates.io packages" >&2
+            exit 1
+          fi
+          exclusions=()
+          for package in $EXCLUDED_PACKAGES; do
+            exclusions+=(--exclude "$package")
+          done
+          cargo publish --workspace --locked "${exclusions[@]}" \
+            --token "$CARGO_REGISTRY_TOKEN"

@@ -1,0 +1,40 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.33.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = []
+# Distribute only the CLI; the core package is a dependency, not an app.
+packages = ["rustiq-chem"]
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
+checksum = "sha256"
+source-tarball = false
+unix-archive = ".tar.gz"
+windows-archive = ".zip"
+pr-run-mode = "plan"
+plan-jobs = ["./validate-release-tag"]
+
+[dist.github-custom-runners.aarch64-unknown-linux-gnu]
+runner = "ubuntu-24.04-arm"
+
+[dist.github-custom-runners.aarch64-apple-darwin]
+runner = "macos-14"
+
+[dist.github-custom-runners.aarch64-pc-windows-msvc]
+runner = "windows-11-arm"
+
+[dist.github-custom-runners.x86_64-pc-windows-msvc]
+runner = "windows-2025"

@@ -33,5 +33,6 @@
   - [Manual / Cargo setup](development/manual-setup.md)
 - [Nix packages and shells](development/nix-packages.md)
 - [Known supported platforms](development/platforms.md)
+- [Releasing RustiQ](development/releasing.md)
 - [Contributing and the Rust API](development/contributing.md)
 - [Documentation checks](development/documentation.md)
