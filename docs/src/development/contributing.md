@@ -145,13 +145,27 @@ The ERI benchmark times repeated integral construction for the checked-in
 molecular cases. By default it skips the larger ethanol and cholesterol cases;
 set `RUSTIQ_BENCH_HEAVY=1` to include them. `RUSTIQ_BENCH_FILTER` selects cases
 by name or geometry path, and `RUSTIQ_BENCH_BASIS_STORE` selects a basis store.
-It reports compact integral throughput as well as elapsed time. The benches use
-100 samples, a 3-second warm-up, and an 8-second measurement target to avoid
-Criterion's short-sample warnings for these calculations.
-It saves measurements under `target/criterion` and supports comparing revisions.
-Run the first command on the reference revision and the second on the revision
-to compare, keeping the machine, power settings, feature flags, and environment
-variables the same:
+It reports compact ERI storage elements processed per second. This count is the
+size of the compact representation; Schwarz screening may skip evaluations or
+leave stored elements zero, so it is not a count of integrals evaluated per
+second.
+
+The standard cases use 30 samples, a 2-second warm-up, and a 5-second
+measurement target. Heavy ERI cases and MP2 cases with 48 or more AOs use
+Criterion's minimum of 10 samples, a 1-second warm-up, and a 2-second target.
+These are targets: Criterion may take longer to collect the requested samples,
+especially when each calculation is expensive. Heavy ERI cases remain disabled
+unless `RUSTIQ_BENCH_HEAVY=1` is set. Measurements are saved under
+`target/criterion`.
+
+Criterion baselines can be compared only between revisions that both use
+Criterion. The first Criterion-enabled revision establishes the starting point;
+legacy timing results cannot be compared directly with Criterion measurements.
+MP2 input construction is excluded from measured iterations. Keep CPU
+architecture, Rayon thread count, build flags, enabled features, MP2 memory
+budget, power settings, and benchmark environment variables consistent. Save a
+baseline on the first Criterion revision, then compare from the revision under
+test:
 
 ```sh
 cargo bench --bench mp2_timings --features bench-support -- --save-baseline before

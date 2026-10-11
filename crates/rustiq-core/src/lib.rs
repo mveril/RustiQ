@@ -162,12 +162,15 @@ pub mod bench_support {
         ) -> Result<EriBenchResult, EriError> {
             let (integrals, breakdown) =
                 electron_repulsion_ints_timed_with_observer(&self.basis, observer)?;
+            let compact_integrals = integrals.len();
+            // Keep the computed tensor observable before its storage is dropped.
+            std::hint::black_box(integrals);
 
             Ok(EriBenchResult {
                 name: self.name.clone(),
                 basis_functions: breakdown.basis_functions,
                 pair_count: breakdown.pair_count,
-                compact_integrals: integrals.len(),
+                compact_integrals,
                 pair_expansions: breakdown.pair_expansions,
                 schwarz_bounds: breakdown.schwarz_bounds,
                 compact_fill: breakdown.compact_fill,

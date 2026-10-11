@@ -59,11 +59,18 @@ fn eri_benchmarks(criterion: &mut Criterion) {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let basis_store = basis_store();
     let mut group = criterion.benchmark_group("eri");
-    group.sample_size(100);
-    group.warm_up_time(Duration::from_secs(3));
-    group.measurement_time(Duration::from_secs(8));
-
     for case in selected_cases() {
+        // Ten is Criterion's minimum sample size; use it for heavy systems to
+        // keep the requested measurement target from multiplying into hours.
+        if case.heavy {
+            group.sample_size(10);
+            group.warm_up_time(Duration::from_secs(1));
+            group.measurement_time(Duration::from_secs(2));
+        } else {
+            group.sample_size(30);
+            group.warm_up_time(Duration::from_secs(2));
+            group.measurement_time(Duration::from_secs(5));
+        }
         let basis_file = basis_store
             .get(case.basis)
             .expect("basis store should be readable")

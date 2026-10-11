@@ -20,11 +20,19 @@ fn mp2_benchmarks(criterion: &mut Criterion) {
         .collect();
 
     let mut group = criterion.benchmark_group("mp2");
-    group.sample_size(100);
-    group.warm_up_time(Duration::from_secs(3));
-    group.measurement_time(Duration::from_secs(8));
-
     for n in sizes {
+        // Criterion requires at least ten samples. Large dense MP2 cases are
+        // expensive enough that additional samples would dominate bench time.
+        if n >= 48 {
+            group.sample_size(10);
+            group.warm_up_time(Duration::from_secs(1));
+            group.measurement_time(Duration::from_secs(2));
+        } else {
+            group.sample_size(30);
+            group.warm_up_time(Duration::from_secs(2));
+            group.measurement_time(Duration::from_secs(5));
+        }
+
         let occupied = n / 3;
         let input = Mp2BenchInput::synthetic(n, occupied);
         let dense_energy = input.dense_energy();
