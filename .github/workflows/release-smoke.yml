@@ -1,0 +1,122 @@
+name: Release artifact smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, branch, or tag to rehearse
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+          - target: aarch64-apple-darwin
+            runner: macos-14
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2025
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install configured dist version
+        shell: bash
+        run: |
+          DIST_VERSION="$(python -c 'import re; from pathlib import Path; print(re.search(r"cargo-dist-version\s*=\s*\"([^\"]+)\"", Path("dist-workspace.toml").read_text()).group(1))')"
+          curl --proto '=https' --tlsv1.2 -LsSf "https://github.com/axodotdev/cargo-dist/releases/download/v${DIST_VERSION}/cargo-dist-installer.sh" | sh
+
+      - name: Verify pinned dist version
+        shell: bash
+        run: |
+          python -c 'import re, subprocess; from pathlib import Path; v=re.search(r"cargo-dist-version\s*=\s*\"([^\"]+)\"", Path("dist-workspace.toml").read_text()).group(1); actual=subprocess.check_output(["dist", "--version"], text=True); assert v in actual, f"configured {v}, installed {actual}"'
+          dist --version
+
+      - name: Build target archive with dist
+        shell: bash
+        run: |
+          mkdir -p target/distrib
+          dist build --artifacts=local --target "${{ matrix.target }}" --output-format=json > target/distrib/dist-manifest.json
+          cat target/distrib/dist-manifest.json
+
+      - id: validate
+        name: Validate archive and run H2 calculation
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("target/distrib/dist-manifest.json").read_text())
+          paths = [Path(p) for p in manifest["upload_files"]]
+          archives = [p for p in paths if p.suffix.lower() in {".zip", ".gz"} and "rustiq" in p.name.lower()]
+          if len(archives) != 1:
+              raise SystemExit(f"expected one RustiQ archive in dist manifest, got {archives}")
+          archive = archives[0]
+          checksum = Path(str(archive) + ".sha256")
+          if not checksum.exists():
+              checksum = archive.parent / "sha256.sum"
+          import subprocess, sys
+          command = [sys.executable, "tools/release_smoke.py", str(archive), "--fixture", "tests/data/sto-3g.json", "--geometry", "samples/h2/molecule.xyz", "--reference-source", "crates/rustiq-core/src/hf/scf.rs", "--logs", "release-smoke-logs"]
+          if checksum.exists():
+              command += ["--checksum", str(checksum)]
+          subprocess.run(command, check=True)
+          print(f"::notice title=Archive::{archive.name}")
+          PY
+
+      - name: Report target result
+        if: always()
+        shell: bash
+        env:
+          VALIDATION_RESULT: ${{ steps.validate.outcome }}
+        run: |
+          case "${{ matrix.target }}" in
+            *windows*) archive="rustiq-chem-${{ matrix.target }}.zip" ;;
+            *) archive="rustiq-chem-${{ matrix.target }}.tar.gz" ;;
+          esac
+          if [[ "$VALIDATION_RESULT" == success ]]; then
+            checksum=verified; startup=passed; h2="RHF regression check passed"; status=PASS
+          else
+            checksum="not verified"; startup="failed or not reached"; h2="failed or not reached"; status=FAIL
+          fi
+          {
+            echo "## Release rehearsal: ${{ matrix.target }}"
+            echo
+            echo "| Target | Archive | Checksum | Executable startup | H2 calculation | Final status |"
+            echo "|---|---|---|---|---|---|"
+            echo "| `${{ matrix.target }}` | `$archive` | $checksum | $startup | $h2 | **$status** |"
+            echo
+            echo "Built and tested on a GitHub-hosted native runner. This is not a pristine OS image."
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$VALIDATION_RESULT" == success ]]
+
+      - name: Upload archive, manifest, and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-smoke-${{ matrix.target }}
+          path: |
+            target/distrib/**
+            release-smoke-logs/**
+          if-no-files-found: warn
