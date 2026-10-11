@@ -98,20 +98,21 @@ git push origin HEAD
 git push origin vX.Y.Z
 ```
 
-For a prerelease, include its suffix in both package versions and in the tag,
-for example `0.1.0-beta.1` and `v0.1.0-beta.1`. Dist recognizes the SemVer
-prerelease suffix and marks the GitHub Release as a prerelease. Do not reuse an
-existing tag or a crates.io package version.
+Release tags must match `vX.Y.Z` or `vX.Y.Z-prerelease`, such as `v1.2.3` or
+`v0.1.0-beta.1`. For a prerelease, include the same suffix in both package
+versions and the tag. Dist recognizes the suffix and marks the GitHub Release
+as a prerelease. Do not reuse an existing tag or a crates.io package version.
 
-The tag starts dist's generated workflow, which runs a release plan, builds
-the configured platform archives, creates their checksums, and publishes the
-assets to GitHub Releases. A pull request runs `dist plan` only; it does not
-build release archives or publish a release.
+The tag starts dist's generated workflow, which builds the configured
+platform archives, creates their checksums, and publishes the assets to
+GitHub Releases. Release tags must point to a commit on `main`; pull requests
+do not start the release workflow.
 
 ## crates.io publication
 
 `.github/workflows/publish-crates.yml` publishes both workspace crates when a
-`v*` tag is pushed. Cargo publishes workspace members in dependency order, so
+`v*` tag on `main` is pushed. Cargo publishes workspace members in dependency
+order, so
 `rustiq-chem-core` is available before `rustiq-chem`. Before publishing, the
 workflow uses the crates.io API to exclude package versions that already
 exist. If a run publishes the core crate and then fails while publishing the
