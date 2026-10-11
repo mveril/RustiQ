@@ -15,7 +15,7 @@ use tempfile::TempDir;
 fn fixture() -> TempDir {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    let store = root.join("data/RustiQ/basis_sets");
+    let store = root.join("data/rustiq/basis_sets");
     fs::create_dir_all(&store).unwrap();
     fs::write(
         store.join("sto-3g.json"),
