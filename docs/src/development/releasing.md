@@ -10,7 +10,19 @@ started manually for an existing tag.
 ## Binary releases
 
 The repository-root `dist-workspace.toml` pins dist 0.33.0, selects only the
-`rustiq-chem` CLI package, and lists the six supported targets. The
+`rustiq-chem` CLI package, and lists the six supported targets. Pull requests
+run `dist plan`; this checks the release plan without building or publishing
+artifacts. The generated workflow also runs on non-main pull requests because
+dist 0.33.0 does not expose a pull-request base-branch filter. A pull request
+cannot enter the publishing jobs.
+
+All six target builds use native GitHub-hosted runners: Linux x64 on
+`ubuntu-22.04`, Linux ARM64 on `ubuntu-24.04-arm`, macOS Intel on
+`macos-15-intel`, Apple Silicon on `macos-14`, Windows x64 on `windows-2025`,
+and Windows ARM64 on `windows-11-arm`. The configuration explicitly selects
+the ARM runners and preserves the native Windows runners.
+
+The
 `rustiq-chem-core` library remains a build dependency and is not packaged as an
 application. The generated workflow is `.github/workflows/release.yml`; do not
 edit it by hand.
@@ -73,7 +85,8 @@ cargo check --workspace --locked
 ```
 
 Review the dist release plan and regenerate the workflow after changing the
-dist configuration or updating dist:
+dist configuration or updating dist. The pinned generator checks that the
+generated release workflow is synchronized with `dist-workspace.toml`:
 
 ```sh
 dist plan
@@ -105,8 +118,10 @@ as a prerelease. Do not reuse an existing tag or a crates.io package version.
 
 The tag starts dist's generated workflow, which builds the configured
 platform archives, creates their checksums, and publishes the assets to
-GitHub Releases. Release tags must point to a commit on `main`; pull requests
-do not start the release workflow.
+GitHub Releases. A dist `plan-jobs` reusable workflow validates the tag format
+and requires its commit to be an ancestor of `main` before artifact builds can
+proceed. This accepts prerelease suffixes such as `-alpha.1`. A failed
+validation blocks the build and therefore the publishing jobs.
 
 ## crates.io publication
 
@@ -119,6 +134,8 @@ exist. If a run publishes the core crate and then fails while publishing the
 CLI, rerunning the same tag skips the existing core version and retries the
 CLI. For a retry, open **Actions → Publish crates.io packages → Run
 workflow**, enter the existing `v…` tag, and start the workflow.
+This workflow remains separate from the dist binary release workflow and can
+also be run manually for an existing tag.
 
 The workflow currently authenticates with the Actions secret
 `CARGO_REGISTRY_TOKEN`. Create it from a crates.io API token with only package
