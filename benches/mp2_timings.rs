@@ -1,8 +1,12 @@
+use std::hint::black_box;
+use std::time::Duration;
+
 use bytesize::ByteSize;
-use rustiq_core::bench_support::benchmark_mp2;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use rustiq_core::bench_support::Mp2BenchInput;
 use rustiq_core::config::MemoryLimit;
 
-fn main() {
+fn mp2_benchmarks(criterion: &mut Criterion) {
     let requested = std::env::var("RUSTIQ_MP2_MEMORY").unwrap_or_else(|_| "auto".into());
     let budget = if requested.eq_ignore_ascii_case("auto") {
         MemoryLimit::Auto.resolve()
@@ -12,34 +16,57 @@ fn main() {
     let sizes: Vec<usize> = std::env::var("RUSTIQ_MP2_SIZES")
         .unwrap_or_else(|_| "12,24,48".into())
         .split(',')
-        .map(|s| s.parse().expect("integer AO dimension"))
+        .map(|size| size.parse().expect("integer AO dimension"))
         .collect();
-    println!(
-        "MP2 timings: synthetic RHF, budget {}, {} Rayon threads",
-        budget.display().iec(),
-        rayon::current_num_threads()
-    );
+
+    let mut group = criterion.benchmark_group("mp2");
     for n in sizes {
-        // Warm up kernels before taking the median of three runs.
-        let _ = benchmark_mp2(n, n / 3, budget.as_u64())
-            .expect("the configured synthetic MP2 case fits the benchmark memory budget");
-        let mut runs: Vec<_> = (0..3)
-            .map(|_| {
-                benchmark_mp2(n, n / 3, budget.as_u64())
-                    .expect("the configured synthetic MP2 case fits the benchmark memory budget")
-            })
-            .collect();
-        for run in &runs {
-            assert!((run.dense_energy - run.blocked_energy).abs() < 1e-12);
+        // Criterion requires at least ten samples. Large dense MP2 cases are
+        // expensive enough that additional samples would dominate bench time.
+        if n >= 48 {
+            group.sample_size(10);
+            group.warm_up_time(Duration::from_secs(1));
+            group.measurement_time(Duration::from_secs(2));
+        } else {
+            group.sample_size(30);
+            group.warm_up_time(Duration::from_secs(2));
+            group.measurement_time(Duration::from_secs(5));
         }
-        let mut dense: Vec<_> = runs.iter().map(|r| r.dense_elapsed).collect();
-        dense.sort();
-        runs.sort_by_key(|r| r.blocked_elapsed);
-        let run = &runs[1];
-        println!("N={n}, O={}, block={}: dense {:?}, blocked {:?}, speedup {:.2}x; dense upper bound {}, blocked payload {}",
-            n / 3, run.memory.block_size, dense[1], run.blocked_elapsed,
-            dense[1].as_secs_f64() / run.blocked_elapsed.as_secs_f64(),
-            ByteSize::b(run.memory.dense_workspace_bytes).display().iec(),
-            ByteSize::b(run.memory.workspace_bytes).display().iec());
+
+        let occupied = n / 3;
+        let input = Mp2BenchInput::synthetic(n, occupied);
+        let dense_energy = input.dense_energy();
+        let (blocked_energy, memory) = input
+            .blocked_energy(budget.as_u64())
+            .expect("the configured synthetic MP2 case fits the benchmark memory budget");
+        assert!(
+            (dense_energy - blocked_energy).abs() < 1e-12,
+            "dense and blocked MP2 energies differ for N={n}"
+        );
+
+        group.bench_function(BenchmarkId::new("dense", n), |bencher| {
+            bencher.iter(|| black_box(input.dense_energy()));
+        });
+        group.bench_function(BenchmarkId::new("blocked", n), |bencher| {
+            bencher.iter(|| {
+                black_box(
+                    input
+                        .blocked_energy(budget.as_u64())
+                        .expect("the configured synthetic MP2 case fits the memory budget"),
+                );
+            });
+        });
+
+        eprintln!(
+            "MP2 N={n}, occupied={occupied}, block={}, budget={}, Rayon threads={}",
+            memory.block_size,
+            budget.display().iec(),
+            rayon::current_num_threads()
+        );
     }
+
+    group.finish();
 }
+
+criterion_group!(benches, mp2_benchmarks);
+criterion_main!(benches);
