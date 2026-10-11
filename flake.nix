@@ -170,6 +170,7 @@
             cargo-criterion
             cargo-expand
             cargo-edit
+            cargo-dist
 
             bacon
             cargo-watch

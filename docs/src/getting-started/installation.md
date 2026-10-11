@@ -45,10 +45,19 @@ archives and verification instructions are described in
 [Releasing RustiQ](../development/releasing.md).
 
 When a tagged binary release is available, download the archive matching your
-operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases),
-extract it, and put `rustiq` (or `rustiq.exe` on Windows) in a directory on
-`PATH`. Prebuilt binaries also use the default online basis lookup; provide
-the basis data required by the calculation as described in the
+operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases).
+Unix archives are named `rustiq-chem-<target>.tar.gz`; Windows archives use
+`rustiq-chem-<target>.zip`. The targets are `x86_64-unknown-linux-gnu`
+(64-bit Intel/AMD Linux), `aarch64-unknown-linux-gnu` (64-bit ARM Linux),
+`x86_64-apple-darwin` (Intel macOS), `aarch64-apple-darwin` (Apple Silicon),
+`x86_64-pc-windows-msvc` (64-bit Intel/AMD Windows), and
+`aarch64-pc-windows-msvc` (Windows on ARM). Verify the archive with its
+`.sha256` file or the
+release's `sha256.sum` manifest as described in
+[Releasing RustiQ](../development/releasing.md), then extract it and put
+`rustiq` (or `rustiq.exe` on Windows) in a directory on `PATH`. Prebuilt
+binaries use the default online basis lookup; provide the basis data required
+by the calculation as described in the
 [basis-set guide](../user-guide/basis-sets.md).
 
 The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase on case-sensitive systems. Ensure Cargo's binary
