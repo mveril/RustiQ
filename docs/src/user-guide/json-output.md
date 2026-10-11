@@ -31,11 +31,15 @@ document with one outcome per input, in source order. Each entry can be
 recoverable per-calculation error, but fatal infrastructure errors stop the
 batch. Any recorded error or nonconvergence makes the overall command exit
 unsuccessfully. A valid JSON document can therefore accompany a failing exit
-status. A single calculation that does not converge still produces the single
-result document with `converged: false`; its energy and diagnostics describe
-the final iterate, and the command exits successfully. Input, preparation, or
-runtime errors for a single calculation are reported as CLI diagnostics, so
-there is no single-result JSON document for that failed run. See the
+status. For a batch, any entry error or non-convergence makes the command exit
+unsuccessfully while retaining the batch document. A single HF-only calculation
+that does not converge still produces the single result document with
+`converged: false`; its energy and diagnostics describe the final iterate, and
+the command exits successfully. If MP2 was
+requested, non-converged HF prevents MP2 execution and the run is reported as
+an error instead. Input, preparation, or runtime errors for a single
+calculation are reported as CLI diagnostics, so there is no single-result JSON
+document for that failed run. See the
 [Nickel studies guide](nickel-studies.md) for batch outcomes.
 
 Results include `schema_version`, which lets consuming software select the
@@ -47,10 +51,24 @@ These versioned schemas are authoritative; this guide does not repeat their
 field definitions. See also the [reference index](../reference/index.md).
 
 When `run` uses `--reuse` or `--artifact`, calculation results add an optional
-`artifacts` field describing AO ERI selection and its origin. This field is
-omitted when neither option is used. See the [CLI reference](../reference/cli.md#cache-and-portable-bundles)
-for its values and portable bundle behavior; batch entries carry the field on
-each individual calculation result.
+`artifacts` field describing AO ERI selection and its origin. For example, a
+bundle hit appears as:
+
+```json
+{
+  "artifacts": [
+    { "name": "ao_eri", "decision": "reused", "origin": "archive", "source_index": 0 }
+  ]
+}
+```
+
+`decision` describes whether the archive supplied a compatible AO ERI;
+`origin` identifies the archive, enabled local cache, or fresh computation
+that supplied the ERIs actually used. A bundle hit also includes its
+zero-based `source_index`. The field is omitted when neither option is used,
+and batch results report it on each calculation entry. See the
+[portable bundle guide](portable-bundles.md) for the full workflow and the
+[CLI reference](../reference/cli.md#cache-and-portable-bundles) for details.
 
 ## Nickel batch JSON
 

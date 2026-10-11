@@ -17,6 +17,7 @@
 - [MP2 calculations](user-guide/mp2.md)
 - [Nickel studies](user-guide/nickel-studies.md)
 - [JSON output](user-guide/json-output.md)
+- [Portable calculation bundles](user-guide/portable-bundles.md)
 
 - [Scientific scope and limitations](scientific-scope.md)
 - [Glossary](glossary.md)

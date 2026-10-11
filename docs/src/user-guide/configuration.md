@@ -39,6 +39,21 @@ and `memory_limit`; the latter is a workspace budget, not a process memory
 limit. The defaults and detailed validation rules belong to the Nickel source,
 not a second specification in this guide.
 
+## Optional local AO ERI cache
+
+The directory-backed AO ERI cache is local, disposable storage. It is disabled
+by default; enable it in the runfile to allow reuse across runs:
+
+```toml
+[cache]
+enabled = true
+```
+
+`--cache-dir DIR` selects the directory for this run but does not enable the
+cache. The cache can be used as a fallback when a portable bundle has no
+compatible AO ERI; it is not itself a portable `.rustiq` bundle. See the
+[portable bundle guide](portable-bundles.md) for that reuse order.
+
 The geometry path is resolved relative to the TOML file. If the input is read
 from standard input, its geometry path is resolved from the current working
 directory. Geometry file structure and coordinate units are explained in the

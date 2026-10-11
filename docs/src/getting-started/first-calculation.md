@@ -63,3 +63,5 @@ nix run .#pyscf-check -- -k h2-sto-3g-rhf
 These checks validate this case, not arbitrary chemistry.
 **Results remain experimental and require independent validation before research use.**
 Continue with [output interpretation](output.md).
+To save and reuse the calculation's AO ERIs, continue with the
+[portable bundle guide](../user-guide/portable-bundles.md).

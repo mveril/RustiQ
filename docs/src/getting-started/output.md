@@ -17,6 +17,10 @@ The original TOML and XYZ source text, along with full canonical views of the
 resolved configuration and geometry, are retained as internal representations;
 the standard CLI report does not display them.
 
+Portable bundles can retain the scientific input snapshots and AO ERIs for
+later inspection and compatible reuse. They do not save the energies or the HF
+wavefunction; see [portable calculation bundles](../user-guide/portable-bundles.md).
+
 The first sample resolves to neutral singlet H₂, RHF, STO-3G, and two basis
 functions. Input coordinates are Angstrom; resolved coordinates are Bohr.
 Energies are in Hartree.

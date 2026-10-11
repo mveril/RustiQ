@@ -93,17 +93,24 @@ are retained for repeated executions.
 
 An optional `EriCache` can load compatible AO ERIs from a directory or store
 newly computed ones. It is disposable local storage. A supplied `CompactEri`
-through `run_hf_with_eri()` bypasses AO ERI computation and cache lookup after
-compatibility checks. HF solutions retain their AO ERIs, and cloned solutions
-share immutable result data; these retained results are distinct from the
-prepared input data.
+through `run_hf_with_eri()` bypasses AO ERI computation and cache lookup, but
+the raw tensor API checks its expected element count rather than proving its
+scientific provenance. The caller must supply ERIs for the prepared geometry,
+AO ordering, and screening policy. Use the persistence APIs' compatibility
+checks when reusing an archive. HF solutions retain their AO ERIs, and cloned
+solutions share immutable result data; these retained results are distinct from
+the prepared input data.
 
-Portable `.rustiq` bundles use the core persistence APIs to save scientific
-inputs and optional AO ERIs. Preparing a calculation from a bundle uses its
-artifact compatibility policy to decide reuse; it does not turn a local cache
-directory into a portable artifact. See the
-[persistence contract](../reference/index.md) and runnable API examples for
-restoration and explicit ERI transfer.
+Portable `.rustiq` bundles can be read and written through the core persistence
+APIs and through the CLI's `run --reuse`, `run --artifact`, and `artifact
+inspect` commands. CLI reuse starts from the supplied runfile and resolves its
+geometry and basis as usual, then uses bundle compatibility to select AO ERIs;
+the bundle is not an input-file substitute. The Rust API can also reconstruct
+a calculation from the archived scientific snapshots. Neither workflow turns
+a local cache directory into a portable artifact. See the
+[portable bundle guide](../user-guide/portable-bundles.md), the
+[persistence contract](../reference/index.md), and the runnable API examples
+for details.
 
 This distinction matters for performance: compact AO ERI storage still grows
 as the fourth power of basis dimension, and the MP2 workspace budget covers

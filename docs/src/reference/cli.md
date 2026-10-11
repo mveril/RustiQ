@@ -17,6 +17,7 @@ options supported by the installed build.
 | `rustiq basis remove <NAME>...` / `--all` | Remove selected bases or the local basis store contents. |
 | `rustiq cache list [--cache-dir DIR]` | Inspect AO ERI cache entries and their validation status. |
 | `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries. |
+| `rustiq artifact inspect <PATH> [--format FORMAT]` | Inspect portable `.rustiq` calculation snapshots and artifact metadata. |
 | `rustiq geometry info [XYZ]` | Print basic geometry information; read XYZ from standard input when no path is given. |
 | `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry` | Transform a geometry and write the result; each subcommand has its own help. |
 
@@ -81,7 +82,7 @@ single HF run is a result, not a runtime failure.
 | Nickel | One calculation or an ordered study/batch; see the checked-in [study example](../user-guide/nickel-studies.md). |
 | JSON | Versioned single-calculation and batch results, selected with `run --format json`; schemas are linked below. |
 | AO ERI cache | Optional local reuse through `[cache].enabled` and `--cache-dir`; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral. |
-| Portable `.rustiq` bundle | Create and reuse bundles with `run --artifact` and `run --reuse`; inspect them with `artifact inspect`. |
+| Portable `.rustiq` bundle | Create and reuse bundles with `run --artifact` and `run --reuse`; inspect them with `artifact inspect`. See the [portable bundle guide](../user-guide/portable-bundles.md). |
 | Scientific status | Experimental; selected checks do not establish research-grade correctness. See [scientific scope and limitations](../scientific-scope.md). |
 
 Basis downloads and online basis listing require a build with the `online`
@@ -162,7 +163,13 @@ or a portable calculation file.
 
 Portable `.rustiq` bundles use the V1 ZIP/ZIP64 format described by the
 [authoritative persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md).
-They are separate from the disposable local AO ERI cache. Reuse opens its source
+The format is conceptually inspired by [EZFIO](https://gitlab.com/scemama/EZFIO)
+in [Quantum Package 2 (`qp2`)](https://github.com/QuantumPackage/qp2), but uses
+an independent archive structure and APIs; see the
+[comparison](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#relationship-to-ezfio).
+For a guided create, inspect, and reuse workflow, see the
+[portable bundle guide](../user-guide/portable-bundles.md).
+Bundles are separate from the disposable local AO ERI cache. Reuse opens its source
 read-only. For each requested calculation, RustiQ selects the first compatible,
 supported AO ERI in bundle order; when none is available, an enabled local cache
 is checked before recomputation. A corrupt selected payload is an error. A
@@ -172,21 +179,25 @@ source entry can supply data to multiple calculations in a Nickel batch.
 cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
 cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
 cargo run --locked -- artifact inspect h2.rustiq --format json
-# Replace the source bundle only after successful execution:
+# Replace the source bundle after all requested calculations produce results:
 cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
 ```
 
 Publication captures the current requested calculation collection and its
 compatible known artifacts. It does not append history. An existing destination
 is accepted only when it resolves to the explicit `--reuse` source; otherwise
-the command fails without replacing it. Publication happens after all requested
-calculations finish successfully, and a failed batch leaves the destination
-unchanged. Non-converged HF can still contribute its AO ERI, but HF orbitals,
-SCF restart state, DIIS history, and MP2 results are not persisted.
+the command fails without replacing it. Publication happens after every requested
+calculation produces a result. Preparation or execution errors prevent
+publication of the collection and leave the destination unchanged. An HF-only
+non-converged result can contribute its AO ERI. A Nickel batch containing only
+non-converged HF-only results can publish its bundle even though the command
+exits unsuccessfully. If MP2 was requested but HF does not converge, execution
+fails and the bundle is not published. HF orbitals, SCF restart state, DIIS
+history, and MP2 results are not persisted.
 
 When `--reuse` or `--artifact` is used, JSON calculation results include an
 optional `artifacts` array. `decision` reports archive selection (`reused`,
-`missing`, `incompatible`, or `ignored`); `origin` reports the ERI actually used
+`missing`, or `incompatible`); `origin` reports the ERI actually used
 (`archive`, `cache`, or `computation`). A reused item includes its zero-based
 `source_index`. Without these options the existing JSON result shape is retained.
 Publication failures are reported on stderr and return a failing exit status;
@@ -194,8 +205,11 @@ JSON results for a completed calculation or batch may already have been written.
 
 `artifact inspect PATH` displays requested and resolved scientific snapshots,
 producer details, artifact representations, and captured source names and sizes.
-It does not execute calculations or fully verify numeric payloads. JSON output
-follows the [artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
+It validates the archive index, provenance, snapshots, and declared artifact
+sizes, but does not hash or decode numeric payloads; these are verified when a
+calculation selects and reads them. Inspection does not execute calculations
+or establish scientific validity. JSON output follows the
+[artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
 The archive captures exact bytes of the main input and geometry files as shared
 provenance; it does not capture Nickel's full import graph. See the
 [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
