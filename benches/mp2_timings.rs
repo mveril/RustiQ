@@ -7,6 +7,10 @@ use rustiq_core::bench_support::Mp2BenchInput;
 use rustiq_core::config::MemoryLimit;
 
 fn mp2_benchmarks(criterion: &mut Criterion) {
+    let path = std::path::PathBuf::from("target/criterion/mp2-metadata.json");
+    if path.exists() {
+        std::fs::remove_file(&path).expect("stale MP2 metadata should be removable");
+    }
     let requested = std::env::var("RUSTIQ_MP2_MEMORY").unwrap_or_else(|_| "auto".into());
     let budget = if requested.eq_ignore_ascii_case("auto") {
         MemoryLimit::Auto.resolve()
@@ -18,6 +22,8 @@ fn mp2_benchmarks(criterion: &mut Criterion) {
         .split(',')
         .map(|size| size.parse().expect("integer AO dimension"))
         .collect();
+    let mut metadata = Vec::new();
+    let run_metadata = run_metadata();
 
     let mut group = criterion.benchmark_group("mp2");
     for n in sizes {
@@ -63,9 +69,73 @@ fn mp2_benchmarks(criterion: &mut Criterion) {
             budget.display().iec(),
             rayon::current_num_threads()
         );
+        metadata.push(serde_json::json!({
+            "ao_dimension": n,
+            "occupied_orbitals": occupied,
+            "workspace_budget_bytes": budget.as_u64(),
+            "block_size": memory.block_size,
+            "rayon_threads": rayon::current_num_threads(),
+            "dense_energy": dense_energy,
+            "blocked_energy": blocked_energy,
+            "energy_absolute_difference": (dense_energy - blocked_energy).abs(),
+            "criterion_sample_size": if n >= 48 { 10 } else { 30 },
+            "criterion_warm_up_seconds": if n >= 48 { 1 } else { 2 },
+            "criterion_measurement_seconds": if n >= 48 { 2 } else { 5 },
+        }));
     }
 
     group.finish();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("Criterion metadata directory should be writable");
+    }
+    std::fs::write(
+        path,
+        serde_json::to_vec_pretty(&serde_json::json!({"run": run_metadata, "cases": metadata}))
+            .expect("metadata should serialize"),
+    )
+    .expect("Criterion metadata should be writable");
+}
+
+fn run_metadata() -> serde_json::Value {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok();
+    let commit = output
+        .filter(|result| result.status.success())
+        .map(|result| String::from_utf8_lossy(&result.stdout).trim().to_owned());
+    let compiler = std::process::Command::new("rustc")
+        .arg("--version")
+        .output()
+        .ok();
+    let rustc = compiler
+        .filter(|result| result.status.success())
+        .map(|result| String::from_utf8_lossy(&result.stdout).trim().to_owned());
+    let clean = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()
+        .filter(|result| result.status.success())
+        .map(|result| result.stdout.is_empty());
+    let cpu = std::fs::read_to_string("/proc/cpuinfo")
+        .ok()
+        .and_then(|info| {
+            info.lines()
+                .find(|line| line.starts_with("model name\t:"))
+                .map(str::to_owned)
+        })
+        .and_then(|line| {
+            line.split_once(':')
+                .map(|(_, value)| value.trim().to_owned())
+        });
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs_f64());
+    serde_json::json!({"git_commit": commit, "working_tree_clean": clean, "rustc_version": rustc,
+        "operating_system": std::env::consts::OS, "architecture": std::env::consts::ARCH,
+        "cpu_model": cpu, "benchmark_started_unix_seconds": timestamp,
+        "benchmark_profile": "cargo bench default bench profile"})
 }
 
 criterion_group!(benches, mp2_benchmarks);

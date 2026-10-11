@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
-import re
 import shutil
 import tomllib
 from collections.abc import Iterator
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -94,8 +91,10 @@ def test_rustiq_result_rejects_malformed_json(
         compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
 
 
-@pytest.mark.parametrize("name", ["h2o-6-31g-rhf-mp2", "oh-sto-3g-uhf-mp2"])
-@pytest.mark.parametrize("budget", ["32 KiB", "512 MiB"])
+@pytest.mark.parametrize(
+    "name", [case.name for case in compare_pyscf.CASES if case.frozen_core_reference]
+)
+@pytest.mark.parametrize("budget", compare_pyscf.FROZEN_CORE_MEMORY_BUDGETS)
 def test_frozen_core_mp2_matches_pyscf(
     name: str,
     budget: str,
@@ -103,17 +102,5 @@ def test_frozen_core_mp2_matches_pyscf(
     rustiq_env: dict[str, str],
 ) -> None:
     original = next(case for case in compare_pyscf.CASES if case.name == name)
-    source = original.runfile.read_text()
-    source = re.sub(
-        r"^geometry = .*$",
-        f"geometry = {json.dumps(str(original.xyz))}",
-        source,
-        flags=re.MULTILINE,
-    )
-    source = source.replace(
-        "frozen_orbitals = 0", f'frozen_orbitals = 1\nmemory_limit = "{budget}"'
-    )
-    runfile = tmp_path / "frozen-mp2.toml"
-    runfile.write_text(source)
-    case = replace(original, runfile=runfile, frozen_orbitals=1)
+    case = compare_pyscf.frozen_core_case(original, budget, tmp_path)
     test_rustiq_matches_pyscf(case, rustiq_env)
