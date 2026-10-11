@@ -602,6 +602,103 @@ pub struct Mp2BenchResult {
     pub memory: Mp2MemoryPlan,
 }
 
+#[cfg(feature = "bench-support")]
+pub struct Mp2BenchInput {
+    coefficients: DMatrix<f64>,
+    energies: DVector<f64>,
+    eri: CompactEri,
+    occupied_orbitals: usize,
+}
+
+#[cfg(feature = "bench-support")]
+impl Mp2BenchInput {
+    /// Creates deterministic synthetic input for comparing MP2 implementations.
+    #[must_use]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Synthetic benchmark inputs intentionally map integer indices to floating-point values"
+    )]
+    pub fn synthetic(n: usize, occupied_orbitals: usize) -> Self {
+        let coefficients =
+            DMatrix::from_fn(n, n, |i, j| ((i * n + j) as f64 + 0.3).sin() / n as f64);
+        let energies = DVector::from_fn(n, |i, _| {
+            if i < occupied_orbitals {
+                -1.0 - (occupied_orbitals - i) as f64 / n as f64
+            } else {
+                0.5 + i as f64 / n as f64
+            }
+        });
+        let mut eri = CompactEri::Zeroed(n);
+        for k in 0..eri.len() {
+            eri[EriIndex(k)] = (k as f64 * 0.7).cos() / 3.0;
+        }
+
+        Self {
+            coefficients,
+            energies,
+            eri,
+            occupied_orbitals,
+        }
+    }
+
+    /// Calculates the dense MP2 energy using the synthetic input.
+    #[must_use]
+    pub fn dense_energy(&self) -> f64 {
+        let input = self.as_input();
+        let dense = build_ovov_integrals(&input);
+        let virtual_orbitals = self.energies.len() - self.occupied_orbitals;
+        (0..self.occupied_orbitals)
+            .into_par_iter()
+            .map(|i| {
+                let mut total = 0.0;
+                for j in 0..self.occupied_orbitals {
+                    for a in 0..virtual_orbitals {
+                        for b in 0..virtual_orbitals {
+                            let g = dense[(i * virtual_orbitals + a, j * virtual_orbitals + b)];
+                            let x = dense[(i * virtual_orbitals + b, j * virtual_orbitals + a)];
+                            total += g * (2.0 * g - x)
+                                / (self.energies[i] + self.energies[j]
+                                    - self.energies[self.occupied_orbitals + a]
+                                    - self.energies[self.occupied_orbitals + b]);
+                        }
+                    }
+                }
+                total
+            })
+            .sum()
+    }
+
+    /// Calculates the blocked MP2 energy and returns the selected memory plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the memory budget or numerical result is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the blocked MP2 observer does not report a memory plan for valid nonempty sectors.
+    pub fn blocked_energy(&self, budget: u64) -> Result<(f64, Mp2MemoryPlan), Mp2Error> {
+        let mut memory = None;
+        let energy = correlation_energy_with_memory(&self.as_input(), budget, &mut |plan| {
+            memory = Some(plan);
+        })?;
+        Ok((
+            energy,
+            memory.expect("the blocked MP2 observer reports a memory plan for nonempty sectors"),
+        ))
+    }
+
+    fn as_input(&self) -> Mp2Input<'_> {
+        Mp2Input {
+            mo_coefficients: &self.coefficients,
+            orbital_energies: &self.energies,
+            occupied_orbitals: self.occupied_orbitals,
+            frozen_orbitals: 0,
+            two_electron_integrals: &self.eri,
+        }
+    }
+}
+
 /// Synthetic, deterministic inputs; timing excludes input/ERI construction and SCF.
 #[cfg(feature = "bench-support")]
 ///
@@ -619,58 +716,18 @@ pub struct Mp2BenchResult {
 )]
 pub fn benchmark_mp2(n: usize, occupied: usize, budget: u64) -> Result<Mp2BenchResult, Mp2Error> {
     use std::time::Instant;
-    let coefficients = DMatrix::from_fn(n, n, |i, j| ((i * n + j) as f64 + 0.3).sin() / n as f64);
-    let energies = DVector::from_fn(n, |i, _| {
-        if i < occupied {
-            -1.0 - (occupied - i) as f64 / n as f64
-        } else {
-            0.5 + i as f64 / n as f64
-        }
-    });
-    let mut eri = CompactEri::Zeroed(n);
-    for k in 0..eri.len() {
-        eri[EriIndex(k)] = (k as f64 * 0.7).cos() / 3.0;
-    }
-    let input = Mp2Input {
-        mo_coefficients: &coefficients,
-        orbital_energies: &energies,
-        occupied_orbitals: occupied,
-        frozen_orbitals: 0,
-        two_electron_integrals: &eri,
-    };
-    let mut memory = None;
+    let input = Mp2BenchInput::synthetic(n, occupied);
     let begin = Instant::now();
-    let blocked_energy = correlation_energy_with_memory(&input, budget, &mut |p| memory = Some(p))?;
+    let (blocked_energy, memory) = input.blocked_energy(budget)?;
     let blocked_elapsed = begin.elapsed();
     let begin = Instant::now();
-    let dense = build_ovov_integrals(&input);
-    let v = n - occupied;
-    let dense_energy: f64 = (0..occupied)
-        .into_par_iter()
-        .map(|i| {
-            let mut total = 0.0;
-            for j in 0..occupied {
-                for a in 0..v {
-                    for b in 0..v {
-                        let g = dense[(i * v + a, j * v + b)];
-                        let x = dense[(i * v + b, j * v + a)];
-                        total += g * (2.0 * g - x)
-                            / (energies[i] + energies[j]
-                                - energies[occupied + a]
-                                - energies[occupied + b]);
-                    }
-                }
-            }
-            total
-        })
-        .sum();
+    let dense_energy = input.dense_energy();
     Ok(Mp2BenchResult {
         dense_elapsed: begin.elapsed(),
         blocked_elapsed,
         dense_energy,
         blocked_energy,
-        memory: memory
-            .expect("the blocked MP2 observer reports a memory plan for nonempty sectors"),
+        memory,
     })
 }
 

@@ -85,7 +85,7 @@ pub(crate) mod test_utils;
 pub mod bench_support {
     pub use crate::basis::BasisStore;
     pub use crate::eri::{CacheSizeStats, EriError};
-    pub use crate::mp2::{benchmark_mp2, Mp2BenchResult};
+    pub use crate::mp2::{benchmark_mp2, Mp2BenchInput, Mp2BenchResult};
     use std::path::Path;
     use std::time::Duration;
 

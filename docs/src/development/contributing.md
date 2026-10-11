@@ -128,14 +128,36 @@ to the build machine's CPU, use `RUSTFLAGS="-C target-cpu=native" cargo build
 In PowerShell, set `$env:RUSTFLAGS = "-C target-cpu=native"`, build, then remove
 it with `Remove-Item Env:RUSTFLAGS`. There is no separate `native` Cargo profile.
 
-The existing `eri_timings` and `mp2_timings` benchmarks require `bench-support`:
+The `eri_timings` and `mp2_timings` benchmarks use Criterion and require
+`bench-support`:
 
 ```sh
 cargo bench --bench mp2_timings --features bench-support
+cargo bench --bench eri_timings --features bench-support
 ```
 
-This benchmark measures MP2 separately from SCF and integral construction.
+The MP2 benchmark compares dense and memory-blocked kernels on deterministic
+synthetic inputs. It validates that both paths produce matching energies before
+timing them; input and ERI construction remain outside the measured iterations.
 `RUSTIQ_MP2_MEMORY`, `RUSTIQ_MP2_SIZES` (comma-separated AO dimensions), and
-`RAYON_NUM_THREADS` select budget, cases, and thread count. See
-[the benchmark source](https://github.com/mveril/RustiQ/blob/main/benches/mp2_timings.rs).
+`RAYON_NUM_THREADS` select the memory budget, AO dimensions, and thread count.
+The ERI benchmark times repeated integral construction for the checked-in
+molecular cases. By default it skips the larger ethanol and cholesterol cases;
+set `RUSTIQ_BENCH_HEAVY=1` to include them. `RUSTIQ_BENCH_FILTER` selects cases
+by name or geometry path, and `RUSTIQ_BENCH_BASIS_STORE` selects a basis store.
+It reports compact integral throughput as well as elapsed time. The benches use
+100 samples, a 3-second warm-up, and an 8-second measurement target to avoid
+Criterion's short-sample warnings for these calculations.
+It saves measurements under `target/criterion` and supports comparing revisions.
+Run the first command on the reference revision and the second on the revision
+to compare, keeping the machine, power settings, feature flags, and environment
+variables the same:
+
+```sh
+cargo bench --bench mp2_timings --features bench-support -- --save-baseline before
+cargo bench --bench mp2_timings --features bench-support -- --baseline before
+```
+
+See the [MP2 benchmark source](https://github.com/mveril/RustiQ/blob/main/benches/mp2_timings.rs)
+and [ERI benchmark source](https://github.com/mveril/RustiQ/blob/main/benches/eri_timings.rs).
 Benchmarks provide performance measurements, not scientific validation.

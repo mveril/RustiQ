@@ -1,7 +1,9 @@
 use std::env;
-use std::io::{self, Write};
+use std::hint::black_box;
 use std::path::PathBuf;
+use std::time::Duration;
 
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rustiq_core::bench_support::{BasisStore, EriBenchInput};
 
 // Share application path policy; the scientific core only receives explicit paths.
@@ -53,62 +55,56 @@ const CASES: &[BenchCase] = &[
     },
 ];
 
-fn main() {
+fn eri_benchmarks(criterion: &mut Criterion) {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let basis_store = basis_store();
-    let cases = selected_cases();
+    let mut group = criterion.benchmark_group("eri");
+    group.sample_size(100);
+    group.warm_up_time(Duration::from_secs(3));
+    group.measurement_time(Duration::from_secs(8));
 
-    println!("RustiQ ERI timing bench");
-    println!("cases: {}", cases.len());
-    println!();
-
-    for case in cases {
+    for case in selected_cases() {
         let basis_file = basis_store
             .get(case.basis)
             .expect("basis store should be readable")
             .expect("benchmark basis should exist");
         let input = EriBenchInput::load(case.name, manifest_dir.join(case.geometry), basis_file)
             .expect("benchmark geometry and basis inputs should be valid");
-        println!("case: {}", case.name);
-        println!("  basis: {}", case.basis);
-        flush_stdout();
+
+        // Keep the existing stage and cache diagnostics outside Criterion's timed iterations.
         let result = input
-            .run_once_with_observer(|stage, elapsed| {
-                println!("  {stage}: {:.3}s", elapsed.as_secs_f64());
-                flush_stdout();
-            })
-            .expect("ERI benchmark input should produce valid Coulomb self-integrals");
-        println!("  basis functions: {}", result.basis_functions);
-        println!("  basis pairs: {}", result.pair_count);
-        println!("  compact integrals: {}", result.compact_integrals);
-        print_cache_stats(&result);
-        println!("  eri wall: {:.3}s", result.elapsed.as_secs_f64());
-        println!();
-    }
-}
+            .run_once()
+            .expect("benchmark input should produce valid Coulomb self-integrals");
+        eprintln!(
+            "ERI {}: {} basis functions, {} pairs, {} compact integrals, {:?} pair expansion, {:?} Schwarz bounds, {:?} fill, {} cached Coulomb values",
+            case.name,
+            result.basis_functions,
+            result.pair_count,
+            result.compact_integrals,
+            result.pair_expansions,
+            result.schwarz_bounds,
+            result.compact_fill,
+            result.coulomb_cache_sizes.count
+        );
 
-#[allow(
-    clippy::cast_precision_loss,
-    reason = "Cache coverage percentages are approximate floating-point statistics"
-)]
-fn print_cache_stats(result: &rustiq_core::bench_support::EriBenchResult) {
-    let stats = &result.coulomb_cache_sizes;
-    println!("  coulomb caches: {}", stats.count);
-    println!("  cache len mean: {:.1}", stats.mean_len());
-    println!("  cache len max: {}", stats.max_len);
-    for capacity in [64, 128, 256, 512, 1024] {
-        let covered = stats.count_at_most(capacity);
-        let percentage = if stats.count == 0 {
-            0.0
-        } else {
-            covered as f64 * 100.0 / stats.count as f64
-        };
-        println!("  <= {capacity}: {covered} ({percentage:.1}%)");
+        group.throughput(Throughput::Elements(
+            result
+                .compact_integrals
+                .try_into()
+                .expect("compact integral count should fit in u64"),
+        ));
+        group.bench_function(BenchmarkId::new(case.name, case.basis), |bencher| {
+            bencher.iter(|| {
+                black_box(
+                    input
+                        .run_once()
+                        .expect("benchmark input should produce valid Coulomb self-integrals"),
+                );
+            });
+        });
     }
-}
 
-fn flush_stdout() {
-    io::stdout().flush().expect("failed to flush stdout");
+    group.finish();
 }
 
 fn selected_cases() -> Vec<&'static BenchCase> {
@@ -143,3 +139,6 @@ fn basis_store() -> BasisStore {
 
     BasisStore::repository_fixtures()
 }
+
+criterion_group!(benches, eri_benchmarks);
+criterion_main!(benches);
