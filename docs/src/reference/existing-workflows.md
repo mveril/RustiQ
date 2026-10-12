@@ -10,17 +10,19 @@ progressive workflows, start with the [geometry](../user-guide/geometry.md),
 [configuration](../user-guide/configuration.md),
 [Nickel](../user-guide/nickel-studies.md),
 [MP2](../user-guide/mp2.md), and
-[JSON](../user-guide/json-output.md) guides. Commands below run from the
-repository root; Cargo builds and launches the CLI. The Cargo package is
-`rustiq-chem`, and the installed executable is `rustiq`. Replace
-`cargo run --locked --` with `rustiq` to use the installed binary.
+[JSON](../user-guide/json-output.md) guides. Commands below use checked-in
+sample files and run from the repository root after cloning. The Cargo package
+is `rustiq-chem`, and the installed executable is `rustiq`. Users with only
+the release binary can run equivalent commands with their own geometry, input,
+and basis JSON files; see the [first calculation](../getting-started/first-calculation.md)
+and [basis-set guide](../user-guide/basis-sets.md).
 See the [glossary](../glossary.md) for scientific and development terms.
 
 ## Create input from an XYZ geometry
 
 ```sh
-cargo run --locked -- init samples/h2/molecule.xyz -o calculation.toml
-cargo run --locked -- init samples/h2/molecule.xyz --hf uhf --multiplicity 3 --mp2 -o triplet.toml
+rustiq init samples/h2/molecule.xyz -o calculation.toml
+rustiq init samples/h2/molecule.xyz --hf uhf --multiplicity 3 --mp2 -o triplet.toml
 ```
 
 `init` references the geometry; it does not copy it. The output defaults to
@@ -58,11 +60,11 @@ Import the checked-in fixture for the [first calculation](../getting-started/fir
 or manage the local store with:
 
 ```sh
-cargo run --locked -- basis list
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- basis list --online
-cargo run --locked -- basis download sto-3g
-cargo run --locked -- basis remove sto-3g
+rustiq basis list
+rustiq basis import tests/data/sto-3g.json
+rustiq basis list --online
+rustiq basis download sto-3g
+rustiq basis remove sto-3g
 ```
 
 Online listing and download require the `online` Cargo feature, enabled by
@@ -102,9 +104,9 @@ scientific bundles described under [authoritative references](index.md).
 ## JSON results and Nickel studies
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json
-cargo run --locked -- run samples/h2/sto-3g/calculation.ncl
-cargo run --locked -- run samples/h2/study.ncl --format json
+rustiq run samples/h2/sto-3g/calculation.toml --format json
+rustiq run samples/h2/sto-3g/calculation.ncl
+rustiq run samples/h2/study.ncl --format json
 ```
 
 The study runs STO-3G and 6-31G calculations sequentially. Import both fixtures
@@ -146,7 +148,7 @@ The existing H₂ input is:
 After importing STO-3G, run:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/mp2_calculation.toml
+rustiq run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
 `frozen_orbitals` excludes the lowest occupied orbitals from correlation;
@@ -189,7 +191,7 @@ for standard output (reports) and standard error (diagnostics and progress).
 Explicit `always` or `never` overrides `NO_COLOR`.
 
 ```sh
-cargo run --locked -- --color never run samples/h2/sto-3g/calculation.toml
+rustiq --color never run samples/h2/sto-3g/calculation.toml
 ```
 
 Windows output uses adaptive terminal support, including legacy consoles.

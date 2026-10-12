@@ -1,5 +1,9 @@
 # Nickel studies
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; use equivalent input files in your working directory instead.
+
 Nickel is a configuration language that RustiQ embeds. A `.ncl` file can
 import other Nickel files and compute a list of related calculation records.
 The checked-in single-calculation `.ncl` input is a small starting point:
@@ -12,8 +16,8 @@ Make sure STO-3G is in the local basis store, then run it with the same command
 as TOML:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.ncl
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.ncl
 ```
 
 The checked-in H₂ study maps over two basis names to produce two inputs:
@@ -26,9 +30,9 @@ This study is sequential. Run it from the repository root after making both
 bases available:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- basis import tests/data/reference/RustiQ/basis_sets/6-31g.json
-cargo run --locked -- run samples/h2/study.ncl
+rustiq basis import tests/data/sto-3g.json
+rustiq basis import tests/data/reference/RustiQ/basis_sets/6-31g.json
+rustiq run samples/h2/study.ncl
 ```
 
 When both calculations succeed, selected output excerpts are:

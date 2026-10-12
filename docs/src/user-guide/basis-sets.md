@@ -6,18 +6,28 @@ centered on atoms. The chosen basis affects the size of the orbital space and
 the numerical result. A small basis such as STO-3G is useful for examples but
 does not guarantee accurate energies or properties.
 
-## Offline workflow
+## Import or download a basis
 
-Import the checked-in STO-3G basis fixture into RustiQ's local basis store and
-run the H₂ example:
+`basis import` reads a Basis Set Exchange JSON file from the path you provide.
+It works with the release binary and does not require Cargo or a source
+checkout. For example, if `sto-3g.json` is in the current directory:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml
+rustiq basis import sto-3g.json
+rustiq basis list
 ```
 
-The import is local and does not need network access. The test suite exercises
-the same fixture using an isolated store in
+The import itself is local and needs no network access; you must obtain the
+JSON file separately. In a source checkout, the checked-in STO-3G fixture is
+available at `tests/data/sto-3g.json`, and the sample calculation is at
+`samples/h2/sto-3g/calculation.toml`:
+
+```sh
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.toml
+```
+
+The test suite exercises the fixture using an isolated store in
 [`tests/cli_samples.rs`](https://github.com/mveril/RustiQ/blob/main/tests/cli_samples.rs)
 and basis import/storage behavior in
 [`crates/rustiq-core/src/basis/basis_store.rs`](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/basis/basis_store.rs).
@@ -25,9 +35,9 @@ and basis import/storage behavior in
 List, import, or remove locally stored bases with:
 
 ```sh
-cargo run --locked -- basis list
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- basis remove sto-3g
+rustiq basis list
+rustiq basis import /path/to/basis.json
+rustiq basis remove sto-3g
 ```
 
 The default store is in the platform's application data directory. Set
@@ -42,8 +52,8 @@ The default CLI build enables the `online` feature. Use it to list or download
 bases:
 
 ```sh
-cargo run --locked -- basis list --online
-cargo run --locked -- basis download sto-3g
+rustiq basis list --online
+rustiq basis download sto-3g
 ```
 
 Online commands require network access. A normal `run` uses the local basis

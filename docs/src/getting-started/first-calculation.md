@@ -1,15 +1,40 @@
 # First H₂ calculation
 
-Run neutral singlet H₂ with STO-3G from the repository root:
+## Using only the release binary
 
-```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml
+Create a small XYZ geometry in your working directory and save it as
+`h2.xyz`:
+
+```text
+2
+H2 in Angstrom
+H 0 0 0
+H 0 0 0.7414
 ```
 
-Import writes the checked-in basis fixture to the application's local basis
-store, avoiding a network download. CLI tests import the same fixture into
-an isolated store.
+Create an input, download STO-3G, and run the calculation:
+
+```sh
+rustiq init h2.xyz -o calculation.toml
+rustiq basis download sto-3g
+rustiq run calculation.toml
+```
+
+The explicit download is needed because `run` does not fetch missing bases
+unless `--auto-download` is supplied. The release archive contains neither
+sample inputs nor basis files. To use an existing local basis file without
+network access, import it with `rustiq basis import /path/to/basis.json`.
+
+## Using the checked-in sample
+
+From a source checkout, import the checked-in fixture and run the example:
+
+```sh
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.toml
+```
+
+CLI tests import the same fixture into an isolated store.
 
 The checked-in configuration is included directly:
 

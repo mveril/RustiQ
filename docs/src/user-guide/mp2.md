@@ -1,5 +1,9 @@
 # MP2 calculations
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; use equivalent input files in your working directory instead.
+
 Second-order Møller–Plesset perturbation theory (MP2) estimates an electron
 correlation correction using molecular orbitals from a converged HF reference.
 It does not replace HF: RustiQ first solves HF, then evaluates MP2. MP2 is
@@ -15,8 +19,8 @@ The checked-in H₂ input requests RHF-MP2 with no frozen orbitals:
 Run it from the repository root after importing STO-3G:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/mp2_calculation.toml
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
 The MP2 correlation energy is the correction added to HF electronic energy.
@@ -37,7 +41,7 @@ Run it from the repository root after making STO-3G available, as described in
 the [basis-set guide](basis-sets.md):
 
 ```sh
-cargo run --locked -- run samples/oh/sto-3g/mp2_calculation.toml
+rustiq run samples/oh/sto-3g/mp2_calculation.toml
 ```
 
 The calculation reports a UHF-MP2 correlation energy. Existing PySCF

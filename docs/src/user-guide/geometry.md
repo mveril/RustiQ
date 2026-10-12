@@ -1,5 +1,9 @@
 # Geometry files
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; use equivalent input files in your working directory instead.
+
 RustiQ reads molecular coordinates from XYZ files. Each file starts with the
 number of atoms, then a comment line, then one line per atom containing an
 element symbol or atomic number and three Cartesian coordinates. See the
@@ -37,7 +41,7 @@ repulsion value.
 From the repository root, inspect a geometry with:
 
 ```sh
-cargo run --locked -- geometry info samples/h2/molecule.xyz
+rustiq geometry info samples/h2/molecule.xyz
 ```
 
 The geometry tools can rotate, translate, center, or orient
@@ -45,7 +49,7 @@ XYZ coordinates. For example, transformations read and write XYZ and can use
 standard input/output:
 
 ```sh
-cargo run --locked -- geometry translate samples/h2/molecule.xyz --dz 1
+rustiq geometry translate samples/h2/molecule.xyz --dz 1
 ```
 
 These are coordinate transformations. They do not change coordinates to
@@ -60,7 +64,7 @@ directory. `init` can create a TOML file that refers to an XYZ file without
 copying it:
 
 ```sh
-cargo run --locked -- init samples/h2/molecule.xyz -o calculation.toml
+rustiq init samples/h2/molecule.xyz -o calculation.toml
 ```
 
 Run commands from the repository root. The relevant executable checks are in

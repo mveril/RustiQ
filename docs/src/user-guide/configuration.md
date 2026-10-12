@@ -1,5 +1,9 @@
 # TOML calculation configuration
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; use equivalent input files in your working directory instead.
+
 A TOML input describes one calculation. Begin with the checked-in neutral H₂
 example:
 
@@ -10,8 +14,8 @@ example:
 From the repository root, import the basis if needed and run the input:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.toml
 ```
 
 The `[molecule]` section points to an XYZ geometry and can set `charge`,

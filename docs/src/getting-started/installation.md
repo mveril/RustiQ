@@ -8,7 +8,7 @@ execution, use [manual installation](../development/manual-setup.md), or
 [Nix](../development/nix-setup.md) on a supported platform.
 See [known supported platforms](../development/platforms.md) for details.
 
-The quick commands below use the manual setup. Install Git, Rust through
+The source-build commands below use the manual setup. Install Git, Rust through
 [rustup](https://rustup.rs/), a C/C++ build toolchain, and CMake as described in
 the [manual setup page](../development/manual-setup.md#install-and-build).
 
@@ -44,6 +44,15 @@ releases, omit `--version` to install the latest stable version. Tagged binary
 archives and verification instructions are described in
 [Releasing RustiQ](../development/releasing.md).
 
+For calculations without a source checkout or Rust installation, download the
+archive matching your operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases).
+The archive contains the executable, but not sample inputs or basis data. With
+network access, install a basis into your user data directory with
+`rustiq basis download sto-3g`. If you already have a Basis Set Exchange JSON
+file, import it with `rustiq basis import /path/to/basis.json`; this works with
+the release executable and requires no Cargo installation. See the
+[basis-set guide](../user-guide/basis-sets.md) for details.
+
 When a tagged binary release is available, download the archive matching your
 operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases).
 Unix archives are named `rustiq-chem-<target>.tar.gz`; Windows archives use
@@ -56,13 +65,13 @@ Unix archives are named `rustiq-chem-<target>.tar.gz`; Windows archives use
 release's `sha256.sum` manifest as described in
 [Releasing RustiQ](../development/releasing.md), then extract it and put
 `rustiq` (or `rustiq.exe` on Windows) in a directory on `PATH`. Prebuilt
-binaries use the default online basis lookup; provide the basis data required
-by the calculation as described in the
-[basis-set guide](../user-guide/basis-sets.md).
+binaries include online basis commands, but do not contain basis data. Download
+or import the basis required by the calculation as described above.
 
-The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase on case-sensitive systems. Ensure Cargo's binary
-directory is on `PATH`. The tutorial still needs the checked-in samples.
+The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase
+on case-sensitive systems. Ensure the directory containing it is on `PATH`.
+Sample-based tutorials require a source checkout.
 
-Online basis downloads are enabled by default. The
-[first calculation](first-calculation.md) imports a repository fixture and
-requires no basis download. It also works with `--no-default-features`.
+The [first calculation](first-calculation.md) includes a binary-only path that
+creates its input locally and downloads STO-3G, plus the source-checkout
+fixture workflow for offline use.

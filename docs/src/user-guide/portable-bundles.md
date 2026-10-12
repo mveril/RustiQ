@@ -1,5 +1,9 @@
 # Portable calculation bundles
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; use equivalent input files in your working directory instead.
+
 A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
 lets users rerun saved calculations or reuse compatible AO ERIs in new ones
@@ -13,8 +17,8 @@ basis available, then run the H₂ sample and write a bundle to the current
 directory:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
 ```
 
 Choose a destination that does not already exist. `--artifact` writes the
@@ -25,8 +29,8 @@ requested calculation.
 Inspect a bundle without the original runfile, geometry file, or basis store:
 
 ```sh
-cargo run --locked -- artifact inspect h2.rustiq
-cargo run --locked -- artifact inspect h2.rustiq --format json
+rustiq artifact inspect h2.rustiq
+rustiq artifact inspect h2.rustiq --format json
 ```
 
 Inspection displays canonical requested and resolved calculation snapshots,
@@ -47,7 +51,7 @@ Use `artifact verify` to eagerly read and validate every supported numerical
 payload in the bundle:
 
 ```sh
-cargo run --locked -- artifact verify h2.rustiq
+rustiq artifact verify h2.rustiq
 ```
 
 The command checks compact AO ERI payload hashes, NPY encoding, array dimensions,
@@ -69,8 +73,8 @@ calculation settings, without the original runfile, geometry file, or basis
 store:
 
 ```sh
-cargo run --locked -- run h2.rustiq
-cargo run --locked -- run h2.rustiq --format json --pretty --color never
+rustiq run h2.rustiq
+rustiq run h2.rustiq --format json --pretty --color never
 ```
 
 For a multi-calculation bundle, RustiQ reruns every entry in manifest order and
@@ -101,7 +105,7 @@ new input requests MP2. The archive itself supplies reusable artifacts and
 remains read-only.
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
+rustiq run samples/h2/sto-3g/calculation.toml \
   --reuse h2.rustiq --format json --pretty --color never
 ```
 
@@ -144,7 +148,7 @@ The archive remains read-only during reuse. To publish a new snapshot from the
 calculation, provide a new destination:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
+rustiq run samples/h2/sto-3g/calculation.toml \
   --reuse h2.rustiq --artifact h2-updated.rustiq
 ```
 

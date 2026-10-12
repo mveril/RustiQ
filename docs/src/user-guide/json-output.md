@@ -1,10 +1,14 @@
 # JSON output
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; use equivalent input files in your working directory instead.
+
 Use JSON when another program needs calculation results. `run` writes only
 the machine-readable result to standard output:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json
+rustiq run samples/h2/sto-3g/calculation.toml --format json
 ```
 
 Run commands from the repository root and make the named basis available
@@ -12,13 +16,13 @@ first. To save machine-readable output, redirect standard output and disable
 color explicitly:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json --color never > result.json
+rustiq run samples/h2/sto-3g/calculation.toml --format json --color never > result.json
 ```
 
 For readable terminal inspection, add `--pretty`:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json --pretty
+rustiq run samples/h2/sto-3g/calculation.toml --format json --pretty
 ```
 
 `--pretty` requires `--format json`. Compact JSON is unstyled; when saving
@@ -77,7 +81,7 @@ that guide's basis-set setup first, especially when running offline, then
 produce pretty JSON with colors disabled:
 
 ```sh
-cargo run --locked -- run samples/h2/study.ncl --format json --pretty --color never
+rustiq run samples/h2/study.ncl --format json --pretty --color never
 ```
 
 The output follows the versioned batch schema. Each successful calculation
