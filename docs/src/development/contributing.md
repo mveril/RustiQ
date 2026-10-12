@@ -24,7 +24,7 @@ On Windows:
 
 The generated entry point is `target/doc/rustiq_core/index.html`.
 MathJax equations require browser access to the CDN.
-The initial Pages site publishes the manual; rustdoc is generated separately.
+The Pages site publishes the manual; rustdoc is generated separately.
 
 [Runnable API examples](https://github.com/mveril/RustiQ/tree/main/crates/rustiq-core/examples)
 and [public API tests](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/public_api.rs)
@@ -102,11 +102,13 @@ solutions share immutable result data; these retained results are distinct from
 the prepared input data.
 
 Portable `.rustiq` bundles can be read and written through the core persistence
-APIs and through the CLI's `run --reuse`, `run --artifact`, and `artifact
-inspect` commands. CLI reuse starts from the supplied runfile and resolves its
-geometry and basis as usual, then uses bundle compatibility to select AO ERIs;
-the bundle is not an input-file substitute. The Rust API can also reconstruct
-a calculation from the archived scientific snapshots. Neither workflow turns
+APIs and through the CLI's `run --reuse`, `run --artifact`, `artifact inspect`,
+and `artifact verify` commands. `run INPUT --reuse BUNDLE` resolves the supplied
+runfile's geometry and basis as usual, then uses bundle compatibility to select
+AO ERIs. `run BUNDLE.rustiq` reconstructs the archived resolved calculations
+without the original inputs or local basis store. The Rust API can also reconstruct
+a calculation from those scientific snapshots. These workflows start fresh HF
+executions; HF solutions and SCF restart state are not persisted. Neither workflow turns
 a local cache directory into a portable artifact. See the
 [portable bundle guide](../user-guide/portable-bundles.md), the
 [persistence contract](../reference/index.md), and the runnable API examples
@@ -181,8 +183,8 @@ Legacy timing results also cannot be compared directly with Criterion measuremen
 MP2 input construction is excluded from measured iterations. Keep CPU
 architecture, Rayon thread count, build flags, enabled features, MP2 memory
 budget, power settings, and benchmark environment variables consistent. Save a
-baseline on the first Criterion revision, then compare from the revision under
-test:
+baseline on the reference revision with the same workload, then compare from
+the revision under test:
 
 ```sh
 cargo bench --bench mp2_timings --features bench-support -- --save-baseline before
@@ -235,8 +237,9 @@ cases, set `RUSTIQ_BENCH_FILTER`, `RUSTIQ_MP2_SIZES`, `RUSTIQ_MP2_MEMORY`, and
 and confidence intervals. Its configured MP2 workspace is not measured peak
 RSS, and synthetic MP2 cases do not model complete molecular calculations.
 Results are machine-dependent; the on-demand GitHub Actions workflow starts
-with one small ERI case and AO sizes 12 and 24. Heavy ERI cases require explicit
-opt-in in the workflow.
+with one small ERI case and AO sizes 12 and 24. To run heavy ERI cases, select
+**Include the heavy ERI cases** and choose an ERI filter that matches those cases.
+The checkbox enables `RUSTIQ_BENCH_HEAVY=1`; it is disabled by default.
 
 These reports provide numerical regression checks for selected cases. They do
 not establish general chemical accuracy; see the [scientific scope](../scientific-scope.md)

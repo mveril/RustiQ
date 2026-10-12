@@ -1,6 +1,6 @@
 # Contributing
 
-RustiQ is an experimental Rust quantum chemistry prototype. Contributions should
+RustiQ is an experimental Rust quantum chemistry application and library. Contributions should
 keep the codebase scientifically honest, testable, and easy to inspect.
 
 ## Development Setup
@@ -10,12 +10,13 @@ Desktop, VS Code, and the Dev Containers extension, open the repository, then
 run **Dev Containers: Reopen in Container**. FlakeEnv loads the pinned Nix
 development shell for terminals, tasks, debuggers, and language servers.
 
-Alternatively, enter `nix develop` or install stable Rust and Cargo locally.
-Then run:
+Alternatively, enter `nix develop` or follow the
+[manual setup](docs/src/development/manual-setup.md) to install Rust and native
+build dependencies locally. From the repository root, run:
 
 ```sh
-cargo build --workspace
-cargo test --workspace
+cargo build --locked --workspace
+cargo test --locked --workspace
 ```
 
 ## Branch Naming
@@ -44,7 +45,7 @@ uv lock --check
 ```
 
 The pull-request workflow also evaluates every system declared by the Nix flake,
-builds the native Nix package, and runs a PySCF smoke comparison. A scheduled
+builds the native Nix package, and runs the complete PySCF reference suite. A scheduled
 and manually dispatchable `Full Nix checks` workflow builds every native flake
 check and runs the complete PySCF reference set. Run the same checks locally
 with:
@@ -59,11 +60,17 @@ nix run .#pyscf-check
 Outside Nix, run the same reference tooling with the locked Python environment:
 
 ```sh
-uv run --locked python tools/reference/compare_pyscf.py
+uv run --locked pytest tools/reference
 ```
 
 If a change affects numerical behavior, include the affected input files,
 reference values, and tolerance rationale.
+
+Review the manual's user, scientific, and architectural guidance with every
+change. For book edits, follow [docs/AGENTS.md](docs/AGENTS.md) and run
+`nix build .#book` plus `git diff --check`. The PR should state the documentation
+impact and checks performed, or explain why the manual needs no update. See
+[documentation checks](docs/src/development/documentation.md) for coverage.
 
 ## Rust Lint Policy
 

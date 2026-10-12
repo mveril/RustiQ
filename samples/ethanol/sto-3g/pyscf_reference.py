@@ -2,7 +2,6 @@ from pathlib import Path
 
 from pyscf import gto, scf
 
-
 HERE = Path(__file__).resolve().parent
 
 
@@ -12,7 +11,7 @@ def load_xyz_body(path):
 
 
 mol = gto.M(
-    atom=load_xyz_body(HERE / "ethanol.xyz"),
+    atom=load_xyz_body(HERE.parent / "ethanol.xyz"),
     basis="sto-3g",
     charge=0,
     spin=0,

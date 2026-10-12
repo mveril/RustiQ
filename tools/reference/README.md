@@ -49,13 +49,17 @@ uv run --locked pytest tools/reference
 
 This uses the cross-platform lock and requires compatible binary wheels; it
 does not build Python packages from source. PySCF supports Linux, macOS, and
-WSL2, but not native Windows. The comparison script also invokes `cargo`, so
-Cargo must remain on `PATH`.
+WSL2, but not native Windows. Cargo must remain on `PATH` when using the
+default `cargo run` invocation.
+Set `RUSTIQ_BIN` to an absolute executable path to compare a specific build
+instead; `nix run .#pyscf-check` supplies its Nix-built executable this way.
+The full directory suite also invokes Cargo for Rust/NumPy persistence
+interoperability checks, even when `RUSTIQ_BIN` is set.
 
-Run a single case by its pytest parameter ID:
+Select the H₂/STO-3G RHF comparison without its MP2 variant:
 
 ```sh
-uv run --locked pytest tools/reference -k h2-sto-3g-rhf
+uv run --locked pytest tools/reference -k 'h2-sto-3g-rhf and not mp2'
 ```
 
 The H₂ matrix also covers the split-valence 6-31G and correlation-consistent
@@ -94,7 +98,7 @@ uv run --locked pytest tools/reference -k h2-plus-sto-3g-uhf
 The equivalent flake app invocation is:
 
 ```sh
-nix run .#pyscf-check -- -k h2-sto-3g-rhf
+nix run .#pyscf-check -- -k h2-plus-sto-3g-uhf
 ```
 
 Prefix the single-case command with `nix develop --command` when running it
@@ -129,5 +133,6 @@ identical convergence criteria.
 RustiQ is invoked with `run --format json`; pytest reads schema version 1 JSON
 directly, checks convergence, methods, and energies, and provides all comparison
 reporting. This keeps reference validation independent of terminal report wording
-and decimal formatting. `python tools/reference/compare_pyscf.py` remains a thin
-compatibility launcher that forwards its arguments to pytest.
+and decimal formatting. `compare_pyscf.py` owns the reference case definitions
+and shared comparison functions. Its command-line entry point forwards arguments
+to pytest for compatibility; use the commands above for new workflows.

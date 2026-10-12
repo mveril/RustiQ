@@ -38,8 +38,8 @@ The Documentation workflow builds and validates pull requests and can also be
 run manually. A separate Publish documentation workflow runs on pushes to
 `main`, including merges, and deploys to GitHub Pages after successful validation.
 The publication job does not appear in pull request checks.
-Maintainers must select **GitHub Actions** as the repository's Pages source
-before the first deployment. PR builds have no Pages write permission.
+The repository's Pages source must be **GitHub Actions** for this workflow to
+deploy the manual. PR builds have no Pages write permission.
 
 When extending the manual, tie executable capabilities to checked-in examples
 and automated verification. Numerical claims need a reference and tolerance.

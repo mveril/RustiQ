@@ -11,7 +11,7 @@ on:
       mp2_sizes:
         description: Comma-separated MP2 AO dimensions
         required: true
-        default: '12,24'
+        default: "12,24"
         type: string
       mp2_memory:
         description: Configured MP2 workspace budget
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTIQ_BENCH_FILTER: ${{ inputs.eri_filter }}
-      RUSTIQ_BENCH_HEAVY: ${{ inputs.include_heavy }}
+      RUSTIQ_BENCH_HEAVY: ${{ inputs.include_heavy_eri && '1' || '0' }}
       RUSTIQ_MP2_SIZES: ${{ inputs.mp2_sizes }}
       RUSTIQ_MP2_MEMORY: ${{ inputs.mp2_memory }}
 
