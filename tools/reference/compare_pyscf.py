@@ -233,6 +233,24 @@ CASES = [
 ]
 
 FROZEN_CORE_MEMORY_BUDGETS = ("32 KiB", "512 MiB")
+RUSTIQ_SCHEMA_VERSION = 1
+
+
+def validate_rustiq_result(result: object, case_name: str) -> dict[str, object]:
+    """Check the stable JSON envelope consumed by reference validation."""
+    if not isinstance(result, dict):
+        raise TypeError(f"RustiQ JSON output for {case_name} must be an object")
+    version = result.get("schema_version")
+    if type(version) is not int or version != RUSTIQ_SCHEMA_VERSION:
+        raise ValueError(
+            f"Unsupported or missing RustiQ schema_version for {case_name}: {version!r}"
+        )
+    calculation = result.get("calculation")
+    if not isinstance(calculation, dict):
+        raise TypeError(f"RustiQ JSON output for {case_name} is missing calculation object")
+    if not isinstance(calculation.get("hf"), dict):
+        raise TypeError(f"RustiQ JSON output for {case_name} is missing calculation.hf object")
+    return result
 
 
 def run_command(args: list[str], *, env: dict[str, str] | None = None) -> str:
@@ -296,11 +314,12 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         env=env,
     )
     try:
-        return json.loads(stdout)
+        parsed = json.loads(stdout)
     except json.JSONDecodeError as error:
         raise RuntimeError(
             f"Could not parse RustiQ JSON output for {case.name}: {error}\nstdout:\n{stdout}"
         ) from error
+    return validate_rustiq_result(parsed, case.name)
 
 
 def pyscf_result(case: ReferenceCase) -> tuple[float, float | None, float | None]:
@@ -353,12 +372,21 @@ def frozen_core_case(
         source,
         flags=re.MULTILINE,
     )
+    marker = "frozen_orbitals = 0"
+    if source.count(marker) != 1:
+        raise ValueError(f"Expected one MP2 frozen-orbital setting in {case.runfile}")
     source = source.replace(
-        "frozen_orbitals = 0", f'frozen_orbitals = 1\nmemory_limit = "{budget}"'
+        marker, f'frozen_orbitals = 1\nmemory_limit = "{budget}"'
     )
     directory.mkdir(parents=True, exist_ok=True)
     runfile = directory / f"{case.name}-frozen-mp2-{budget.replace(' ', '-')}.toml"
     runfile.write_text(source, encoding="utf-8")
+    import tomllib
+
+    generated = tomllib.loads(source)
+    mp2 = generated.get("method", {}).get("mp2", {})
+    if mp2.get("frozen_orbitals") != 1 or mp2.get("memory_limit") != budget:
+        raise ValueError("Generated frozen-core runfile did not apply its requested settings")
     from dataclasses import replace
 
     return replace(case, runfile=runfile, frozen_orbitals=1)

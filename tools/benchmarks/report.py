@@ -36,7 +36,9 @@ def finite(value: Any, label: str) -> float:
     return result
 
 
-def criterion_measurement(root: Path, benchmark_id: str) -> dict[str, Any]:
+def criterion_measurement(
+    root: Path, benchmark_id: str, not_before: float
+) -> dict[str, Any]:
     # Criterion 0.8 emits structured benchmark and estimate JSON under new/.
     encoded = benchmark_id.replace("/", "_")
     for path in root.rglob("new/benchmark.json"):
@@ -44,7 +46,15 @@ def criterion_measurement(root: Path, benchmark_id: str) -> dict[str, Any]:
         if not isinstance(data, dict):
             raise ReportError(f"Criterion benchmark metadata must be a JSON object: {path}")
         if data.get("full_id") == benchmark_id or path.parent.parent.name == encoded:
-            estimates = read_json(path.parent / "estimates.json")
+            estimates_path = path.parent / "estimates.json"
+            try:
+                if estimates_path.stat().st_mtime < not_before:
+                    raise ReportError(
+                        f"Criterion results for {benchmark_id} predate this benchmark run"
+                    )
+            except OSError as error:
+                raise ReportError(f"Missing Criterion estimates: {estimates_path}") from error
+            estimates = read_json(estimates_path)
             if not isinstance(estimates, dict):
                 raise ReportError(f"Criterion estimates must be a JSON object: {path.parent / 'estimates.json'}")
             mean = estimates.get("mean", {})
@@ -125,7 +135,11 @@ def generate(criterion_dir: Path, output_dir: Path) -> dict[str, Any]:
     for item in eri_meta:
         if not isinstance(item, dict) or not isinstance(item.get("benchmark_id"), str):
             raise ReportError("Invalid ERI benchmark metadata entry")
-        measurement = criterion_measurement(criterion_dir, item["benchmark_id"])
+        measurement = criterion_measurement(
+            criterion_dir,
+            item["benchmark_id"],
+            finite(eri_run.get("benchmark_started_unix_seconds"), "ERI timestamp"),
+        )
         throughput = measurement.pop("throughput")
         eps = None
         if isinstance(throughput, dict) and len(throughput) == 1:
@@ -136,8 +150,9 @@ def generate(criterion_dir: Path, output_dir: Path) -> dict[str, Any]:
         if not isinstance(item, dict) or not isinstance(item.get("ao_dimension"), int):
             raise ReportError("Invalid MP2 benchmark metadata entry")
         n = item["ao_dimension"]
-        dense = criterion_measurement(criterion_dir, f"mp2/dense/{n}")
-        blocked = criterion_measurement(criterion_dir, f"mp2/blocked/{n}")
+        mp2_started = finite(mp2_run.get("benchmark_started_unix_seconds"), "MP2 timestamp")
+        dense = criterion_measurement(criterion_dir, f"mp2/dense/{n}", mp2_started)
+        blocked = criterion_measurement(criterion_dir, f"mp2/blocked/{n}", mp2_started)
         if finite(item.get("energy_absolute_difference"), f"MP2 N={n} consistency") >= 1e-12:
             raise ReportError(f"Dense and blocked MP2 energy consistency check failed for N={n}")
         if finite(item.get("workspace_budget_bytes"), "workspace budget") <= 0 or item.get("block_size", 0) <= 0:

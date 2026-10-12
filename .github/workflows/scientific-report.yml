@@ -50,6 +50,9 @@ jobs:
       - name: Install locked Python environment
         run: uv sync --locked
 
+      - name: Remove stale Criterion measurements
+        run: rm -rf target/criterion
+
       - name: Run canonical PySCF reference suite
         id: reference
         continue-on-error: true

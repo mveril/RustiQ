@@ -44,6 +44,13 @@ def passed(error: float | None, tolerance: float | None, *required: Any) -> bool
 
 
 def validate_case(case: compare_pyscf.ReferenceCase, rustiq: dict[str, Any] | None, pyscf: tuple[float, float | None, float | None] | None, errors: list[str], pyscf_hf_converged: bool | None = None) -> dict[str, Any]:
+    if rustiq is not None:
+        try:
+            rustiq = compare_pyscf.validate_rustiq_result(rustiq, case.name)
+        except (TypeError, ValueError) as error:
+            errors.append(str(error))
+            rustiq = None
+    calc: dict[str, Any] = {}
     hf: dict[str, Any] = {}
     mp2: dict[str, Any] | None = None
     spin: dict[str, Any] | None = None
@@ -67,9 +74,14 @@ def validate_case(case: compare_pyscf.ReferenceCase, rustiq: dict[str, Any] | No
         errors.append("RustiQ HF method does not match the reference case")
     if not dimension_matches:
         errors.append("RustiQ AO basis dimension does not match the reference case")
-    hf_ok = converged and method_matches and dimension_matches and passed(error_hf, case.tolerance, rhf_energy, py_hf)
+    py_converged = pyscf_hf_converged is True
+    hf_ok = (converged and py_converged and method_matches and dimension_matches
+             and passed(error_hf, case.tolerance, rhf_energy, py_hf))
     if not converged:
         errors.append("RustiQ HF did not converge")
+    if pyscf_hf_converged is not True:
+        errors.append("PySCF HF did not converge" if pyscf_hf_converged is False
+                      else "PySCF HF convergence status is unknown")
     if py_hf is None:
         errors.append("PySCF HF calculation did not return a finite energy; convergence could not be established")
     if error_hf is None or (error_hf is not None and error_hf > case.tolerance):
@@ -83,8 +95,8 @@ def validate_case(case: compare_pyscf.ReferenceCase, rustiq: dict[str, Any] | No
         "rustiq_hf_total_energy_hartree": rhf_energy,
         "pyscf_hf_total_energy_hartree": py_hf, "hf_absolute_difference_hartree": error_hf,
         "hf_tolerance_hartree": case.tolerance, "rustiq_hf_converged": converged,
-        "pyscf_hf_converged": pyscf is not None if pyscf_hf_converged is None else pyscf_hf_converged, "hf_pass": hf_ok,
-        "status": "PASS" if hf_ok else "FAIL", "errors": errors,
+        "pyscf_hf_converged": pyscf_hf_converged, "hf_pass": hf_ok,
+        "status": "FAIL", "errors": errors,
     }
     if case.mp2:
         try:
@@ -112,7 +124,6 @@ def validate_case(case: compare_pyscf.ReferenceCase, rustiq: dict[str, Any] | No
                        "mp2_absolute_difference_hartree": mp2_error,
                        "mp2_tolerance_hartree": tolerance,
                        "pyscf_mp2_result_available": py_mp2 is not None, "mp2_pass": mp2_ok})
-        result["status"] = "PASS" if hf_ok and mp2_ok else "FAIL"
     if case.method == "uhf":
         try:
             spin = hf["spin"]
@@ -127,17 +138,18 @@ def validate_case(case: compare_pyscf.ReferenceCase, rustiq: dict[str, Any] | No
         result.update({"rustiq_s_squared": rust_spin, "pyscf_s_squared": py_spin,
                        "s_squared_absolute_difference": spin_error,
                        "spin_tolerance": case.spin_tolerance, "spin_pass": spin_ok})
-        if not spin_ok:
-            result["status"] = "FAIL"
     elif isinstance(hf, dict) and hf.get("spin") is not None:
         errors.append("RustiQ reported an unexpected open-shell spin diagnostic for RHF")
-        result["status"] = "FAIL"
     if not case.mp2:
         rustiq_mp2 = calc.get("mp2") if isinstance(calc, dict) else None
         pyscf_mp2 = pyscf[1] if pyscf is not None else None
         if rustiq_mp2 is not None or pyscf_mp2 is not None:
             errors.append("An unexpected MP2 result was returned for an HF-only case")
-            result["status"] = "FAIL"
+    result["status"] = "PASS" if (
+        not errors and hf_ok
+        and (not case.mp2 or result.get("mp2_pass") is True)
+        and (case.method != "uhf" or result.get("spin_pass") is True)
+    ) else "FAIL"
     return result
 
 

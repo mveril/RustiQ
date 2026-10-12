@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tomllib
 from collections.abc import Iterator
@@ -88,6 +89,26 @@ def test_rustiq_result_rejects_malformed_json(
     monkeypatch.setattr(compare_pyscf, "run_command", malformed_output)
 
     with pytest.raises(RuntimeError, match="Could not parse RustiQ JSON output"):
+        compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"calculation": {"hf": {}}},
+        {"schema_version": 2, "calculation": {"hf": {}}},
+        {"schema_version": 1},
+        {"schema_version": 1, "calculation": []},
+    ],
+)
+def test_rustiq_result_rejects_incompatible_json_contract(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
+) -> None:
+    monkeypatch.setattr(
+        compare_pyscf, "run_command", lambda *args, **kwargs: json.dumps(payload)
+    )
+
+    with pytest.raises((TypeError, ValueError), match="RustiQ JSON output|schema_version"):
         compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
 
 

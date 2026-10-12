@@ -24,17 +24,23 @@ def write_criterion(root: Path, benchmark_id: str, mean: float = 2e6) -> None:
 
 def test_reads_criterion_estimates_and_confidence_interval(tmp_path: Path) -> None:
     write_criterion(tmp_path, "eri/h2-sto3g/sto-3g")
-    result = report.criterion_measurement(tmp_path, "eri/h2-sto3g/sto-3g")
+    result = report.criterion_measurement(tmp_path, "eri/h2-sto3g/sto-3g", 0)
     assert result["mean_seconds"] == 0.002
     assert result["confidence_interval_seconds"] == [0.0018, 0.0022]
 
 
 def test_invalid_and_missing_criterion_results_fail(tmp_path: Path) -> None:
     with pytest.raises(report.ReportError, match="Missing Criterion"):
-        report.criterion_measurement(tmp_path, "mp2/dense/12")
+        report.criterion_measurement(tmp_path, "mp2/dense/12", 0)
     write_criterion(tmp_path, "mp2/dense/12", float("nan"))
     with pytest.raises(report.ReportError, match="finite"):
-        report.criterion_measurement(tmp_path, "mp2/dense/12")
+        report.criterion_measurement(tmp_path, "mp2/dense/12", 0)
+
+
+def test_stale_criterion_results_are_rejected(tmp_path: Path) -> None:
+    write_criterion(tmp_path, "eri/h2-sto3g/sto-3g")
+    with pytest.raises(report.ReportError, match="predate this benchmark run"):
+        report.criterion_measurement(tmp_path, "eri/h2-sto3g/sto-3g", 4e9)
 
 
 def test_invalid_json_is_diagnostic(tmp_path: Path) -> None:
