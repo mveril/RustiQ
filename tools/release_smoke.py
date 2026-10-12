@@ -19,7 +19,12 @@ from pathlib import Path
 
 
 def verify_checksum(archive: Path, checksum_file: Path) -> None:
-    lines = checksum_file.read_text(encoding="utf-8").splitlines()
+    # cargo-dist may insert blank separator lines into .sha256 sidecars.
+    # Ignore only empty/whitespace-only lines; malformed nonempty lines must
+    # continue to fail the strict checksum validation below.
+    lines = [line for line in checksum_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not lines:
+        raise ValueError(f"SHA-256 checksum file contains no entries: {checksum_file.name}")
     entries: list[tuple[str, str]] = []
     digest_only = len(lines) == 1 and re.fullmatch(r"[0-9a-fA-F]{64}", lines[0])
     if digest_only:

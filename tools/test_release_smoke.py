@@ -98,6 +98,31 @@ class ReleaseSmokeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest-only checksum"):
             verify_checksum(self.archive, wrong_name)
 
+    def test_checksum_accepts_blank_lines_in_dist_sidecar(self):
+        digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        for text in (
+            f"{digest}  {self.archive.name}\n\n",
+            f"\n{digest}  {self.archive.name}\n  \n",
+            f"{digest}\n\n",
+        ):
+            with self.subTest(text=text):
+                self.checksum.write_text(text, encoding="utf-8")
+                verify_checksum(self.archive, self.checksum)
+
+    def test_checksum_accepts_blank_lines_in_sha256_sum(self):
+        digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        summed = self.root / "sha256.sum"
+        summed.write_text(f"\n{digest} *{self.archive.name}\n\n", encoding="utf-8")
+        verify_checksum(self.archive, summed)
+
+    def test_checksum_rejects_empty_and_malformed_contents(self):
+        with self.assertRaisesRegex(ValueError, "contains no entries"):
+            self.checksum.write_text("\n   \n", encoding="utf-8")
+            verify_checksum(self.archive, self.checksum)
+        self.checksum.write_text("not a digest\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "malformed"):
+            verify_checksum(self.archive, self.checksum)
+
     def test_invalid_json(self):
         with self.assertRaisesRegex(ValueError, "JSON_VALIDATION_FAILURE"):
             self.validate(self.runner(json_output="{broken"))
