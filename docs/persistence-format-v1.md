@@ -247,14 +247,14 @@ scientific data together in a structured, inspectable store from
 does not use its directory layout or APIs, and is not binary-compatible with
 EZFIO.
 
-| Aspect | EZFIO in Quantum Package | RustiQ `.rustiq` |
-| --- | --- | --- |
-| Main role | Working database for Quantum Package calculation inputs and data generated or consumed across its methods. | Portable snapshot of one or more RustiQ calculations, used to inspect scientific state and reuse compatible artifacts. |
-| Storage | Hierarchical directory whose filesystem layout organizes the data; the Quantum Package guide describes its entries as plain-text files. | One ZIP/ZIP64 archive with a versioned manifest, request and resolved snapshots, optional source files, and per-calculation artifacts. |
-| Access | EZFIO generates data access APIs used by Quantum Package, with documented Fortran, Python, OCaml, and Bash interfaces. | RustiQ's typed Rust persistence APIs and CLI commands read, write, reuse, and inspect the archive. |
-| Data scope | Broad Quantum Package data, including molecular input and state created during its workflows, such as molecular orbitals. | RustiQ scientific snapshots and currently supported atomic-orbital electron-repulsion integral (AO ERI) data; HF orbitals, SCF restart state, DIIS history, and MP2 results are not persisted. |
-| Update model | Quantum Package methods use the EZFIO database as their shared calculation state. | Reuse opens the source bundle read-only. RustiQ publishes one new snapshot after every requested calculation has produced a result; preparation or execution errors prevent publication, while HF-only non-convergence can still publish AO ERIs. Replacing the source requires explicitly selecting the same resolved destination as both `--reuse` and `--artifact`. |
-| Reuse selection | Programs read and update the selected EZFIO database through its generated APIs; later methods can reuse stored molecular orbitals. | RustiQ checks per-artifact scientific compatibility, then can fall back to its enabled local AO ERI cache or recomputation. |
+| Aspect          | EZFIO in Quantum Package                                                                                                                | RustiQ `.rustiq`                                                                                                                                                                                                                                                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main role       | Working database for Quantum Package calculation inputs and data generated or consumed across its methods.                              | Portable snapshot of one or more RustiQ calculations, used to inspect scientific state and reuse compatible artifacts.                                                                                                                                                                                                                                                 |
+| Storage         | Hierarchical directory whose filesystem layout organizes the data; the Quantum Package guide describes its entries as plain-text files. | One ZIP/ZIP64 archive with a versioned manifest, request and resolved snapshots, optional source files, and per-calculation artifacts.                                                                                                                                                                                                                                 |
+| Access          | EZFIO generates data access APIs used by Quantum Package, with documented Fortran, Python, OCaml, and Bash interfaces.                  | RustiQ's typed Rust persistence APIs and CLI commands read, write, reuse, and inspect the archive.                                                                                                                                                                                                                                                                     |
+| Data scope      | Broad Quantum Package data, including molecular input and state created during its workflows, such as molecular orbitals.               | RustiQ scientific snapshots and currently supported atomic-orbital electron-repulsion integral (AO ERI) data; HF orbitals, SCF restart state, DIIS history, and MP2 results are not persisted.                                                                                                                                                                         |
+| Update model    | Quantum Package methods use the EZFIO database as their shared calculation state.                                                       | Reuse opens the source bundle read-only. RustiQ publishes one new snapshot after every requested calculation has produced a result; preparation or execution errors prevent publication, while HF-only non-convergence can still publish AO ERIs. Replacing the source requires explicitly selecting the same resolved destination as both `--reuse` and `--artifact`. |
+| Reuse selection | Programs read and update the selected EZFIO database through its generated APIs; later methods can reuse stored molecular orbitals.     | RustiQ checks per-artifact scientific compatibility, then can fall back to its enabled local AO ERI cache or recomputation.                                                                                                                                                                                                                                            |
 
 The EZFIO characteristics above follow the Quantum Package
 [quick-start guide](https://quantum-package.readthedocs.io/en/master/users_guide/quickstart.html)
@@ -348,8 +348,13 @@ parsed to reconstruct either semantic snapshot and never enter compatibility.
 The optional manifest `sources` array contains records such as:
 
 ```json
-{"original_name":"../input.toml","path":"sources/0","version":1,
- "size":123,"digest":"sha256:..."}
+{
+  "original_name": "../input.toml",
+  "path": "sources/0",
+  "version": 1,
+  "size": 123,
+  "digest": "sha256:..."
+}
 ```
 
 `original_name` is informational provenance and may contain an original path.
@@ -425,8 +430,11 @@ known snapshot records are errors.
 The snapshot excludes cache locations, source paths/spans, output presentation,
 and memory budgets. Floating-point JSON parsing preserves binary64 round trips,
 so reparsing a snapshot cannot change its canonical scientific identity.
-The snapshot does not yet provide direct archive execution or reconstruct an SCF
-restart state.
+The resolved snapshot supports reconstructing a prepared calculation through
+`RustiQData::prepare_calculation` and rerunning it through `rustiq run FILE.rustiq`.
+These are fresh HF/MP2 executions that reuse compatible stored AO ERIs when
+present and compute them otherwise. Snapshots do not persist HF orbitals,
+partial SCF state, or DIIS history for restart.
 
 ### Rust API
 
@@ -457,7 +465,6 @@ The existing single-calculation `RustiQData::open/write` methods delegate to the
 same bundle implementation. `open` rejects multi-calculation archives explicitly,
 so callers cannot silently drop entries. Sources returned by `RustiQData::open`
 are the single bundle's shared provenance. Bundle entries use `bundle.sources()`.
-
 
 `RustiQData::from_calculation(&PreparedCalculation)` captures requested and resolved inputs
 without executing HF. `set_eri` / `set::<AoEriArtifact>` supply an owned
@@ -551,16 +558,16 @@ indexes them, so duplicate names cannot be silently collapsed.
 
 Limits applied before parsing or allocating payloads:
 
-| Structure | Limit |
-| --- | ---: |
-| Uncompressed manifest | 1 MiB |
-| Uncompressed request snapshot, per calculation | 64 MiB |
+| Structure                                          |  Limit |
+| -------------------------------------------------- | -----: |
+| Uncompressed manifest                              |  1 MiB |
+| Uncompressed request snapshot, per calculation     | 64 MiB |
 | Uncompressed calculation snapshot, per calculation | 64 MiB |
-| Combined shared sources | 64 MiB |
-| Members | 4,096 |
-| Central directory | 16 MiB |
-| ZIP64 end-record body | 64 KiB |
-| NPY header body | 64 KiB |
+| Combined shared sources                            | 64 MiB |
+| Members                                            |  4,096 |
+| Central directory                                  | 16 MiB |
+| ZIP64 end-record body                              | 64 KiB |
+| NPY header body                                    | 64 KiB |
 
 All member paths obey the logical path rules above. File/ancestor conflicts and
 case-insensitive collisions are rejected; metadata paths are reserved. Names must
@@ -672,7 +679,6 @@ cargo run -p rustiq-chem-core --example copy_rustiq
 The examples read and write archives in the ignored
 `crates/rustiq-core/examples/data/` directory. The read examples expect
 `h2.rustiq` to have been created by `write_rustiq`.
-
 
 ## CLI publication and bundle selection
 

@@ -160,7 +160,7 @@ zero correlates all occupied orbitals. For RHF, it counts spatial orbitals:
 For UHF, the same count applies separately to the alpha and beta occupied
 spaces: `1` freezes the lowest occupied alpha orbital and the lowest occupied
 beta orbital, also excluding two electrons. These spin orbitals can have
-different spatial shapes. The CLI option does not specify separate spin counts
+different spatial shapes. This configuration setting does not specify separate spin counts
 or arbitrary orbital indices.
 
 RHF requires the count to be smaller than the occupied-orbital count. UHF

@@ -1,7 +1,7 @@
-# Nickel migration schema
+# Embedded Nickel configuration schema
 
-PR #101 makes the embedded Nickel schema authoritative for TOML defaults
-and validation. Nickel's native TOML import parses the in-memory source once
+The embedded Nickel schema is authoritative for TOML and native Nickel defaults
+and validation, delivered in PRs #101 and #103. Nickel's native TOML import parses the in-memory source once
 and preserves its locations. The source mapper walks Nickel's parsed value and
 supplies spans only; it does not parse TOML or construct configuration.
 Canonical rendering and `init` export TOML through Nickel. Default omission
@@ -59,7 +59,7 @@ changed to resolve resources.
 Verification:
 
 ```sh
-cargo test --offline --no-default-features --bin RustiQ runfile::
+cargo test --locked --offline --no-default-features --bin rustiq runfile::
 cargo test --offline --workspace --all-targets --all-features
 cargo test --offline --workspace --all-targets --no-default-features
 cargo clippy --offline --workspace --all-targets --all-features -- -D warnings

@@ -83,7 +83,7 @@ development environment (or the documented `uv`/PySCF setup); the binary
 archive alone does not include the reference harness.
 
 ```sh
-nix run .#pyscf-check -- -k h2-sto-3g-rhf
+nix run .#pyscf-check -- -k 'h2-sto-3g-rhf and not mp2'
 ```
 
 These checks validate this case, not arbitrary chemistry.

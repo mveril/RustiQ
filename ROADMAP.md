@@ -41,179 +41,85 @@ RustiQ currently provides:
 
 - TOML and native Nickel inputs with embedded contracts/defaults, composition,
   imports, and source-aware configuration diagnostics;
-- sequential Nickel batch execution with per-calculation results and errors;
-- XYZ geometries with source-located diagnostics;
-- local and optional online basis-set management;
-- Gaussian basis construction;
-- RHF and UHF with DIIS;
-- RHF-MP2 and UHF-MP2;
-- blocked AO-to-MO MP2 transformations with explicit memory planning;
-- geometry inspection and transformations;
-- structured calculation preparation through `CalculationRequest` and
+- sequential Nickel and portable-bundle batch execution with ordered
+  per-calculation results and errors;
+- XYZ geometries, geometry inspection and transformations;
+- local and optional online basis-set management, with Cartesian and supported
+  spherical Gaussian basis functions;
+- RHF and UHF with optional DIIS, plus RHF-MP2 and UHF-MP2;
+- blocked AO-to-MO MP2 transformations with explicit workspace planning;
+- reusable scientific input preparation through `CalculationRequest` and
   `PreparedCalculation`;
-- local directory-backed AO ERI reuse through typed persistence primitives;
-- portable V1 multi-calculation containers with integrity checks and atomic
-  publication (#88);
-- versioned machine-readable calculation output;
-- unit, integration, sample, and PySCF reference tests;
-- benchmark support for important ERI and MP2 paths.
+- optional directory-backed local AO ERI reuse;
+- portable V1 multi-calculation `.rustiq` bundles with typed request/resolved
+  snapshots, integrity checks, and atomic publication;
+- CLI bundle creation, read-only reuse, inspection, payload verification,
+  explicit same-path replacement, and direct archive reruns;
+- versioned calculation, batch, and artifact-inspection JSON contracts;
+- unit, integration, sample, persistence-interoperability, and PySCF reference
+  checks with explicit case-specific tolerances;
+- Criterion ERI/MP2 benchmarks and reproducible scientific/performance reports;
+- binary release and packaging-smoke workflows for six Linux, macOS, and
+  Windows targets, plus a separate crates.io publishing workflow;
+- an mdBook manual and Cargo, Nix, and Dev Container contributor workflows.
 
-The next development cycle is primarily an architecture-stabilization cycle.
-Large new scientific methods should not outrun the configuration, persistence,
-reuse, validation, and public-API boundaries described below.
+These capabilities remain experimental. In particular, portable bundles store
+scientific inputs and AO ERIs, not HF solutions, partial SCF state, DIIS history,
+or MP2 results. Direct archive execution starts a fresh HF calculation.
 
-## Architecture stabilization sequence
+The [manual](docs/src/SUMMARY.md), [CLI reference](docs/src/reference/cli.md),
+[schemas](schemas), and [persistence specification](docs/persistence-format-v1.md)
+describe implemented behavior. Issue and pull-request descriptions may retain
+historical proposals; shipped code, contracts, and tests establish availability.
 
-The main architectural work should proceed in the following order:
+## Delivered architecture milestones
 
-```text
-portable persistence V1
-        |
-        v
-frontend-neutral resolved configuration
-        |
-        v
-Nickel configuration, batch resolution, and CLI batch execution
-        |
-        v
-portable-artifact CLI orchestration
-        |
-        v
-HF solution and restart persistence
-        |
-        v
-scientific validation / stable public APIs
-```
+### Portable persistence V1 — delivered (#88)
 
-Some independent validation, documentation, and performance work may proceed in
-parallel when it does not change these boundaries.
+The non-empty, multi-calculation ZIP/ZIP64 container, typed snapshots, AO ERI
+artifacts, interoperability checks, and atomic publication are implemented.
+Each calculation has its own scientific state and artifact compatibility;
+source order and shared input provenance do not define a batch scientific
+identity. A single calculation is the ordinary one-entry container case.
 
-### 1. Portable persistence V1 — delivered (#79, #88)
+The [persistence specification](docs/persistence-format-v1.md) owns the wire
+layout, calculation identifiers, versioning, validation, and Rust APIs. Future
+artifact representations should extend those contracts rather than duplicate
+them in the roadmap. The local disposable cache remains separate from a
+portable scientific snapshot.
 
-Delivered by #88: a portable, versioned ZIP/ZIP64 `.rustiq` container with
-integrity checks, snapshot validation, atomic publication, interoperability
-coverage, and a natively multi-calculation V1 manifest. Source provenance,
-requested/resolved state, and artifacts remain distinct behind typed APIs.
-Normal CLI artifact orchestration remains a downstream milestone under #79.
+### Canonical Nickel configuration frontend — delivered (#94)
 
-#### Portable manifest is multi-calculation from V1
-
-A portable `.rustiq` represents a **non-empty** collection of one or more
-calculations (`1..N`). A normal single calculation is therefore the common
-case where the collection contains exactly one entry.
-
-This is a container-level capability only. It must not introduce a scientific
-`BatchConfig`, `SingleOrBatch`, or other batch abstraction into
-`rustiq-chem-core` calculation APIs.
-
-The conceptual shape is:
-
-```text
-portable .rustiq
-├── format / producer
-├── shared source provenance
-└── calculations
-    ├── calculation 0
-    │   ├── normalized request snapshot
-    │   ├── resolved calculation snapshot
-    │   └── typed scientific artifacts
-    ├── calculation 1
-    │   └── ...
-    └── ...
-```
-
-The manifest must not assign one fake scientific identity to the whole batch.
-Scientific compatibility remains local to the calculation and, where
-appropriate, to the individual artifact representation.
-
-Consequences:
-
-- `calculations.len() == 1` is the ordinary non-batch case;
-- a Nickel input resolving several calculations can be preserved in one
-  `.rustiq` without changing the container format;
-- batch-level inputs such as one Nickel source may be stored once as shared
-  opaque provenance;
-- each calculation has its own request/resolved snapshots and typed artifact
-  references;
-- compatibility and reuse are evaluated independently for each calculation and
-  artifact;
-- one incompatible calculation does not invalidate scientifically independent
-  entries in the same portable bundle;
-- artifact payload deduplication between calculations is optional and can be
-  added later without changing the semantic model;
-- the machine-local cache remains calculation/artifact-oriented and does not
-  need to become a batch container.
-
-The wire layout and stable calculation identifiers are defined by #88 under
-#79. Source ordering, user-facing labels, and aggregate batch hashes must not
-become part of scientific compatibility.
-
-### 2. Canonical Nickel configuration frontend — delivered (#94)
-
-The exploratory POC in #96 has validated the key frontend decisions before the
-production migration starts:
-
-- real RustiQ TOML inputs can be normalized through Nickel contracts/defaults;
-- tagged guess/distribution variants can remain closed and preserve current
-  semantics;
-- one calculation and Nickel-generated batches normalize to a non-empty
-  `ResolvedInput { calculations: Vec<_> }` boundary;
-- `nickel-lang` can evaluate the configuration in-process, so users do not need
-  an external Nickel executable;
-- Nickel diagnostics can be adapted to RustiQ's source-aware reporting.
-
-The POC also exposed a Nickel 2.2 debug-assertion bug when applying nested record
-contracts to imported/deserialized data. #94 must track an upstream-safe
-resolution or keep any temporary workaround private to the frontend; the
-workaround must not become part of RustiQ's public configuration contract.
-
-The production frontend boundary now builds on the merged portable V1 shape.
-
-The production flow is:
+The migration was delivered by #99, #100, #101, and #103. TOML and native `.ncl`
+inputs share Nickel defaults, contracts, and normalization into a non-empty
+`ResolvedInput` collection. Nickel evaluates in-process; no external Nickel
+executable is needed. The CLI executes calculations sequentially, retaining
+ordered per-entry outcomes after recoverable failures.
 
 ```text
 .toml ----\
-          +--> frontend resolution --> ResolvedInput
+          +--> Nickel resolution --> ResolvedInput
 .ncl  ----/                         Vec<ResolvedCalculationConfig>
                                             |
                                             v
-                                      rustiq-core
+                              individual rustiq-core calculations
 ```
 
-Delivered incrementally:
+Imports follow Nickel semantics; geometry paths resolve relative to the
+top-level input. Nickel owns frontend structure and defaults, while the core
+also enforces scientific invariants for direct API consumers.
 
-1. #99 established the sample configuration compatibility baseline.
-2. #100 introduced resolved DTOs, fallible core conversion, and maintained
-   Nickel schema verification.
-3. #101 made Nickel authoritative for TOML, preserved source mapping and
-   grouped diagnostics, migrated canonical TOML and `init`, and removed direct
-   `toml` and `toml-spanner` dependencies.
-4. Native `.ncl` inputs now support imports, one record or a non-empty array,
-   full batch resolution, and sequential execution of every calculation.
+The nested-record contract workaround discovered during the migration remains
+private to the frontend. Its current rationale and removal conditions are
+maintained in the [Nickel schema README](src/runfile/nickel/README.md).
 
-Batch execution continues after individual preparation/execution failures.
-JSON batches report ordered successes, non-convergence, and errors; individual
-calculations retain the existing JSON V1 contract. Imports use Nickel semantics,
-while geometry paths are relative to the top-level input. Computed scientific
-values have no fabricated source spans.
+### Portable artifacts in execution and the CLI — delivered (#108)
 
-This completes the frontend responsibility of #94 and delivers basic CLI batch
-orchestration. Persistence/reuse integration and HF restart remain under #79.
-
-Nickel owns user-facing structure, defaults, composition, and configuration
-validation. `rustiq-chem-core` continues to enforce scientific invariants for
-direct Rust API consumers.
-
-### 3. Integrate portable artifacts into execution and the CLI — next (#79)
-
-After the frontend boundary is stable, introduce portable reuse into the normal
-execution planner instead of bolting archive handling onto the current
-TOML-specific run path.
-
-The intended precedence for each required artifact is:
+The normal TOML/Nickel execution path now selects compatible AO ERIs in this
+order:
 
 ```text
-explicit portable .rustiq
+explicit --reuse .rustiq
         |
         v
 enabled local cache
@@ -222,27 +128,47 @@ enabled local cache
 computation
 ```
 
-The CLI milestone includes:
+The CLI supports `run INPUT --artifact result.rustiq`,
+`run INPUT --reuse previous.rustiq`, `artifact inspect`, `artifact verify`, and
+`run previous.rustiq`. Explicit same-path reuse/output publishes a replacement
+snapshot transactionally. Compatibility decisions remain independent for each
+calculation in a Nickel batch; output represents the current requested
+collection rather than accumulated history.
 
-- `rustiq run ... --artifact result.rustiq`;
-- `rustiq run ... --reuse previous.rustiq`;
-- read-only reuse by default;
-- transactional same-path completion;
-- `rustiq artifact inspect`;
-- explicit reporting of reused, missing, incompatible, ignored, and recomputed
-  state;
-- artifact/result orchestration for every calculation in an already executable
-  Nickel batch, with independent compatibility and reuse decisions.
+Direct bundle reruns reconstruct archived resolved inputs and basis data,
+without requiring the original runfile, geometry file, or local basis store.
+They run fresh HF/MP2 calculations, reusing compatible stored AO ERIs when
+present and computing them otherwise. The [portable bundle guide](docs/src/user-guide/portable-bundles.md)
+owns the runnable workflows and their restrictions.
 
-Batch orchestration should consume `ResolvedInput`; it must not leak batch
-concepts into individual scientific calculation APIs.
+### Validation, performance, documentation, and release infrastructure — delivered baseline
 
-### 4. Persist converged and restartable HF state (#79)
+Selected RHF, UHF, RHF-MP2, and UHF-MP2 cases are compared against pinned PySCF.
+Frozen-orbital and MP2 workspace variants are included, and report generation
+records full precision results, tolerances, versions, and execution metadata
+(#121). Criterion benchmarks cover ERI and MP2 operations (#117), including a
+guaranteed multiblock MP2 workload (#125).
+See [reference comparisons](tools/reference/README.md) and
+[performance reporting](docs/src/development/contributing.md#generate-reproducible-reports).
 
-Once basic portable reuse works end to end, extend typed persistence beyond AO
-ERIs.
+Binary release workflows (#119) and native packaging rehearsals (#120, #122,
+#123) cover Linux, macOS, and Windows on x86_64 and ARM64. They provide release
+infrastructure and packaging checks; availability of published versions is
+shown on [GitHub Releases](https://github.com/mveril/RustiQ/releases).
+The [release guide](docs/src/development/releasing.md) describes tag validation,
+checksums, smoke verification, and separate crates.io publication.
 
-Implement in this order:
+The manual covers binary and source workflows, scientific limits, input/output
+contracts, persistence, development, and verification (#113, #115, #124).
+Existing validation and packaging checks establish a baseline for further work,
+not research-grade scientific or universal platform guarantees.
+
+## Remaining priorities
+
+### 1. Persist converged and restartable HF state (#79)
+
+Portable AO ERI reuse is implemented. The next persistence milestone extends
+typed artifacts beyond integrals, in this order:
 
 1. converged RHF/UHF solutions reusable by post-HF methods;
 2. partial RHF/UHF restart state without DIIS;
@@ -254,50 +180,58 @@ to continue from persisted partial state.
 
 Restart semantics must be scientifically defined and reported explicitly.
 Persistence must never silently claim exact continuation when required state is
-missing or incompatible.
+missing or incompatible. Advanced CLI artifact-selection/ignore filters and
+optional pruning remain follow-up work after basic HF persistence is stable.
 
-### 5. Strengthen scientific validation and reproducibility
+### 2. Broaden scientific validation and reproducibility
 
-Architecture alone is not enough for research use. Once the main input and
-persistence contracts stabilize, prioritize:
+Build on the existing reference suite and reports by prioritizing:
 
-- systematic RHF, UHF, RHF-MP2, and UHF-MP2 comparison against established
-  implementations;
-- documented numerical conventions for units, Gaussian normalization, ERI
+- broader RHF/UHF/MP2 comparisons across elements, basis conventions, charges,
+  spin states, and difficult SCF cases;
+- detailed numerical conventions for Gaussian normalization, integral
   ordering/symmetry, SCF, spin treatment, and MP2;
-- documented tolerances and versioned reference datasets;
-- non-regression coverage across molecules, basis sets, charge states, spin
-  states, and difficult SCF cases;
-- reproducible ERI, SCF, and MP2 benchmarks;
-- larger-calculation memory and performance characterization.
+- additional versioned reference cases with explicit tolerances and provenance;
+- reproducible SCF performance measurements alongside the existing ERI/MP2
+  benchmarks;
+- measured larger-calculation memory and performance characterization.
 
-This work may add bugs or performance issues to the roadmap, but it should not
-destabilize the frontend/persistence boundaries without a concrete scientific
-reason.
+The [scientific scope](docs/src/scientific-scope.md) states the current coverage
+and limits. Validation can reveal bugs or performance issues requiring targeted
+implementation changes. Large new methods should not outrun the configuration,
+persistence, resource, and public-API boundaries.
 
-### 6. Stabilize embedding APIs and bindings
+### 3. Stabilize embedding APIs and evaluate bindings
 
-Bindings should target the stabilized core API rather than duplicate CLI
-configuration behavior.
+The reusable `rustiq-chem-core` Rust API and runnable examples already exist.
+The current workspace contains the CLI and core crates; the Python tooling is
+for reference validation and reporting, not a shipped Python binding package.
 
-After the architecture work above:
+Future embedding work should:
 
-- refresh the Python bindings against the current `rustiq-chem-core` public API;
+- document API stability and migration expectations;
+- develop Python bindings against the stabilized scientific API when there is
+  a concrete use case;
 - expose domain-native molecule, geometry, basis, HF, and MP2 operations;
-- keep Python configuration ergonomic without mirroring the Nickel/TOML
+- keep binding configuration ergonomic without duplicating the Nickel/TOML
   frontend internally;
-- evaluate C bindings only where a concrete embedding use case exists;
-- document API stability expectations before expanding the binding surface.
+- evaluate C bindings where a concrete embedding need exists.
 
-### 7. Packaging and release readiness
+### 4. Exercise release readiness and compatibility
 
-Once the scientific and architectural contracts are sufficiently stable:
+The release workflows are implemented. Continue to:
 
-- produce release artifacts for common Linux, macOS, and Windows targets;
-- validate installation without the development Nix environment;
-- keep Nix/devcontainer workflows reproducible for contributors;
-- publish clear compatibility and migration notes for persistent formats and
-  public APIs.
+- rehearse all configured native target archives and exercise published
+  installation workflows;
+- expand compatibility evidence beyond the GitHub-hosted runner environments;
+- keep Cargo, Nix, and Dev Container workflows reproducible for contributors;
+- publish compatibility and migration notes for persistent formats and public
+  APIs;
+- update release authentication when crates.io Trusted Publishing prerequisites
+  are met, as described in the release guide.
+
+Scientific validation, performance, documentation, and packaging work can
+proceed alongside HF persistence when they preserve these boundaries.
 
 ## Parallel improvement tracks
 
