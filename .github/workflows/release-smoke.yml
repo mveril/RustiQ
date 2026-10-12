@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Commit, branch, or tag to rehearse
-        required: true
-        default: main
+        description: Optional commit, branch, or tag to rehearse; blank tests the selected workflow revision
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -36,8 +36,23 @@ jobs:
       - name: Check out selected revision
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
+
+      - name: Record tested revision
+        shell: bash
+        env:
+          SELECTED_REF: ${{ inputs.ref }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [[ -z "$SELECTED_REF" && "$actual" != "$WORKFLOW_SHA" ]]; then
+            echo "::error::Expected workflow commit $WORKFLOW_SHA, checked out $actual"
+            exit 1
+          fi
+          printf 'Testing commit: %s\n' "$actual"
+          printf 'Smoke test revision: `%s` (ref: `%s`)\n' "$actual" "${SELECTED_REF:-workflow-selected commit}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
