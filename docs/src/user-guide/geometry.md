@@ -39,6 +39,15 @@ repulsion value.
 > `[molecule].units` (default: `"Angstrom"`) before computing energies.
 > This setting does not apply to the standalone geometry command.
 
+With only the release binary, save this geometry as `h2.xyz` as shown in the
+[first-calculation guide](../getting-started/first-calculation.md). After
+reading the units warning above, inspect or transform the local file with:
+
+```sh
+rustiq geometry info h2.xyz
+rustiq geometry translate h2.xyz --dz 1 -o h2-shifted.xyz
+```
+
 From the repository root, inspect a geometry with:
 
 ```sh

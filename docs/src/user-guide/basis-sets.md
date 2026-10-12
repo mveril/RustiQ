@@ -18,7 +18,10 @@ rustiq basis list
 ```
 
 The import itself is local and needs no network access; you must obtain the
-JSON file separately. In a source checkout, the checked-in STO-3G fixture is
+JSON file separately. On a connected computer, choose a basis and JSON format
+from the [Basis Set Exchange](https://www.basissetexchange.org/), download the
+file, and transfer it to the calculation computer if needed. Then import it
+with the executable command above. In a source checkout, the checked-in STO-3G fixture is
 available at `tests/data/sto-3g.json`, and the sample calculation is at
 `samples/h2/sto-3g/calculation.toml`:
 

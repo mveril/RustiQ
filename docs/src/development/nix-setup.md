@@ -108,6 +108,7 @@ Run the usual Cargo commands inside the shell:
 ```sh
 cargo build
 cargo test
+cargo run -- basis import tests/data/sto-3g.json
 cargo run -- run samples/h2/sto-3g/calculation.toml
 ```
 

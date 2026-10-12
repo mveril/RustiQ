@@ -32,6 +32,7 @@ cd RustiQ
 rustup show
 cargo build --locked
 cargo test
+cargo run -- basis import tests/data/sto-3g.json
 cargo run -- run samples/h2/sto-3g/calculation.toml
 ```
 
@@ -55,6 +56,7 @@ or timing comparisons:
 
 ```sh
 cargo build --release --locked
+cargo run -- basis import tests/data/sto-3g.json
 cargo run --release --locked -- run samples/h2/sto-3g/calculation.toml
 ```
 

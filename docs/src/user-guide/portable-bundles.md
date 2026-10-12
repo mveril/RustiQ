@@ -13,9 +13,24 @@ Hartree–Fock wavefunction or skip a new SCF run.
 
 ## Create and inspect a bundle
 
-Run the examples from the repository root. First make the checked-in STO-3G
-basis available, then run the H₂ sample and write a bundle to the current
-directory:
+### Release binary
+
+First follow the local-input workflow in the
+[first-calculation guide](../getting-started/first-calculation.md). With its
+`calculation.toml` and downloaded STO-3G basis, create a bundle:
+
+```sh
+rustiq run calculation.toml --artifact h2.rustiq
+rustiq artifact inspect h2.rustiq
+rustiq artifact verify h2.rustiq
+rustiq run h2.rustiq
+rustiq run calculation.toml --reuse h2.rustiq --format json --pretty --color never
+```
+
+### Source checkout
+
+Alternatively, from a cloned repository, make the checked-in STO-3G basis
+available, then run the H₂ sample and write a bundle to the current directory:
 
 The runfile used here is the checked-in H₂ sample:
 
@@ -110,6 +125,10 @@ captured source files. Instead, RustiQ prepares the supplied input, checks the
 bundle for compatible AO ERIs, and runs HF again; it also runs MP2 again if the
 new input requests MP2. The archive itself supplies reusable artifacts and
 remains read-only.
+
+For the release-binary workflow, use the local `calculation.toml` created in
+the first-calculation guide. The command below shows the equivalent
+source-checkout sample path.
 
 ```sh
 rustiq run samples/h2/sto-3g/calculation.toml \

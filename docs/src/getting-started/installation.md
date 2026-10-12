@@ -22,7 +22,10 @@ cargo build --locked
 ```
 
 The checked-in `rust-toolchain.toml` selects the Rust toolchain.
-Run this guide's commands from the repository root.
+Run this guide's commands from the repository root. The user guides use the
+`rustiq` command. `cargo build` alone does not put the
+executable on `PATH`: use the `cargo install --locked --path .` step below, or
+run commands from the checkout with `cargo run --locked -- <arguments>`.
 
 Alternatively, enter `nix develop .#rust` after cloning. The flake declares
 x86_64 Linux, AArch64 Linux, and Apple Silicon macOS. Windows users can use
@@ -30,7 +33,8 @@ WSL2 or the VS Code Dev Container for the Linux environment.
 See [development environments](../development/environments.md) for setup and
 troubleshooting.
 
-To install the executable into Cargo's binary directory:
+To install the executable into Cargo's binary directory so the guides' `rustiq`
+commands work directly:
 
 ```sh
 cargo install --locked --path .
@@ -66,11 +70,17 @@ release's `sha256.sum` manifest as described in
 [Releasing RustiQ](../development/releasing.md), then extract it and put
 `rustiq` (or `rustiq.exe` on Windows) in a directory on `PATH`. Prebuilt
 binaries include online basis commands, but do not contain basis data. Download
-or import the basis required by the calculation as described above.
+or import the basis required by the calculation as described above. If you
+have not added the extraction directory to `PATH`, open a terminal there and
+run `./rustiq --help` on Linux or macOS, or `.\rustiq.exe --help` in
+PowerShell. After adding it to `PATH`, use `rustiq` in either environment.
 
 The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase
 on case-sensitive systems. Ensure the directory containing it is on `PATH`.
-Sample-based tutorials require a source checkout.
+The user-guide commands work after this install step. If you skip installation,
+use `cargo run --locked -- <arguments>` from the checkout instead. Sample-based
+tutorials still require the checkout because their input and fixture files are
+not included in the release archive.
 
 The [first calculation](first-calculation.md) includes a binary-only path that
 creates its input locally and downloads STO-3G, plus the source-checkout

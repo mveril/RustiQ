@@ -33,7 +33,22 @@ multiplicity, so `Auto` resolves to UHF:
 {{#include ../../../samples/oh/sto-3g/calculation.toml}}
 ```
 
-Run it after importing STO-3G:
+To run this same example with only the release binary, save the following
+geometry as `oh.xyz` and save the TOML above as `oh.toml`. In the TOML, change
+`geometry = "../oh.xyz"` to `geometry = "oh.xyz"`; keep the neutral charge,
+doublet multiplicity, `1e-5` threshold, and DIIS settings shown above. Then
+download STO-3G and run:
+
+```text
+{{#include ../../../samples/oh/oh.xyz}}
+```
+
+```sh
+rustiq basis download sto-3g
+rustiq run oh.toml
+```
+
+For a source checkout, run it after importing STO-3G:
 
 ```sh
 rustiq basis import tests/data/sto-3g.json

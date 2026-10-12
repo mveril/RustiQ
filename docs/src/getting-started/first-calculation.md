@@ -47,7 +47,9 @@ Default input units are Angstrom; resolved coordinates are Bohr. The neutral
 singlet defaults resolve HF `Auto` to RHF. The core-Hamiltonian guess makes
 this example deterministic.
 
-The existing CLI regression test checks this input, RHF resolution, units, two
+The following verification commands are for the cloned-repository persona;
+they are optional when using only the release binary. The existing CLI
+regression test checks this input, RHF resolution, units, two
 SCF iterations, and these selected output lines. Its reproducible command is
 below; the test source is linked for readers who want to inspect its assertions.
 
@@ -74,6 +76,10 @@ instructions are linked below.
 [Comparison source on GitHub](https://github.com/mveril/RustiQ/blob/main/tools/reference/compare_pyscf.py)
 
 [Reference test instructions on GitHub](https://github.com/mveril/RustiQ/blob/main/tools/reference/README.md)
+
+Reproducing this comparison requires the cloned repository and its Nix
+development environment (or the documented `uv`/PySCF setup); the binary
+archive alone does not include the reference harness.
 
 ```sh
 nix run .#pyscf-check -- -k h2-sto-3g-rhf

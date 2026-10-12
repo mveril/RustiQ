@@ -17,6 +17,14 @@ The checked-in H₂ input requests RHF-MP2 with no frozen orbitals:
 {{#include ../../../samples/h2/sto-3g/mp2_calculation.toml}}
 ```
 
+With only the release binary, follow the first-calculation guide to create
+`h2.xyz` and download STO-3G. Generate and run an MP2 input with:
+
+```sh
+rustiq init h2.xyz --mp2 -o h2-mp2.toml
+rustiq run h2-mp2.toml
+```
+
 Run it from the repository root after importing STO-3G:
 
 ```sh
@@ -36,6 +44,16 @@ UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
 
 ```toml
 {{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
+```
+
+For the release binary, reuse `oh.xyz` created in the
+[HF guide](hartree-fock.md), save this input as `oh-mp2.toml`, and change its
+geometry path from `../oh.xyz` to `oh.xyz`. Preserve the `1e-10` threshold and
+DIIS settings from the sample. Download STO-3G and run:
+
+```sh
+rustiq basis download sto-3g
+rustiq run oh-mp2.toml
 ```
 
 Run it from the repository root after making STO-3G available, as described in
@@ -104,7 +122,9 @@ within \\(2\times10^{-5}\\). These are agreement tolerances for those inputs,
 not a measure of general chemical accuracy. See the
 [reference coverage](../scientific-scope.md#reference-comparisons) and the
 [reference test source](https://github.com/mveril/RustiQ/blob/main/tools/reference/test_compare_pyscf.py).
-Reproduce both selected cases with:
+Reproduce both selected cases from a cloned repository with Nix, or use the
+documented `uv`/PySCF setup. These reference commands are optional and are not
+included in the release binary:
 
 ```sh
 nix run .#pyscf-check -- -k 'h2-sto-3g-rhf-mp2 or oh-sto-3g-uhf-mp2'

@@ -18,10 +18,15 @@ validation against established quantum chemistry packages.**
   → [Contributing, architecture, and the Rust API](development/contributing.md)
   → [Documentation checks](development/documentation.md). Start with the
   calculation lifecycle to see how input, scientific code, and reporting fit together.
+  User-guide commands use the installed `rustiq` executable; a source checkout
+  can install it with the instructions on the [installation page](getting-started/installation.md)
+  or run it through Cargo.
 - **Theoretical chemists:** [First calculation](getting-started/first-calculation.md)
   → [Reference comparisons](scientific-scope.md#reference-comparisons) →
   [Scientific limitations](scientific-scope.md#major-limitations). These identify
   tested evidence and current assumptions without requiring development tools.
+  The release binary is sufficient for calculations; reproducing the reference
+  suite additionally requires a source checkout and its documented test environment.
 
 The [glossary](glossary.md) explains unfamiliar scientific and software terms.
 [Existing workflow notes](reference/existing-workflows.md) preserve useful

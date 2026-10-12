@@ -55,6 +55,22 @@ relative to the sample file and points to `samples/h2/molecule.xyz`:
 {{#include ../../../samples/h2/sto-3g/calculation-cache.toml}}
 ```
 
+With only the release binary, follow the first-calculation workflow to create
+`calculation.toml`, then add this section to that file and rerun it:
+
+```toml
+[cache]
+enabled = true
+```
+
+The short block is a fragment to append to the existing input, not a complete
+runfile. Then run the local input and inspect its cache entries with:
+
+```sh
+rustiq run calculation.toml --cache-dir ./rustiq-cache
+rustiq cache list --cache-dir ./rustiq-cache
+```
+
 `--cache-dir DIR` selects the directory for this run but does not enable the
 cache. The cache can be used as a fallback when a portable bundle has no
 compatible AO ERI; it is not itself a portable `.rustiq` bundle. See the
