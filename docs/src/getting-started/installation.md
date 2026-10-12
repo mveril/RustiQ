@@ -16,15 +16,15 @@ compatible glibc runtime.
 ## Verify and run the executable
 
 Download the release's `sha256.sum` and all listed assets into one directory.
-Verify them before extracting:
+On Linux or macOS, verify them before extracting:
 
 ```sh
 sha256sum --check sha256.sum  # Linux
 shasum -a 256 --check sha256.sum  # macOS
 ```
 
-In Windows PowerShell, set the archive name to the file you downloaded, then
-compare its computed hash with the matching entry in `sha256.sum`:
+On Windows, use PowerShell to compare the downloaded archive's computed hash
+with its matching entry in `sha256.sum`:
 
 ```powershell
 $archive = "rustiq-chem-x86_64-pc-windows-msvc.zip"
