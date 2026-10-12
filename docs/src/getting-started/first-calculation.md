@@ -2,14 +2,11 @@
 
 ## Using only the release binary
 
-Create a small XYZ geometry in your working directory and save it as
-`h2.xyz`:
+Copy the following geometry into a file named `h2.xyz` in your working
+directory. It is the same geometry used by the checked-in sample:
 
 ```text
-2
-H2 in Angstrom
-H 0 0 0
-H 0 0 0.7414
+{{#include ../../../samples/h2/molecule.xyz}}
 ```
 
 Create an input, download STO-3G, and run the calculation:
@@ -43,11 +40,8 @@ The checked-in configuration is included directly:
 ```
 
 The geometry path resolves from the runfile directory. Preserve the directory
-layout if copying the sample. Its XYZ source is:
-
-```text
-{{#include ../../../samples/h2/molecule.xyz}}
-```
+layout if copying the sample, or copy the geometry shown above beside your
+input and update its path.
 
 Default input units are Angstrom; resolved coordinates are Bohr. The neutral
 singlet defaults resolve HF `Auto` to RHF. The core-Hamiltonian guess makes

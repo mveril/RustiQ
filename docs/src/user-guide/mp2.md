@@ -2,7 +2,8 @@
 
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
-those files; use equivalent input files in your working directory instead.
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
 
 Second-order Møller–Plesset perturbation theory (MP2) estimates an electron
 correlation correction using molecular orbitals from a converged HF reference.
@@ -82,8 +83,9 @@ a very small budget. See the source for
 and the authoritative Nickel defaults in the
 [input contract](../reference/index.md).
 
-For example, the existing Nickel default is `auto`. An explicit byte-size
-budget belongs under `[method.mp2]`:
+For example, the existing Nickel default is `auto`. To set an explicit byte-size
+budget in an existing input, add this `[method.mp2]` field (this is a fragment,
+not a complete runfile):
 
 ```toml
 [method.mp2]

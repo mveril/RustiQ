@@ -2,7 +2,8 @@
 
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
-those files; use equivalent input files in your working directory instead.
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create equivalent local inputs and obtain a basis.
 
 A TOML input describes one calculation. Begin with the checked-in neutral H₂
 example:
@@ -46,11 +47,12 @@ not a second specification in this guide.
 ## Optional local AO ERI cache
 
 The directory-backed AO ERI cache is local, disposable storage. It is disabled
-by default; enable it in the runfile to allow reuse across runs:
+by default; enable it in the runfile to allow reuse across runs. The checked-in
+cache sample below is a complete calculation input; its geometry path is
+relative to the sample file and points to `samples/h2/molecule.xyz`:
 
 ```toml
-[cache]
-enabled = true
+{{#include ../../../samples/h2/sto-3g/calculation-cache.toml}}
 ```
 
 `--cache-dir DIR` selects the directory for this run but does not enable the

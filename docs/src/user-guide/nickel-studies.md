@@ -2,7 +2,8 @@
 
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
-those files; use equivalent input files in your working directory instead.
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
 
 Nickel is a configuration language that RustiQ embeds. A `.ncl` file can
 import other Nickel files and compute a list of related calculation records.

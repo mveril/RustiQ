@@ -2,7 +2,8 @@
 
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
-those files; use equivalent input files in your working directory instead.
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
 
 RustiQ reads molecular coordinates from XYZ files. Each file starts with the
 number of atoms, then a comment line, then one line per atom containing an

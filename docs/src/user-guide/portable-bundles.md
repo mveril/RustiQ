@@ -2,7 +2,8 @@
 
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
-those files; use equivalent input files in your working directory instead.
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
 
 A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
@@ -15,6 +16,12 @@ Hartree–Fock wavefunction or skip a new SCF run.
 Run the examples from the repository root. First make the checked-in STO-3G
 basis available, then run the H₂ sample and write a bundle to the current
 directory:
+
+The runfile used here is the checked-in H₂ sample:
+
+```toml
+{{#include ../../../samples/h2/sto-3g/calculation.toml}}
+```
 
 ```sh
 rustiq basis import tests/data/sto-3g.json
