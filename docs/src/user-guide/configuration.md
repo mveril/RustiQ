@@ -1,5 +1,10 @@
 # TOML calculation configuration
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create equivalent local inputs and obtain a basis.
+
 A TOML input describes one calculation. Begin with the checked-in neutral H₂
 example:
 
@@ -10,8 +15,8 @@ example:
 From the repository root, import the basis if needed and run the input:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.toml
 ```
 
 The `[molecule]` section points to an XYZ geometry and can set `charge`,
@@ -42,11 +47,28 @@ not a second specification in this guide.
 ## Optional local AO ERI cache
 
 The directory-backed AO ERI cache is local, disposable storage. It is disabled
-by default; enable it in the runfile to allow reuse across runs:
+by default; enable it in the runfile to allow reuse across runs. The checked-in
+cache sample below is a complete calculation input; its geometry path is
+relative to the sample file and points to `samples/h2/molecule.xyz`:
+
+```toml
+{{#include ../../../samples/h2/sto-3g/calculation-cache.toml}}
+```
+
+With only the release binary, follow the first-calculation workflow to create
+`calculation.toml`, then add this section to that file and rerun it:
 
 ```toml
 [cache]
 enabled = true
+```
+
+The short block is a fragment to append to the existing input, not a complete
+runfile. Then run the local input and inspect its cache entries with:
+
+```sh
+rustiq run calculation.toml --cache-dir ./rustiq-cache
+rustiq cache list --cache-dir ./rustiq-cache
 ```
 
 `--cache-dir DIR` selects the directory for this run but does not enable the

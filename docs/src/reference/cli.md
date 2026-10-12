@@ -1,8 +1,9 @@
 # Command-line reference
 
 Run these commands from any working directory with the installed `rustiq`
-binary. From the repository root in a source checkout, replace `rustiq` with
-`cargo run --locked --`. `rustiq --help` and `rustiq <command> --help` show the
+binary. In a source checkout without an installed executable, replace the
+`rustiq` command prefix with `cargo run --locked --`.
+`rustiq --help` and `rustiq <command> --help` show the
 options supported by the installed build.
 
 ## Commands
@@ -99,15 +100,21 @@ listing, and removal. Geometry transformations are CLI utilities, not
 calculation input transformations unless their output file is then used as an
 input.
 
+These examples use files shipped in the repository and must be run from its
+root after checkout. The release archive contains neither fixtures nor sample
+inputs. With only the binary, use `rustiq basis import /path/to/basis.json`
+for a separately obtained basis file, or `rustiq basis download sto-3g` in an
+online build; provide your own input file to `rustiq run`.
+
 From the repository root, import the checked-in STO-3G and 6-31G basis
 fixtures before running these examples:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json tests/data/reference/RustiQ/basis_sets/6-31g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml
-cargo run --locked -- run samples/h2/study.ncl --format json --pretty --color never
-cargo run --locked -- run samples/h2/sto-3g/calculation-cache.toml --cache-dir ./rustiq-cache
-cargo run --locked -- cache list --cache-dir ./rustiq-cache
+rustiq basis import tests/data/sto-3g.json tests/data/reference/RustiQ/basis_sets/6-31g.json
+rustiq run samples/h2/sto-3g/calculation.toml
+rustiq run samples/h2/study.ncl --format json --pretty --color never
+rustiq run samples/h2/sto-3g/calculation-cache.toml --cache-dir ./rustiq-cache
+rustiq cache list --cache-dir ./rustiq-cache
 ```
 
 The Nickel study uses **both STO-3G and 6-31G**; importing only STO-3G is
@@ -184,13 +191,13 @@ is checked before recomputation. A corrupt selected payload is an error. A
 source entry can supply data to multiple calculations in a Nickel batch.
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
-cargo run --locked -- artifact inspect h2.rustiq --format json
-cargo run --locked -- artifact verify h2.rustiq
-cargo run --locked -- run h2.rustiq
+rustiq run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+rustiq run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
+rustiq artifact inspect h2.rustiq --format json
+rustiq artifact verify h2.rustiq
+rustiq run h2.rustiq
 # Replace the source bundle after all requested calculations produce results:
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
+rustiq run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
 ```
 
 Publication captures the current requested calculation collection and its

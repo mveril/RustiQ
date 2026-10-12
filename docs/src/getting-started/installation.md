@@ -1,68 +1,87 @@
 # Installation
 
-Compare [Docker, Nix, and manual installation](../development/environments.md)
-before choosing your setup. Each has a dedicated page with prerequisites,
-commands, advantages, and limitations. Docker always runs the supplied
-workspace under Linux, including on Windows and macOS hosts. For native host
-execution, use [manual installation](../development/manual-setup.md), or
-[Nix](../development/nix-setup.md) on a supported platform.
-See [known supported platforms](../development/platforms.md) for details.
+## Install a prebuilt release binary
 
-The quick commands below use the manual setup. Install Git, Rust through
-[rustup](https://rustup.rs/), a C/C++ build toolchain, and CMake as described in
-the [manual setup page](../development/manual-setup.md#install-and-build).
+When a release is available, ordinary users can download the archive for their
+operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases).
+Archives are named `rustiq-chem-<target>.tar.gz` on Unix and
+`rustiq-chem-<target>.zip` on Windows. Supported targets are
+`x86_64-unknown-linux-gnu` (Linux Intel/AMD),
+`aarch64-unknown-linux-gnu` (Linux ARM64), `x86_64-apple-darwin` (Intel
+macOS), `aarch64-apple-darwin` (Apple Silicon),
+`x86_64-pc-windows-msvc` (Windows Intel/AMD), and
+`aarch64-pc-windows-msvc` (Windows ARM64). Linux GNU archives require a
+compatible glibc runtime.
 
-Build from source:
+## Verify and run the executable
+
+Download the release's `sha256.sum` and all listed assets into one directory.
+On Linux or macOS, verify them before extracting:
+
+```sh
+sha256sum --check sha256.sum  # Linux
+shasum -a 256 --check sha256.sum  # macOS
+```
+
+On Windows, use PowerShell to compare the downloaded archive's computed hash
+with its matching entry in `sha256.sum`:
+
+```powershell
+$archive = "rustiq-chem-x86_64-pc-windows-msvc.zip"
+$entries = @(Select-String -Path .\sha256.sum -SimpleMatch $archive)
+if ($entries.Count -ne 1) { throw "Expected one checksum entry for $archive" }
+$expected = ($entries[0].Line -split '\s+')[0]
+$actual = (Get-FileHash ".\$archive" -Algorithm SHA256).Hash
+if ($actual -ine $expected) { throw "SHA-256 mismatch for $archive" }
+Write-Host "SHA-256 verified: $archive"
+```
+
+The [release guide](../development/releasing.md#binary-releases) has the full
+platform-specific verification instructions. For Windows ARM64, replace the
+archive filename with `rustiq-chem-aarch64-pc-windows-msvc.zip`. Extract the
+archive only after the checksum comparison succeeds, then run
+`./rustiq --help` from its directory on Linux or macOS, or
+`.\rustiq.exe --help` from that directory in PowerShell. To use `rustiq` from
+any directory, add the directory containing `rustiq` or `rustiq.exe` to `PATH`
+and open a new terminal.
+
+The Cargo package is named `rustiq-chem`; the executable is named `rustiq` (or
+`rustiq.exe` on Windows).
+
+## Make basis sets available
+
+The archive contains neither sample inputs nor basis data. With network access,
+download a basis using `rustiq basis download sto-3g`. This command is available
+in online builds and requires network access. To work offline, import a local
+Basis Set Exchange JSON file with `rustiq basis import /path/to/basis.json`;
+import does not access the network. See the
+[basis-set guide](../user-guide/basis-sets.md) and the
+[first calculation](first-calculation.md) for a complete binary-only example.
+
+## Build and install from source
+
+Contributors and users building from a checkout need Git, Rust through
+[rustup](https://rustup.rs/), a C/C++ build toolchain, and CMake. Follow the
+[manual setup](../development/manual-setup.md#install-and-build), then run
+these commands from the repository root:
 
 ```sh
 git clone https://github.com/mveril/RustiQ.git
 cd RustiQ
-rustup show
 cargo build --locked
 ```
 
-The checked-in `rust-toolchain.toml` selects the Rust toolchain.
-Run this guide's commands from the repository root.
-
-Alternatively, enter `nix develop .#rust` after cloning. The flake declares
-x86_64 Linux, AArch64 Linux, and Apple Silicon macOS. Windows users can use
-WSL2 or the VS Code Dev Container for the Linux environment.
-See [development environments](../development/environments.md) for setup and
-troubleshooting.
-
-To install the executable into Cargo's binary directory:
+`cargo build` does not add the executable to `PATH`. To run without installing,
+prefix commands with `cargo run --locked --`, for example
+`cargo run --locked -- --help`. To install the package executable into Cargo's
+binary directory:
 
 ```sh
 cargo install --locked --path .
 rustiq --help
 ```
 
-This command installs from the checked-out source. Once the current package
-prerelease has been published to crates.io, install it from the registry with
-`cargo install --locked rustiq-chem --version 0.1.0-alpha.1`. For later stable
-releases, omit `--version` to install the latest stable version. Tagged binary
-archives and verification instructions are described in
-[Releasing RustiQ](../development/releasing.md).
-
-When a tagged binary release is available, download the archive matching your
-operating system and CPU from the [GitHub Releases page](https://github.com/mveril/RustiQ/releases).
-Unix archives are named `rustiq-chem-<target>.tar.gz`; Windows archives use
-`rustiq-chem-<target>.zip`. The targets are `x86_64-unknown-linux-gnu`
-(64-bit Intel/AMD Linux), `aarch64-unknown-linux-gnu` (64-bit ARM Linux),
-`x86_64-apple-darwin` (Intel macOS), `aarch64-apple-darwin` (Apple Silicon),
-`x86_64-pc-windows-msvc` (64-bit Intel/AMD Windows), and
-`aarch64-pc-windows-msvc` (Windows on ARM). Verify the archive with its
-`.sha256` file or the
-release's `sha256.sum` manifest as described in
-[Releasing RustiQ](../development/releasing.md), then extract it and put
-`rustiq` (or `rustiq.exe` on Windows) in a directory on `PATH`. Prebuilt
-binaries use the default online basis lookup; provide the basis data required
-by the calculation as described in the
-[basis-set guide](../user-guide/basis-sets.md).
-
-The executable is named `rustiq` (or `rustiq.exe` on Windows); use lowercase on case-sensitive systems. Ensure Cargo's binary
-directory is on `PATH`. The tutorial still needs the checked-in samples.
-
-Online basis downloads are enabled by default. The
-[first calculation](first-calculation.md) imports a repository fixture and
-requires no basis download. It also works with `--no-default-features`.
+The registry package is also named `rustiq-chem`; install from crates.io only
+when the relevant version has been published. See the
+[development environments](../development/environments.md) page for Nix,
+Docker, and other supported contributor setups.

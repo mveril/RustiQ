@@ -1,24 +1,34 @@
 # JSON output
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
+
 Use JSON when another program needs calculation results. `run` writes only
-the machine-readable result to standard output:
+the machine-readable result to standard output. After following the release-
+binary path in the [first-calculation guide](../getting-started/first-calculation.md),
+use the locally created input:
+
+This writes a JSON file without terminal color:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json
+rustiq run calculation.toml --format json --color never > result.json
 ```
 
-Run commands from the repository root and make the named basis available
-first. To save machine-readable output, redirect standard output and disable
-color explicitly:
+For a source checkout, run commands from the repository root and make the
+named basis available first. To save machine-readable output, redirect
+standard output and disable color explicitly:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json --color never > result.json
+rustiq run samples/h2/sto-3g/calculation.toml --format json
+rustiq run samples/h2/sto-3g/calculation.toml --format json --color never > result.json
 ```
 
 For readable terminal inspection, add `--pretty`:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml --format json --pretty
+rustiq run samples/h2/sto-3g/calculation.toml --format json --pretty
 ```
 
 `--pretty` requires `--format json`. Compact JSON is unstyled; when saving
@@ -77,8 +87,12 @@ that guide's basis-set setup first, especially when running offline, then
 produce pretty JSON with colors disabled:
 
 ```sh
-cargo run --locked -- run samples/h2/study.ncl --format json --pretty --color never
+rustiq run samples/h2/study.ncl --format json --pretty --color never
 ```
+
+For the release-binary path, save the local study as described in the Nickel
+guide and use its filename instead, for example
+`rustiq run study.ncl --format json --pretty --color never`.
 
 The output follows the versioned batch schema. Each successful calculation
 contains a result following the single-calculation schema linked above. Inspect

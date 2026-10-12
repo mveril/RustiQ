@@ -1,5 +1,14 @@
 # MP2 calculations
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
+Commands using `rustiq` assume the executable is installed or available on
+`PATH`. From a source checkout without installation, use the
+`cargo run --locked --` prefix described in the
+[CLI reference](../reference/cli.md).
+
 Second-order Møller–Plesset perturbation theory (MP2) estimates an electron
 correlation correction using molecular orbitals from a converged HF reference.
 It does not replace HF: RustiQ first solves HF, then evaluates MP2. MP2 is
@@ -12,7 +21,16 @@ The checked-in H₂ input requests RHF-MP2 with no frozen orbitals:
 {{#include ../../../samples/h2/sto-3g/mp2_calculation.toml}}
 ```
 
-Run it from the repository root after importing STO-3G:
+With only the release binary, follow the first-calculation guide to create
+`h2.xyz` and download STO-3G. Generate and run an MP2 input with:
+
+```sh
+rustiq init h2.xyz --mp2 -o h2-mp2.toml
+rustiq run h2-mp2.toml
+```
+
+For a source checkout, run the checked-in sample from the repository root
+after importing STO-3G:
 
 ```sh
 cargo run --locked -- basis import tests/data/sto-3g.json
@@ -31,6 +49,16 @@ UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
 
 ```toml
 {{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
+```
+
+For the release binary, reuse `oh.xyz` created in the
+[HF guide](hartree-fock.md), save this input as `oh-mp2.toml`, and change its
+geometry path from `../oh.xyz` to `oh.xyz`. Preserve the `1e-10` threshold and
+DIIS settings from the sample. Download STO-3G and run:
+
+```sh
+rustiq basis download sto-3g
+rustiq run oh-mp2.toml
 ```
 
 Run it from the repository root after making STO-3G available, as described in
@@ -78,13 +106,22 @@ a very small budget. See the source for
 and the authoritative Nickel defaults in the
 [input contract](../reference/index.md).
 
-For example, the existing Nickel default is `auto`. An explicit byte-size
-budget belongs under `[method.mp2]`:
+For example, the existing Nickel default is `auto`. To set an explicit byte-size
+budget, add this field inside `[method.mp2]` if that table already exists:
+
+```toml
+memory_limit = "500 MB"
+```
+
+If the table does not exist, create it with the field:
 
 ```toml
 [method.mp2]
 memory_limit = "500 MB"
 ```
+
+These are configuration fragments, not complete runfiles. Do not add a second
+`[method.mp2]` table or redefine an existing `memory_limit` key.
 
 If the budget is below the minimum workspace needed for one occupied block,
 that sector cannot be transformed and the MP2 calculation errors. Automatic
@@ -98,7 +135,9 @@ within \\(2\times10^{-5}\\). These are agreement tolerances for those inputs,
 not a measure of general chemical accuracy. See the
 [reference coverage](../scientific-scope.md#reference-comparisons) and the
 [reference test source](https://github.com/mveril/RustiQ/blob/main/tools/reference/test_compare_pyscf.py).
-Reproduce both selected cases with:
+Reproduce both selected cases from a cloned repository with Nix, or use the
+documented `uv`/PySCF setup. These reference commands are optional and are not
+included in the release binary:
 
 ```sh
 nix run .#pyscf-check -- -k 'h2-sto-3g-rhf-mp2 or oh-sto-3g-uhf-mp2'

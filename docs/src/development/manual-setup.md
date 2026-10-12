@@ -32,7 +32,8 @@ cd RustiQ
 rustup show
 cargo build --locked
 cargo test
-cargo run -- run samples/h2/sto-3g/calculation.toml
+cargo run --locked -- basis import tests/data/sto-3g.json
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml
 ```
 
 `rustup show` causes rustup to notice `rust-toolchain.toml` and install the
@@ -55,6 +56,7 @@ or timing comparisons:
 
 ```sh
 cargo build --release --locked
+cargo run --locked -- basis import tests/data/sto-3g.json
 cargo run --release --locked -- run samples/h2/sto-3g/calculation.toml
 ```
 

@@ -1,5 +1,10 @@
 # Hartree–Fock calculations
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
+
 Hartree–Fock (HF) is RustiQ's reference method for its calculations. It
 approximates each electron as moving in an average field from the others. The
 result is found iteratively by updating the electron density and solving the
@@ -28,11 +33,26 @@ multiplicity, so `Auto` resolves to UHF:
 {{#include ../../../samples/oh/sto-3g/calculation.toml}}
 ```
 
-Run it after importing STO-3G:
+To run this same example with only the release binary, save the following
+geometry as `oh.xyz` and save the TOML above as `oh.toml`. In the TOML, change
+`geometry = "../oh.xyz"` to `geometry = "oh.xyz"`; keep the neutral charge,
+doublet multiplicity, `1e-5` threshold, and DIIS settings shown above. Then
+download STO-3G and run:
+
+```text
+{{#include ../../../samples/oh/oh.xyz}}
+```
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/oh/sto-3g/calculation.toml
+rustiq basis download sto-3g
+rustiq run oh.toml
+```
+
+For a source checkout, run it after importing STO-3G:
+
+```sh
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/oh/sto-3g/calculation.toml
 ```
 
 The open-shell CLI test and PySCF comparison are linked in

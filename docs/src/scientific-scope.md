@@ -43,7 +43,9 @@ See the [glossary](glossary.md) for terminology and the
 The book's [first H₂ calculation](getting-started/first-calculation.md)
 provides a reproducible entry point to independent PySCF comparisons with
 explicit tolerances. The comparison instructions and case definitions are
-linked below. They cover
+linked below. The release binary user can inspect these checked-in comparisons
+and their tolerances, but reproducing them requires a source checkout plus the
+Nix development shell or the documented `uv`/PySCF setup. They cover
 H₂ and water in STO-3G, 6-31G, and cc-pVDZ, open-shell H₂⁺ and OH, and selected
 RHF/UHF MP2 cases. Additional cases exercise frozen occupied orbitals and
 small versus larger MP2 workspace budgets. For OH/STO-3G, the UHF-only sample

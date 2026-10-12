@@ -1,5 +1,10 @@
 # Nickel studies
 
+Examples in this chapter that use `samples/` or `tests/data/` require a cloned
+repository and should be run from its root. Release binaries do not include
+those files; the [first-calculation guide](../getting-started/first-calculation.md)
+shows how to create local inputs and obtain a basis.
+
 Nickel is a configuration language that RustiQ embeds. A `.ncl` file can
 import other Nickel files and compute a list of related calculation records.
 The checked-in single-calculation `.ncl` input is a small starting point:
@@ -8,12 +13,17 @@ The checked-in single-calculation `.ncl` input is a small starting point:
 {{#include ../../../samples/h2/sto-3g/calculation.ncl}}
 ```
 
-Make sure STO-3G is in the local basis store, then run it with the same command
-as TOML:
+For the release binary, copy the H₂ geometry from the study section below to
+`molecule.xyz`, save this input as `calculation.ncl` beside it, and change
+`molecule.geometry` from `"../molecule.xyz"` to `"molecule.xyz"`. Download
+STO-3G and run `rustiq run calculation.ncl`.
+
+For a source checkout, make sure STO-3G is in the local basis store, then run
+this checked-in input:
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.ncl
+rustiq basis import tests/data/sto-3g.json
+rustiq run samples/h2/sto-3g/calculation.ncl
 ```
 
 The checked-in H₂ study maps over two basis names to produce two inputs:
@@ -22,13 +32,28 @@ The checked-in H₂ study maps over two basis names to produce two inputs:
 {{#include ../../../samples/h2/study.ncl}}
 ```
 
-This study is sequential. Run it from the repository root after making both
-bases available:
+To run this study with only the release binary, save the H₂ geometry below as
+`molecule.xyz` and save the study above as `study.ncl` in the same working
+directory. The study's `molecule.geometry = "molecule.xyz"` path is relative
+to that file. Download both required bases, then run the local study:
+
+```text
+{{#include ../../../samples/h2/molecule.xyz}}
+```
 
 ```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- basis import tests/data/reference/RustiQ/basis_sets/6-31g.json
-cargo run --locked -- run samples/h2/study.ncl
+rustiq basis download sto-3g
+rustiq basis download 6-31g
+rustiq run study.ncl
+```
+
+This study is sequential. For a source checkout, run it from the repository
+root after making both bases available:
+
+```sh
+rustiq basis import tests/data/sto-3g.json
+rustiq basis import tests/data/reference/RustiQ/basis_sets/6-31g.json
+rustiq run samples/h2/study.ncl
 ```
 
 When both calculations succeed, selected output excerpts are:
