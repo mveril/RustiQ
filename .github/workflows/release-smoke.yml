@@ -99,6 +99,7 @@ jobs:
         name: Validate archive and run H2 calculation
         shell: bash
         run: |
+          set -euo pipefail
           python - <<'PY' 2>&1 | tee validation.log
           import json
           from pathlib import Path
@@ -176,6 +177,7 @@ jobs:
           name: release-smoke-${{ matrix.target }}
           path: |
             target/distrib/**
+            dist-manifest.json
             dist-build.log
             validation.log
             release-smoke-logs/**
