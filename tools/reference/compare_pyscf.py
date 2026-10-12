@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,19 @@ class ReferenceCase:
     mp2: bool = False
     mp2_tolerance: float | None = None
     frozen_orbitals: int = 0
+    frozen_core_reference: bool = False
+
+
+class PyscfMp2Error(RuntimeError):
+    """MP2 failed after converged HF; retain the completed HF diagnostics."""
+
+    def __init__(self, case_name: str, hf_result: tuple[float, None, float | None], cause: Exception):
+        super().__init__(f"PySCF MP2 failed for {case_name}: {cause}")
+        self.hf_result = hf_result
+
+
+class PyscfScfConvergenceError(RuntimeError):
+    """PySCF reached its cycle limit without converging HF."""
 
 
 CASES = [
@@ -166,6 +180,7 @@ CASES = [
         spin_tolerance=2e-5,
         mp2=True,
         mp2_tolerance=5e-9,
+        frozen_core_reference=True,
     ),
     ReferenceCase(
         name="h2-sto-3g-rhf-mp2",
@@ -213,8 +228,29 @@ CASES = [
         # The residual correlation-energy difference is about 5.1e-9 Hartree
         # with the checked-in BSE basis and a 1e-12 SCF threshold.
         mp2_tolerance=1e-8,
+        frozen_core_reference=True,
     ),
 ]
+
+FROZEN_CORE_MEMORY_BUDGETS = ("32 KiB", "512 MiB")
+RUSTIQ_SCHEMA_VERSION = 1
+
+
+def validate_rustiq_result(result: object, case_name: str) -> dict[str, object]:
+    """Check the stable JSON envelope consumed by reference validation."""
+    if not isinstance(result, dict):
+        raise TypeError(f"RustiQ JSON output for {case_name} must be an object")
+    version = result.get("schema_version")
+    if type(version) is not int or version != RUSTIQ_SCHEMA_VERSION:
+        raise ValueError(
+            f"Unsupported or missing RustiQ schema_version for {case_name}: {version!r}"
+        )
+    calculation = result.get("calculation")
+    if not isinstance(calculation, dict):
+        raise TypeError(f"RustiQ JSON output for {case_name} is missing calculation object")
+    if not isinstance(calculation.get("hf"), dict):
+        raise TypeError(f"RustiQ JSON output for {case_name} is missing calculation.hf object")
+    return result
 
 
 def run_command(args: list[str], *, env: dict[str, str] | None = None) -> str:
@@ -278,11 +314,12 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
         env=env,
     )
     try:
-        return json.loads(stdout)
+        parsed = json.loads(stdout)
     except json.JSONDecodeError as error:
         raise RuntimeError(
             f"Could not parse RustiQ JSON output for {case.name}: {error}\nstdout:\n{stdout}"
         ) from error
+    return validate_rustiq_result(parsed, case.name)
 
 
 def pyscf_result(case: ReferenceCase) -> tuple[float, float | None, float | None]:
@@ -307,16 +344,52 @@ def pyscf_result(case: ReferenceCase) -> tuple[float, float | None, float | None
     mf.max_cycle = case.max_cycle
     energy = mf.kernel()
     if not mf.converged:
-        raise RuntimeError(f"PySCF did not converge for {case.name}.")
+        raise PyscfScfConvergenceError(f"PySCF did not converge for {case.name}.")
     s_squared = float(mf.spin_square()[0]) if case.method == "uhf" else None
     mp2_correlation_energy = None
     if case.mp2:
-        mp2_correlation_energy, _ = mp.MP2(mf, frozen=case.frozen_orbitals).kernel()
+        try:
+            mp2_correlation_energy, _ = mp.MP2(mf, frozen=case.frozen_orbitals).kernel()
+        except Exception as error:
+            raise PyscfMp2Error(
+                case.name, (float(energy), None, s_squared), error
+            ) from error
     return (
         float(energy),
         (float(mp2_correlation_energy) if mp2_correlation_energy is not None else None),
         s_squared,
     )
+
+
+def frozen_core_case(
+    case: ReferenceCase, budget: str, directory: Path
+) -> ReferenceCase:
+    """Construct the frozen-core variants shared by pytest and reporting."""
+    source = case.runfile.read_text(encoding="utf-8")
+    source = re.sub(
+        r"^geometry = .*$",
+        f"geometry = {json.dumps(str(case.xyz))}",
+        source,
+        flags=re.MULTILINE,
+    )
+    marker = "frozen_orbitals = 0"
+    if source.count(marker) != 1:
+        raise ValueError(f"Expected one MP2 frozen-orbital setting in {case.runfile}")
+    source = source.replace(
+        marker, f'frozen_orbitals = 1\nmemory_limit = "{budget}"'
+    )
+    directory.mkdir(parents=True, exist_ok=True)
+    runfile = directory / f"{case.name}-frozen-mp2-{budget.replace(' ', '-')}.toml"
+    runfile.write_text(source, encoding="utf-8")
+    import tomllib
+
+    generated = tomllib.loads(source)
+    mp2 = generated.get("method", {}).get("mp2", {})
+    if mp2.get("frozen_orbitals") != 1 or mp2.get("memory_limit") != budget:
+        raise ValueError("Generated frozen-core runfile did not apply its requested settings")
+    from dataclasses import replace
+
+    return replace(case, runfile=runfile, frozen_orbitals=1)
 
 
 def main(pytest_args: list[str] | None = None) -> int:

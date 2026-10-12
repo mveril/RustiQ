@@ -1,0 +1,122 @@
+name: Scientific and performance report
+
+on:
+  workflow_dispatch:
+    inputs:
+      eri_filter:
+        description: Substring filter for ERI cases
+        required: true
+        default: h2-sto3g
+        type: string
+      mp2_sizes:
+        description: Comma-separated MP2 AO dimensions
+        required: true
+        default: '12,24'
+        type: string
+      mp2_memory:
+        description: Configured MP2 workspace budget
+        required: true
+        default: 32 MiB
+        type: string
+      include_heavy_eri:
+        description: Include the heavy ERI cases
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: Scientific validation and Criterion reports
+    runs-on: ubuntu-latest
+    env:
+      RUSTIQ_BENCH_FILTER: ${{ inputs.eri_filter }}
+      RUSTIQ_BENCH_HEAVY: ${{ inputs.include_heavy }}
+      RUSTIQ_MP2_SIZES: ${{ inputs.mp2_sizes }}
+      RUSTIQ_MP2_MEMORY: ${{ inputs.mp2_memory }}
+
+    steps:
+      - name: Check out selected commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Install locked Python environment
+        run: uv sync --locked
+
+      - name: Remove stale Criterion measurements
+        run: rm -rf target/criterion
+
+      - name: Run canonical PySCF reference suite
+        id: reference
+        continue-on-error: true
+        run: uv run --locked pytest tools/reference
+
+      - name: Generate scientific report
+        id: scientific
+        if: always()
+        continue-on-error: true
+        run: uv run --locked python tools/reference/report.py --output-dir target/scientific-report
+
+      - name: Run selected ERI Criterion benchmarks
+        id: eri
+        continue-on-error: true
+        run: cargo bench --features bench-support --bench eri_timings
+
+      - name: Run selected MP2 Criterion benchmarks
+        id: mp2
+        continue-on-error: true
+        run: cargo bench --features bench-support --bench mp2_timings
+
+      - name: Generate performance report
+        id: performance
+        if: always()
+        continue-on-error: true
+        run: uv run --locked python tools/benchmarks/report.py --criterion-dir target/criterion --output-dir target/performance-report
+
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rustiq-scientific-performance-reports
+          if-no-files-found: warn
+          path: |
+            target/scientific-report/
+            target/performance-report/
+
+      - name: Write job summary
+        if: always()
+        env:
+          REFERENCE: ${{ steps.reference.outcome }}
+          SCIENTIFIC: ${{ steps.scientific.outcome }}
+          ERI: ${{ steps.eri.outcome }}
+          MP2: ${{ steps.mp2.outcome }}
+          PERFORMANCE: ${{ steps.performance.outcome }}
+        run: |
+          {
+            echo '# RustiQ scientific and performance reports'
+            echo
+            echo '| Stage | Result |'
+            echo '|---|---|'
+            echo "| Canonical PySCF suite | $REFERENCE |"
+            echo "| Scientific report | $SCIENTIFIC |"
+            echo "| ERI Criterion | $ERI |"
+            echo "| MP2 Criterion | $MP2 |"
+            echo "| Performance report | $PERFORMANCE |"
+            echo
+            echo 'Scientific validation and performance failures are reported independently. Download the artifact for detailed diagnostics.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$REFERENCE" != success || "$SCIENTIFIC" != success ]]; then
+            echo 'Scientific validation failed; inspect the PySCF test and validation report steps.' >&2
+            exit 1
+          fi
+          if [[ "$ERI" != success || "$MP2" != success || "$PERFORMANCE" != success ]]; then
+            echo 'Performance reporting failed; inspect the Criterion and performance report steps.' >&2
+            exit 1
+          fi

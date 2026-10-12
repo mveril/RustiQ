@@ -110,6 +110,22 @@ refresh a fixture while keeping the source explicit, point
 hashes used by both uv and Nix; update it intentionally with `uv lock` whenever
 the Python dependency declarations change.
 
+Generate a full precision scientific validation report from the same cases and
+comparisons:
+
+```sh
+uv run --locked python tools/reference/report.py --output-dir target/scientific-report
+```
+
+The command writes `validation.json` and `validation.md`. It includes the
+canonical cases plus the two frozen-core MP2 cases at each memory budget used
+by pytest. A failed or non-finite calculation remains visible in the report and
+causes a nonzero exit status. The JSON contains machine-readable values;
+Markdown formats energies for reading. The comparison only validates selected
+numerical cases against PySCF. It does not establish general chemical accuracy
+or make HF/MP2 reliable for every system. Matching thresholds also do not imply
+identical convergence criteria.
+
 RustiQ is invoked with `run --format json`; pytest reads schema version 1 JSON
 directly, checks convergence, methods, and energies, and provides all comparison
 reporting. This keeps reference validation independent of terminal report wording

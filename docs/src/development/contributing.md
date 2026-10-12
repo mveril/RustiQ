@@ -81,7 +81,7 @@ CLI TOML/Nickel adapter or another frontend
        -> iterative SCF and final canonicalization
        -> HfOutcome::Converged or HfOutcome::Unconverged
     -> converged HfSolution::mp2()
-       blocked AO-to-MO transformation and correlation energy
+       blocked AO-to-MO integral transformation and MP2 correlation-energy evaluation
 ```
 
 `prepare()` constructs reusable input data; it does not compute integrals or
@@ -143,9 +143,10 @@ cargo bench --bench mp2_timings --features bench-support
 cargo bench --bench eri_timings --features bench-support
 ```
 
-The MP2 benchmark compares dense and memory-blocked kernels on deterministic
-synthetic inputs. It validates that both paths produce matching energies before
-timing them; input and ERI construction remain outside the measured iterations.
+The MP2 benchmark compares dense and memory-blocked AO-to-MO transformations
+and their subsequent correlation-energy evaluation on deterministic synthetic
+inputs. It validates that both paths produce matching energies before timing
+them; input and ERI construction remain outside the measured iterations.
 `RUSTIQ_MP2_MEMORY`, `RUSTIQ_MP2_SIZES` (comma-separated AO dimensions), and
 `RAYON_NUM_THREADS` select the memory budget, AO dimensions, and thread count.
 The ERI benchmark times repeated integral construction for the checked-in
@@ -182,3 +183,53 @@ cargo bench --bench mp2_timings --features bench-support -- --baseline before
 See the [MP2 benchmark source](https://github.com/mveril/RustiQ/blob/main/benches/mp2_timings.rs)
 and [ERI benchmark source](https://github.com/mveril/RustiQ/blob/main/benches/eri_timings.rs).
 Benchmarks provide performance measurements, not scientific validation.
+
+### Generate reproducible reports
+
+From the repository root, the scientific report reuses the canonical PySCF
+reference cases and their absolute tolerances:
+
+```sh
+uv run --locked python tools/reference/report.py --output-dir target/scientific-report
+```
+
+It writes full precision results to `validation.json` and readable tables to
+`validation.md`. In addition to the cases run by `pytest tools/reference`, it
+includes the frozen-core MP2 variants exercised by those tests at 32 KiB and
+512 MiB workspace budgets. Total HF energies and MP2 correlation energies are
+reported separately. A case fails if either implementation does not converge,
+an energy comparison exceeds its existing tolerance, or the UHF spin expectation
+value misses its tolerance. Failed cases remain in the report, and the command
+returns a nonzero status. The report records software versions, commit and
+platform metadata so results can be compared across revisions.
+
+Generate Criterion measurements and their report with:
+
+```sh
+cargo bench --features bench-support --bench eri_timings
+cargo bench --features bench-support --bench mp2_timings
+uv run --locked python tools/benchmarks/report.py
+```
+
+The report is written to `target/performance-report/benchmarks.json` and
+`benchmarks.md`. To produce both reports on GitHub, open **Actions → Scientific
+and performance report → Run workflow** on the selected branch or commit. The
+workflow uploads `rustiq-scientific-performance-reports`; download that artifact
+from the completed workflow run to inspect the Markdown and JSON files.
+
+Criterion stores structured estimates in `target/criterion`; the benchmark
+executables also write the case dimensions and configuration used by the report
+generator there. The default runs include the small ERI cases and MP2 AO sizes
+12, 24, and 48. To select a smaller local run or opt into the expensive ERI
+cases, set `RUSTIQ_BENCH_FILTER`, `RUSTIQ_MP2_SIZES`, `RUSTIQ_MP2_MEMORY`, and
+`RUSTIQ_BENCH_HEAVY` as described above. The report includes Criterion means
+and confidence intervals. Its configured MP2 workspace is not measured peak
+RSS, and synthetic MP2 cases do not model complete molecular calculations.
+Results are machine-dependent; the on-demand GitHub Actions workflow starts
+with one small ERI case and AO sizes 12 and 24. Heavy ERI cases require explicit
+opt-in in the workflow.
+
+These reports provide numerical regression checks for selected cases. They do
+not establish general chemical accuracy; see the [scientific scope](../scientific-scope.md)
+for the limits of HF, MP2, and numerical agreement. Equal numeric convergence
+thresholds do not mean that RustiQ and PySCF use identical convergence tests.
