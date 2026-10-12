@@ -75,11 +75,9 @@ On macOS, use the built-in `shasum` command:
 shasum -a 256 --check sha256.sum
 ```
 
-On Windows PowerShell, compare the archive's entry in `sha256.sum` with:
-
-```powershell
-Get-FileHash .\rustiq-chem-x86_64-pc-windows-msvc.zip -Algorithm SHA256
-```
+On Windows PowerShell, use the explicit manifest comparison in the
+[installation guide](../getting-started/installation.md#verify-and-run-the-executable),
+replacing its example archive filename with the archive for your target.
 
 The archive target identifies the operating system and CPU architecture; it
 does not guarantee compatibility with every Linux distribution or older

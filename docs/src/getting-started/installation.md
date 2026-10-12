@@ -23,10 +23,23 @@ sha256sum --check sha256.sum  # Linux
 shasum -a 256 --check sha256.sum  # macOS
 ```
 
-In Windows PowerShell, compare the archive entry in `sha256.sum` with
-`Get-FileHash .\rustiq-chem-x86_64-pc-windows-msvc.zip -Algorithm SHA256`.
+In Windows PowerShell, set the archive name to the file you downloaded, then
+compare its computed hash with the matching entry in `sha256.sum`:
+
+```powershell
+$archive = "rustiq-chem-x86_64-pc-windows-msvc.zip"
+$entries = @(Select-String -Path .\sha256.sum -SimpleMatch $archive)
+if ($entries.Count -ne 1) { throw "Expected one checksum entry for $archive" }
+$expected = ($entries[0].Line -split '\s+')[0]
+$actual = (Get-FileHash ".\$archive" -Algorithm SHA256).Hash
+if ($actual -ine $expected) { throw "SHA-256 mismatch for $archive" }
+Write-Host "SHA-256 verified: $archive"
+```
+
 The [release guide](../development/releasing.md#binary-releases) has the full
-platform-specific verification instructions. Extract the archive, then run
+platform-specific verification instructions. For Windows ARM64, replace the
+archive filename with `rustiq-chem-aarch64-pc-windows-msvc.zip`. Extract the
+archive only after the checksum comparison succeeds, then run
 `./rustiq --help` from its directory on Linux or macOS, or
 `.\rustiq.exe --help` from that directory in PowerShell. To use `rustiq` from
 any directory, add the directory containing `rustiq` or `rustiq.exe` to `PATH`
