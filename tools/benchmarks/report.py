@@ -152,11 +152,18 @@ def generate(criterion_dir: Path, output_dir: Path) -> dict[str, Any]:
         n = item["ao_dimension"]
         mp2_started = finite(mp2_run.get("benchmark_started_unix_seconds"), "MP2 timestamp")
         dense = criterion_measurement(criterion_dir, f"mp2/dense/{n}", mp2_started)
-        blocked = criterion_measurement(criterion_dir, f"mp2/blocked/{n}", mp2_started)
+        blocked = criterion_measurement(criterion_dir, f"mp2/multiblock/{n}", mp2_started)
         if finite(item.get("energy_absolute_difference"), f"MP2 N={n} consistency") >= 1e-12:
             raise ReportError(f"Dense and blocked MP2 energy consistency check failed for N={n}")
         if finite(item.get("workspace_budget_bytes"), "workspace budget") <= 0 or item.get("block_size", 0) <= 0:
             raise ReportError(f"Invalid MP2 configuration metadata for N={n}")
+        occupied = item.get("occupied_orbitals", 0)
+        block_size = item["block_size"]
+        expected_blocks = (occupied + block_size - 1) // block_size if block_size > 0 else 0
+        if block_size >= occupied or item.get("block_count", 0) != expected_blocks:
+            raise ReportError(f"MP2 case did not execute multiple occupied blocks for N={n}")
+        if finite(item.get("workspace_estimate_bytes"), "workspace estimate") > item["workspace_budget_bytes"]:
+            raise ReportError(f"MP2 workspace estimate exceeds its budget for N={n}")
         mp2.append({**item, "dense": dense, "blocked": blocked,
                     "dense_over_blocked_ratio": dense["mean_seconds"] / blocked["mean_seconds"]})
     report = {"schema_version": 1, "metadata": machine_metadata(eri_run, mp2_run),
@@ -181,13 +188,13 @@ def render_markdown(report: dict[str, Any]) -> str:
         level = round(row["confidence_level"] * 100)
         throughput = fmt(row["throughput_elements_per_second"]) if row["throughput_elements_per_second"] is not None else "—"
         lines.append(f"| {row['case']} | {row['basis']} | {row['basis_functions']} | {row['compact_integrals']} | {fmt(row['mean_seconds'])} | {level}% [{fmt(lo)}, {fmt(hi)}] | {throughput} |")
-    lines += ["", "Throughput counts compact storage elements per second; Schwarz screening may skip evaluations or leave stored values zero.", "", "## MP2 AO-to-MO transformation and correlation-energy evaluation", "", "Synthetic AO-dimension cases time the transformation and correlation-energy evaluation, not full molecular calculations.", "", "| AO dim | Occupied | Dense mean (s) | Dense CI (s) | Blocked mean (s) | Blocked CI (s) | Dense/blocked | Workspace budget | Block size | Rayon threads |", "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    lines += ["", "Throughput counts compact storage elements per second; Schwarz screening may skip evaluations or leave stored values zero.", "", "## MP2 AO-to-MO transformation and correlation-energy evaluation", "", "Synthetic AO-dimension cases time the transformation and correlation-energy evaluation, not full molecular calculations. Every blocked case processes occupied orbitals in at least two blocks.", "", "| AO dim | Occupied | Dense mean (s) | Dense CI (s) | Multiblock mean (s) | Multiblock CI (s) | Dense/multiblock | Workspace budget | Block size | Blocks | Rayon threads |", "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for row in report["mp2"]:
         dlo, dhi = row["dense"]["confidence_interval_seconds"]
         blo, bhi = row["blocked"]["confidence_interval_seconds"]
         dlevel = round(row["dense"]["confidence_level"] * 100)
         blevel = round(row["blocked"]["confidence_level"] * 100)
-        lines.append(f"| {row['ao_dimension']} | {row['occupied_orbitals']} | {fmt(row['dense']['mean_seconds'])} | {dlevel}% [{fmt(dlo)}, {fmt(dhi)}] | {fmt(row['blocked']['mean_seconds'])} | {blevel}% [{fmt(blo)}, {fmt(bhi)}] | {fmt(row['dense_over_blocked_ratio'])} | {row['workspace_budget_bytes']} B | {row['block_size']} | {row['rayon_threads']} |")
+        lines.append(f"| {row['ao_dimension']} | {row['occupied_orbitals']} | {fmt(row['dense']['mean_seconds'])} | {dlevel}% [{fmt(dlo)}, {fmt(dhi)}] | {fmt(row['blocked']['mean_seconds'])} | {blevel}% [{fmt(blo)}, {fmt(bhi)}] | {fmt(row['dense_over_blocked_ratio'])} | {row['workspace_budget_bytes']} B | {row['block_size']} | {row['block_count']} | {row['rayon_threads']} |")
     lines += ["", "## Memory interpretation", "", report["memory_note"], "", "Configured workspace is a per-calculation budget for the blocked MP2 transformation; it is not measured peak process memory.", ""]
     return "\n".join(lines)
 

@@ -143,10 +143,17 @@ cargo bench --bench mp2_timings --features bench-support
 cargo bench --bench eri_timings --features bench-support
 ```
 
-The MP2 benchmark compares dense and memory-blocked AO-to-MO transformations
-and their subsequent correlation-energy evaluation on deterministic synthetic
-inputs. It validates that both paths produce matching energies before timing
-them; input and ERI construction remain outside the measured iterations.
+The MP2 benchmark compares the dense AO-to-MO transformation and correlation
+energy evaluation with the production memory-blocked path on deterministic
+synthetic RHF inputs. Each blocked case is constrained to process occupied
+orbitals in at least two blocks, even when the requested memory budget could fit
+one block. `RUSTIQ_MP2_MEMORY` sets an upper cap; each case may use a smaller
+budget to force multiple blocks. AO dimensions must be at least 6. It checks that
+both paths produce matching energies before timing
+them, and records the selected block size, block count, workspace budget, and
+estimated temporary workspace. Input and ERI construction remain outside the
+measured iterations. These synthetic inputs benchmark the contraction code;
+they are not molecular calculations or scientific accuracy validation.
 `RUSTIQ_MP2_MEMORY`, `RUSTIQ_MP2_SIZES` (comma-separated AO dimensions), and
 `RAYON_NUM_THREADS` select the memory budget, AO dimensions, and thread count.
 The ERI benchmark times repeated integral construction for the checked-in
@@ -167,8 +174,10 @@ unless `RUSTIQ_BENCH_HEAVY=1` is set. Measurements are saved under
 `target/criterion`.
 
 Criterion baselines can be compared only between revisions that both use
-Criterion. The first Criterion-enabled revision establishes the starting point;
-legacy timing results cannot be compared directly with Criterion measurements.
+Criterion and the same benchmark workload. The multiblock MP2 workload has a
+new Criterion identifier, so its first run establishes a new starting point;
+do not compare it with the previous single-block `mp2/blocked` measurements.
+Legacy timing results also cannot be compared directly with Criterion measurements.
 MP2 input construction is excluded from measured iterations. Keep CPU
 architecture, Rayon thread count, build flags, enabled features, MP2 memory
 budget, power settings, and benchmark environment variables consistent. Save a

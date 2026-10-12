@@ -40,11 +40,27 @@ fn mp2_benchmarks(criterion: &mut Criterion) {
         }
 
         let occupied = n / 3;
+        assert!(
+            occupied >= 2,
+            "MP2 benchmark AO dimension must provide at least two occupied orbitals"
+        );
         let input = Mp2BenchInput::synthetic(n, occupied);
+        // Cap the requested budget at the workspace needed for half of the
+        // occupied orbitals. This guarantees that the timed production path
+        // executes at least two blocks, even when Auto would fit one block.
+        let target_block_size = occupied.div_ceil(2);
+        let multiblock_budget = input
+            .workspace_for_block_size(target_block_size)
+            .expect("the requested MP2 benchmark block should fit in memory");
+        let case_budget = budget.as_u64().min(multiblock_budget);
         let dense_energy = input.dense_energy();
         let (blocked_energy, memory) = input
-            .blocked_energy(budget.as_u64())
+            .blocked_energy(case_budget)
             .expect("the configured synthetic MP2 case fits the benchmark memory budget");
+        assert!(
+            memory.block_size < occupied,
+            "MP2 case must process multiple occupied blocks"
+        );
         assert!(
             (dense_energy - blocked_energy).abs() < 1e-12,
             "dense and blocked MP2 energies differ for N={n}"
@@ -53,27 +69,30 @@ fn mp2_benchmarks(criterion: &mut Criterion) {
         group.bench_function(BenchmarkId::new("dense", n), |bencher| {
             bencher.iter(|| black_box(input.dense_energy()));
         });
-        group.bench_function(BenchmarkId::new("blocked", n), |bencher| {
+        group.bench_function(BenchmarkId::new("multiblock", n), |bencher| {
             bencher.iter(|| {
                 black_box(
                     input
-                        .blocked_energy(budget.as_u64())
+                        .blocked_energy(case_budget)
                         .expect("the configured synthetic MP2 case fits the memory budget"),
                 );
             });
         });
 
         eprintln!(
-            "MP2 N={n}, occupied={occupied}, block={}, budget={}, Rayon threads={}",
+            "MP2 N={n}, occupied={occupied}, block={}, blocks={}, budget={}, Rayon threads={}",
             memory.block_size,
-            budget.display().iec(),
+            occupied.div_ceil(memory.block_size),
+            ByteSize::b(case_budget).display().iec(),
             rayon::current_num_threads()
         );
         metadata.push(serde_json::json!({
             "ao_dimension": n,
             "occupied_orbitals": occupied,
-            "workspace_budget_bytes": budget.as_u64(),
+            "workspace_budget_bytes": case_budget,
             "block_size": memory.block_size,
+            "block_count": occupied.div_ceil(memory.block_size),
+            "workspace_estimate_bytes": memory.workspace_bytes,
             "rayon_threads": rayon::current_num_threads(),
             "dense_energy": dense_energy,
             "blocked_energy": blocked_energy,
