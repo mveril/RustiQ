@@ -688,6 +688,19 @@ impl Mp2BenchInput {
         ))
     }
 
+    /// Returns the estimated temporary workspace for the requested RHF block size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if computing the workspace size overflows.
+    pub fn workspace_for_block_size(&self, block_size: usize) -> Result<u64, Mp2Error> {
+        blocked::rhf_workspace_for_block(
+            self.coefficients.nrows(),
+            self.occupied_orbitals,
+            block_size,
+        )
+    }
+
     fn as_input(&self) -> Mp2Input<'_> {
         Mp2Input {
             mo_coefficients: &self.coefficients,

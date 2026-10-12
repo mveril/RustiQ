@@ -59,10 +59,10 @@ def test_performance_markdown_separates_budget_from_peak_memory() -> None:
     mp = {"ao_dimension": 12, "occupied_orbitals": 4, "dense": {"mean_seconds": 0.02,
         "confidence_interval_seconds": [0.019, 0.021], "confidence_level": 0.95}, "blocked": {"mean_seconds": 0.01,
         "confidence_interval_seconds": [0.009, 0.011], "confidence_level": 0.95}, "dense_over_blocked_ratio": 2.0,
-        "workspace_budget_bytes": 32768, "block_size": 2, "rayon_threads": 4}
+        "workspace_budget_bytes": 32768, "block_size": 2, "block_count": 2, "rayon_threads": 4}
     md = report.render_markdown({"metadata": {}, "eri": [row], "mp2": [mp],
         "memory_note": "Configured budget; peak RSS was not measured."})
-    assert "Dense/blocked" in md
+    assert "Dense/multiblock" in md
     assert "peak RSS was not measured" in md
     assert "Compact elements/s" in md
 

@@ -131,6 +131,21 @@ impl Dimensions {
     }
 }
 
+pub(super) fn rhf_workspace_for_block(
+    n: usize,
+    occupied: usize,
+    block_size: usize,
+) -> Result<u64, Mp2Error> {
+    Dimensions {
+        n,
+        left: occupied,
+        right: occupied,
+        va: n.checked_sub(occupied).ok_or(Mp2Error::SizeOverflow)?,
+        vb: n.checked_sub(occupied).ok_or(Mp2Error::SizeOverflow)?,
+    }
+    .workspace(block_size)
+}
+
 /// Conservative peak bound for the old UHF implementation, which retained
 /// both same-spin tensors while constructing the opposite-spin tensor.
 pub(super) fn uhf_dense_bytes(
