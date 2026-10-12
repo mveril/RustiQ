@@ -24,11 +24,12 @@ network access, import it with `rustiq basis import /path/to/basis.json`.
 
 ## Using the checked-in sample
 
-From a source checkout, import the checked-in fixture and run the example:
+From a source checkout, run these commands from the repository root to import
+the checked-in fixture and run the example without installing RustiQ:
 
 ```sh
-rustiq basis import tests/data/sto-3g.json
-rustiq run samples/h2/sto-3g/calculation.toml
+cargo run --locked -- basis import tests/data/sto-3g.json
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml
 ```
 
 CLI tests import the same fixture into an isolated store.
@@ -47,8 +48,8 @@ Default input units are Angstrom; resolved coordinates are Bohr. The neutral
 singlet defaults resolve HF `Auto` to RHF. The core-Hamiltonian guess makes
 this example deterministic.
 
-The following verification commands are for the cloned-repository persona;
-they are optional when using only the release binary. The existing CLI
+The following verification commands are for users working from a source
+checkout; they are optional when using only the release binary. The existing CLI
 regression test checks this input, RHF resolution, units, two
 SCF iterations, and these selected output lines. Its reproducible command is
 below; the test source is linked for readers who want to inspect its assertions.

@@ -16,6 +16,9 @@ is `rustiq-chem`, and the installed executable is `rustiq`. Users with only
 the release binary can run equivalent commands with their own geometry, input,
 and basis JSON files; see the [first calculation](../getting-started/first-calculation.md)
 and [basis-set guide](../user-guide/basis-sets.md).
+Commands below use an installed `rustiq`; when working from the checkout
+without installing it, prepend `cargo run --locked --` to the command
+arguments, for example `cargo run --locked -- run samples/h2/sto-3g/calculation.toml`.
 See the [glossary](../glossary.md) for scientific and development terms.
 
 ## Create input from an XYZ geometry
@@ -64,11 +67,11 @@ rustiq basis list
 rustiq basis import tests/data/sto-3g.json
 rustiq basis list --online
 rustiq basis download sto-3g
-rustiq basis remove sto-3g
 ```
 
-Online listing and download require the `online` Cargo feature, enabled by
-default for the CLI. Offline builds retain import, local listing, and removal.
+`basis import` reads a local file and works offline. Online listing and
+`basis download` require the `online` Cargo feature, enabled by default for the
+CLI, and network access. Offline builds retain local listing and removal.
 `run --auto-download` permits downloading a missing basis;
 `--no-auto-download` disables it. These flags override `RUSTIQ_AUTO_DOWNLOAD`,
 which enables downloading for `1` or `true` (case-insensitive); otherwise it is

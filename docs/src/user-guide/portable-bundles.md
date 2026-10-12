@@ -4,6 +4,10 @@ Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
 shows how to create local inputs and obtain a basis.
+Commands using `rustiq` assume the executable is installed or available on
+`PATH`. From a source checkout without installation, use the
+`cargo run --locked --` prefix described in the
+[CLI reference](../reference/cli.md).
 
 A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
@@ -19,12 +23,13 @@ First follow the local-input workflow in the
 [first-calculation guide](../getting-started/first-calculation.md). With its
 `calculation.toml` and downloaded STO-3G basis, create a bundle:
 
+Choose a destination that does not already exist.
+
 ```sh
 rustiq run calculation.toml --artifact h2.rustiq
 rustiq artifact inspect h2.rustiq
 rustiq artifact verify h2.rustiq
 rustiq run h2.rustiq
-rustiq run calculation.toml --reuse h2.rustiq --format json --pretty --color never
 ```
 
 ### Source checkout
@@ -32,21 +37,21 @@ rustiq run calculation.toml --reuse h2.rustiq --format json --pretty --color nev
 Alternatively, from a cloned repository, make the checked-in STO-3G basis
 available, then run the H₂ sample and write a bundle to the current directory:
 
-The runfile used here is the checked-in H₂ sample:
+The runfile used here is the checked-in H₂ sample. Run these commands from the
+repository root:
 
 ```toml
 {{#include ../../../samples/h2/sto-3g/calculation.toml}}
 ```
 
 ```sh
-rustiq basis import tests/data/sto-3g.json
-rustiq run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+cargo run --locked -- basis import tests/data/sto-3g.json
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
 ```
 
-Choose a destination that does not already exist. `--artifact` writes the
-current calculation collection as a new bundle, independently of text or JSON
-result output. For a Nickel study, the bundle contains one entry for each
-requested calculation.
+`--artifact` writes the current calculation collection as a new bundle,
+independently of text or JSON result output. For a Nickel study, the bundle
+contains one entry for each requested calculation.
 
 Inspect a bundle without the original runfile, geometry file, or basis store:
 
@@ -127,11 +132,18 @@ new input requests MP2. The archive itself supplies reusable artifacts and
 remains read-only.
 
 For the release-binary workflow, use the local `calculation.toml` created in
-the first-calculation guide. The command below shows the equivalent
-source-checkout sample path.
+the first-calculation guide. Keep its downloaded basis available for this new
+run; its geometry path resolves beside `calculation.toml`:
 
 ```sh
-rustiq run samples/h2/sto-3g/calculation.toml \
+rustiq run calculation.toml \
+  --reuse h2.rustiq --format json --pretty --color never
+```
+
+From a source checkout, the equivalent command uses the checked-in sample:
+
+```sh
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
   --reuse h2.rustiq --format json --pretty --color never
 ```
 
@@ -171,10 +183,17 @@ The local-cache step is used only when `[cache].enabled = true` in the runfile.
 input setting.
 
 The archive remains read-only during reuse. To publish a new snapshot from the
-calculation, provide a new destination:
+calculation, provide a new destination. For the release-binary workflow:
 
 ```sh
-rustiq run samples/h2/sto-3g/calculation.toml \
+rustiq run calculation.toml \
+  --reuse h2.rustiq --artifact h2-updated.rustiq
+```
+
+For a source checkout, use the sample path:
+
+```sh
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
   --reuse h2.rustiq --artifact h2-updated.rustiq
 ```
 

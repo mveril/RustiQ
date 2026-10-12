@@ -108,8 +108,8 @@ Run the usual Cargo commands inside the shell:
 ```sh
 cargo build
 cargo test
-cargo run -- basis import tests/data/sto-3g.json
-cargo run -- run samples/h2/sto-3g/calculation.toml
+cargo run --locked -- basis import tests/data/sto-3g.json
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml
 ```
 
 Four shells are available so that contributors only load the tools needed for

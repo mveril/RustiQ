@@ -4,6 +4,10 @@ Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
 shows how to create local inputs and obtain a basis.
+Commands using `rustiq` assume the executable is installed or available on
+`PATH`. From a source checkout without installation, use the
+`cargo run --locked --` prefix described in the
+[CLI reference](../reference/cli.md).
 
 Second-order Møller–Plesset perturbation theory (MP2) estimates an electron
 correlation correction using molecular orbitals from a converged HF reference.
@@ -25,11 +29,12 @@ rustiq init h2.xyz --mp2 -o h2-mp2.toml
 rustiq run h2-mp2.toml
 ```
 
-Run it from the repository root after importing STO-3G:
+For a source checkout, run the checked-in sample from the repository root
+after importing STO-3G:
 
 ```sh
-rustiq basis import tests/data/sto-3g.json
-rustiq run samples/h2/sto-3g/mp2_calculation.toml
+cargo run --locked -- basis import tests/data/sto-3g.json
+cargo run --locked -- run samples/h2/sto-3g/mp2_calculation.toml
 ```
 
 The MP2 correlation energy is the correction added to HF electronic energy.
@@ -60,7 +65,7 @@ Run it from the repository root after making STO-3G available, as described in
 the [basis-set guide](basis-sets.md):
 
 ```sh
-rustiq run samples/oh/sto-3g/mp2_calculation.toml
+cargo run --locked -- run samples/oh/sto-3g/mp2_calculation.toml
 ```
 
 The calculation reports a UHF-MP2 correlation energy. Existing PySCF
@@ -102,13 +107,21 @@ and the authoritative Nickel defaults in the
 [input contract](../reference/index.md).
 
 For example, the existing Nickel default is `auto`. To set an explicit byte-size
-budget in an existing input, add this `[method.mp2]` field (this is a fragment,
-not a complete runfile):
+budget, add this field inside `[method.mp2]` if that table already exists:
+
+```toml
+memory_limit = "500 MB"
+```
+
+If the table does not exist, create it with the field:
 
 ```toml
 [method.mp2]
 memory_limit = "500 MB"
 ```
+
+These are configuration fragments, not complete runfiles. Do not add a second
+`[method.mp2]` table or redefine an existing `memory_limit` key.
 
 If the budget is below the minimum workspace needed for one occupied block,
 that sector cannot be transformed and the MP2 calculation errors. Automatic
