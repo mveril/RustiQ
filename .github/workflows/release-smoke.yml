@@ -42,14 +42,17 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install configured dist version from release assets
+      - id: install_unix
+        name: Install configured dist version from release assets
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
         shell: bash
         run: |
+          set -euo pipefail
           DIST_VERSION="$(python -c 'import re; from pathlib import Path; print(re.search(r"cargo-dist-version\s*=\s*\"([^\"]+)\"", Path("dist-workspace.toml").read_text()).group(1))')"
           curl --proto '=https' --tlsv1.2 -LsSf "https://github.com/axodotdev/cargo-dist/releases/download/v${DIST_VERSION}/cargo-dist-installer.sh" | sh
 
-      - name: Install configured dist version on Windows x64
+      - id: install_windows_x64
+        name: Install configured dist version on Windows x64
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: pwsh
         run: |
@@ -58,16 +61,18 @@ jobs:
           $version = $match.Matches[0].Groups[1].Value
           Invoke-Expression (Invoke-RestMethod "https://github.com/axodotdev/cargo-dist/releases/download/v$version/cargo-dist-installer.ps1")
 
-      - name: Build configured dist version from source on Windows ARM64
+      - id: install_windows_arm64
+        name: Build configured dist version from source on Windows ARM64
         if: matrix.target == 'aarch64-pc-windows-msvc'
         shell: pwsh
         run: |
           $match = Select-String -Path dist-workspace.toml -Pattern 'cargo-dist-version\s*=\s*"([^"]+)"'
           if (-not $match) { throw 'Could not read cargo-dist-version from dist-workspace.toml' }
           $version = $match.Matches[0].Groups[1].Value
-          cargo install cargo-dist --version $version --locked
+          cargo install --git https://github.com/axodotdev/cargo-dist --tag "v$version" --locked cargo-dist
 
-      - name: Verify pinned dist version
+      - id: verify_dist
+        name: Verify pinned dist version
         shell: bash
         run: |
           python -c 'import re, subprocess; from pathlib import Path; v=re.search(r"cargo-dist-version\s*=\s*\"([^\"]+)\"", Path("dist-workspace.toml").read_text()).group(1); actual=subprocess.check_output(["dist", "--version"], text=True); assert v in actual, f"configured {v}, installed {actual}"'
@@ -77,9 +82,18 @@ jobs:
         name: Build target archive with dist
         shell: bash
         run: |
+          set -euo pipefail
+          # Do not pre-create an empty manifest inside dist's artifact directory.
+          # Follow the generated release workflow and copy the completed JSON.
+          if ! dist build --artifacts=local --target "${{ matrix.target }}" --output-format=json > dist-manifest.json 2> dist-build.log; then
+            cat dist-build.log
+            echo 'ARCHIVE_BUILD_FAILURE'
+            exit 1
+          fi
+          python -m json.tool dist-manifest.json > /dev/null
+          python -c 'import json; from pathlib import Path; files=json.loads(Path("dist-manifest.json").read_text())["upload_files"]; assert isinstance(files, list) and files, "dist manifest has no upload_files"'
           mkdir -p target/distrib
-          dist build --artifacts=local --target "${{ matrix.target }}" --output-format=json > target/distrib/dist-manifest.json 2> dist-build.log || { cat dist-build.log; echo 'ARCHIVE_BUILD_FAILURE'; exit 1; }
-          cat target/distrib/dist-manifest.json
+          cp dist-manifest.json target/distrib/dist-manifest.json
 
       - id: validate
         name: Validate archive and run H2 calculation
@@ -110,36 +124,46 @@ jobs:
         if: always()
         shell: bash
         env:
-          VALIDATION_RESULT: ${{ steps.validate.outcome }}
+          TARGET: ${{ matrix.target }}
+          INSTALL_UNIX: ${{ steps.install_unix.outcome }}
+          INSTALL_WINDOWS_X64: ${{ steps.install_windows_x64.outcome }}
+          INSTALL_WINDOWS_ARM64: ${{ steps.install_windows_arm64.outcome }}
+          DIST_VERSION_RESULT: ${{ steps.verify_dist.outcome }}
           BUILD_RESULT: ${{ steps.build.outcome }}
+          VALIDATION_RESULT: ${{ steps.validate.outcome }}
         run: |
-          case "${{ matrix.target }}" in
-            *windows*) archive="rustiq-chem-${{ matrix.target }}.zip" ;;
-            *) archive="rustiq-chem-${{ matrix.target }}.tar.gz" ;;
+          case "$TARGET" in
+            *windows*) archive="rustiq-chem-$TARGET.zip" ;;
+            *) archive="rustiq-chem-$TARGET.tar.gz" ;;
           esac
+          stage=""
           if [[ "$VALIDATION_RESULT" == success ]]; then
             checksum=verified; startup=passed; h2="RHF regression check passed"; status=PASS
           else
-            checksum="not executed"; startup="not executed"; h2="not executed"; status=FAIL
-            stage="not executed"
-            if [[ "$BUILD_RESULT" != success ]]; then
-              stage="archive build failure"
-              archive="not produced"
+            checksum="not confirmed"; startup="not confirmed"; h2="not confirmed"; status=FAIL
+            if [[ "$INSTALL_UNIX" == failure || "$INSTALL_WINDOWS_X64" == failure || "$INSTALL_WINDOWS_ARM64" == failure ]]; then
+              stage="dist installation failure"; archive="not produced"
+            elif [[ "$DIST_VERSION_RESULT" == failure ]]; then
+              stage="dist version verification failure"; archive="not produced"
+            elif [[ "$BUILD_RESULT" == failure ]]; then
+              stage="archive build failure"; archive="not produced"
+            elif [[ "$BUILD_RESULT" == skipped ]]; then
+              stage="setup or prerequisite failure"; archive="not produced"
             elif grep -q 'MISSING_ARCHIVE' validation.log 2>/dev/null; then stage="missing archive"
             elif grep -q 'CHECKSUM_FAILURE' validation.log 2>/dev/null; then stage="checksum failure"
             elif grep -q 'EXTRACTION_FAILURE' validation.log 2>/dev/null; then stage="extraction failure"
             elif grep -q 'EXECUTABLE_STARTUP_FAILURE' validation.log 2>/dev/null; then stage="executable startup failure"
             elif grep -q 'SCIENTIFIC_CALCULATION_FAILURE' validation.log 2>/dev/null; then stage="scientific calculation failure"
             elif grep -q 'JSON_VALIDATION_FAILURE' validation.log 2>/dev/null; then stage="JSON validation failure"
+            else stage="validation failure (inspect validation.log)"
             fi
           fi
           {
-            echo "## Release rehearsal: ${{ matrix.target }}"
-            echo
-            echo "| Target | Archive | Checksum | Executable startup | H2 calculation | Final status |"
-            echo "|---|---|---|---|---|---|"
-            echo "| `${{ matrix.target }}` | `$archive` | $checksum | $startup | $h2 | **$status** |"
-            if [[ "$status" == FAIL ]]; then echo; echo "Failed stage: $stage"; fi
+            printf '## Release rehearsal: %s\n\n' "$TARGET"
+            echo '| Target | Archive | Checksum | Executable startup | H2 calculation | Final status |'
+            echo '|---|---|---|---|---|---|'
+            printf '| `%s` | `%s` | %s | %s | %s | **%s** |\n' "$TARGET" "$archive" "$checksum" "$startup" "$h2" "$status"
+            if [[ "$status" == FAIL ]]; then printf '\nFailed stage: %s\n' "$stage"; fi
             echo
             echo "Built and tested on a GitHub-hosted native runner. This is not a pristine OS image."
           } >> "$GITHUB_STEP_SUMMARY"
