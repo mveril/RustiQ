@@ -27,6 +27,35 @@ The
 application. The generated workflow is `.github/workflows/release.yml`; do not
 edit it by hand.
 
+### Release rehearsal
+
+Run **Actions → Release artifact smoke test → Run workflow** and select the
+commit, branch, or tag to rehearse. The manually triggered workflow builds the
+configured target archive with the pinned dist version on each target's native
+GitHub-hosted runner. It extracts that archive, verifies its dist-generated
+SHA-256 checksum, starts the packaged `rustiq` executable, checks `--help`,
+and runs the checked-in H2/STO-3G regression with a copied local basis fixture
+and JSON output. Per-target results appear in the job summary; archives, dist
+manifests, and command logs are uploaded as workflow artifacts.
+
+This checks archive integrity and basic executable operation for the six
+configured targets. The H2 energy comparison reuses the regression reference
+and is a packaging smoke test, not broad scientific validation, independent
+platform validation, or proof of compatibility with every supported operating
+system. The runs use GitHub-hosted runners, which are not pristine operating
+system installations. A `sha256.sum` release manifest may only be created in
+the tagged release's combined build; when unavailable, the rehearsal verifies
+the per-archive checksum emitted by dist and fails if neither checksum is
+available. A checksum made during a rehearsal does not independently validate
+a published release.
+
+The rehearsal has read-only repository permissions and only a
+`workflow_dispatch` trigger. It does not run dist's `host` command, upload
+release assets, create a GitHub Release, create tags, or publish crates. It
+complements `.github/workflows/release.yml`, whose tagged-release path builds
+and publishes the release assets; ordinary pull requests continue to use the
+generated plan-only check.
+
 Each release includes a `rustiq` executable (named `rustiq.exe` on Windows),
 the README, and the MIT and Apache license files. Unix archives use `.tar.gz`
 and Windows archives use `.zip`. Dist adds a `.sha256` file for each archive
