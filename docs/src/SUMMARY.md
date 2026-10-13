@@ -27,6 +27,7 @@
 - [Command-line reference](reference/cli.md)
 - [Existing calculation workflows](reference/existing-workflows.md)
 - [Authoritative references](reference/index.md)
+- [Molecular and basis-set data sources](reference/data-sources.md)
 - [Development environments](development/environments.md)
   - [Docker / Dev Container](development/docker-setup.md)
   - [Nix setup](development/nix-setup.md)
