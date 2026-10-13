@@ -46,22 +46,23 @@ This is a reconstruction procedure, not a guarantee of byte-identical binaries.
 `SOURCE-INFO.txt` identifies the repository commit and lockfile.
 
 To replace an LGPL component, copy its directory from `vendor` to an editable
-directory and add a path override to the existing `[patch.crates-io]` table
-in the root `Cargo.toml`.
-For example, after copying `vendor/malachite-base-0.9.2` to
-`modified/malachite-base`, add:
+directory. For example, copy `vendor/malachite-base-0.9.2` to
+`modified/malachite-base` and make your changes there. Create a
+`[patch.crates-io]` section in the extracted source archive's root
+`Cargo.toml` (or add an entry to that section if it already exists):
 
 ```toml
-# Add this entry to the existing [patch.crates-io] table.
+[patch.crates-io]
 malachite-base = { path = "modified/malachite-base" }
 ```
 
 Then rebuild with `cargo build --offline --profile dist --bin rustiq`.
-Omit `--locked` for this modified build because the patch changes the lockfile.
-The replacement must satisfy the required package version and API, or you
-must adjust its dependents too. Keep the upstream license and document your
-modifications. Vendored files
-have integrity checks, so use a path patch instead of editing them in place.
+Omit `--locked` because Cargo may need to update the lockfile for the local
+replacement. The replacement must satisfy the required package version and
+API, or you must adjust its dependents too. Keep the upstream license and
+document your modifications. Vendored files have integrity checks, so use
+a path patch rather than editing them in place. This changes only the local
+reconstruction: RustiQ does not modify or fork Nickel upstream.
 
 ## Redistributing or packaging RustiQ
 
@@ -101,17 +102,31 @@ CI checks the package inventory and generated-file integrity, not every license
 clause. Supplemental upstream notices and their provenance
 are retained in `licenses/extra-notices.txt`, including notices missing from
 published crate archives. Review these when updating the affected crates.
+`cargo-about` and `cargo-deny` only cover the Cargo dependency graph; review
+the license terms and attribution of checked-in scientific data, fixtures,
+assets, and other third-party content separately before redistribution.
 
 RustiQ retains transitive dependencies with informational maintenance
 advisories for bincode, unsafe-libyaml and yaml-rust. Their specific advisory
-IDs and reasons are recorded in `deny.toml`; this accepts maintenance risk, not
-future vulnerabilities. Rustls is updated to its fixed patch release. Nickel
-0.19 currently depends on `imbl-sized-chunks` 0.1, which is affected by
-RUSTSEC-2026-0292. RustiQ uses Nickel's published dependency without a local
-backport; `deny.toml` records this accepted upstream risk until Nickel releases
-a compatible update. That dependency graph also includes the unmaintained
-`bitmaps` 3.2.1 crate (RUSTSEC-2026-0247), for which no safe upstream upgrade is
-available. These upstream risks are listed separately in `deny.toml`.
+IDs and reasons are recorded in `deny.toml`. Rustls has been updated to its
+fixed patch release.
+
+Nickel 0.19 depends on `imbl-sized-chunks` 0.1.3, affected by
+[RUSTSEC-2026-0292](https://rustsec.org/advisories/RUSTSEC-2026-0292):
+a memory-safety vulnerability involving double free / use-after-free if an
+element's destructor panics during certain removal operations. The fix is in
+`imbl-sized-chunks` 0.2.0 or later, but RustiQ deliberately keeps Nickel's
+published dependency graph rather than carrying a local backport or forking
+Nickel. `deny.toml` explicitly acknowledges this **unfixed security advisory**;
+a passing `cargo deny check` does not mean this risk has been mitigated.
+
+The same dependency graph includes the unmaintained `bitmaps` 3.2.1 crate
+([RUSTSEC-2026-0247](https://rustsec.org/advisories/RUSTSEC-2026-0247)),
+which is a maintenance advisory, not the same vulnerability. Reassess both
+exceptions before releases and adopt a compatible upstream Nickel update
+when one becomes available. There is no automatic crates.io publication
+block associated with these acknowledged advisories; the publishing workflow
+still runs on version tags.
 
 Authoritative terms: [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html),
 [LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.html),
