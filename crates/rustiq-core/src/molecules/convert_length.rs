@@ -1,8 +1,11 @@
 use super::units::Units;
-use physical_constants::ATOMIC_UNIT_OF_LENGTH;
 use std::ops::{Div, Mul};
 
-const CONV_FACTOR: f64 = ATOMIC_UNIT_OF_LENGTH * 1e10;
+// Bohr radius in metres, from the NIST 2018 CODATA table:
+// https://physics.nist.gov/cuu/pdf/all_2018.pdf (page 1).
+// Keep the 2018 value and multiplication order to preserve existing conversions.
+const BOHR_RADIUS_METRES: f64 = 5.291_772_109_03e-11;
+const CONV_FACTOR: f64 = BOHR_RADIUS_METRES * 1e10;
 
 pub fn convert_length<T>(value: T, from_unit: Units, to_unit: Units) -> T
 where
@@ -18,6 +21,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*; // This imports the `convert_length` function and associated types.
+
+    #[test]
+    fn conversion_preserves_the_2018_codata_factor() {
+        let angstrom = convert_length(1.0_f64, Units::Bohr, Units::Angstrom);
+        // Preserve the historical f64 result, including its rounding.
+        assert_eq!(angstrom.to_bits(), 0x3fe0_ef05_0bd3_bd7a);
+    }
 
     // Test conversion from Bohr to Angstrom
     #[test]

@@ -21,6 +21,14 @@ multiplicity specifies the intended spin state. RustiQ checks that the electron
 count and multiplicity have compatible parity, but this check does not identify
 the physical ground state. See the [configuration guide](configuration.md).
 
+Calculations convert between Bohr and Angstrom using the
+[2018 CODATA Bohr radius published by NIST](https://physics.nist.gov/cuu/pdf/all_2018.pdf):
+`5.29177210903e-11 m`, multiplied by `1e10` to obtain Angstrom per Bohr.
+RustiQ keeps this edition to preserve existing numerical results. The conversion
+regression can be run with
+`cargo test -p rustiq-chem-core conversion_preserves_the_2018_codata_factor`;
+it checks the exact floating-point result for one Bohr.
+
 `geometry info` reports atom and center information, including a nuclear
 repulsion value.
 
