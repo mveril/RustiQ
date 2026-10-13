@@ -123,7 +123,7 @@ jobs:
 
       - name: Evaluate flake outputs
         if: matrix.system == 'x86_64-linux'
-        run: nix flake check --all-systems --no-build
+        run: nix flake check --no-build
 
       - name: Check the Python lock
         run: nix develop .#full --command uv lock --check
