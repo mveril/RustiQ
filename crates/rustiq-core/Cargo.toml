@@ -31,7 +31,6 @@ reqwest = { version = "0.13", default-features = false, optional = true, feature
 ] }
 nalgebra.workspace = true
 npyz = "0.9.1"
-physical_constants = "0.5"
 periodic_table.workspace = true
 rayon.workspace = true
 relative-path.workspace = true
