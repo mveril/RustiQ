@@ -293,6 +293,7 @@
                 src = pkgs.lib.fileset.toSource {
                   root = sourceRoot;
                   fileset = pkgs.lib.fileset.unions [
+                    ./DATA_SOURCES.md
                     ./DISTRIBUTION.md
                     ./docs/book.toml
                     ./docs/src
