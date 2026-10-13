@@ -136,7 +136,23 @@
             cargoExtraArgs = "--locked --workspace";
           };
 
-          cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
+          cargoDepsDummySource = craneLib.mkDummySrc {
+            src = cargoSource;
+            # Crane replaces local Rust sources while caching workspace dependencies.
+            # Keep the Nickel vector backport's API available to nickel-lang-parser.
+            extraDummyScript = ''
+              rm -rf "$out/third-party/nickel-lang-vector"
+              mkdir -p "$out/third-party/nickel-lang-vector"
+              cp -r ${./third-party/nickel-lang-vector}/. "$out/third-party/nickel-lang-vector/"
+            '';
+          };
+
+          cargoArtifacts = craneLib.buildDepsOnly (
+            builtins.removeAttrs commonCargoArgs [ "src" ]
+            // {
+              dummySrc = cargoDepsDummySource;
+            }
+          );
 
           rustiq = craneLib.buildPackage (
             commonCargoArgs

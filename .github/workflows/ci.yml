@@ -166,16 +166,33 @@ jobs:
               command -v cargo
               command -v rustc
               command -v rust-analyzer
+              cargo fmt --version
+              cargo clippy --version
+              cargo nextest --version
+              cargo deny --version
+              cargo llvm-cov --version
+              cargo criterion --version
+              cargo expand --version
+              cargo edit --version
+              cargo dist --version
+              cargo info --version
+              cargo watch --version
+              if command -v cargo-flamegraph >/dev/null; then cargo flamegraph --version; fi
+              command -v bacon
               command -v nixd
               command -v nixfmt
               command -v ruff
               command -v uv
               command -v python
               command -v pytest
+              jupyter --version
               cargo --version
               rustc --version
               rust-analyzer --version
               python -c '\''import pyscf; print("PySCF", pyscf.__version__)'\''
+              python -c '\''import ipykernel, jupyterlab, matplotlib, numpy, scipy'\''
+              ruff --version
+              uv --version
               cargo metadata --no-deps --format-version 1 > /dev/null
               cargo build --workspace --all-targets --all-features
               cargo test --workspace --all-targets --all-features
