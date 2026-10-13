@@ -24,8 +24,12 @@ the ARM runners and preserves the native Windows runners.
 
 The
 `rustiq-chem-core` library remains a build dependency and is not packaged as an
-application. The generated workflow is `.github/workflows/release.yml`; do not
-edit it by hand.
+application. The generated workflow is `.github/workflows/release.yml`. It pins
+`actions/upload-artifact` to an exact version. Because cargo-dist emits a major
+version reference for that action, `dist-workspace.toml` sets
+`allow-dirty = ["ci"]` so `dist plan` does not reject the exact pin as an
+out-of-date generated workflow. Keep the pin synchronized with the intended
+upload-artifact release when updating the workflow or cargo-dist.
 
 ### Release rehearsal
 
@@ -112,8 +116,10 @@ cargo check --workspace --locked
 ```
 
 Review the dist release plan and regenerate the workflow after changing the
-dist configuration or updating dist. The pinned generator checks that the
-generated release workflow is synchronized with `dist-workspace.toml`:
+dist configuration or updating dist. The `allow-dirty = ["ci"]` setting means
+the generator does not check whether the checked-in release workflow matches
+its current template. Preserve the exact upload-artifact pin if you regenerate
+the workflow:
 
 ```sh
 dist plan
