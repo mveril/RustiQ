@@ -2,6 +2,9 @@
 
 These documents remain the sources of truth:
 
+- [Molecular and basis-set data sources](data-sources.md): provenance and
+  reuse notes for molecular geometries and locally stored basis datasets.
+
 - [Command-line reference](cli.md): shipped commands, principal options,
   output behavior, and availability boundaries.
 - [TOML calculation configuration](../user-guide/configuration.md) and
