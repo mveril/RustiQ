@@ -173,11 +173,12 @@ jobs:
               cargo llvm-cov --version
               cargo criterion --version
               cargo expand --version
-              cargo edit --version
-              cargo dist --version
-              cargo info --version
+              for tool in cargo-add cargo-rm cargo-set-version cargo-upgrade; do "$tool" --help > /dev/null; done
+              dist --version
+              cargo-info --help > /dev/null
+              cargo info --help > /dev/null
               cargo watch --version
-              if command -v cargo-flamegraph >/dev/null; then cargo flamegraph --version; fi
+              if command -v cargo-flamegraph >/dev/null; then cargo-flamegraph --help > /dev/null; cargo flamegraph --help > /dev/null; fi
               command -v bacon
               command -v nixd
               command -v nixfmt
