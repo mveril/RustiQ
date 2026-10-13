@@ -170,6 +170,7 @@ jobs:
               cargo clippy --version
               cargo nextest --version
               cargo deny --version
+              cargo-about --version
               cargo llvm-cov --version
               cargo criterion --version
               cargo expand --version

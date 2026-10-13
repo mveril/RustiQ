@@ -1,11 +1,12 @@
 [advisories]
 version = 2
-# Acknowledge only the informational maintenance notices for retained
-# transitive dependencies. Vulnerability advisories remain denied.
+# Acknowledge reviewed upstream maintenance and vulnerability advisories.
 ignore = [
     { id = "RUSTSEC-2025-0141", reason = "Bincode 1.3.3 is retained by bat/syntect; this advisory reports discontinued maintenance, not a vulnerability." },
-    { id = "RUSTSEC-2024-0449", reason = "Nickel uses serde_yaml_ng/unsafe-libyaml; replacing its parser is outside this dependency backport." },
+    { id = "RUSTSEC-2024-0449", reason = "Nickel uses serde_yaml_ng/unsafe-libyaml; replacing its parser requires a separate upstream Nickel change." },
     { id = "RUSTSEC-2024-0320", reason = "Syntect uses yaml-rust to compile syntax assets; this advisory reports discontinued maintenance, not a vulnerability." },
+    { id = "RUSTSEC-2026-0292", reason = "Nickel 0.19 still depends on imbl-sized-chunks 0.1; RustiQ uses the published Nickel crates without a local backport. Reassess when Nickel releases an updated dependency." },
+    { id = "RUSTSEC-2026-0247", reason = "Nickel's imbl-sized-chunks 0.1.3 dependency uses unmaintained bitmaps 3.2.1; no safe upgrade is available through the published Nickel dependency graph." },
 ]
 
 [bans]
@@ -61,12 +62,17 @@ allow = ["LGPL-3.0-only"]
 
 [[licenses.exceptions]]
 name = "imbl-sized-chunks"
-version = "=0.2.0"
+version = "=0.1.3"
 allow = ["MPL-2.0"]
 
 [[licenses.exceptions]]
 name = "option-ext"
 version = "=0.2.0"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+name = "bitmaps"
+version = "=3.2.1"
 allow = ["MPL-2.0"]
 
 [[licenses.exceptions]]

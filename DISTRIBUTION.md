@@ -102,13 +102,16 @@ clause. Supplemental upstream notices and their provenance
 are retained in `licenses/extra-notices.txt`, including notices missing from
 published crate archives. Review these when updating the affected crates.
 
-RustiQ retains three transitive dependencies with informational maintenance
-advisories: bincode, unsafe-libyaml and yaml-rust. Their specific advisory IDs
-and reasons are recorded in `deny.toml`; this accepts maintenance risk, not
-future vulnerabilities. Rustls is updated to its fixed patch release.
-A local copy of Nickel's vector crate changes its `imbl-sized-chunks`
-requirement to 0.2, addressing RUSTSEC-2026-0292 without changing Nickel's API.
-See `third-party/nickel-lang-vector/README.md` for the backport's scope.
+RustiQ retains transitive dependencies with informational maintenance
+advisories for bincode, unsafe-libyaml and yaml-rust. Their specific advisory
+IDs and reasons are recorded in `deny.toml`; this accepts maintenance risk, not
+future vulnerabilities. Rustls is updated to its fixed patch release. Nickel
+0.19 currently depends on `imbl-sized-chunks` 0.1, which is affected by
+RUSTSEC-2026-0292. RustiQ uses Nickel's published dependency without a local
+backport; `deny.toml` records this accepted upstream risk until Nickel releases
+a compatible update. That dependency graph also includes the unmaintained
+`bitmaps` 3.2.1 crate (RUSTSEC-2026-0247), for which no safe upstream upgrade is
+available. These upstream risks are listed separately in `deny.toml`.
 
 Authoritative terms: [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html),
 [LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.html),

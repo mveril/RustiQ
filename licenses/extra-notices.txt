@@ -3068,7 +3068,7 @@ Source: https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1b
 SHA-256: ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b
 Text reproduced above.
 
-Packages: nickel-lang-core 0.19.0, nickel-lang-parser 0.4.0, nickel-lang-vector 0.2.0
+Packages: nickel-lang-core 0.19.0, nickel-lang-parser 0.4.0
 The published archives omit the MIT license text. Their recorded VCS revisions
 were unavailable upstream during this review; the following notice comes from
 the current upstream repository. All three archives declare MIT.

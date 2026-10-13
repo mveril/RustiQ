@@ -9,11 +9,12 @@ licenses, duplicate versions, and dependency sources. The same check runs in a
 dedicated GitHub Actions job; its policy is defined in `deny.toml`.
 
 The distribution script requires Python with `tarfile` extraction filters
-(Python 3.12+, or patched 3.10.12+/3.11.4+). After dependency or notice-generation changes, run
-`python3 tools/distribution.py notices` with cargo-about 0.9.2 installed, then
+(Python 3.12+, or patched 3.10.12+/3.11.4+). The `rust` and `full` Nix shells
+provide cargo-about. Outside Nix, install cargo-about 0.9.2. After dependency
+or notice-generation changes, run `python3 tools/distribution.py notices`, then
 `python3 tools/distribution.py check`. Commit the generated notice text and its
 checksum with the change. See [licenses and redistribution](licensing.md) for
-the distribution policy and the retained Nickel dependency backport.
+the distribution policy and Nickel's dependency advisories.
 
 The workspace keeps CLI parsing and presentation in the root package and
 scientific configuration and calculations in `rustiq-chem-core`. The core's
