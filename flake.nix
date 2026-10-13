@@ -111,8 +111,16 @@
                   directory: relativePath == directory || pkgs.lib.hasPrefix "${directory}/" relativePath;
               in
               relativePath == "clippy.toml"
+              || builtins.elem relativePath [
+                "COPYING"
+                "LICENSE-MIT"
+                "LICENSE-APACHE"
+                "DISTRIBUTION.md"
+                "THIRD-PARTY-NOTICES.txt"
+              ]
               || craneLib.filterCargoSources path type
               || inProjectTree "assets"
+              || inProjectTree "third-party"
               || inProjectTree "samples"
               || inProjectTree "schemas"
               || inProjectTree "src/runfile/nickel"
@@ -134,6 +142,18 @@
             commonCargoArgs
             // {
               inherit cargoArtifacts;
+              postInstall = ''
+                mkdir -p "$out/share/doc/rustiq"
+                cp COPYING LICENSE-MIT LICENSE-APACHE DISTRIBUTION.md THIRD-PARTY-NOTICES.txt \
+                  "$out/share/doc/rustiq/"
+              '';
+              meta.license = with pkgs.lib.licenses; [
+                mit
+                asl20
+                lgpl3Only
+                lgpl3Plus
+                mpl20
+              ];
             }
           );
 
@@ -171,6 +191,7 @@
             cargo-expand
             cargo-edit
             cargo-dist
+            cargo-info
 
             bacon
             cargo-watch

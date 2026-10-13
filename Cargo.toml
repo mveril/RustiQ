@@ -1,10 +1,16 @@
 [workspace]
 members = ["crates/rustiq-core"]
+exclude = ["third-party/nickel-lang-vector"]
 default-members = [".", "crates/rustiq-core"]
 resolver = "2"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[patch.crates-io]
+# Nickel 0.19 pins the vector crate to imbl-sized-chunks 0.1, which is affected
+# by RUSTSEC-2026-0292. This backport changes only its dependency to fixed 0.2.
+nickel-lang-vector = { path = "third-party/nickel-lang-vector" }
 
 [workspace.lints.clippy]
 # Individual lint settings and local, documented exceptions override these groups.

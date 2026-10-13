@@ -13,6 +13,11 @@ macOS), `aarch64-apple-darwin` (Apple Silicon),
 `aarch64-pc-windows-msvc` (Windows ARM64). Linux GNU archives require a
 compatible glibc runtime.
 
+RustiQ-authored code is MIT OR Apache-2.0. Executables include LGPL libraries,
+third-party notices and a matching corresponding-source archive on the same
+release page. See [licenses and redistribution](../development/licensing.md)
+for source access, rebuilding and package redistribution requirements.
+
 ## Verify and run the executable
 
 Download the release's `sha256.sum` and all listed assets into one directory.

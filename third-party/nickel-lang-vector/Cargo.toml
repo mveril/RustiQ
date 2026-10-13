@@ -1,0 +1,18 @@
+[package]
+name = "nickel-lang-vector"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.89"
+authors = ["The Nickel Team <nickel-lang@protonmail.com>"]
+description = "Persistent vectors for Nickel (RustiQ dependency backport)"
+license = "MIT"
+repository = "https://github.com/tweag/nickel"
+publish = false
+
+[lib]
+bench = false
+
+[dependencies]
+# RUSTSEC-2026-0292: commit removal metadata before running element destructors.
+imbl-sized-chunks = "0.2"
+serde = "1.0.164"

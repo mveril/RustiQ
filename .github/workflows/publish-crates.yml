@@ -30,6 +30,15 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Require registry-compatible dependencies
+        run: |
+          python3 - <<'PY'
+          import pathlib, tomllib
+          manifest = tomllib.loads(pathlib.Path("Cargo.toml").read_text())
+          if manifest.get("patch", {}).get("crates-io"):
+              raise SystemExit("Cargo removes local patches on publication. Resolve the Nickel vector advisory in registry dependencies before publishing crates.io packages.")
+          PY
+
       - name: Validate versions and find unpublished packages
         id: packages
         env:

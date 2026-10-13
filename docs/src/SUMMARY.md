@@ -34,5 +34,6 @@
 - [Nix packages and shells](development/nix-packages.md)
 - [Known supported platforms](development/platforms.md)
 - [Releasing RustiQ](development/releasing.md)
+- [Licenses and redistribution](development/licensing.md)
 - [Contributing and the Rust API](development/contributing.md)
 - [Documentation checks](development/documentation.md)
