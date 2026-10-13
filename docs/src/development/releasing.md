@@ -76,7 +76,10 @@ dependency sources. The generated Cargo configuration allows registry-free
 rebuilding. Dist's repository-only source tarball is disabled because it would
 omit the dependency sources.
 Dist treats this file as an extra artifact; it does not emit a separate
-checksum for it in the release plan.
+checksum for it in the release plan. Before publishing, verify that the source
+archive is actually present in the release assets and corresponds to the tagged
+commit. Its checksum can be calculated separately when verifying distribution
+integrity.
 See [licenses and redistribution](licensing.md) for rebuild instructions and
 the requirements for package maintainers. The Nix package installs the same
 notice documents into `share/doc/rustiq`; its metadata describes RustiQ's
@@ -138,9 +141,11 @@ change, build the workspace:
 cargo check --workspace --locked
 ```
 
-A binary release does not require registry publication readiness. Run
-`cargo publish --dry-run --workspace --locked` only after resolving the
-[local patch publication block](#cratesio-publication) described below.
+A binary release does not require registry publication readiness.
+There is currently no local Nickel patch or corresponding crates.io
+publication block. Before publishing crates, review the acknowledged
+upstream advisories described in [crates.io publication](#cratesio-publication)
+and run `cargo publish --dry-run --workspace --locked`.
 
 Regenerate and commit notices after changing dependencies, license
 configuration, the notice template or generator. Review supplemental upstream
@@ -203,10 +208,20 @@ validation blocks the build and therefore the publishing jobs.
 
 ## crates.io publication
 
-Nickel 0.19's published dependency graph currently includes the vulnerable
-`imbl-sized-chunks` 0.1 line. RustiQ uses the published Nickel crates directly
-and records these accepted upstream advisories in `deny.toml`; check for a
-fixed Nickel release before publishing future versions.
+Nickel 0.19's published dependency graph currently includes
+`imbl-sized-chunks` 0.1.3, affected by the **unfixed security advisory**
+RUSTSEC-2026-0292, and the unmaintained `bitmaps` 3.2.1
+(RUSTSEC-2026-0247). RustiQ intentionally uses Nickel's published releases:
+it does **not** fork Nickel or backport its transitive dependencies.
+`deny.toml` records explicit exceptions for these advisories. Passing
+`cargo deny check` does not indicate that the vulnerability is fixed.
+Review these exceptions and upstream fixes before each release; see
+[dependency review](licensing.md#dependency-review).
+
+The crates.io workflow is **not blocked** by these exceptions. A version tag
+can trigger publication of both crates while the upstream vulnerability remains
+present. Decide whether to publish that version with the documented risk or
+hold the tag until Nickel publishes a compatible fix.
 
 `.github/workflows/publish-crates.yml` publishes both workspace crates when a
 `v*` tag on `main` is pushed. Cargo publishes workspace members in dependency
