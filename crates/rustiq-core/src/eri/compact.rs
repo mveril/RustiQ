@@ -113,12 +113,14 @@ impl CompactEri {
         }
 
         let mut storage = Arc::<[f64]>::new_uninit_slice(storage_len);
-        let slots = Arc::get_mut(&mut storage)
-            .expect("newly allocated ERI storage must be uniquely owned");
+        let slots =
+            Arc::get_mut(&mut storage).expect("newly allocated ERI storage must be uniquely owned");
 
-        par_iter.zip(slots.par_iter_mut()).for_each(|(value, slot)| {
-            slot.write(value);
-        });
+        par_iter
+            .zip(slots.par_iter_mut())
+            .for_each(|(value, slot)| {
+                slot.write(value);
+            });
 
         // SAFETY: The indexed iterator has exactly storage_len elements, as
         // validated above. zip pairs each value with a distinct mutable slot,
@@ -365,18 +367,12 @@ mod tests {
 
     #[test]
     fn test_parallel_eri_storage_handles_empty_and_singleton_tensors() {
-        let empty = CompactEri::from_ordered_values_par_iter(
-            0,
-            rayon::iter::empty::<f64>(),
-        )
-        .unwrap();
+        let empty =
+            CompactEri::from_ordered_values_par_iter(0, rayon::iter::empty::<f64>()).unwrap();
         assert!(empty.is_empty());
 
-        let singleton = CompactEri::from_ordered_values_par_iter(
-            1,
-            rayon::iter::once(2.75_f64),
-        )
-        .unwrap();
+        let singleton =
+            CompactEri::from_ordered_values_par_iter(1, rayon::iter::once(2.75_f64)).unwrap();
         assert_eq!(singleton.ordered_values(), &[2.75]);
     }
 
