@@ -7,6 +7,26 @@ and theoretical chemists.
 **Do not use RustiQ results for research conclusions without independent
 validation against established quantum chemistry packages.**
 
+## Choosing a calculation input
+
+RustiQ offers two complementary input formats. **TOML is the simple choice for one calculation**: a small, readable file is enough, and users do not need to learn Nickel.
+
+**Nickel is optional for calculation studies.** Its imports, functions, and list operations can generate related configurations—for example, varying basis sets or numerical settings without duplicating full input files. Nickel can also describe one calculation.
+
+Both formats pass through **the same embedded Nickel contracts** for defaults, validation, and normalization. The normalized configurations then enter the same Rust scientific core, which has no dependency on TOML or Nickel. Users do not need to install the Nickel executable: RustiQ embeds the configuration evaluator.
+
+```mermaid
+flowchart TD
+    TOML["TOML (.toml)<br/>One calculation"] --> CONTRACTS
+    NICKEL["Nickel (.ncl)<br/>One or more calculations"] --> CONTRACTS
+    CONTRACTS["Shared Nickel contracts<br/>Defaults · Validation · Normalization"] --> INPUTS
+    INPUTS["Resolved scientific configurations"] --> CORE
+    CORE["rustiq-chem-core<br/>Runs calculations sequentially"] --> RESULTS
+    RESULTS["Single result or ordered batch results"]
+```
+
+Choose the [TOML calculation guide](user-guide/configuration.md) for one calculation or [Nickel studies](user-guide/nickel-studies.md) for an optional parameterized campaign. **Studies execute sequentially**, not as a parallel job scheduler.
+
 ## Where should I start?
 
 - **Scientific users:** [Installation](getting-started/installation.md) →
