@@ -318,6 +318,9 @@
                 cd source
                 mdbook-mermaid install docs
                 mdbook build docs
+                test -s docs/book/mermaid.min.js
+                test -s docs/book/mermaid-init.js
+                grep -q 'class="mermaid"' docs/book/index.html
                 mdbook test docs
                 pytest tools/test_book_links.py
                 python tools/check-book-links.py docs/book --config docs/book.toml
