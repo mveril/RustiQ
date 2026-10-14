@@ -65,6 +65,8 @@ To install from this checkout: `cargo install --locked --path .`.
 - Generate the Rust API reference with `tools/generate-rustdoc.sh --open`,
   or `.\tools\generate-rustdoc.ps1 -Open` on Windows.
 
-Build with `nix build .#book`, or preview with `mdbook serve docs --open` inside
-`nix develop .#rust`. See
+Build with `nix build .#book`, or preview inside `nix develop .#rust` after
+running `mdbook-mermaid install docs`, using `mdbook serve docs --open`.
+Without Nix, install `mdbook` and `mdbook-mermaid` using Cargo and run the same
+asset installation and preview commands. See
 [documentation checks](docs/src/development/documentation.md) for coverage.
