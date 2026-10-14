@@ -200,6 +200,7 @@
             hyperfine
             jq
             mdbook
+            mdbook-mermaid
             nixd
             nixfmt
             nickel
@@ -305,6 +306,7 @@
                 };
                 nativeBuildInputs = [
                   pkgs.mdbook
+                  pkgs.mdbook-mermaid
                   pkgs.python3
                   pkgs.python3Packages.pytest
                   rustToolchain
@@ -314,6 +316,7 @@
                 cp -r "$src" source
                 chmod -R u+w source
                 cd source
+                mdbook-mermaid install docs
                 mdbook build docs
                 mdbook test docs
                 pytest tools/test_book_links.py
