@@ -1,0 +1,24 @@
+# Prefer Apache where upstream offers a choice. Include every platform and
+# development/build dependency because the source archive vendors Cargo.lock.
+accepted = [
+    "Apache-2.0",
+    "MIT",
+    "MIT-0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "LGPL-3.0-only",
+    "LGPL-3.0-or-later",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+]
+
+workarounds = ["ring", "rustls", "rustix"]
+
+[bounded-vec-deque.clarify]
+license = "BSD-3-Clause"
+[[bounded-vec-deque.clarify.files]]
+path = "LICENSE-BSD"
+checksum = "f79bd8d0470a32b67253861101e5445fd0cf1094fcaa7ce2dc0b40a35b89a17f"

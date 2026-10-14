@@ -3,7 +3,10 @@
 [![CI](https://github.com/mveril/RustiQ/actions/workflows/ci.yml/badge.svg)](https://github.com/mveril/RustiQ/actions/workflows/ci.yml)
 
 RustiQ is an experimental Rust quantum chemistry application and reusable
-`rustiq-chem-core` library, licensed under MIT OR Apache-2.0. It supports RHF, UHF,
+`rustiq-chem-core` library. RustiQ-authored source is licensed under MIT OR
+Apache-2.0. Executables include LGPL libraries, third-party notices and access
+to corresponding sources. See [distribution terms](DISTRIBUTION.md).
+It supports RHF, UHF,
 MP2, XYZ geometries, Gaussian basis sets, TOML/Nickel inputs, sequential studies,
 versioned JSON output, and portable `.rustiq` bundles with reuse of atomic-orbital
 electron-repulsion integrals (AO ERIs).

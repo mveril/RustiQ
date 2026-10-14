@@ -1,1 +1,5 @@
 * text=auto eol=lf
+
+# Preserve whitespace in verbatim upstream license texts; hide generated notices in diffs.
+THIRD-PARTY-NOTICES.txt linguist-generated=true whitespace=-blank-at-eol
+licenses/extra-notices.txt whitespace=-blank-at-eof

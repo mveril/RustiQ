@@ -26,10 +26,13 @@ environments](environments.md).
 | `rust-analyzer` | Rust language server for editor completion, diagnostics, and navigation | `rust`, `full` |
 | `cargo-nextest` | Runs Rust tests with improved reporting and test isolation | `rust`, `full` |
 | `cargo-deny` | Checks dependency licenses, advisories, sources, and duplicate crates | `rust`, `full` |
+| `cargo-about` | Generates the third-party license notices used in distributions | `rust`, `full` |
 | `cargo-llvm-cov` | Measures Rust test code coverage using LLVM instrumentation | `rust`, `full` |
 | `cargo-criterion` | Runs Criterion benchmarks through Cargo | `rust`, `full` |
 | `cargo-expand` | Displays macro-expanded Rust code | `rust`, `full` |
 | `cargo-edit` | Adds, removes, and upgrades dependencies from the command line | `rust`, `full` |
+| `cargo-dist` (`dist`) | Builds release archives, installers, and checksums | `rust`, `full` |
+| `cargo-info` (`cargo info`) | Displays crate metadata from registries | `rust`, `full` |
 | `bacon` | Watches files and reruns selected Cargo checks | `rust`, `full` |
 | `cargo-watch` | Runs Cargo commands when files change | `rust`, `full` |
 | `git` | Source control commands | `rust`, `full` |

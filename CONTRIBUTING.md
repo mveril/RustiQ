@@ -36,6 +36,7 @@ prefix.
 Run:
 
 ```sh
+cargo deny check
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo clippy --workspace --all-targets --no-default-features -- -D warnings

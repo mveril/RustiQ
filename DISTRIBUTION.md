@@ -1,0 +1,134 @@
+# RustiQ distribution terms and source access
+
+RustiQ-authored source files are available under **MIT OR Apache-2.0**.
+Third-party files keep their upstream licenses and copyrights. The package
+manifests describe the RustiQ-authored source; they do not relicense dependencies.
+
+The executable uses **Malachite under LGPL-3.0-only** through Nickel and
+**ansi_colours under LGPL-3.0-or-later** through bat. These libraries and their
+use are covered by the LGPL. RustiQ's own code remains MIT OR Apache-2.0;
+the libraries are not relicensed. The GPLv3 text in `COPYING` accompanies the
+LGPL terms, which supplement GPLv3; it does not declare RustiQ as a whole GPL.
+`THIRD-PARTY-NOTICES.txt` supplies the LGPL, MPL, data-license and other texts
+and upstream notices. The BSD alternative is selected for `bounded-vec-deque`.
+This policy also applies to binaries built without the online feature.
+
+## Sources for a distributed executable
+
+Each tagged GitHub release supplies `rustiq-corresponding-source.tar.gz`
+alongside its binary archives, at no additional charge. The version-specific
+download URL is recorded at the top of `THIRD-PARTY-NOTICES.txt`. Obtain the
+source artifact from the **same release as the binary**. It contains the
+repository sources, `Cargo.lock`, build scripts, assets, vendored dependencies,
+and Cargo configuration for using them without accessing a registry.
+Vendored dependencies are the bundled third-party source code in `vendor`.
+GitHub's automatic repository source downloads do not contain the vendor tree.
+
+Extract and enter the archive using `tar` on Unix or recent Windows systems:
+
+```sh
+tar -xzf rustiq-corresponding-source.tar.gz
+cd rustiq-source
+```
+
+Install Rust, a native
+C/C++ toolchain and CMake as described in the manual's Cargo setup guide.
+Build the executable using:
+
+```sh
+cargo build --offline --locked --profile dist --bin rustiq
+```
+
+The result is `target/dist/rustiq` (`target/dist/rustiq.exe` on Windows).
+This rebuild enables the default online feature. An offline application build
+adds `--no-default-features`; the build itself stays offline in both cases.
+This is a reconstruction procedure, not a guarantee of byte-identical binaries.
+`SOURCE-INFO.txt` identifies the repository commit and lockfile.
+
+To replace an LGPL component, copy its directory from `vendor` to an editable
+directory. For example, copy `vendor/malachite-base-0.9.2` to
+`modified/malachite-base` and make your changes there. Create a
+`[patch.crates-io]` section in the extracted source archive's root
+`Cargo.toml` (or add an entry to that section if it already exists):
+
+```toml
+[patch.crates-io]
+malachite-base = { path = "modified/malachite-base" }
+```
+
+Then rebuild with `cargo build --offline --profile dist --bin rustiq`.
+Omit `--locked` because Cargo may need to update the lockfile for the local
+replacement. The replacement must satisfy the required package version and
+API, or you must adjust its dependents too. Keep the upstream license and
+document your modifications. Vendored files have integrity checks, so use
+a path patch rather than editing them in place. This changes only the local
+reconstruction: RustiQ does not modify or fork Nickel upstream.
+
+## Redistributing or packaging RustiQ
+
+Include `COPYING`, `LICENSE-MIT`, `LICENSE-APACHE`, `DISTRIBUTION.md` and
+`THIRD-PARTY-NOTICES.txt` with each executable archive or installed package.
+Preserve the upstream notices, including bundled native code and assets.
+Package metadata may describe RustiQ-authored code as MIT OR Apache-2.0.
+It must also preserve the notices and terms for the bundled LGPL, MPL and other
+components; the application license does not replace those terms.
+
+When serving binaries for download, give recipients equally convenient,
+no-charge access to the exact corresponding sources on the same download
+page. If the sources are on another server, put clear directions next to the
+binary and keep that source access available for as long as needed to meet
+LGPLv3 section 4(d)(0), which refers to GPLv3 section 6. Preserve the source
+link in the installed documentation.
+If you rebuild or patch the application, supply corresponding sources for
+your own build, including packaging scripts and modifications. Media,
+devices and other distribution methods require the applicable GPLv3 section
+6 arrangements, including installation information when required.
+
+The upstream LGPL and MPL sources and any modifications must remain
+available under their applicable licenses. Do not add terms that prevent
+modification, replacement of LGPL components, or reverse engineering to debug
+those modifications. Normal command execution does not require a credits
+banner; the accompanying documents carry the notices.
+
+## Dependency review
+
+`cargo-deny` restricts additional license approvals to reviewed crate versions.
+`cargo-about` generates license texts; `tools/distribution.py` adds separate
+upstream notices and records the lockfile and input hashes. Identical upstream
+texts are included once and referenced by each package that supplies them.
+`cargo vendor` gathers dependency sources; `git archive` supplies the committed
+project tree; cargo-dist publishes the resulting archive.
+CI checks the package inventory and generated-file integrity, not every license
+clause. Supplemental upstream notices and their provenance
+are retained in `licenses/extra-notices.txt`, including notices missing from
+published crate archives. Review these when updating the affected crates.
+`cargo-about` and `cargo-deny` only cover the Cargo dependency graph; review
+the license terms and attribution of checked-in scientific data, fixtures,
+assets, and other third-party content separately before redistribution.
+
+RustiQ retains transitive dependencies with informational maintenance
+advisories for bincode, unsafe-libyaml and yaml-rust. Their specific advisory
+IDs and reasons are recorded in `deny.toml`. Rustls has been updated to its
+fixed patch release.
+
+Nickel 0.19 depends on `imbl-sized-chunks` 0.1.3, affected by
+[RUSTSEC-2026-0292](https://rustsec.org/advisories/RUSTSEC-2026-0292):
+a memory-safety vulnerability involving double free / use-after-free if an
+element's destructor panics during certain removal operations. The fix is in
+`imbl-sized-chunks` 0.2.0 or later, but RustiQ deliberately keeps Nickel's
+published dependency graph rather than carrying a local backport or forking
+Nickel. `deny.toml` explicitly acknowledges this **unfixed security advisory**;
+a passing `cargo deny check` does not mean this risk has been mitigated.
+
+The same dependency graph includes the unmaintained `bitmaps` 3.2.1 crate
+([RUSTSEC-2026-0247](https://rustsec.org/advisories/RUSTSEC-2026-0247)),
+which is a maintenance advisory, not the same vulnerability. Reassess both
+exceptions before releases and adopt a compatible upstream Nickel update
+when one becomes available. There is no automatic crates.io publication
+block associated with these acknowledged advisories; the publishing workflow
+still runs on version tags.
+
+Authoritative terms: [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html),
+[LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.html),
+[MPL 2.0](https://www.mozilla.org/en-US/MPL/2.0/), and
+[CDLA-Permissive-2.0](https://cdla.dev/permissive-2-0/).
