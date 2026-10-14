@@ -92,6 +92,10 @@ impl CompactEri {
     }
 
     /// Builds a compact ERI tensor from values yielded in compact storage order.
+    #[allow(
+        unsafe_code,
+        reason = "Initializing the Arc slice in place avoids duplicating the potentially multi-gigabyte ERI buffer"
+    )]
     pub(crate) fn from_ordered_values_par_iter<I>(
         size: usize,
         par_iter: I,
@@ -108,11 +112,22 @@ impl CompactEri {
             });
         }
 
-        let storage: Vec<f64> = par_iter.collect();
+        let mut storage = Arc::<[f64]>::new_uninit_slice(storage_len);
+        let slots = Arc::get_mut(&mut storage)
+            .expect("newly allocated ERI storage must be uniquely owned");
 
-        Ok(Self {
-            storage: storage.into(),
-        })
+        par_iter.zip(slots.par_iter_mut()).for_each(|(value, slot)| {
+            slot.write(value);
+        });
+
+        // SAFETY: The indexed iterator has exactly storage_len elements, as
+        // validated above. zip pairs each value with a distinct mutable slot,
+        // and for_each only returns successfully after every slot is written.
+        // If an evaluation panics, unwinding drops Arc<[MaybeUninit<f64>]>
+        // without ever constructing an Arc<[f64]>.
+        let storage = unsafe { storage.assume_init() };
+
+        Ok(Self { storage })
     }
 }
 
@@ -346,6 +361,37 @@ mod tests {
                 CompactEriBuildError::InvalidLength { expected, actual }
             );
         }
+    }
+
+    #[test]
+    fn test_parallel_eri_storage_handles_empty_and_singleton_tensors() {
+        let empty = CompactEri::from_ordered_values_par_iter(
+            0,
+            rayon::iter::empty::<f64>(),
+        )
+        .unwrap();
+        assert!(empty.is_empty());
+
+        let singleton = CompactEri::from_ordered_values_par_iter(
+            1,
+            rayon::iter::once(2.75_f64),
+        )
+        .unwrap();
+        assert_eq!(singleton.ordered_values(), &[2.75]);
+    }
+
+    #[test]
+    fn test_parallel_eri_storage_does_not_complete_after_iterator_panic() {
+        let result = std::panic::catch_unwind(|| {
+            let _ = CompactEri::from_ordered_values_par_iter(
+                2,
+                (0..6).into_par_iter().map(|index| {
+                    assert_ne!(index, 3, "intentional evaluator panic");
+                    index as f64
+                }),
+            );
+        });
+        assert!(result.is_err());
     }
 
     #[test]
