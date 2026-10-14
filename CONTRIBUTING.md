@@ -80,8 +80,15 @@ Clippy's `all` and `pedantic` groups are denied, together with `unwrap_used`,
 `dbg_macro`, `todo`, `unimplemented`, `panic`, `panic_in_result_fn`,
 `let_underscore_must_use`, `exit`, `lossy_float_literal`, and
 `allow_attributes_without_reason`.
-Unsafe code is forbidden. CI checks every target with all features and without
-default features; it also rejects any remaining compiler warnings.
+Unsafe code is denied by default. A narrowly scoped `#[allow(unsafe_code, reason = "...")]`
+is permitted only when a safe alternative causes a substantial, demonstrated
+cost, and must be accompanied by a local `// SAFETY:` comment that proves its
+invariants. The in-place AO ERI allocation uses
+[`Arc::new_uninit_slice`](https://doc.rust-lang.org/std/sync/struct.Arc.html#method.new_uninit_slice)
+and [`Arc::assume_init`](https://doc.rust-lang.org/std/sync/struct.Arc.html#method.assume_init)
+to avoid a second multi-gigabyte ERI allocation. CI checks every target with
+all features and without default features; it also rejects any remaining
+compiler warnings.
 
 Use typed errors for fallible input and operations. Production code must not
 panic on fallible external input; a `Result`-returning function must report such
