@@ -5,6 +5,11 @@ repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
 shows how to create local inputs and obtain a basis.
 
+For a single calculation, [TOML](configuration.md) is sufficient. **Nickel is an
+optional interface for parameterized studies** that vary basis sets or numerical
+settings without duplicating input files. You do not need Nickel to run TOML
+calculations.
+
 Nickel is a configuration language that RustiQ embeds. A `.ncl` file can
 import other Nickel files and compute a list of related calculation records.
 The checked-in single-calculation `.ncl` input is a small starting point:
