@@ -39,6 +39,7 @@ environments](environments.md).
 | `hyperfine` | Repeats and compares command-line benchmarks | `rust`, `full` |
 | `jq` | Reads and transforms JSON from the command line | `rust`, `full` |
 | `mdbook` | Builds and previews this manual | `rust`, `full` |
+| `mdbook-mermaid` | Preprocesses Mermaid diagrams in the manual | `rust`, `full` |
 | `nixd` | Nix language server for editor support | `rust`, `full` |
 | `nixfmt` | Formats Nix expressions | `rust`, `full` |
 | `nickel` | Parses and evaluates Nickel configuration files | `rust`, `full` |
