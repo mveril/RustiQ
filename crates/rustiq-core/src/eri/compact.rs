@@ -379,13 +379,14 @@ mod tests {
     #[test]
     fn test_parallel_eri_storage_does_not_complete_after_iterator_panic() {
         let result = std::panic::catch_unwind(|| {
-            let _ = CompactEri::from_ordered_values_par_iter(
+            CompactEri::from_ordered_values_par_iter(
                 2,
                 (0..6).into_par_iter().map(|index| {
                     assert_ne!(index, 3, "intentional evaluator panic");
-                    index as f64
+                    f64::from(index)
                 }),
-            );
+            )
+            .unwrap();
         });
         assert!(result.is_err());
     }
