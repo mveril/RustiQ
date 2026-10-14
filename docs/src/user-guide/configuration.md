@@ -5,8 +5,10 @@ repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
 shows how to create equivalent local inputs and obtain a basis.
 
-A TOML input describes one calculation. Begin with the checked-in neutral H₂
-example:
+A TOML input describes one calculation. **TOML is the simplest choice**: you do not
+need to learn Nickel or install its executable. RustiQ embeds Nickel internally
+to supply the same defaults and validation as optional [Nickel studies](nickel-studies.md).
+Begin with the checked-in neutral H₂ example:
 
 ```toml
 {{#include ../../../samples/h2/sto-3g/calculation.toml}}
