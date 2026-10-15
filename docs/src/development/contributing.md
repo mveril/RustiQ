@@ -158,6 +158,7 @@ The `eri_timings` and `mp2_timings` benchmarks use Criterion and require
 cargo bench --bench mp2_timings --features bench-support
 cargo bench --bench eri_timings --features bench-support
 cargo bench --bench eri_storage_allocation --features bench-support
+cargo bench --bench eri_storage_memory --features bench-support
 ```
 
 The MP2 benchmark compares the dense AO-to-MO transformation and correlation
@@ -196,6 +197,11 @@ rustup +nightly component add miri rust-src
 cargo +nightly miri setup
 cargo +nightly miri test -p rustiq-chem-core --lib test_in_place_storage_initialization_miri
 ```
+
+The `eri_storage_memory` benchmark uses a counting global allocator in a
+separate executable to report peak live heap bytes attributable to each
+construction. It includes requested allocation sizes, not allocator overhead
+or process RSS. It compares the same Vec-then-Arc and in-place storage paths.
 
 The standard cases use 30 samples, a 2-second warm-up, and a 5-second
 measurement target. Heavy ERI cases and MP2 cases with 48 or more AOs use
