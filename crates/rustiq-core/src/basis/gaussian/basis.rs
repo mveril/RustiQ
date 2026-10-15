@@ -9,7 +9,6 @@ use std::f64::consts::PI;
 
 use super::contraction::Contraction;
 use super::shell::Shell;
-use factorial::DoubleFactorial;
 use rayon::prelude::*;
 use thiserror::Error;
 
@@ -618,24 +617,17 @@ fn generate_angular_components(l: u8, pure: bool) -> Vec<Vec<(Vector3<u8>, f64)>
 }
 
 pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
-    let l_factor = if l == 0 {
-        1.0
-    } else {
-        f64::from((2 * l - 1).double_factorial())
+    let log_double_factorial = |power: u32| {
+        (1..=power)
+            .map(|index| (2.0 * f64::from(index) - 1.0).ln())
+            .sum::<f64>()
     };
-    let m_factor = if m == 0 {
-        1.0
-    } else {
-        f64::from((2 * m - 1).double_factorial())
-    };
-    let n_factor = if n == 0 {
-        1.0
-    } else {
-        f64::from((2 * n - 1).double_factorial())
-    };
+    let total_angular_momentum = f64::from(l) + f64::from(m) + f64::from(n);
+    let log_norm = 0.75 * (2.0 * alpha / PI).ln()
+        + 0.5 * total_angular_momentum * (4.0 * alpha).ln()
+        - 0.5 * (log_double_factorial(l) + log_double_factorial(m) + log_double_factorial(n));
 
-    ((2.0 * alpha / PI).powf(0.75)) * (4.0 * alpha).powf(f64::from(l + m + n) / 2.0)
-        / ((l_factor * m_factor * n_factor).sqrt())
+    log_norm.exp()
 }
 
 #[allow(
@@ -821,6 +813,43 @@ mod tests {
     use periodic_table::periodic_table;
     use std::collections::{HashMap, HashSet};
 
+    fn analytic_diagonal_overlap(components: &[NormalizedComponent]) -> f64 {
+        let mut overlap = 0.0;
+        for component_i in components {
+            for component_j in components {
+                for primitive_i in &component_i.primitives {
+                    for primitive_j in &component_j.primitives {
+                        let exponent_sum = primitive_i.exponent + primitive_j.exponent;
+                        let moment = |power: u32| {
+                            if power % 2 != 0 {
+                                return 0.0;
+                            }
+                            let half_power = power / 2;
+                            let double_factorial = (1..=half_power)
+                                .map(|index| f64::from(2 * index - 1))
+                                .product::<f64>();
+                            PI.sqrt() * double_factorial
+                                / (2.0_f64.powi(half_power as i32)
+                                    * exponent_sum.powf(f64::from(half_power) + 0.5))
+                        };
+                        let x = u32::from(component_i.angular_momentum.x)
+                            + u32::from(component_j.angular_momentum.x);
+                        let y = u32::from(component_i.angular_momentum.y)
+                            + u32::from(component_j.angular_momentum.y);
+                        let z = u32::from(component_i.angular_momentum.z)
+                            + u32::from(component_j.angular_momentum.z);
+                        overlap += primitive_i.coefficient
+                            * primitive_j.coefficient
+                            * moment(x)
+                            * moment(y)
+                            * moment(z);
+                    }
+                }
+            }
+        }
+        overlap
+    }
+
     #[test]
     fn test_basis_new() {
         let alpha = vec![0.5];
@@ -845,10 +874,13 @@ mod tests {
             );
 
             let basis = Basis::new(vec![shell]);
-            let overlap = basis.overlap_ints();
 
             for i in 0..basis.nbasis() {
-                assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+                assert_abs_diff_eq!(
+                    analytic_diagonal_overlap(&basis.normalized_components[i]),
+                    1.0,
+                    epsilon = 1e-12
+                );
             }
         }
     }
@@ -863,10 +895,13 @@ mod tests {
             );
 
             let basis = Basis::new(vec![shell]);
-            let overlap = basis.overlap_ints();
 
             for i in 0..basis.nbasis() {
-                assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+                assert_abs_diff_eq!(
+                    analytic_diagonal_overlap(&basis.normalized_components[i]),
+                    1.0,
+                    epsilon = 1e-12
+                );
             }
         }
     }
