@@ -125,6 +125,8 @@ a local cache directory into a portable artifact. See the
 [portable bundle guide](../user-guide/portable-bundles.md), the
 [persistence contract](../reference/index.md), and the runnable API examples
 for details.
+Portable NPY ERI payloads stream directly into the final shared compact storage
+through an exact-size iterator, avoiding a temporary full-size `Vec<f64>`.
 
 This distinction matters for performance: compact AO ERI storage still grows
 as the fourth power of basis dimension, and the MP2 workspace budget covers
@@ -155,6 +157,7 @@ The `eri_timings` and `mp2_timings` benchmarks use Criterion and require
 ```sh
 cargo bench --bench mp2_timings --features bench-support
 cargo bench --bench eri_timings --features bench-support
+cargo bench --bench eri_storage_allocation --features bench-support
 ```
 
 The MP2 benchmark compares the dense AO-to-MO transformation and correlation
@@ -178,6 +181,21 @@ It reports compact ERI storage elements processed per second. This count is the
 size of the compact representation; Schwarz screening may skip evaluations or
 leave stored elements zero, so it is not a count of integrals evaluated per
 second.
+
+The `eri_storage_allocation` benchmark compares Vec-then-Arc construction with
+the exact-size-iterator Arc initialization path for identical compact tensor
+sizes. It measures storage allocation and initialization only, not ERI
+evaluation. Compare the same Criterion benchmark and compiler settings on both
+revisions. The Miri
+workflow targets a sequential unit test for the shared in-place initialization
+helper, checking its initialization safety independently of Rayon scheduling.
+Run the same check locally with nightly Rust:
+
+```sh
+rustup +nightly component add miri rust-src
+cargo +nightly miri setup
+cargo +nightly miri test -p rustiq-chem-core --lib test_in_place_storage_initialization_miri
+```
 
 The standard cases use 30 samples, a 2-second warm-up, and a 5-second
 measurement target. Heavy ERI cases and MP2 cases with 48 or more AOs use

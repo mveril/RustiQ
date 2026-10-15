@@ -113,6 +113,11 @@ name = "eri_timings"
 harness = false
 required-features = ["bench-support"]
 
+[[bench]]
+name = "eri_storage_allocation"
+harness = false
+required-features = ["bench-support"]
+
 [build-dependencies]
 bat = { workspace = true, features = ["build-assets"] }
 
