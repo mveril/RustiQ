@@ -80,6 +80,12 @@ not be assumed to work just because a basis is downloadable. This describes
 loader support, not numerical validation of all those cases. The checks are in
 [`basis.rs`](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/basis/gaussian/basis.rs).
 
+During basis construction, RustiQ normalizes each Cartesian primitive using its
+three angular momentum components, then normalizes the contraction for its
+shell. Spherical functions are formed from normalized Cartesian components.
+The imported contraction coefficients therefore set the relative primitive
+weights; their overall scale does not set the resulting function norm.
+
 Basis choice is one part of a calculation's accuracy. Convergence, independent
 agreement, basis quality, and physical validity are distinct checks; see
 [scientific scope](../scientific-scope.md).

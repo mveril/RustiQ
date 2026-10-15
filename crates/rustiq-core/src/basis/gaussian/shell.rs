@@ -1,5 +1,4 @@
 use super::contraction::Contraction;
-use factorial::DoubleFactorial;
 use nalgebra::{DVector, Point3};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::f64::consts::PI;
@@ -78,19 +77,19 @@ impl Shell {
         let np = alpha.len();
         for p in 0..np {
             for q in 0..=p {
-                let gamma = alpha[p] + alpha[q];
                 let a = if p == q { 1.0 } else { 2.0 };
-
-                let n_p = super::basis::gaussian_norm_const(alpha[p], u32::from(c.l), 0, 0);
-                let n_q = super::basis::gaussian_norm_const(alpha[q], u32::from(c.l), 0, 0);
-
-                let prefactor = n_p * n_q * (PI / gamma).powf(1.5);
-                let df_l = if c.l > 0 {
-                    (2 * u64::from(c.l) - 1).double_factorial() as f64
+                let s_ij = if c.l == 0 {
+                    let gamma = alpha[p] + alpha[q];
+                    let n_p = super::basis::gaussian_norm_const(alpha[p], 0, 0, 0);
+                    let n_q = super::basis::gaussian_norm_const(alpha[q], 0, 0, 0);
+                    n_p * n_q * (PI / gamma).powf(1.5)
                 } else {
-                    1.0
+                    let smaller = alpha[p].min(alpha[q]);
+                    let larger = alpha[p].max(alpha[q]);
+                    let exponent_ratio = smaller / larger;
+                    let overlap_ratio = 2.0 * exponent_ratio.sqrt() / (1.0 + exponent_ratio);
+                    overlap_ratio.powf(f64::from(c.l) + 1.5)
                 };
-                let s_ij = prefactor * df_l / (2.0 * gamma).powi(i32::from(c.l));
 
                 norm += a * s_ij * c.coeff[p] * c.coeff[q];
             }
@@ -164,6 +163,17 @@ mod tests {
             (norm - 1.0).abs() < 1e-6,
             "Normalization failed: norm = {norm}"
         );
+    }
+
+    #[test]
+    fn high_angular_momentum_contraction_avoids_normalizer_overflow() {
+        let shell = Shell::new(
+            vec![1.0e20],
+            vec![Contraction::new(15, false, vec![1.0])],
+            Point3::origin(),
+        );
+
+        assert_eq!(shell.contr[0].coeff[0], 1.0);
     }
 
     #[test]

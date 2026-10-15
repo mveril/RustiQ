@@ -617,14 +617,22 @@ fn generate_angular_components(l: u8, pure: bool) -> Vec<Vec<(Vector3<u8>, f64)>
 }
 
 pub fn gaussian_norm_const(alpha: f64, l: u32, m: u32, n: u32) -> f64 {
+    if l == 0 && m == 0 && n == 0 {
+        let scaled_exponent = 2.0 * alpha / PI;
+        if scaled_exponent.is_finite() && scaled_exponent > 0.0 {
+            return scaled_exponent.powf(0.75);
+        }
+    }
+
     let log_double_factorial = |power: u32| {
         (1..=power)
             .map(|index| (2.0 * f64::from(index) - 1.0).ln())
             .sum::<f64>()
     };
     let total_angular_momentum = f64::from(l) + f64::from(m) + f64::from(n);
-    let log_norm = 0.75 * (2.0 * alpha / PI).ln()
-        + 0.5 * total_angular_momentum * (4.0 * alpha).ln()
+    let log_alpha = alpha.ln();
+    let log_norm = 0.75 * (log_alpha + (2.0 / PI).ln())
+        + 0.5 * total_angular_momentum * (log_alpha + 4.0_f64.ln())
         - 0.5 * (log_double_factorial(l) + log_double_factorial(m) + log_double_factorial(n));
 
     log_norm.exp()
@@ -821,7 +829,7 @@ mod tests {
                     for primitive_j in &component_j.primitives {
                         let exponent_sum = primitive_i.exponent + primitive_j.exponent;
                         let moment = |power: u32| {
-                            if power % 2 != 0 {
+                            if power & 1 != 0 {
                                 return 0.0;
                             }
                             let half_power = power / 2;
@@ -829,7 +837,7 @@ mod tests {
                                 .map(|index| f64::from(2 * index - 1))
                                 .product::<f64>();
                             PI.sqrt() * double_factorial
-                                / (2.0_f64.powi(half_power as i32)
+                                / (2.0_f64.powf(f64::from(half_power))
                                     * exponent_sum.powf(f64::from(half_power) + 0.5))
                         };
                         let x = u32::from(component_i.angular_momentum.x)
@@ -904,6 +912,31 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn contracted_orbitals_with_nonzero_angular_momentum_are_normalized() {
+        for (l, pure) in [(1, false), (2, true)] {
+            let shell = Shell::new(
+                vec![0.35, 1.4, 3.2],
+                vec![Contraction::new(l, pure, vec![0.6, -0.25, 0.8])],
+                Point3::origin(),
+            );
+            let basis = Basis::new(vec![shell]);
+            let overlap = basis.overlap_ints();
+
+            for i in 0..basis.nbasis() {
+                assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn s_primitive_normalization_avoids_intermediate_overflow() {
+        let norm = gaussian_norm_const(5.0e307, 0, 0, 0);
+
+        assert!(norm.is_finite());
+        assert_abs_diff_eq!(norm, 4.237_772_081_237_576e230, epsilon = 1e218);
     }
 
     #[test]
