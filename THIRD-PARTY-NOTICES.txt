@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: f565abdf90a78ed8a64feff8ffcdf7b317416035f2e374b1ead6433ec30aaa6a
-Notice inputs SHA-256: e71baebd92b1a437d8e659efdd53eca0cc7ac0d2bb321a4268bfc010dc2c3b67
+Cargo.lock SHA-256: a561d7adf48f74c240ad0638b6b135e616a0da2b052aa6da56eae75ecd50f0a7
+Notice inputs SHA-256: 73ab996daf2a59d3f2ad631323a529d64dd07ed8e61131e41d2c00b1f5fb9cef
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -6060,7 +6060,7 @@ Used by:
   rustc_version 0.4.1 — https://github.com/djc/rustc-version-rs
   rustix 1.1.4 — https://github.com/bytecodealliance/rustix
   rustls-native-certs 0.8.4 — https://github.com/rustls/rustls-native-certs
-  rustls 0.23.45 — https://github.com/rustls/rustls
+  rustls 0.23.46 — https://github.com/rustls/rustls
   rusty-fork 0.3.1 — https://github.com/altsysrq/rusty-fork
   scopeguard 1.2.0 — https://github.com/bluss/scopeguard
   security-framework-sys 2.17.0 — https://github.com/kornelski/rust-security-framework
@@ -9893,35 +9893,6 @@ SOFTWARE.
 MIT License (MIT)
 
 Used by:
-  json_scanner 0.1.0 — https://github.com/nickel-lang/json_scanner
-
-MIT License
-
-Copyright (c) 2016 Nicolas Seriot
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-------------------------------------------------------------------------
-MIT License (MIT)
-
-Used by:
   fs_extra 1.3.0 — https://github.com/webdesus/fs_extra
 
 MIT License
@@ -10484,6 +10455,35 @@ LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE A
 EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+------------------------------------------------------------------------
+MIT License (MIT)
+
+Used by:
+  json_scanner 0.1.0 — https://github.com/nickel-lang/json_scanner
+
+MIT License
+
+Copyright (c) Modus Create LLC and its affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 
 ------------------------------------------------------------------------
@@ -38799,7 +38799,7 @@ Identical text reproduced above: linux-raw-sys 0.12.1 / LICENSE-Apache-2.0_WITH_
 FILE: LICENSE-MIT
 Identical text reproduced above: adler2 2.0.1 / LICENSE-MIT
 
-PACKAGE: rustls 0.23.45
+PACKAGE: rustls 0.23.46
 Declared license: Apache-2.0 OR ISC OR MIT
 Repository: https://github.com/rustls/rustls
 Authors: (not declared)
