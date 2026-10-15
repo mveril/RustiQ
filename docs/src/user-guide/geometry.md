@@ -14,6 +14,11 @@ checked-in H₂ example:
 {{#include ../../../samples/h2/molecule.xyz}}
 ```
 
+The atom count must not exceed the number of atom lines present in the file.
+RustiQ reports a geometry parse error when the count and available lines do
+not match, including when the count is too large to represent the supplied
+geometry.
+
 RustiQ treats the coordinates as Angstrom by default; TOML can specify Bohr.
 The coordinates in XYZ do not specify molecular charge, spin multiplicity, or
 units. Those are calculation settings. A charge changes the electron count;
