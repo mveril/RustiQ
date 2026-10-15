@@ -81,19 +81,16 @@ impl Shell {
                 let gamma = alpha[p] + alpha[q];
                 let a = if p == q { 1.0 } else { 2.0 };
 
-                let n_p = (2.0 * alpha[p] / PI).powf(0.75) * (4.0 * alpha[p]).powi(i32::from(c.l))
-                    / ((2 * u64::from(c.l) + 1).double_factorial() as f64).sqrt();
-                let n_q = (2.0 * alpha[q] / PI).powf(0.75) * (4.0 * alpha[q]).powi(i32::from(c.l))
-                    / ((2 * u64::from(c.l) + 1).double_factorial() as f64).sqrt();
+                let n_p = super::basis::gaussian_norm_const(alpha[p], u32::from(c.l), 0, 0);
+                let n_q = super::basis::gaussian_norm_const(alpha[q], u32::from(c.l), 0, 0);
 
                 let prefactor = n_p * n_q * (PI / gamma).powf(1.5);
-                let exponent = (4.0 * alpha[p] * alpha[q] / gamma.powi(2)).powi(i32::from(c.l));
                 let df_l = if c.l > 0 {
                     (2 * u64::from(c.l) - 1).double_factorial() as f64
                 } else {
                     1.0
                 };
-                let s_ij = prefactor * exponent * df_l;
+                let s_ij = prefactor * df_l / (2.0 * gamma).powi(i32::from(c.l));
 
                 norm += a * s_ij * c.coeff[p] * c.coeff[q];
             }

@@ -816,6 +816,7 @@ mod tests {
     use super::*;
     use crate::basis::basis_file::{Auxiliaries, BasisFile, MolssiBseSchema, Role, SchemaType};
     use crate::{molecules::atom::Atom, test_utils};
+    use approx::assert_abs_diff_eq;
     use nalgebra::*;
     use periodic_table::periodic_table;
     use std::collections::{HashMap, HashSet};
@@ -832,6 +833,42 @@ mod tests {
         assert_eq!(basis.shell_ids.len(), 1); // Il y a une seule fonction de base
         assert_eq!(basis.angular_momenta.len(), 1);
         assert_eq!(basis.angular_momenta[0], Vector3::zeros());
+    }
+
+    #[test]
+    fn cartesian_orbital_types_are_normalized() {
+        for l in 0..=15 {
+            let shell = Shell::new(
+                vec![1.0],
+                vec![Contraction::new(l, false, vec![1.0])],
+                Point3::origin(),
+            );
+
+            let basis = Basis::new(vec![shell]);
+            let overlap = basis.overlap_ints();
+
+            for i in 0..basis.nbasis() {
+                assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn spherical_orbital_types_are_normalized() {
+        for l in 0..=2 {
+            let shell = Shell::new(
+                vec![1.0],
+                vec![Contraction::new(l, true, vec![1.0])],
+                Point3::origin(),
+            );
+
+            let basis = Basis::new(vec![shell]);
+            let overlap = basis.overlap_ints();
+
+            for i in 0..basis.nbasis() {
+                assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+            }
+        }
     }
 
     #[test]
