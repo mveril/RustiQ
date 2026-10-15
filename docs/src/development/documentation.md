@@ -2,8 +2,9 @@
 
 The book uses the standard mdBook theme, search, and MathJax, plus
 [`mdbook-mermaid`](https://github.com/badboy/mdbook-mermaid) to render the
-TOML/Nickel architecture diagram. **Nix is optional** for building and previewing
-the manual. You can choose either setup below.
+TOML/Nickel input-flow diagram in the calculation inputs guide. **Nix is
+optional** for building and previewing the manual. You can choose either setup
+below.
 
 ### With Nix
 

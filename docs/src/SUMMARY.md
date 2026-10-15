@@ -10,6 +10,7 @@
 
 # User guides
 
+- [Calculation inputs and execution](user-guide/calculation-inputs.md)
 - [Geometry files and transformations](user-guide/geometry.md)
 - [Gaussian basis sets](user-guide/basis-sets.md)
 - [TOML calculation configuration](user-guide/configuration.md)
