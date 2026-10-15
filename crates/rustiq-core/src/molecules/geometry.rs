@@ -1,5 +1,6 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
 use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::parse_xyz};
+use crate::hf::numerical_error::NumericalError;
 use core::iter::Iterator;
 use delegate::delegate;
 use nalgebra::{distance, Isometry3, Matrix3, Point3, Rotation3, Translation3, Vector3};
@@ -86,8 +87,8 @@ impl Geometry {
     }
 
     #[must_use]
-    pub fn nucl_repulsion(&self) -> f64 {
-        self.atoms
+    pub fn nucl_repulsion(&self) -> Result<f64, NumericalError> {
+        let pairs = self.atoms
             .iter()
             .enumerate()
             .flat_map(|(i, atom_i)| {
@@ -97,12 +98,16 @@ impl Geometry {
             })
             .par_bridge()
             .map(|(atom_i, atom_j)| {
+                let r_ij = distance(&atom_i.position, &atom_j.position);
+                if r_ij == 0.0 {
+                    return Err(NumericalError::CoincidentAtoms);
+                }
                 let z_i = f64::from(atom_i.element.atomic_number);
                 let z_j = f64::from(atom_j.element.atomic_number);
-                let r_ij = distance(&atom_i.position, &atom_j.position);
-                z_i * z_j / r_ij
+                Ok(z_i * z_j / r_ij)
             })
-            .sum()
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(pairs.into_iter().sum())
     }
 
     #[must_use]
@@ -654,7 +659,7 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2]);
 
         // Calculate nucleus-nucleus repulsion for H2
-        let e_nuc_nuc = geometry.nucl_repulsion();
+        let e_nuc_nuc = geometry.nucl_repulsion().unwrap();
 
         // Expected value for H2 at this distance
         // The distance in Bohr is ~1.40 Bohr (0.74 Angstrom)
@@ -665,6 +670,22 @@ H  0.000000  0.000000   0.370000
             (e_nuc_nuc - expected_e_nuc_nuc).abs() < 1e-6,
             "Incorrect nuclear repulsion energy for H2: expected {expected_e_nuc_nuc} found {e_nuc_nuc}"
         );
+    }
+
+    #[test]
+    fn nuclear_repulsion_rejects_coincident_atoms() {
+        let geometry = Geometry::new(
+            "Coincident atoms".to_string(),
+            vec![
+                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
+                Atom::new(&elements::HE, point![0.0, 0.0, 0.0]),
+            ],
+        );
+
+        assert!(matches!(
+            geometry.nucl_repulsion(),
+            Err(NumericalError::CoincidentAtoms)
+        ));
     }
 
     #[test]
@@ -680,7 +701,7 @@ H  0.000000  0.000000   0.370000
         );
 
         // Calculate nucleus-nucleus repulsion for H3
-        let e_nuc_nuc = geometry.nucl_repulsion();
+        let e_nuc_nuc = geometry.nucl_repulsion().unwrap();
 
         // The distances are all 1 Bohr here
         let expected_e_nuc_nuc = (1.0 / 1.0) + (1.0 / 2.0) + (1.0 / 1.0);
@@ -705,7 +726,7 @@ H  0.000000  0.000000   0.370000
         );
 
         // Calculate nucleus-nucleus repulsion
-        let e_nuc_nuc = geometry.nucl_repulsion();
+        let e_nuc_nuc = geometry.nucl_repulsion().unwrap();
 
         // The distances are He-H1 = 2 Bohr, He-H2 = 3 Bohr, H1-H2 = 1 Bohr
         let expected_e_nuc_nuc = (2.0 * 1.0 / 2.0) + (2.0 * 1.0 / 3.0) + (1.0 * 1.0 / 1.0);

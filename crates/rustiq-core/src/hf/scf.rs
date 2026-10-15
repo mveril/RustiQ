@@ -368,7 +368,7 @@ impl<'a> ScfCalculation<'a> {
         self.timings.iterations = iterations_start.elapsed();
 
         // Calculate final energy including nuclear repulsion
-        let nuclear_repulsion = self.molecule.geometry().nucl_repulsion();
+        let nuclear_repulsion = self.molecule.geometry().nucl_repulsion()?;
         let total_energy = self.energy + nuclear_repulsion;
         let final_energy_details_start = Instant::now();
         let energy_details = self.calculate_energy_details();

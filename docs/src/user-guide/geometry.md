@@ -36,6 +36,8 @@ it checks the exact floating-point result for one Bohr.
 
 `geometry info` reports atom and center information, including a nuclear
 repulsion value.
+The calculation returns an error if any two atoms have exactly identical
+coordinates, because their nuclear repulsion is undefined.
 
 > [!WARNING]
 > **Nuclear repulsion: beware of XYZ coordinate units.**

@@ -3,6 +3,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum NumericalError {
+    #[error("nuclear repulsion is undefined because two atoms occupy the same position")]
+    CoincidentAtoms,
     #[error("{matrix} matrix is not positive definite")]
     IndefiniteMatrix { matrix: &'static str },
     #[error("{values} contain a non-finite value")]
