@@ -72,6 +72,14 @@ pub(crate) fn parse_xyz(
             )
         })?;
 
+    let available_atom_lines = lines.len().saturating_sub(2);
+    if atom_count > available_atom_lines {
+        return Err(GeometryParseError::AtomCountMismatch {
+            declared: atom_count,
+            available: available_atom_lines,
+        });
+    }
+
     let comment = lines
         .get(1)
         .map(|line| line.text.to_string())
@@ -348,6 +356,25 @@ H 0.0 0.0 0.0
         };
 
         assert_eq!((span.offset(), span.len()), (0, "two".len()));
+    }
+
+    #[test]
+    fn oversized_xyz_atom_count_returns_error() {
+        let source = format!("{}\n\n", usize::MAX);
+
+        let result = Geometry::from_source("oversized.xyz", &source);
+
+        match result {
+            Err(GeometryParseError::AtomCountMismatch {
+                declared,
+                available,
+            }) => {
+                assert_eq!(declared, usize::MAX);
+                assert_eq!(available, 0);
+            }
+            Err(error) => panic!("expected atom count mismatch, got {error}"),
+            Ok(_) => panic!("expected oversized atom count to return an error"),
+        }
     }
 
     #[test]
