@@ -83,8 +83,9 @@ behaves as a single calculation; an array with multiple entries produces a
 batch. This is useful for studies that vary inputs while keeping the remaining
 settings shared. Nickel is validated using the same authoritative input
 contracts as TOML; it does not define a second scientific configuration
-schema. The project integration test constructs a native import fixture and
-checks resolution from a different working directory; see
+schema. See [calculation inputs and execution](calculation-inputs.md) for the
+shared input flow. The project integration test constructs a native import
+fixture and checks resolution from a different working directory; see
 [`tests/nickel_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/nickel_cli.rs#L62).
 See [configuration](configuration.md) and the
 [Nickel contract source](../reference/index.md).

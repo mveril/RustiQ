@@ -37,6 +37,8 @@ Defaults such as neutral charge, Angstrom coordinates, automatic HF selection,
 100 SCF iterations, and a \\(10^{-8}\\) convergence threshold are filled by the
 embedded Nickel contracts. The same contracts reject unknown fields and
 validate values; TOML parsing alone does not describe the full input rules.
+See [calculation inputs and execution](calculation-inputs.md) for how TOML and
+Nickel inputs pass through the shared contracts.
 See the [authoritative Nickel input contracts](../reference/index.md).
 
 Important HF numerical controls include `convergence_threshold`,

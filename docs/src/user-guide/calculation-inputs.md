@@ -30,7 +30,7 @@ One or more calculations`"]
 Defaults, validation, normalization`"]
     INPUTS["Resolved scientific configurations"]
     CORE["`rustiq-chem-core
-Runs calculations sequentially`"]
+Runs scientific calculations`"]
     RESULTS["Single result or ordered batch results"]
 
     TOML --> CONTRACTS
