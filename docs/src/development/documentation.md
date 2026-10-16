@@ -1,30 +1,76 @@
 # Documentation checks
 
-The book uses standard mdBook theme, search, and MathJax, without external
-preprocessors. Preview it inside `nix develop .#rust`:
+The book uses the standard mdBook theme, search, and MathJax, plus
+[`mdbook-mermaid`](https://github.com/badboy/mdbook-mermaid) to render the
+TOML/Nickel input-flow diagram in the calculation inputs guide. **Nix is
+optional** for building and previewing the manual. You can choose either setup
+below.
+
+### With Nix
+
+The `rust` and `full` development shells include both `mdbook` and
+`mdbook-mermaid`. Prepare the local Mermaid JavaScript assets once per checkout,
+then preview the manual:
 
 ```sh
+nix develop .#rust
+mdbook-mermaid install docs
 mdbook serve docs --open
 ```
 
-Run the documentation workflow's checks locally:
+For the complete CI-equivalent build and checks, run:
 
 ```sh
 nix build .#book
 ```
 
-Open `result/index.html` for the generated manual. The derivation runs:
+The Nix derivation installs the Mermaid assets in its temporary source tree,
+then builds and validates the manual. No manual asset setup is required for
+`nix build .#book`.
+
+### Without Nix
+
+Install the two documentation tools with Cargo, or provide equivalent binaries
+on your `PATH`:
 
 ```sh
+cargo install mdbook
+cargo install mdbook-mermaid
+mdbook-mermaid install docs
+mdbook serve docs --open
+```
+
+To build without running the preview server:
+
+```sh
+mdbook build docs
+mdbook test docs
+```
+
+`mdbook-mermaid install docs` copies `mermaid.min.js` and `mermaid-init.js`
+into `docs/`; those generated assets are ignored by Git. Run it once after a
+fresh checkout, and again when upgrading `mdbook-mermaid` to refresh the
+bundled JavaScript. The preprocessor must also be on `PATH` for subsequent
+builds. Readers of the published HTML manual need neither Nix nor Rust.
+
+Open `result/index.html` for the generated manual. The Nix derivation runs:
+
+```sh
+mdbook-mermaid install docs
 mdbook build docs
 mdbook test docs
 pytest tools/test_book_links.py
 python tools/check-book-links.py docs/book --config docs/book.toml
 ```
 
+It also checks that the generated HTML contains Mermaid markup and that both
+Mermaid JavaScript assets are present. Without Nix, the same link checks can
+be run with `python -m pytest tools/test_book_links.py` (with `pytest` installed)
+and `python tools/check-book-links.py docs/book --config docs/book.toml`.
+
 Verification coverage is deliberately explicit:
 
-- Book build checks chapter structure and sample includes.
+- Book build checks chapter structure, sample includes, and Mermaid rendering assets.
 - The link checker validates generated local links, assets, and HTML fragments.
   It does not fetch external URLs.
 - `mdbook test` validates supported Rust code blocks. This edition has no Rust

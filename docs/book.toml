@@ -8,7 +8,11 @@ src = "src"
 [build]
 create-missing = false
 
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
 [output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
 mathjax-support = true
 site-url = "/RustiQ/"
 git-repository-url = "https://github.com/mveril/RustiQ"

@@ -5,8 +5,10 @@ repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
 shows how to create equivalent local inputs and obtain a basis.
 
-A TOML input describes one calculation. Begin with the checked-in neutral H₂
-example:
+A TOML input describes one calculation. **TOML is the simplest choice**: you do not
+need to learn Nickel or install its executable. RustiQ embeds Nickel internally
+to supply the same defaults and validation as optional [Nickel studies](nickel-studies.md).
+Begin with the checked-in neutral H₂ example:
 
 ```toml
 {{#include ../../../samples/h2/sto-3g/calculation.toml}}
@@ -35,6 +37,8 @@ Defaults such as neutral charge, Angstrom coordinates, automatic HF selection,
 100 SCF iterations, and a \\(10^{-8}\\) convergence threshold are filled by the
 embedded Nickel contracts. The same contracts reject unknown fields and
 validate values; TOML parsing alone does not describe the full input rules.
+See [calculation inputs and execution](calculation-inputs.md) for how TOML and
+Nickel inputs pass through the shared contracts.
 See the [authoritative Nickel input contracts](../reference/index.md).
 
 Important HF numerical controls include `convergence_threshold`,

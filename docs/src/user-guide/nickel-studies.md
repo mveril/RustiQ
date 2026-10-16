@@ -5,6 +5,11 @@ repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
 shows how to create local inputs and obtain a basis.
 
+For a single calculation, [TOML](configuration.md) is sufficient. **Nickel is an
+optional interface for parameterized studies** that vary basis sets or numerical
+settings without duplicating input files. You do not need Nickel to run TOML
+calculations.
+
 Nickel is a configuration language that RustiQ embeds. A `.ncl` file can
 import other Nickel files and compute a list of related calculation records.
 The checked-in single-calculation `.ncl` input is a small starting point:
@@ -78,8 +83,9 @@ behaves as a single calculation; an array with multiple entries produces a
 batch. This is useful for studies that vary inputs while keeping the remaining
 settings shared. Nickel is validated using the same authoritative input
 contracts as TOML; it does not define a second scientific configuration
-schema. The project integration test constructs a native import fixture and
-checks resolution from a different working directory; see
+schema. See [calculation inputs and execution](calculation-inputs.md) for the
+shared input flow. The project integration test constructs a native import
+fixture and checks resolution from a different working directory; see
 [`tests/nickel_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/nickel_cli.rs#L62).
 See [configuration](configuration.md) and the
 [Nickel contract source](../reference/index.md).

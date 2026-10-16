@@ -200,6 +200,7 @@
             hyperfine
             jq
             mdbook
+            mdbook-mermaid
             nixd
             nixfmt
             nickel
@@ -305,6 +306,7 @@
                 };
                 nativeBuildInputs = [
                   pkgs.mdbook
+                  pkgs.mdbook-mermaid
                   pkgs.python3
                   pkgs.python3Packages.pytest
                   rustToolchain
@@ -314,7 +316,11 @@
                 cp -r "$src" source
                 chmod -R u+w source
                 cd source
+                mdbook-mermaid install docs
                 mdbook build docs
+                test -n "$(find docs/book -maxdepth 1 -name 'mermaid-*.min.js' -print -quit)"
+                test -n "$(find docs/book -maxdepth 1 -name 'mermaid-init-*.js' -print -quit)"
+                grep -q 'class="mermaid"' docs/book/user-guide/calculation-inputs.html
                 mdbook test docs
                 pytest tools/test_book_links.py
                 python tools/check-book-links.py docs/book --config docs/book.toml

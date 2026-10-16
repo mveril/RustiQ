@@ -7,6 +7,12 @@ and theoretical chemists.
 **Do not use RustiQ results for research conclusions without independent
 validation against established quantum chemistry packages.**
 
+Choose [TOML for a single calculation](user-guide/configuration.md) or
+optional [Nickel for parameterized studies](user-guide/nickel-studies.md). Both
+formats share the same defaults and validation; see
+[calculation inputs and execution](user-guide/calculation-inputs.md) for how an
+input becomes a result.
+
 ## Where should I start?
 
 - **Scientific users:** [Installation](getting-started/installation.md) →

@@ -39,6 +39,7 @@ nix build .#book
 When using the tools directly, run the equivalent checks from the repository root:
 
 ```sh
+mdbook-mermaid install docs
 mdbook build docs
 mdbook test docs
 pytest tools/test_book_links.py
@@ -46,9 +47,13 @@ python tools/check-book-links.py docs/book --config docs/book.toml
 git diff --check
 ```
 
-The standard book enables MathJax and uses no external preprocessors. Keep
-diagrams compatible with that build, for example plain text or checked-in SVG;
-do not assume Mermaid blocks render without adding and documenting support.
+The standard book enables MathJax and `mdbook-mermaid`. The Nix book build
+installs the Mermaid assets in its temporary build tree. Outside Nix, install
+`mdbook` and `mdbook-mermaid` with Cargo (or equivalent packages), then run
+`mdbook-mermaid install docs` before building or previewing the book. The
+resulting JavaScript assets are generated and ignored by Git; never commit them.
+Keep Mermaid diagrams compatible with the installed preprocessor, and ensure
+both the generated assets and rendered diagram are checked in the book build.
 
 The local link checker checks generated links, assets, and HTML fragments; it
 does not fetch external URLs. `mdbook test` checks supported Rust snippets;
