@@ -23,6 +23,7 @@ online = ["dep:reqwest", "dep:tokio"]
 bench-support = []
 
 [dependencies]
+itertools = { version = "0.14", default-features = false }
 miette.workspace = true
 reqwest = { version = "0.13", default-features = false, optional = true, features = [
   "json",

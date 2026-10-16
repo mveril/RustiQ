@@ -36,6 +36,8 @@ it checks the exact floating-point result for one Bohr.
 
 `geometry info` reports atom and center information, including a nuclear
 repulsion value.
+The calculation returns an error if any two atoms have exactly identical
+coordinates, because their nuclear repulsion is undefined.
 
 > [!WARNING]
 > **Nuclear repulsion: beware of XYZ coordinate units.**
@@ -96,5 +98,9 @@ and [`tests/init_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/init_
 Geometry parsing and the transformations themselves are implemented in
 [`crates/rustiq-core/src/molecules/geometry.rs`](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/molecules/geometry.rs)
 and `src/cli/commands/geometry_command/`.
+
+The core `Geometry::nucl_repulsion` API returns a dedicated
+`NuclearRepulsionError::CoincidentAtoms` for coincident nuclei. It traverses
+atom pairs without allocating an intermediate collection.
 
 Continue with [basis sets](basis-sets.md), then [configuration](configuration.md).

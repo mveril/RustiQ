@@ -37,7 +37,7 @@ impl Runnable for InfoCommand {
             stdout,
             "{} {}",
             color::title("Nuclear repulsion energy:"),
-            color::value(geometry.nucl_repulsion())
+            color::value(geometry.nucl_repulsion().into_diagnostic()?)
         )
         .into_diagnostic()?;
         writeln!(
