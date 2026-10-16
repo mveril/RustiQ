@@ -3442,6 +3442,7 @@ dependencies = [
  "const_format",
  "delegate",
  "factorial",
+ "itertools 0.14.0",
  "miette",
  "nalgebra",
  "ndarray",

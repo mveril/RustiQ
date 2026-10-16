@@ -99,4 +99,8 @@ Geometry parsing and the transformations themselves are implemented in
 [`crates/rustiq-core/src/molecules/geometry.rs`](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/molecules/geometry.rs)
 and `src/cli/commands/geometry_command/`.
 
+The core `Geometry::nucl_repulsion` API returns a dedicated
+`NuclearRepulsionError::CoincidentAtoms` for coincident nuclei. It traverses
+atom pairs without allocating an intermediate collection.
+
 Continue with [basis sets](basis-sets.md), then [configuration](configuration.md).

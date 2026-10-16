@@ -1,10 +1,11 @@
 use super::element_ext::{AtomicMassParseError, ElementExt};
+use super::nuclear_repulsion_error::NuclearRepulsionError;
 use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::parse_xyz};
-use crate::hf::numerical_error::NumericalError;
 use core::iter::Iterator;
 use delegate::delegate;
+use itertools::Itertools;
 use nalgebra::{distance, Isometry3, Matrix3, Point3, Rotation3, Translation3, Vector3};
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::IntoParallelIterator;
 use std::ops::{Index, IndexMut, Range};
 use std::path::Path;
 #[allow(
@@ -86,28 +87,24 @@ impl Geometry {
         Ok(())
     }
 
-    #[must_use]
-    pub fn nucl_repulsion(&self) -> Result<f64, NumericalError> {
-        let pairs = self.atoms
-            .iter()
-            .enumerate()
-            .flat_map(|(i, atom_i)| {
-                self.atoms[i + 1..]
-                    .iter()
-                    .map(move |atom_j| (atom_i, atom_j))
-            })
-            .par_bridge()
-            .map(|(atom_i, atom_j)| {
+    /// Computes nuclear repulsion in Hartree for coordinates in Bohr.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if two atoms occupy the same position.
+    pub fn nucl_repulsion(&self) -> Result<f64, NuclearRepulsionError> {
+        self.atoms.iter().tuple_combinations::<(_, _)>().try_fold(
+            0.0,
+            |energy, (atom_i, atom_j)| {
                 let r_ij = distance(&atom_i.position, &atom_j.position);
                 if r_ij == 0.0 {
-                    return Err(NumericalError::CoincidentAtoms);
+                    return Err(NuclearRepulsionError::CoincidentAtoms);
                 }
                 let z_i = f64::from(atom_i.element.atomic_number);
                 let z_j = f64::from(atom_j.element.atomic_number);
-                Ok(z_i * z_j / r_ij)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(pairs.into_iter().sum())
+                Ok(energy + z_i * z_j / r_ij)
+            },
+        )
     }
 
     #[must_use]
@@ -684,7 +681,7 @@ H  0.000000  0.000000   0.370000
 
         assert!(matches!(
             geometry.nucl_repulsion(),
-            Err(NumericalError::CoincidentAtoms)
+            Err(NuclearRepulsionError::CoincidentAtoms)
         ));
     }
 
