@@ -84,6 +84,7 @@ pub(crate) mod test_utils;
 #[deny(clippy::doc_markdown)]
 pub mod bench_support {
     pub use crate::basis::BasisStore;
+    pub use crate::eri::CompactEri;
     pub use crate::eri::{CacheSizeStats, EriError};
     pub use crate::mp2::{benchmark_mp2, Mp2BenchInput, Mp2BenchResult};
     use std::path::Path;
@@ -92,6 +93,39 @@ pub mod bench_support {
     use crate::basis::{Basis, BasisFile};
     use crate::eri::electron_repulsion_ints_timed_with_observer;
     use crate::molecules::geometry::Geometry;
+
+    /// Builds a compact ERI buffer using the former Vec-then-Arc allocation path.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the generated buffer length disagrees with the compact ERI size.
+    #[must_use]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Benchmark dimensions are small enough for exact f64 integer representation"
+    )]
+    pub fn build_eri_storage_vec_then_arc(size: usize) -> CompactEri {
+        let len = CompactEri::storage_len(size);
+        let values = (0..len).map(|index| index as f64).collect();
+        CompactEri::from_ordered_values(size, values)
+            .expect("generated values must match compact ERI storage length")
+    }
+
+    /// Builds a compact ERI buffer using the current in-place Arc initialization path.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the generated buffer length disagrees with the compact ERI size.
+    #[must_use]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Benchmark dimensions are small enough for exact f64 integer representation"
+    )]
+    pub fn build_eri_storage_in_place(size: usize) -> CompactEri {
+        let len = CompactEri::storage_len(size);
+        CompactEri::from_ordered_values_iter(size, (0..len).map(|index| index as f64))
+            .expect("generated values must match compact ERI storage length")
+    }
 
     #[derive(Debug, thiserror::Error)]
     pub enum EriBenchInputError {

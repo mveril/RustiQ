@@ -4,7 +4,7 @@ default-members = [".", "crates/rustiq-core"]
 resolver = "2"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 # Individual lint settings and local, documented exceptions override these groups.
@@ -110,6 +110,16 @@ required-features = ["bench-support"]
 
 [[bench]]
 name = "eri_timings"
+harness = false
+required-features = ["bench-support"]
+
+[[bench]]
+name = "eri_storage_allocation"
+harness = false
+required-features = ["bench-support"]
+
+[[bench]]
+name = "eri_storage_memory"
 harness = false
 required-features = ["bench-support"]
 
