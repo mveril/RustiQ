@@ -1,4 +1,5 @@
 use std::{
+    mem::MaybeUninit,
     ops::{Index, IndexMut},
     sync::Arc,
 };
@@ -80,6 +81,38 @@ impl CompactEri {
         })
     }
 
+    /// Builds a compact ERI tensor directly from an exact-size iterator.
+    pub(crate) fn from_ordered_values_iter<I>(
+        basis_functions: usize,
+        values: I,
+    ) -> Result<Self, CompactEriBuildError>
+    where
+        I: ExactSizeIterator<Item = f64>,
+    {
+        let expected = Self::storage_len(basis_functions);
+        let actual = values.len();
+        if actual != expected {
+            return Err(CompactEriBuildError::InvalidLength { expected, actual });
+        }
+
+        let mut values = values;
+        Self::from_exact_len_with(expected, |slots| {
+            let initialized =
+                slots
+                    .iter_mut()
+                    .zip(&mut values)
+                    .fold(0, |initialized, (slot, value)| {
+                        slot.write(value);
+                        initialized + 1
+                    });
+            if initialized == expected && values.next().is_some() {
+                initialized.saturating_add(1)
+            } else {
+                initialized
+            }
+        })
+    }
+
     #[allow(
         dead_code,
         reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
@@ -92,6 +125,10 @@ impl CompactEri {
     }
 
     /// Builds a compact ERI tensor from values yielded in compact storage order.
+    #[allow(
+        unsafe_code,
+        reason = "Initializing the Arc slice in place avoids duplicating the potentially multi-gigabyte ERI buffer"
+    )]
     pub(crate) fn from_ordered_values_par_iter<I>(
         size: usize,
         par_iter: I,
@@ -108,11 +145,45 @@ impl CompactEri {
             });
         }
 
-        let storage: Vec<f64> = par_iter.collect();
-
-        Ok(Self {
-            storage: storage.into(),
+        Self::from_exact_len_with(storage_len, |slots| {
+            par_iter
+                .zip(slots.par_iter_mut())
+                .fold(
+                    || 0,
+                    |initialized, (value, slot)| {
+                        slot.write(value);
+                        initialized + 1
+                    },
+                )
+                .sum()
         })
+    }
+
+    #[allow(
+        unsafe_code,
+        reason = "Completing the in-place allocation after every slot was initialized avoids a second ERI buffer"
+    )]
+    fn from_exact_len_with(
+        storage_len: usize,
+        initialize: impl FnOnce(&mut [MaybeUninit<f64>]) -> usize,
+    ) -> Result<Self, CompactEriBuildError> {
+        let mut storage = Arc::<[f64]>::new_uninit_slice(storage_len);
+        let slots =
+            Arc::get_mut(&mut storage).expect("newly allocated ERI storage must be uniquely owned");
+        let actual = initialize(slots);
+        if actual != storage_len {
+            return Err(CompactEriBuildError::InvalidLength {
+                expected: storage_len,
+                actual,
+            });
+        }
+
+        // SAFETY: The initializer reports one completed write for every slot.
+        // Each slot is writable only once through the mutable slice, so an
+        // equal count proves every slot was initialized. A panic or short
+        // iterator drops Arc<[MaybeUninit<f64>]> without assuming it initialized.
+        let storage = unsafe { storage.assume_init() };
+        Ok(Self { storage })
     }
 }
 
@@ -325,6 +396,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_compact_eri_from_exact_size_iterator_rejects_invalid_length() {
+        let error = CompactEri::from_ordered_values_iter(2, [0.5, 1.5].into_iter()).unwrap_err();
+
+        assert_eq!(
+            error,
+            CompactEriBuildError::InvalidLength {
+                expected: 6,
+                actual: 2,
+            }
+        );
+    }
+
     proptest! {
         #[test]
         fn test_compact_eri_from_ordered_values_par_iter_rejects_invalid_lengths(
@@ -346,6 +430,40 @@ mod tests {
                 CompactEriBuildError::InvalidLength { expected, actual }
             );
         }
+    }
+
+    #[test]
+    fn test_parallel_eri_storage_handles_empty_and_singleton_tensors() {
+        let empty =
+            CompactEri::from_ordered_values_par_iter(0, rayon::iter::empty::<f64>()).unwrap();
+        assert!(empty.is_empty());
+
+        let singleton =
+            CompactEri::from_ordered_values_par_iter(1, rayon::iter::once(2.75_f64)).unwrap();
+        assert_eq!(singleton.ordered_values(), &[2.75]);
+    }
+
+    #[test]
+    fn test_in_place_storage_initialization_miri() {
+        let expected = [0.25, 1.25, 2.25, 3.25, 4.25, 5.25];
+        let eri = CompactEri::from_ordered_values_iter(2, expected.into_iter()).unwrap();
+
+        assert_eq!(eri.ordered_values(), expected);
+    }
+
+    #[test]
+    fn test_parallel_eri_storage_does_not_complete_after_iterator_panic() {
+        let result = std::panic::catch_unwind(|| {
+            CompactEri::from_ordered_values_par_iter(
+                2,
+                (0..6).into_par_iter().map(|index| {
+                    assert_ne!(index, 3, "intentional evaluator panic");
+                    f64::from(index)
+                }),
+            )
+            .unwrap();
+        });
+        assert!(result.is_err());
     }
 
     #[test]

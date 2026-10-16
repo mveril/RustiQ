@@ -1,0 +1,34 @@
+name: Miri
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  miri:
+    name: ERI in-place initialization
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install nightly Rust and Miri
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: miri, rust-src
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - name: Prepare Miri
+        run: cargo +nightly miri setup
+
+      - name: Check in-place initialization under Miri
+        run: cargo +nightly miri test -p rustiq-chem-core --lib test_in_place_storage_initialization_miri

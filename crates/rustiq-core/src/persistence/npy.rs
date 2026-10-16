@@ -191,22 +191,92 @@ fn decode_compact_eri<R: Read>(
             actual,
         });
     }
-    let values = npy.into_vec::<f64>().map_err(|error| {
-        if error.kind() == std::io::ErrorKind::InvalidData {
-            NpyError::InvalidDtype(error.to_string())
-        } else {
-            NpyError::Read(error)
+
+    let values = npy
+        .data::<f64>()
+        .map_err(|error| NpyError::InvalidDtype(error.to_string()))?;
+    let mut values = ExactNpyValues::new(values, expected);
+    let eri =
+        CompactEri::from_ordered_values_iter(basis_functions, &mut values).map_err(|error| {
+            match error {
+                crate::eri::CompactEriBuildError::InvalidLength { expected, actual } => {
+                    NpyError::InvalidValueCount {
+                        basis_functions,
+                        expected,
+                        actual,
+                    }
+                }
+            }
+        })?;
+
+    if let Some(error) = values.take_error() {
+        return Err(map_npy_value_read_error(error));
+    }
+    Ok(eri)
+}
+
+struct ExactNpyValues<T: npyz::Deserialize + Default, R: Read> {
+    reader: npyz::NpyReader<T, R>,
+    remaining: usize,
+    error: Option<std::io::Error>,
+}
+
+impl<T: npyz::Deserialize + Default, R: Read> ExactNpyValues<T, R> {
+    fn new(reader: npyz::NpyReader<T, R>, length: usize) -> Self {
+        Self {
+            reader,
+            remaining: length,
+            error: None,
         }
-    })?;
-    CompactEri::from_ordered_values(basis_functions, values).map_err(|error| match error {
-        crate::eri::CompactEriBuildError::InvalidLength { expected, actual } => {
-            NpyError::InvalidValueCount {
-                basis_functions,
-                expected,
-                actual,
+    }
+
+    fn take_error(&mut self) -> Option<std::io::Error> {
+        self.error.take()
+    }
+}
+
+impl<T: npyz::Deserialize + Default, R: Read> Iterator for ExactNpyValues<T, R> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+
+        match self.reader.next() {
+            Some(Ok(value)) => Some(value),
+            Some(Err(error)) => {
+                if self.error.is_none() {
+                    self.error = Some(error);
+                }
+                Some(T::default())
+            }
+            None => {
+                if self.error.is_none() {
+                    self.error = Some(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "NPY data ended before its declared element count",
+                    ));
+                }
+                Some(T::default())
             }
         }
-    })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl<T: npyz::Deserialize + Default, R: Read> ExactSizeIterator for ExactNpyValues<T, R> {}
+
+fn map_npy_value_read_error(error: std::io::Error) -> NpyError {
+    if error.kind() == std::io::ErrorKind::InvalidData {
+        NpyError::InvalidDtype(error.to_string())
+    } else {
+        NpyError::Read(error)
+    }
 }
 
 pub(crate) fn validate_compact_eri_header(

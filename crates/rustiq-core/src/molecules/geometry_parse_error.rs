@@ -26,6 +26,13 @@ pub enum GeometryParseError {
         span: SourceSpan,
     },
 
+    #[error("XYZ declares {declared} atom(s), but contains only {available} atom line(s)")]
+    #[diagnostic(
+        code(rustiq::geometry::atom_count_mismatch),
+        help("Provide one XYZ line for each declared atom.")
+    )]
+    AtomCountMismatch { declared: usize, available: usize },
+
     #[error("geometry contains {count} atom line error(s)")]
     #[diagnostic(
         code(rustiq::geometry::atom_lines),
