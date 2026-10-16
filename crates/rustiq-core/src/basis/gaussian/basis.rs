@@ -112,6 +112,23 @@ pub enum BasisError {
         coefficient_group: usize,
     },
     #[error(
+        "coefficient group {coefficient_group} in electron shell {shell_index} for element Z={atomic_number} cannot be normalized reliably (zero, non-finite, or ill-conditioned norm)"
+    )]
+    InvalidContractionNorm {
+        atomic_number: u32,
+        shell_index: usize,
+        coefficient_group: usize,
+    },
+    #[error(
+        "primitive {exponent_index} in coefficient group {coefficient_group}, electron shell {shell_index} for element Z={atomic_number} has an unrepresentable normalized coefficient"
+    )]
+    InvalidPrimitiveNormalization {
+        atomic_number: u32,
+        shell_index: usize,
+        coefficient_group: usize,
+        exponent_index: usize,
+    },
+    #[error(
         "electron shell {shell_index} for element Z={atomic_number} uses unsupported angular momentum l={angular_momentum} for {function_type:?}"
     )]
     UnsupportedAngularMomentum {
@@ -268,7 +285,7 @@ impl Basis {
                 .get(&element.atomic_number)
                 .map(|e| &e.electron_shells)
             {
-                for shell in electron_shells {
+                for (shell_index, shell) in electron_shells.iter().enumerate() {
                     let alpha = &shell.exponents;
                     let coeffs_list = &shell.coefficients;
                     let angular_momenta = &shell.angular_momentum;
@@ -286,7 +303,9 @@ impl Basis {
                         unreachable!("validated contraction dimensions")
                     };
 
-                    for (l, coeffs_group) in angular_coeff_pairs {
+                    for (coefficient_group, (l, coeffs_group)) in
+                        angular_coeff_pairs.into_iter().enumerate()
+                    {
                         // coeffs_group is a Vec<f64> (a coefficient group)
                         let contraction = Contraction::new(
                             *l,
@@ -295,7 +314,19 @@ impl Basis {
                         );
 
                         // Add the shell
-                        shells.push(Shell::new(alpha.clone(), vec![contraction], position));
+                        let shell = Shell::try_new(alpha.clone(), vec![contraction], position)
+                            .map_err(|_| BasisError::InvalidContractionNorm {
+                                atomic_number: element.atomic_number,
+                                shell_index,
+                                coefficient_group,
+                            })?;
+                        validate_normalized_primitives(
+                            &shell,
+                            element.atomic_number,
+                            shell_index,
+                            coefficient_group,
+                        )?;
+                        shells.push(shell);
                     }
                 }
             }
@@ -528,6 +559,44 @@ impl Basis {
     pub fn nbasis(&self) -> usize {
         self.angular_momenta.len()
     }
+}
+
+fn validate_normalized_primitives(
+    shell: &Shell,
+    atomic_number: u32,
+    shell_index: usize,
+    coefficient_group: usize,
+) -> Result<(), BasisError> {
+    for contraction in &shell.contr {
+        for components in generate_angular_components(contraction.l, contraction.pure) {
+            for (angular, factor) in components {
+                for (exponent_index, (&exponent, &coefficient)) in
+                    shell.alpha.iter().zip(contraction.coeff.iter()).enumerate()
+                {
+                    let norm = gaussian_norm_const(
+                        exponent,
+                        u32::from(angular.x),
+                        u32::from(angular.y),
+                        u32::from(angular.z),
+                    );
+                    let effective = factor * coefficient * norm;
+                    if !norm.is_finite()
+                        || norm <= 0.0
+                        || !effective.is_finite()
+                        || (coefficient != 0.0 && effective == 0.0)
+                    {
+                        return Err(BasisError::InvalidPrimitiveNormalization {
+                            atomic_number,
+                            shell_index,
+                            coefficient_group,
+                            exponent_index,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn build_normalized_components(
@@ -819,6 +888,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use nalgebra::*;
     use periodic_table::periodic_table;
+    use proptest::prelude::*;
     use std::collections::{HashMap, HashSet};
 
     fn analytic_diagonal_overlap(components: &[NormalizedComponent]) -> f64 {
@@ -856,6 +926,39 @@ mod tests {
             }
         }
         overlap
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn generated_contractions_have_unit_overlap(
+            l in 0u8..=15,
+            spherical in any::<bool>(),
+            exponents in (0.2f64..0.8, 1.0f64..2.0, 3.0f64..6.0),
+            coefficients in (0.8f64..1.2, -0.4f64..0.4, -0.4f64..0.4),
+        ) {
+            // Separated exponents and a dominant coefficient keep this property
+            // away from numerical degeneracy, which has explicit rejection tests.
+            let basis = Basis::new(vec![Shell::new(
+                vec![exponents.0, exponents.1, exponents.2],
+                vec![Contraction::new(
+                    l, spherical && l <= 2,
+                    vec![coefficients.0, coefficients.1, coefficients.2],
+                )],
+                Point3::origin(),
+            )]);
+            for components in &basis.normalized_components {
+                let overlap = analytic_diagonal_overlap(components);
+                prop_assert!((overlap - 1.0).abs() < 2e-12, "l={l}, overlap={overlap}");
+            }
+            if l <= 2 {
+                let overlap = basis.overlap_ints();
+                for i in 0..basis.nbasis() {
+                    prop_assert!((overlap[(i, i)] - 1.0).abs() < 2e-12);
+                }
+            }
+        }
     }
 
     #[test]
@@ -916,7 +1019,7 @@ mod tests {
 
     #[test]
     fn contracted_orbitals_with_nonzero_angular_momentum_are_normalized() {
-        for (l, pure) in [(1, false), (2, true)] {
+        for (l, pure) in [(0, false), (1, false), (2, false), (2, true)] {
             let shell = Shell::new(
                 vec![0.35, 1.4, 3.2],
                 vec![Contraction::new(l, pure, vec![0.6, -0.25, 0.8])],
@@ -927,8 +1030,83 @@ mod tests {
 
             for i in 0..basis.nbasis() {
                 assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+                assert_abs_diff_eq!(
+                    analytic_diagonal_overlap(&basis.normalized_components[i]),
+                    1.0,
+                    epsilon = 1e-12
+                );
             }
         }
+    }
+
+    #[test]
+    fn signed_cartesian_contractions_are_normalized_through_l15() {
+        for l in 0..=15 {
+            let basis = Basis::new(vec![Shell::new(
+                vec![0.35, 1.4, 3.2],
+                vec![Contraction::new(l, false, vec![0.6, -0.25, 0.8])],
+                Point3::origin(),
+            )]);
+            for components in &basis.normalized_components {
+                assert_abs_diff_eq!(analytic_diagonal_overlap(components), 1.0, epsilon = 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn single_spd_primitives_have_unit_integral_overlap() {
+        for l in 0..=2 {
+            let shell = Shell::new(
+                vec![0.73],
+                vec![Contraction::new(l, false, vec![1.0])],
+                Point3::origin(),
+            );
+            let basis = Basis::new(vec![shell]);
+            let overlap = basis.overlap_ints();
+            for i in 0..basis.nbasis() {
+                assert_abs_diff_eq!(overlap[(i, i)], 1.0, epsilon = 1e-12);
+                assert_abs_diff_eq!(
+                    analytic_diagonal_overlap(&basis.normalized_components[i]),
+                    1.0,
+                    epsilon = 1e-12
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn try_load_rejects_degenerate_contraction_with_context() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        let shell = &mut basis_file.elements.get_mut(&1).unwrap().electron_shells[0];
+        shell.exponents = vec![0.7, 0.7];
+        shell.coefficients = vec![vec![1.0, -1.0]];
+
+        assert_eq!(
+            Basis::try_load(&basis_file, &hydrogen_geometry()),
+            Err(BasisError::InvalidContractionNorm {
+                atomic_number: 1,
+                shell_index: 0,
+                coefficient_group: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn try_load_rejects_unrepresentable_primitive_normalization() {
+        let mut basis_file = test_utils::load_minimal_basis_file();
+        let shell = &mut basis_file.elements.get_mut(&1).unwrap().electron_shells[0];
+        shell.exponents = vec![1.0e300];
+        shell.angular_momentum = vec![15];
+        shell.coefficients = vec![vec![1.0]];
+        assert_eq!(
+            Basis::try_load(&basis_file, &hydrogen_geometry()),
+            Err(BasisError::InvalidPrimitiveNormalization {
+                atomic_number: 1,
+                shell_index: 0,
+                coefficient_group: 0,
+                exponent_index: 0,
+            })
+        );
     }
 
     #[test]

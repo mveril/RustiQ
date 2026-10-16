@@ -84,7 +84,14 @@ During basis construction, RustiQ normalizes each Cartesian primitive using its
 three angular momentum components, then normalizes the contraction for its
 shell. Spherical functions are formed from normalized Cartesian components.
 The imported contraction coefficients therefore set the relative primitive
-weights; their overall scale does not set the resulting function norm.
+weights; their overall scale does not set the resulting function norm. A
+coefficient group that cancels to the zero function, or whose computed norm is
+not finite and positive, is rejected with a shell and coefficient-group
+diagnostic. Contractions that cannot be normalized reliably and unrepresentable
+normalized primitive coefficients are also rejected. The contraction norm is
+checked again after normalization; an absolute deviation from unity of
+\\(10^{-6}\\) or greater causes rejection. These safeguards do not
+establish support for arbitrary extreme exponents throughout the integral engine.
 
 Basis choice is one part of a calculation's accuracy. Convergence, independent
 agreement, basis quality, and physical validity are distinct checks; see
