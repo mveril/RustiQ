@@ -86,7 +86,7 @@ thiserror.workspace = true
 rand.workspace = true
 tabled = "0.22"
 humantime = "2"
-figlet-rs = "1"
+rusty-figlet = { version = "0.3", default-features = false }
 bat = { workspace = true, features = ["paging"] }
 cfg-if = "1"
 tempfile.workspace = true

@@ -75,7 +75,7 @@ fn members(path: &Path) -> Vec<(String, Vec<u8>)> {
     (0..archive.len())
         .map(|i| {
             let mut member = archive.by_index(i).unwrap();
-            let name = member.name().to_owned();
+            let name = member.name().unwrap().into_owned();
             let mut bytes = Vec::new();
             member.read_to_end(&mut bytes).unwrap();
             (name, bytes)
