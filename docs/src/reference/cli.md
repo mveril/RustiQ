@@ -64,6 +64,12 @@ Important options:
 | `--reuse PATH` | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation. |
 | `--artifact PATH` | Write the current calculation or batch as a portable `.rustiq` bundle, independently of text or JSON output. |
 
+Output presentation is selected exclusively by the CLI `--format text|json` option.
+The TOML and Nickel calculation contracts do not accept an `output` section.
+Both result presentations consume calculation events; JSON retains its single
+versioned result document (including the existing batch envelope), without streaming
+intermediate events.
+
 The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
 manage entries from a run that used a custom cache root.
@@ -159,7 +165,6 @@ cross-field validation remain defined by the linked Nickel contract.
 | `[method.mp2]` | `frozen_orbitals`, `memory_limit` |
 | `[integrals]` | `schwarz_threshold` for integral screening |
 | `[cache]` | `enabled` for the disposable local AO ERI cache |
-| `[output]` | `scf` (`Normal` or `Quiet`) |
 
 The accepted density guesses and their fields are defined in the Nickel
 contract; see the HF guide for their use. The cache stores AO ERI data only; it

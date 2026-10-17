@@ -13,7 +13,7 @@ use rustiq_core::{
     molecules::units::Units,
 };
 
-use super::{output::ScfOutput, parser::parse_runfile};
+use super::parser::parse_runfile;
 
 fn collect_toml_files(dir: &Path, files: &mut Vec<String>, root: &Path) {
     for entry in fs::read_dir(dir).unwrap() {
@@ -510,7 +510,6 @@ fn every_valid_sample_has_expected_scientific_configuration(#[case] case: usize)
         1e-12
     );
     assert_eq!(parsed.runfile.cache.enabled, expected.cache_enabled);
-    assert_eq!(parsed.runfile.output.scf, ScfOutput::Normal);
 }
 
 #[test]

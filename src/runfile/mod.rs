@@ -23,7 +23,6 @@ use cache::CacheConfig;
 use integrals::IntegralConfig;
 use method::MethodConfig;
 use molecule::MoleculeConfig;
-use output::OutputConfig;
 
 #[derive(Debug, serde::Serialize)]
 pub struct RunFile {
@@ -32,7 +31,6 @@ pub struct RunFile {
     pub method: MethodConfig,
     pub integrals: IntegralConfig,
     pub cache: CacheConfig,
-    pub output: OutputConfig,
 }
 
 #[cfg(test)]
