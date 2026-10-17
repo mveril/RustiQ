@@ -538,947 +538,324 @@ impl RunCommand {
             let batch = BatchOutput {
                 schema_version: 1,
                 kind: "batch",
-     …12562 tokens truncated…new(root.path());
-    let name = cache.entries().unwrap()[0].name.clone().unwrap();
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for expected in [
-        "NAME",
-        "FINGERPRINT",
-        "SIZE",
-        "STATUS",
-        "invalid",
-        "unknown",
-        &name,
-        &fingerprint,
-    ] {
-        assert!(stdout.contains(expected));
-    }
-    assert_success(&run_rustiq(&[
-        "cache",
-        "remove",
-        &name,
-        "--cache-dir",
-        directory,
-    ]));
-    assert_error(&run_rustiq(&[
-        "cache",
-        "remove",
-        &name,
-        "--cache-dir",
-        directory,
-    ]));
-    let output = run_rustiq(&["cache", "list", "--cache-dir", directory]);
-    assert_success(&output);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "No cache entries found."
-    );
-}
-
-#[test]
-fn calculation_succeeds_when_cache_names_cannot_be_written() {
-    let root = temp_root("cache-names-unavailable");
-    prepare_basis_store(&root);
-    let cache_root = root.join("cache");
-    fs::create_dir(&cache_root).unwrap();
-    fs::write(cache_root.join("names"), "not a directory").unwrap();
-    let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
-        &root,
-        &cache_root,
-    );
-    assert_success(&output);
-    assert!(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .any(|line| line.starts_with("AO ERI cache: stored as ")));
-    let entries = EriCache::new(&cache_root).entries().unwrap();
-    assert!(entries[0].verified);
-    assert!(entries[0].name.is_none());
-    let stored_stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stored_stdout
-        .lines()
-        .find(|line| line.starts_with("AO ERI cache: stored as "))
-        .unwrap();
-    let fingerprint = line.strip_prefix("AO ERI cache: stored as ").unwrap();
-    assert_eq!(fingerprint.len(), 64);
-    let output = run_rustiq_with_data_and_cache_home(
-        &["run", "samples/h2/sto-3g/calculation-cache.toml"],
-        &root,
-        &cache_root,
-    );
-    assert_success(&output);
-    assert!(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .any(|line| line == format!("AO ERI cache: hit {fingerprint}")));
-    assert_success(&run_rustiq(&[
-        "cache",
-        "remove",
-        fingerprint,
-        "--cache-dir",
-        cache_root.to_str().unwrap(),
-    ]));
-}
-
-#[test]
-fn test_cli_cache_is_disabled_when_runfile_omits_cache_section() {
-    let temp_root = temp_root("cli-cache-disabled-by-default");
-    prepare_basis_store(&temp_root);
-    let cache_root = temp_root.join("cache");
-
-    let output = run_rustiq_with_data_and_cache_home(
-        &[
-            "run",
-            "samples/h2/sto-3g/calculation.toml",
-            "--cache-dir",
-            cache_root.to_str().unwrap(),
-        ],
-        &temp_root,
-        &cache_root,
-    );
-    assert_success(&output);
-
-    assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
-    assert!(EriCache::new(cache_root).entries().unwrap().is_empty());
-}
-
-#[test]
-fn test_cli_json_output_has_no_cache_message() {
-    let temp_root = temp_root("cli-json-eri-cache");
-    prepare_basis_store(&temp_root);
-    let cache_root = temp_root.join("cache");
-
-    let output = run_rustiq_with_data_and_cache_home(
-        &[
-            "run",
-            "samples/h2/sto-3g/calculation-cache.toml",
-            "--format",
-            "json",
-        ],
-        &temp_root,
-        &cache_root,
-    );
-    assert_success(&output);
-    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
-    assert!(!String::from_utf8_lossy(&output.stdout).contains("AO ERI cache:"));
-}
-
-#[test]
-fn test_cli_h2_sample_runs_mp2_when_requested() {
-    let temp_root = temp_root("cli-sample-mp2");
-    prepare_basis_store(&temp_root);
-
-    let output = run_rustiq_with_data_home(
-        &["run", "samples/h2/sto-3g/mp2_calculation.toml"],
-        &temp_root,
-    );
-
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("SCF converged after 2 iterations."));
-    assert!(stdout.contains("RHF MP2 correlation energy: -0.013138 Hartree"));
-    assert!(stdout.contains("RHF MP2 total energy (including nuclear repulsion):"));
-}
-
-#[test]
-fn test_cli_h2_mp2_fails_when_hf_does_not_converge() {
-    let temp_root = temp_root("cli-sample-mp2-unconverged");
-    prepare_basis_store(&temp_root);
-
-    let toml_path = temp_root.join("calculation.toml");
-    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join("h2")
-        .join("molecule.xyz")
-        .to_string_lossy()
-        .replace('\\', "/");
-    fs::write(
-        &toml_path,
-        format!(
-            r#"
-[basis]
-name = "sto-3g"
-
-[molecule]
-geometry = "{molecule_path}"
-
-[method.hf]
-method = "Rhf"
-max_iterations = 1
-
-[method.hf.guess]
-type = "CoreHamiltonian"
-
-[method.mp2]
-"#
-        ),
-    )
-    .unwrap();
-
-    let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
-
-    assert_eq!(output.status.code(), Some(3));
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stdout.contains("RHF MP2 correlation energy"));
-    assert!(stderr.contains("MP2 requires converged HF orbitals"));
-}
-
-#[test]
-fn test_cli_hf_outcomes_preserve_text_and_json_output() {
-    let directory = tempfile::tempdir().unwrap();
-    prepare_basis_store(directory.path());
-    fs::copy(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
-        directory.path().join("molecule.xyz"),
-    )
-    .unwrap();
-    let path = directory.path().join("calculation.toml");
-    for method in ["Rhf", "Uhf"] {
-        for (iterations, converged) in [(1, false), (100, true)] {
-            fs::write(
-                &path,
-                format!(
-                    r#"
-[basis]
-name = "sto-3g"
-[molecule]
-geometry = "molecule.xyz"
-[method.hf]
-method = "{method}"
-max_iterations = {iterations}
-[method.hf.guess]
-type = "CoreHamiltonian"
-"#
-                ),
+                calculations: entries,
+            };
+            json_output::print_json(&batch, self.pretty)?;
+        } else {
+            writeln!(
+                cli::color::stdout(),
+                "\nBatch: {succeeded} succeeded, {non_converged} non-converged, {failed} failed"
             )
-            .unwrap();
-            let output =
-                run_rustiq_with_data_home(&["run", path.to_str().unwrap()], directory.path());
-            assert_eq!(output.status.code(), Some(if converged { 0 } else { 3 }));
-            let text = String::from_utf8_lossy(&output.stdout);
-            assert!(text.contains(if converged {
-                "SCF converged after"
-            } else {
-                "SCF did not converge after 1 iterations."
-            }));
-            if method == "Uhf" {
-                assert!(text.contains(if converged {
-                    "Spin <S^2>:"
-                } else {
-                    "Spin <S^2> (unconverged orbitals):"
-                }));
-            } else {
-                assert!(!text.contains("Spin <S^2>"));
+            .into_diagnostic()?;
+        }
+        publication?;
+        if failed + non_converged > 0 {
+            return Err(IncompleteBatch {
+                succeeded,
+                non_converged,
+                failed,
+                general_errors,
             }
-            let output = run_rustiq_with_data_home(
-                &["run", path.to_str().unwrap(), "--format", "json"],
-                directory.path(),
-            );
-            assert_eq!(output.status.code(), Some(if converged { 0 } else { 3 }));
-            let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-            assert_eq!(value["schema_version"], 1);
-            assert_eq!(value["calculation"]["hf"]["converged"], converged);
-            assert_eq!(value["calculation"]["hf"]["method"], method.to_uppercase());
-            let spin = value["calculation"]["hf"].get("spin");
-            if method == "Uhf" {
-                let spin = spin.expect("UHF spin diagnostic");
-                assert!(spin["s_squared"].is_number());
-                assert!(spin["spin_contamination"].is_number());
-            } else {
-                assert!(spin.is_none());
+            .into());
+        }
+        Ok(())
+    }
+}
+
+impl RunCommand {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep preparation and execution in their scientific order"
+    )]
+    fn execute_calculation(
+        &self,
+        parsed: crate::runfile::parser::ParsedRunFile,
+        source_name: &str,
+        source_content: &str,
+        artifacts: &ArtifactSession,
+    ) -> Result<CalculationOutput, CalculationExecutionError> {
+        let json_output = self.format == CalculationOutputFormat::Json;
+        let run = parsed
+            .resolved
+            .single_calculation()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        let molecule_path = run.resource_path(self.input.as_deref());
+        let xyz_content = fs::read_to_string(&molecule_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("failed to read geometry {}", molecule_path.display()))
+            .map_err(CalculationExecutionError::recoverable)?;
+        let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        if !json_output {
+            let mut stdout = cli::color::stdout();
+            writeln!(stdout, "{}", cli::color::title("Loading basis set..."))
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
+        }
+        let step_start = Instant::now();
+        let basis_file = self
+            .resolve_basis(&run.basis.name)
+            .map_err(CalculationExecutionError::recoverable)?;
+        if !json_output {
+            let mut stdout = cli::color::stdout();
+            writeln!(
+                stdout,
+                "{} {:?}",
+                cli::color::value(basis_file.name()),
+                basis_file.function_types()
+            )
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
+            writeln!(
+                stdout,
+                "{} {}",
+                cli::color::title("Basis file loaded in"),
+                humantime::format_duration(step_start.elapsed())
+            )
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
+        }
+        let show_scf = run.output.scf != ScfOutput::Quiet;
+        let calculation = CalculationBuilder::new(&geom, &basis_file)
+            .with_basis_label(&run.basis.name)
+            .with_molecule_config(parsed.molecule_config)
+            .with_integrals(parsed.integral_config)
+            .with_mp2(parsed.mp2_config);
+        let calculation = if run.cache.enabled {
+            let cache_root = self
+                .cache_dir
+                .clone()
+                .unwrap_or_else(cli::directories::cache_path);
+            calculation.with_eri_cache(EriCache::new(cache_root))
+        } else {
+            calculation
+        };
+        let calculation = if let Some(hf_config) = parsed.hf_config {
+            calculation.with_hf(hf_config)
+        } else {
+            calculation
+        };
+        let prepared = {
+            let stdout = cli::color::stdout();
+            let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
+            let prepared = calculation.prepare_with_events(|event| reporter.on_event(event));
+            if let Some(error) = reporter.take_error() {
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
-            assert!(value["calculation"].get("mp2").is_none());
-            if !converged {
-                assert_eq!(value["calculation"]["hf"]["iterations"], 1);
+            prepared
+                .map_err(|error| with_input_source(error, source_name, source_content))
+                .map_err(CalculationExecutionError::recoverable)?
+        };
+        let (prepared, mut artifact_report) = artifacts
+            .prepare(prepared)
+            .map_err(CalculationExecutionError::recoverable)?;
+        if !json_output {
+            let output_format = match run.output.scf {
+                ScfOutput::Normal => crate::runfile::output::ScfOutput::Normal,
+                ScfOutput::Quiet => crate::runfile::output::ScfOutput::Quiet,
+            };
+            let requested =
+                requested_calculation(prepared.request(), run.cache.enabled, output_format)
+                    .into_diagnostic()
+                    .map_err(CalculationExecutionError::recoverable)?;
+            {
+                let mut stdout = cli::color::stdout();
+                writeln!(
+                    stdout,
+                    "\n{}",
+                    cli::color::title("Requested calculation (canonical TOML)")
+                )
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
             }
-        }
-    }
-}
-
-#[test]
-fn test_cli_open_shell_uhf_sample_converges() {
-    let temp_root = temp_root("cli-open-shell-uhf-sample");
-    prepare_basis_store(&temp_root);
-
-    let output =
-        run_rustiq_with_data_home(&["run", "samples/oh/sto-3g/calculation.toml"], &temp_root);
-
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Resolved HF method: UHF"));
-    assert!(stdout.contains("SCF converged after"));
-    assert!(stdout.contains("Total Energy (including nuclear repulsion): -74.362669 Hartree"));
-    assert!(stdout.contains("Spin <S^2>:"));
-    assert!(stdout.contains("Spin contamination:"));
-}
-
-#[test]
-fn test_cli_oh_sample_runs_mp2_when_requested() {
-    let temp_root = temp_root("cli-open-shell-uhf-mp2-sample");
-    prepare_basis_store(&temp_root);
-
-    let output = run_rustiq_with_data_home(
-        &["run", "samples/oh/sto-3g/mp2_calculation.toml"],
-        &temp_root,
-    );
-
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Resolved HF method: UHF"));
-    // Numerical OH UMP2 agreement is covered by the core and PySCF reference tests.
-    assert!(stdout.contains("UHF MP2 correlation energy:"));
-    assert!(stdout.contains("UHF MP2 total energy (including nuclear repulsion):"));
-}
-
-#[test]
-fn test_cli_uhf_mp2_fails_when_hf_does_not_converge() {
-    let temp_root = temp_root("cli-open-shell-uhf-mp2-unconverged");
-    prepare_basis_store(&temp_root);
-
-    let toml_path = temp_root.join("calculation.toml");
-    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join("oh")
-        .join("oh.xyz")
-        .to_string_lossy()
-        .replace('\\', "/");
-    fs::write(
-        &toml_path,
-        format!(
-            r#"
-[basis]
-name = "sto-3g"
-
-[molecule]
-geometry = "{molecule_path}"
-multiplicity = 2
-
-[method.hf]
-method = "Uhf"
-max_iterations = 1
-
-[method.hf.guess]
-type = "CoreHamiltonian"
-
-[method.mp2]
-"#
-        ),
-    )
-    .unwrap();
-
-    let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
-
-    assert_eq!(output.status.code(), Some(3));
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stdout.contains("UHF MP2 correlation energy"));
-    assert!(stdout.contains("Spin <S^2> (unconverged orbitals):"));
-    assert!(stderr.contains("MP2 requires converged HF orbitals"));
-}
-
-#[test]
-fn test_cli_h2_sample_can_quiet_scf_output() {
-    let temp_root = temp_root("cli-sample-quiet-scf");
-    prepare_basis_store(&temp_root);
-
-    let toml_path = temp_root.join("calculation.toml");
-    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join("h2")
-        .join("molecule.xyz")
-        .to_string_lossy()
-        .replace('\\', "/");
-    fs::write(
-        &toml_path,
-        format!(
-            r#"
-[basis]
-name = "sto-3g"
-
-[molecule]
-geometry = "{molecule_path}"
-
-[output]
-scf = "Quiet"
-"#
-        ),
-    )
-    .unwrap();
-
-    let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
-
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("SCF converged after"));
-    assert!(!stdout.contains("Total Energy (including nuclear repulsion):"));
-}
-
-#[test]
-fn test_cli_invalid_runfile_reports_grouped_nickel_diagnostics() {
-    let output = run_rustiq(&["run", "samples/invalid_diagnostics.toml"]);
-
-    assert_error(&output);
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("rustiq::runfile::nickel"));
-    assert!(
-        stderr.contains("runfile contains 4 configuration error(s)"),
-        "{stderr}"
-    );
-    assert!(stderr.contains("The basis set must be written as a string."));
-    assert!(stderr.contains("The HF iteration limit must be an integer greater than zero."));
-    assert!(stderr.contains("The HF convergence threshold must be a positive finite number."));
-    assert!(stderr.contains("samples/invalid_diagnostics.toml:9:19"));
-    assert!(stderr.contains("The MP2 frozen orbital count must be a non-negative integer."));
-    assert!(stderr.contains("expected a count of frozen orbitals"));
-}
-
-#[test]
-fn test_cli_scientific_errors_label_the_original_runfile() {
-    let directory = tempfile::tempdir().unwrap();
-    prepare_basis_store(directory.path());
-    fs::copy(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
-        directory.path().join("molecule.xyz"),
-    )
-    .unwrap();
-    let path = directory.path().join("scientific-input.toml");
-    for (fields, expected, label, source_line) in [
-        (
-            "[molecule]\ncharge = 1\nmultiplicity = 2\n[method.hf]\nmethod = 'Rhf'\n",
-            "RHF requires a closed-shell singlet",
-            "requested HF method",
-            "method = 'Rhf'",
-        ),
-        (
-            "[method.hf.orthogonalization]\nlinear_dependency_threshold = 1.0\n",
-            "effective overlap rank",
-            "SCF configuration",
-            "linear_dependency_threshold = 1.0",
-        ),
-        (
-            "[method.hf]\n[method.mp2]\nfrozen_orbitals = 2\n",
-            "frozen orbitals (2)",
-            "frozen orbital count",
-            "frozen_orbitals = 2",
-        ),
-        (
-            "[molecule]\ncharge = 1\nmultiplicity = 1\n[method.hf]\n",
-            "invalid electron configuration",
-            "spin multiplicity",
-            "multiplicity = 1",
-        ),
-    ] {
-        fs::write(
-            &path,
-            format!("# user source\n[basis]\nname = 'sto-3g'\n{fields}"),
-        )
-        .unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-            .args(["run", path.to_str().unwrap(), "--format", "json"])
-            .env("RUSTIQ_DATA_HOME", directory.path())
-            .env("RUSTIQ_AUTO_DOWNLOAD", "0")
-            .env("NO_COLOR", "1")
-            .output()
-            .unwrap();
-        assert_error(&output);
-        assert!(output.stdout.is_empty());
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        for text in [expected, label, source_line, "scientific-input.toml"] {
-            assert!(
-                stderr.contains(text),
-                "missing {text:?} in diagnostic:\n{stderr}"
-            );
-        }
-    }
-}
-
-#[test]
-fn test_cli_uses_default_hf_when_requesting_mp2_without_hf_section() {
-    let directory = tempfile::tempdir().unwrap();
-    prepare_basis_store(directory.path());
-    fs::copy(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
-        directory.path().join("molecule.xyz"),
-    )
-    .unwrap();
-    let path = directory.path().join("mp2-without-hf.toml");
-    fs::write(&path, "[basis]\nname = 'sto-3g'\n[method.mp2]\n").unwrap();
-    let output = run_rustiq_with_data_home(
-        &["run", path.to_str().unwrap(), "--format", "json"],
-        directory.path(),
-    );
-    assert!(output.status.success());
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("\"method\":\"RHF\""));
-    assert!(stdout.contains("\"method\":\"RHF-MP2\""));
-}
-
-#[test]
-fn test_cli_run_reports_grouped_geometry_diagnostics() {
-    let temp_root = temp_root("invalid-geometry-diagnostics");
-    fs::create_dir_all(&temp_root).unwrap();
-    let geometry_path = temp_root.join("broken.xyz");
-    fs::write(
-        &geometry_path,
-        "3\nBroken molecule\nXx 0.0 0.0 0.0\nH nope 0.0 0.0\nHe 0.0 0.0\n",
-    )
-    .unwrap();
-    let toml_path = temp_root.join("calculation.toml");
-    let geometry_path = geometry_path.to_string_lossy().replace('\\', "/");
-    fs::write(
-        &toml_path,
-        format!(
-            r#"
-[basis]
-name = "sto-3g"
-
-[molecule]
-geometry = "{geometry_path}"
-"#
-        ),
-    )
-    .unwrap();
-
-    let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
-
-    assert_error(&output);
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("geometry contains 3 atom line error(s)"));
-}
-
-#[test]
-fn test_cli_run_reports_geometry_atom_count_diagnostic() {
-    let temp_root = temp_root("invalid-geometry-atom-count");
-    fs::create_dir_all(&temp_root).unwrap();
-    let geometry_path = temp_root.join("broken.xyz");
-    fs::write(&geometry_path, "two\nBroken molecule\nH 0.0 0.0 0.0\n").unwrap();
-    let toml_path = temp_root.join("calculation.toml");
-    let geometry_path = geometry_path.to_string_lossy().replace('\\', "/");
-    fs::write(
-        &toml_path,
-        format!(
-            r#"
-[basis]
-name = "sto-3g"
-
-[molecule]
-geometry = "{geometry_path}"
-"#
-        ),
-    )
-    .unwrap();
-
-    let output = run_rustiq(&["run", toml_path.to_str().unwrap()]);
-
-    assert_error(&output);
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("invalid XYZ atom count"));
-}
-
-#[test]
-fn test_basis_remove_ignores_missing_names() {
-    let temp_root = temp_root("basis-remove-missing");
-    prepare_basis_store(&temp_root);
-
-    let output = run_rustiq_with_data_home(&["basis", "remove", "sto-3g", "missing"], &temp_root);
-
-    assert_success(&output);
-    let store = BasisStore::new(&temp_root.join("rustiq").join("basis_sets"));
-    assert!(matches!(store.get("sto-3g"), Ok(None)));
-}
-
-#[test]
-fn test_geometry_help_describes_transform_commands() {
-    let output = run_rustiq(&["geometry", "--help"]);
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Inspect and transform molecular geometry files"));
-    assert!(stdout.contains("rotate"));
-    assert!(stdout.contains("translate"));
-    assert!(stdout.contains("center"));
-    assert!(stdout.contains("oriente"));
-    assert!(stdout.contains("isometry"));
-}
-
-#[test]
-fn test_geometry_rotate_help_describes_axis_format() {
-    let output = run_rustiq(&["geometry", "rotate", "--help"]);
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("<ANGLE> <AXIS>"));
-    assert!(stdout.contains("Rotation angle in degrees"));
-    assert!(stdout.contains("Rotation axis: x, y, z"));
-    assert!(stdout.contains("--angle <ANGLE>"));
-    assert!(stdout.contains("--axis <AXIS>"));
-}
-
-#[test]
-fn test_geometry_center_help_lists_center_types() {
-    let output = run_rustiq(&["geometry", "center", "--help"]);
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("geometry center [OPTIONS] <CENTER_TYPE>"));
-    assert!(stdout.contains("--center <CENTER_TYPE>"));
-    assert!(stdout.contains("Possible values:"));
-    assert!(stdout.contains("mass"));
-    assert!(stdout.contains("geometry"));
-    assert!(stdout.contains("charge"));
-}
-
-#[test]
-fn test_geometry_translate_writes_valid_xyz_to_stdout() {
-    let output = run_rustiq(&[
-        "geometry",
-        "translate",
-        "--dx",
-        "1",
-        "samples/h2/molecule.xyz",
-    ]);
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("2\nHydrogen molecule"));
-    assert!(stdout.contains("H      1.000000     0.000000    -0.370000"));
-    assert!(stdout.contains("H      1.000000     0.000000     0.370000"));
-}
-
-#[test]
-fn test_geometry_translate_writes_output_file() {
-    let temp_root = temp_root("geometry-translate-output");
-    let output_path = temp_root.join("translated.xyz");
-    fs::create_dir_all(&temp_root).unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .args([
-            "geometry",
-            "translate",
-            "--dy",
-            "1",
-            "--output",
-            output_path.to_str().unwrap(),
-            "samples/h2/molecule.xyz",
-        ])
-        .output()
-        .unwrap();
-    assert_success(&output);
-
-    let contents = fs::read_to_string(output_path).unwrap();
-    assert!(contents.contains("H      0.000000     1.000000    -0.370000"));
-    assert!(contents.contains("H      0.000000     1.000000     0.370000"));
-}
-
-#[test]
-fn test_geometry_rotate_rotates_coordinates() {
-    let output = run_rustiq(&[
-        "geometry",
-        "rotate",
-        "--angle",
-        "180",
-        "--axis",
-        "y",
-        "samples/h2/molecule.xyz",
-    ]);
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("H     -0.000000     0.000000     0.370000"));
-    assert!(stdout.contains("H      0.000000     0.000000    -0.370000"));
-}
-
-#[test]
-fn test_geometry_center_supports_geometric_centering() {
-    let temp_root = temp_root("geometry-center");
-    let input_path = temp_root.join("linear.xyz");
-    fs::create_dir_all(&temp_root).unwrap();
-    fs::write(&input_path, "2\nLinear\nH 0.0 0.0 0.0\nHe 2.0 0.0 0.0\n").unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .args([
-            "geometry",
-            "center",
-            "--center",
-            "geometry",
-            input_path.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("H     -1.000000     0.000000     0.000000"));
-    assert!(stdout.contains("He     1.000000     0.000000     0.000000"));
-}
-
-#[test]
-fn test_geometry_oriente_centers_mass_and_diagonalizes_inertia() {
-    let temp_root = temp_root("geometry-oriente");
-    let input_path = temp_root.join("bent.xyz");
-    fs::create_dir_all(&temp_root).unwrap();
-    fs::write(
-        &input_path,
-        "3\nBent\nO 1.0 2.0 0.5\nH 2.2 2.4 1.7\nH 0.4 3.1 1.2\n",
-    )
-    .unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .args(["geometry", "oriente", input_path.to_str().unwrap()])
-        .output()
-        .unwrap();
-    assert_success(&output);
-
-    let atoms = parse_xyz_atoms(&String::from_utf8(output.stdout).unwrap());
-    let center = mass_center(&atoms);
-    assert!(center.iter().all(|coord| coord.abs() < 1e-5));
-
-    let inertia = inertia_tensor(&atoms);
-    assert!(inertia[0][1].abs() < 1e-5);
-    assert!(inertia[0][2].abs() < 1e-5);
-    assert!(inertia[1][2].abs() < 1e-5);
-}
-
-#[test]
-fn test_geometry_oriente_matches_cached_reference_output() {
-    const CACHED_H2O_ORIENTED_OUTPUT: &str = "\
-3 
- 
-O       0.00000000       0.00000000      -0.06568579 
-H       0.00000000      -0.75700000       0.52131421 
-H       0.00000000       0.75700000       0.52131421 
-";
-
-    let output = run_rustiq(&["geometry", "oriente", "samples/h2o/h2o.xyz"]);
-    assert_success(&output);
-
-    let actual = parse_xyz_atoms(&String::from_utf8(output.stdout).unwrap());
-    let expected = parse_xyz_atoms(CACHED_H2O_ORIENTED_OUTPUT);
-    assert_xyz_atoms_close(&actual, &expected, 3e-6);
-}
-
-#[test]
-fn test_geometry_isometry_applies_rotation_and_translation() {
-    let temp_root = temp_root("geometry-isometry");
-    let input_path = temp_root.join("point.xyz");
-    fs::create_dir_all(&temp_root).unwrap();
-    fs::write(&input_path, "1\nPoint\nH 1.0 0.0 0.0\n").unwrap();
-
-    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .args([
-            "geometry",
-            "isometry",
-            "--dy",
-            "1",
-            "--angle",
-            "90",
-            "--axis",
-            "z",
-            input_path.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("H      0.000000     2.000000     0.000000"));
-}
-
-fn parse_xyz_atoms(xyz: &str) -> Vec<(String, [f64; 3])> {
-    xyz.lines()
-        .skip(2)
-        .map(|line| {
-            let mut fields = line.split_whitespace();
-            let symbol = fields.next().unwrap().to_string();
-            let x = fields.next().unwrap().parse().unwrap();
-            let y = fields.next().unwrap().parse().unwrap();
-            let z = fields.next().unwrap().parse().unwrap();
-            (symbol, [x, y, z])
-        })
-        .collect()
-}
-
-fn assert_xyz_atoms_close(
-    actual: &[(String, [f64; 3])],
-    expected: &[(String, [f64; 3])],
-    tolerance: f64,
-) {
-    assert_eq!(actual.len(), expected.len());
-    for ((actual_symbol, actual_coords), (expected_symbol, expected_coords)) in
-        actual.iter().zip(expected.iter())
-    {
-        assert_eq!(actual_symbol, expected_symbol);
-        for (actual_coord, expected_coord) in actual_coords.iter().zip(expected_coords.iter()) {
-            assert!(
-                (actual_coord - expected_coord).abs() <= tolerance,
-                "expected {expected_symbol} coordinate {expected_coord}, found {actual_coord}"
-            );
-        }
-    }
-}
-
-fn mass_center(atoms: &[(String, [f64; 3])]) -> [f64; 3] {
-    let total_mass: f64 = atoms.iter().map(|(symbol, _)| atomic_mass(symbol)).sum();
-    let weighted_sum = atoms.iter().fold([0.0; 3], |mut sum, (symbol, position)| {
-        let mass = atomic_mass(symbol);
-        for axis in 0..3 {
-            sum[axis] += mass * position[axis];
-        }
-        sum
-    });
-
-    [
-        weighted_sum[0] / total_mass,
-        weighted_sum[1] / total_mass,
-        weighted_sum[2] / total_mass,
-    ]
-}
-
-fn inertia_tensor(atoms: &[(String, [f64; 3])]) -> [[f64; 3]; 3] {
-    atoms.iter().fold([[0.0; 3]; 3], |mut tensor, (symbol, r)| {
-        let mass = atomic_mass(symbol);
-        let radius_squared = r.iter().map(|coord| coord * coord).sum::<f64>();
-        for row in 0..3 {
-            for col in 0..3 {
-                let kronecker_delta = if row == col { 1.0 } else { 0.0 };
-                tensor[row][col] += mass * (radius_squared * kronecker_delta - r[row] * r[col]);
+            bat::print_toml(&requested.toml);
+            {
+                let mut stdout = cli::color::stdout();
+                writeln!(
+                    stdout,
+                    "\n{}",
+                    cli::color::title(format!(
+                        "Requested geometry (canonical XYZ, {})",
+                        requested.units
+                    ))
+                )
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
             }
+            bat::print_xyz(&requested.xyz);
+            writeln!(
+                cli::color::stdout(),
+                "\n{}",
+                calculation_summary(&prepared, &molecule_path)
+            )
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
         }
-        tensor
-    })
-}
-
-#[allow(
-    clippy::panic,
-    reason = "The test-only mass helper accepts only the explicit fixture elements above"
-)]
-fn atomic_mass(symbol: &str) -> f64 {
-    match symbol {
-        "H" => 1.00794,
-        "O" => 15.999,
-        _ => panic!("unexpected test atom symbol: {symbol}"),
+        let result = {
+            let stdout = cli::color::stdout();
+            let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
+            let outcome = prepared.execute_with_events(|event| {
+                if let Some(report) = &mut artifact_report {
+                    report.on_event(&event);
+                }
+                reporter.on_event(event);
+            });
+            if let Some(error) = reporter.take_error() {
+                return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
+            }
+            outcome
+                .map_err(|error| with_input_source(error, source_name, source_content))
+                .map_err(CalculationExecutionError::recoverable)?
+        };
+        let mut output = CalculationOutput::from(&result);
+        output
+            .ensure_finite()
+            .into_diagnostic()
+            .map_err(CalculationExecutionError::recoverable)?;
+        artifacts
+            .retain(
+                &prepared,
+                &result,
+                [
+                    (source_name, source_content.as_bytes()),
+                    (&molecule_path.display().to_string(), xyz_content.as_bytes()),
+                ],
+            )
+            .map_err(CalculationExecutionError::recoverable)?;
+        if let Some(report) = artifact_report {
+            if !json_output {
+                writeln!(
+                    cli::color::stdout(),
+                    "Artifact {}: {}; origin {}{}",
+                    report.name,
+                    report.decision,
+                    report.origin,
+                    report
+                        .source_index
+                        .map_or_else(String::new, |index| format!("; source index {index}"))
+                )
+                .map_err(ReportWriteError)
+                .map_err(CalculationExecutionError::fatal)?;
+            }
+            output.artifacts = Some(vec![report]);
+        }
+        Ok(output)
     }
 }
 
-#[test]
-fn run_accepts_bare_filename_in_current_directory() {
-    let root = tempfile::tempdir().unwrap();
-    prepare_basis_store(root.path());
-    fs::write(
-        root.path().join("molecule.xyz"),
-        include_bytes!("../samples/h2/molecule.xyz"),
-    )
-    .unwrap();
-    fs::write(
-        root.path().join("calculation.toml"),
-        "[basis]\nname = \"sto-3g\"\n[molecule]\ngeometry = \"molecule.xyz\"\n[method.hf]\n",
-    )
-    .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .current_dir(root.path())
-        .env("RUSTIQ_DATA_HOME", root.path())
-        .args([
-            "run",
-            "calculation.toml",
-            "--no-auto-download",
-            "--format",
-            "json",
-        ])
-        .output()
-        .unwrap();
-    assert_success(&output);
-    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+fn with_source<E>(error: E, source: &NamedSource<String>) -> Report
+where
+    E: Diagnostic + Send + Sync + 'static,
+{
+    Report::new(error).with_source_code(source.clone())
 }
 
-#[test]
-fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
-    let root = tempfile::tempdir().unwrap();
-    prepare_basis_store(root.path());
-    let inputs = root.path().join("inputs");
-    let nested_inputs = inputs.join("nested");
-    let caller = root.path().join("caller");
-    fs::create_dir_all(&nested_inputs).unwrap();
-    fs::create_dir(&caller).unwrap();
-    fs::write(
-        inputs.join("molecule.xyz"),
-        include_bytes!("../samples/h2/molecule.xyz"),
-    )
-    .unwrap();
-    fs::write(
-        nested_inputs.join("calculation.toml"),
-        "[molecule]\ngeometry = \"../molecule.xyz\"\n[basis]\nname = \"sto-3g\"\n[cache]\nenabled = true\n[method.hf]\n",
-    )
-    .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .current_dir(&caller)
-        .env("RUSTIQ_DATA_HOME", root.path())
-        .args([
-            "run",
-            "../inputs/nested/calculation.toml",
-            "--no-auto-download",
-            "--cache-dir",
-            "local-cache",
-        ])
-        .output()
-        .unwrap();
-    assert_success(&output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let expected_geometry = Path::new("../inputs/nested")
-        .join("../molecule.xyz")
-        .display()
-        .to_string();
-    assert!(
-        stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")),
-        "{stdout}"
-    );
-    assert!(caller.join("local-cache").exists());
-    assert!(!inputs.join("local-cache").exists());
+fn with_input_source<E>(error: E, name: &str, content: &str) -> Report
+where
+    E: Diagnostic + Send + Sync + 'static,
+{
+    let source = NamedSource::new(name, content.to_owned());
+    with_source(error, &source)
 }
 
-#[test]
-fn run_resolves_stdin_geometry_from_callers_directory() {
-    use std::{io::Write, process::Stdio};
-    let root = tempfile::tempdir().unwrap();
-    prepare_basis_store(root.path());
-    fs::write(
-        root.path().join("molecule.xyz"),
-        include_bytes!("../samples/h2/molecule.xyz"),
-    )
-    .unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rustiq"))
-        .current_dir(root.path())
-        .env("RUSTIQ_DATA_HOME", root.path())
-        .args(["run", "--no-auto-download", "--format", "json"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(b"[basis]\nname = \"sto-3g\"\n")
-        .unwrap();
-    let output = child.wait_with_output().unwrap();
-    assert_success(&output);
-    serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(feature = "online")]
+    use rstest::rstest;
 
-#[test]
-fn informational_and_invalid_arguments_keep_conventional_exit_codes() {
-    for args in [["--help"], ["--version"]] {
-        assert_eq!(run_rustiq(&args).status.code(), Some(0));
+    #[test]
+    fn test_parse_runfile_reports_toml_span() {
+        let result = parse_runfile("calculation.toml".to_string(), "hf = \"not a table\"");
+
+        let err = result.unwrap_err();
+        assert!(format!("{err:?}").contains("nickel"));
     }
-    assert_eq!(run_rustiq(&["--invalid-option"]).status.code(), Some(2));
+
+    #[cfg(feature = "online")]
+    #[rstest]
+    #[case::unset(None, false)]
+    #[case::one(Some("1"), true)]
+    #[case::true_lower(Some("true"), true)]
+    #[case::true_upper(Some("TRUE"), true)]
+    #[case::true_mixed(Some("TrUe"), true)]
+    #[case::zero(Some("0"), false)]
+    #[case::false_lower(Some("false"), false)]
+    #[case::false_upper(Some("FALSE"), false)]
+    #[case::false_mixed(Some("FaLsE"), false)]
+    #[case::garbage(Some("yes"), false)]
+    fn test_resolve_auto_download_reads_env_values(
+        #[case] value: Option<&str>,
+        #[case] expected: bool,
+    ) {
+        temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", value, || {
+            let command = RunCommand {
+                input: None,
+                auto_download: false,
+                no_auto_download: false,
+                format: CalculationOutputFormat::Text,
+                pretty: false,
+                cache_dir: None,
+                reuse: None,
+                artifact: None,
+            };
+
+            assert_eq!(command.resolve_auto_download(), expected);
+        });
+    }
+
+    #[cfg(feature = "online")]
+    #[test]
+    fn test_resolve_auto_download_prefers_cli_flags_over_env() {
+        temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", Some("false"), || {
+            let command = RunCommand {
+                input: None,
+                auto_download: true,
+                no_auto_download: false,
+                format: CalculationOutputFormat::Text,
+                pretty: false,
+                cache_dir: None,
+                reuse: None,
+                artifact: None,
+            };
+
+            assert!(command.resolve_auto_download());
+        });
+
+        temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", Some("true"), || {
+            let command = RunCommand {
+                input: None,
+                auto_download: false,
+                no_auto_download: true,
+                format: CalculationOutputFormat::Text,
+                pretty: false,
+                cache_dir: None,
+                reuse: None,
+                artifact: None,
+            };
+
+            assert!(!command.resolve_auto_download());
+        });
+    }
+
+    #[cfg(feature = "online")]
+    #[test]
+    fn test_resolve_auto_download_defaults_to_false_when_unset_and_no_flags_are_present() {
+        temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", Option::<&str>::None, || {
+            let command = RunCommand {
+                input: None,
+                auto_download: false,
+                no_auto_download: false,
+                format: CalculationOutputFormat::Text,
+                pretty: false,
+                cache_dir: None,
+                reuse: None,
+                artifact: None,
+            };
+
+            assert!(!command.resolve_auto_download());
+        });
+    }
 }
