@@ -4,9 +4,7 @@ use miette::IntoDiagnostic;
 use serde::Serialize;
 
 use rustiq_core::{
-    calculation::{
-        CalculationResult, Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics,
-    },
+    calculation::{CalculationEvent, Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics},
     config::ResolvedHfMethod,
 };
 
@@ -39,15 +37,44 @@ impl ExecutionResult for CalculationOutput {
     }
 }
 
-impl From<&CalculationResult> for CalculationOutput {
-    fn from(result: &CalculationResult) -> Self {
-        let hf = result.hf.summary();
-        Self::new(
-            hf.method,
-            &hf.scf,
-            result.hf.is_converged(),
-            result.mp2.as_ref(),
-        )
+/// Collect the final document from scientific notifications without publishing
+/// partial results if a later stage fails.
+#[derive(Default)]
+pub(crate) struct CalculationOutputCollector {
+    output: Option<CalculationOutput>,
+}
+
+impl CalculationOutputCollector {
+    pub(crate) fn on_event(&mut self, event: &CalculationEvent<'_>) {
+        match event {
+            CalculationEvent::HfCompleted(result) => {
+                let hf = result.summary();
+                self.output = Some(CalculationOutput::new(
+                    hf.method,
+                    &hf.scf,
+                    result.is_converged(),
+                    None,
+                ));
+            }
+            CalculationEvent::Mp2Completed { hf, result } => {
+                // MP2 completion requires converged HF orbitals.
+                self.output = Some(CalculationOutput::new(
+                    hf.method,
+                    &hf.scf,
+                    true,
+                    Some(result),
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    /// Finishing is only valid after a successful core execution. The core
+    /// event contract guarantees `HfCompleted` before returning `Ok`, and the
+    /// command calls this method only on that success path.
+    pub(crate) fn finish(self) -> CalculationOutput {
+        self.output
+            .expect("successful calculation emits HfCompleted")
     }
 }
 
@@ -261,6 +288,46 @@ mod tests {
                 relative_threshold: 1e-8,
             },
             timings: ScfTimings::default(),
+        }
+    }
+
+    #[test]
+    fn event_collector_preserves_final_result_document() {
+        use rustiq_core::{
+            basis::BasisFile,
+            calculation::{CalculationBuilder, CalculationExecution},
+            config::{HfConfig, Mp2Config},
+            molecules::geometry::Geometry,
+        };
+        let geometry =
+            Geometry::from_reader(&include_bytes!("../../../samples/h2/molecule.xyz")[..]).unwrap();
+        let basis = BasisFile::from_reader(
+            &include_bytes!("../../../crates/rustiq-core/tests/data/sto-3g.json")[..],
+        )
+        .unwrap();
+        for (max_iterations, mp2) in [(100, false), (100, true), (1, false)] {
+            let mut collector = CalculationOutputCollector::default();
+            let calculation = CalculationBuilder::new(&geometry, &basis)
+                .with_hf(HfConfig {
+                    max_iterations: std::num::NonZeroUsize::new(max_iterations).unwrap(),
+                    ..HfConfig::default()
+                })
+                .with_mp2(mp2.then(Mp2Config::default));
+            let result = calculation
+                .execute_with_events(|event| collector.on_event(&event))
+                .unwrap();
+            assert_eq!(result.hf.is_converged(), max_iterations > 1);
+            let hf = result.hf.summary();
+            let expected = CalculationOutput::new(
+                hf.method,
+                &hf.scf,
+                result.hf.is_converged(),
+                result.mp2.as_ref(),
+            );
+            assert_eq!(
+                serde_json::to_value(collector.finish()).unwrap(),
+                serde_json::to_value(expected).unwrap(),
+            );
         }
     }
 

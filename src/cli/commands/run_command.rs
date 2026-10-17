@@ -16,10 +16,13 @@ use crate::cli::{
         bat,
         calculation_presentation::{calculation_summary, requested_calculation},
         calculation_report::CalculationReporter,
-        json_output::{self, BatchEntry, BatchError, BatchOutcome, BatchOutput, CalculationOutput},
+        json_output::{
+            self, BatchEntry, BatchError, BatchOutcome, BatchOutput, CalculationOutput,
+            CalculationOutputCollector,
+        },
     },
 };
-use crate::runfile::{parser::parse_runfile, resolved::ScfOutput};
+use crate::runfile::parser::parse_runfile;
 use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
@@ -403,10 +406,14 @@ impl RunCommand {
             .map_err(CalculationExecutionError::recoverable)?;
         let show_scf = true;
         let json_output = self.format == CalculationOutputFormat::Json;
-        let result = {
+        let mut collector = CalculationOutputCollector::default();
+        {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
-            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            let outcome = prepared.execute_with_events(|event| {
+                collector.on_event(&event);
+                reporter.on_event(event);
+            });
             if let Some(error) = reporter.take_error() {
                 return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
@@ -414,7 +421,7 @@ impl RunCommand {
                 .into_diagnostic()
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        let output = CalculationOutput::from(&result);
+        let output = collector.finish();
         output
             .ensure_finite()
             .into_diagnostic()
@@ -589,7 +596,7 @@ impl RunCommand {
             .map_err(ReportWriteError)
             .map_err(CalculationExecutionError::fatal)?;
         }
-        let show_scf = run.output.scf != ScfOutput::Quiet;
+        let show_scf = true;
         let calculation = CalculationBuilder::new(&geom, &basis_file)
             .with_basis_label(&run.basis.name)
             .with_molecule_config(parsed.molecule_config)
@@ -624,14 +631,9 @@ impl RunCommand {
             .prepare(prepared)
             .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
-            let output_format = match run.output.scf {
-                ScfOutput::Normal => crate::runfile::output::ScfOutput::Normal,
-                ScfOutput::Quiet => crate::runfile::output::ScfOutput::Quiet,
-            };
-            let requested =
-                requested_calculation(prepared.request(), run.cache.enabled, output_format)
-                    .into_diagnostic()
-                    .map_err(CalculationExecutionError::recoverable)?;
+            let requested = requested_calculation(prepared.request(), run.cache.enabled)
+                .into_diagnostic()
+                .map_err(CalculationExecutionError::recoverable)?;
             {
                 let mut stdout = cli::color::stdout();
                 writeln!(
@@ -665,10 +667,12 @@ impl RunCommand {
             .map_err(ReportWriteError)
             .map_err(CalculationExecutionError::fatal)?;
         }
+        let mut collector = CalculationOutputCollector::default();
         let result = {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let outcome = prepared.execute_with_events(|event| {
+                collector.on_event(&event);
                 if let Some(report) = &mut artifact_report {
                     report.on_event(&event);
                 }
@@ -681,7 +685,7 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        let mut output = CalculationOutput::from(&result);
+        let mut output = collector.finish();
         output
             .ensure_finite()
             .into_diagnostic()

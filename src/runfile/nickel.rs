@@ -188,14 +188,7 @@ pub(crate) fn export_toml(json: &str) -> Result<String, super::output::RenderErr
     };
     // Preserve the CLI's section order using Nickel values, without reparsing output.
     if let Some(record) = value.as_record().and_then(Container::into_opt) {
-        let sections = [
-            "molecule",
-            "basis",
-            "method",
-            "integrals",
-            "cache",
-            "output",
-        ];
+        let sections = ["molecule", "basis", "method", "integrals", "cache"];
         if record.fields.keys().any(|key| key.label() == "basis")
             && record
                 .fields
@@ -534,7 +527,7 @@ fn production_toml_frontend_accepts_tagged_and_optional_settings() {
         "[method.hf.guess]\ntype = 'CoreHamiltonian'\n[method.hf.guess.perturbation]\nseed = 42\n",
         "[method.hf.guess]\ntype = 'OneElectron'\n[method.hf.guess.perturbation]\ndistribution = 'Uniform'\nmin = -0.01\nmax = 0.02\n",
         "[method.hf.guess]\ntype = 'Random'\ndistribution = 'Normal'\nmean = 0.5\nstd_dev = 0.01\nseed = 42\n",
-        "[integrals]\nschwarz_threshold = 0\n[cache]\nenabled = true\n[output]\nscf = 'Quiet'\n",
+        "[integrals]\nschwarz_threshold = 0\n[cache]\nenabled = true\n",
         "[molecule]\nunits = 'Bohr'\ncharge = -1\nmultiplicity = 2\n",
     ] {
         let source = format!("[basis]\nname = 'sto-3g'\n{settings}");
@@ -558,7 +551,7 @@ fn nickel_rejects_nested_types_ranges_and_tags() {
         "method.mp2.frozen_orbitals = -1",
         "method.mp2.memory_limit = 512",
         "method.hf.diis.enabled = 1",
-        "output.scf = \"unknown\"",
+        "output.scf = \"Normal\"",
         "cache.extra = true",
         "method.hf.guess = {type = \"Random\", distribution = \"Unknown\"}",
         "method.hf.guess = {type = \"Random\"}",

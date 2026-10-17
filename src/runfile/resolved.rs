@@ -10,7 +10,6 @@ pub struct ResolvedCalculationConfig {
     pub method: ResolvedMethodConfig,
     pub integrals: ResolvedIntegralConfig,
     pub cache: ResolvedCacheConfig,
-    pub output: ResolvedOutputConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -122,18 +121,6 @@ pub struct ResolvedIntegralConfig {
 #[serde(deny_unknown_fields)]
 pub struct ResolvedCacheConfig {
     pub enabled: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ResolvedOutputConfig {
-    pub scf: ScfOutput,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Deserialize, Serialize)]
-pub enum ScfOutput {
-    Normal,
-    Quiet,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -453,7 +440,6 @@ mod tests {
             ("method", "hf"),
             ("integrals", "schwarz_threshold"),
             ("cache", "enabled"),
-            ("output", "scf"),
         ] {
             let mut incomplete = value.clone();
             incomplete[section].as_object_mut().unwrap().remove(field);
