@@ -12,6 +12,7 @@ use super::artifact_session::ArtifactSession;
 use super::batch_orchestration::{self, BatchSummary, Executable, ExecutionError, ExecutionResult};
 use crate::cli::{
     self, directories,
+    exit_status::{self, IncompleteBatch, NonConvergence},
     ux::{
         bat,
         calculation_presentation::{calculation_summary, requested_calculation},
@@ -158,6 +159,12 @@ impl CalculationExecutionError {
     fn fatal(error: impl Into<Report>) -> Self {
         Self::FatalInfrastructure(error.into())
     }
+    fn report(&self) -> &Report {
+        match self {
+            Self::Recoverable(error) | Self::FatalInfrastructure(error) => error,
+        }
+    }
+
     fn into_report(self) -> Report {
         match self {
             Self::Recoverable(error) | Self::FatalInfrastructure(error) => error,
@@ -316,7 +323,15 @@ impl RunCommand {
         if json_output {
             json_output::print_json(&result, self.pretty)?;
         }
-        Ok(())
+        Self::check_convergence(&result)
+    }
+
+    fn check_convergence(result: &CalculationOutput) -> CommandResult {
+        if result.is_converged() {
+            Ok(())
+        } else {
+            Err(NonConvergence.into())
+        }
     }
 
     fn execute_portable_batch(
@@ -343,6 +358,9 @@ impl RunCommand {
                 outcome => outcomes.push(outcome),
             }
         }
+        let general_errors = outcomes.iter().filter(|outcome| {
+            matches!(outcome, Err(error) if !exit_status::is_non_convergence(error.report()))
+        }).count();
         let summary = BatchSummary::from_results(&outcomes);
         let mut entries = Vec::with_capacity(outcomes.len());
         for (index, outcome) in outcomes.into_iter().enumerate() {
@@ -384,11 +402,13 @@ impl RunCommand {
             .into_diagnostic()?;
         }
         if summary.failed + summary.non_converged > 0 {
-            return Err(miette!(
-                "batch contains {} failed and {} non-converged calculations",
-                summary.failed,
-                summary.non_converged
-            ));
+            return Err(IncompleteBatch {
+                succeeded: summary.succeeded,
+                non_converged: summary.non_converged,
+                failed: summary.failed,
+                general_errors,
+            }
+            .into());
         }
         Ok(())
     }
@@ -446,7 +466,8 @@ impl RunCommand {
             result.ensure_finite().into_diagnostic()?;
             json_output::print_json(&result, self.pretty)?;
         }
-        publication
+        publication?;
+        Self::check_convergence(&result)
     }
 
     fn execute_batch(
@@ -472,6 +493,9 @@ impl RunCommand {
         let outcomes = batch_orchestration::execute_batch(tasks)
             .map_err(CalculationExecutionError::into_report)?;
 
+        let general_errors = outcomes.iter().filter(|outcome| {
+            matches!(outcome, Err(error) if !exit_status::is_non_convergence(error.report()))
+        }).count();
         let BatchSummary {
             succeeded,
             non_converged,
@@ -526,9 +550,13 @@ impl RunCommand {
         }
         publication?;
         if failed + non_converged > 0 {
-            return Err(miette!(
-                "batch contains {failed} failed and {non_converged} non-converged calculations"
-            ));
+            return Err(IncompleteBatch {
+                succeeded,
+                non_converged,
+                failed,
+                general_errors,
+            }
+            .into());
         }
         Ok(())
     }

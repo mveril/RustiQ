@@ -417,7 +417,7 @@ fn publication_error_keeps_complete_calculation_and_batch_json() {
             "json",
         ],
     );
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["calculation"]["hf"]["converged"], true);
     fs::write(
@@ -436,7 +436,7 @@ fn publication_error_keeps_complete_calculation_and_batch_json() {
             "json",
         ],
     );
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate_batch(&result);
     assert_eq!(result["calculations"].as_array().unwrap().len(), 2);
@@ -465,4 +465,64 @@ fn symbolic_alias_replaces_the_target_and_preserves_the_alias() {
         .file_type()
         .is_symlink());
     assert!(RustiQBundle::open(root.join("alias.rustiq")).is_ok());
+}
+
+#[test]
+fn portable_reruns_preserve_convergence_exit_codes() {
+    let success = "{ basis.name = \"sto-3g\" }";
+    let unconverged = "{ basis.name = \"sto-3g\", method.hf.max_iterations = 1 }";
+    for (entries, expected) in [
+        (vec![unconverged], 3),
+        (vec![unconverged, unconverged], 3),
+        (vec![success, unconverged], 4),
+    ] {
+        let directory = fixture();
+        let root = directory.path();
+        fs::write(root.join("study.ncl"), format!("[{}]", entries.join(", "))).unwrap();
+        let output = command(
+            root,
+            &[
+                "run",
+                "study.ncl",
+                "--artifact",
+                "status.rustiq",
+                "--format",
+                "json",
+            ],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(expected),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let rerun = command(root, &["run", "status.rustiq", "--format", "json"]);
+        assert_eq!(
+            rerun.status.code(),
+            Some(expected),
+            "{}",
+            String::from_utf8_lossy(&rerun.stderr)
+        );
+        let value: Value = serde_json::from_slice(&rerun.stdout).unwrap();
+        if entries.len() > 1 {
+            validate_batch(&value);
+        } else {
+            assert_eq!(value["calculation"]["hf"]["converged"], false);
+        }
+        if expected == 4 {
+            let failed = command(
+                root,
+                &[
+                    "run",
+                    "study.ncl",
+                    "--artifact",
+                    "absent/status.rustiq",
+                    "--format",
+                    "json",
+                ],
+            );
+            assert_eq!(failed.status.code(), Some(1));
+            let _: Value = serde_json::from_slice(&failed.stdout).unwrap();
+        }
+    }
 }

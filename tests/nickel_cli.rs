@@ -170,7 +170,7 @@ fn configuration_errors_abort_before_execution_and_keep_import_sources() {
     for source in ["[]", "[{ basis.name = \"sto-3g\" }, { basis.name = 42 }]"] {
         fs::write(&input, source).unwrap();
         let output = run(directory.path(), &input, "json");
-        assert!(!output.status.success());
+        assert_eq!(output.status.code(), Some(1));
         assert_eq!(output.stdout, [] as [u8; 0]);
     }
     let bad = directory.path().join("inputs/nested/bad.ncl");
@@ -193,7 +193,7 @@ fn batch_reports_non_convergence_and_mp2_error_then_continues() {
     let input = directory.path().join("inputs/scf.ncl");
     fs::write(&input, "[ { basis.name = \"sto-3g\", method.hf.max_iterations = 1 }, { basis.name = \"sto-3g\", method.hf.max_iterations = 1, method.mp2 = {} }, { basis.name = \"sto-3g\" } ]").unwrap();
     let output = run(directory.path(), &input, "json");
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(4));
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["calculations"][0]["status"], "non_converged");
     assert_eq!(
@@ -217,7 +217,7 @@ fn json_output_write_failure_is_fatal() {
     let input = directory.path().join("inputs/batch.ncl");
     fs::write(
         &input,
-        "[{ basis.name = \"sto-3g\" }, { basis.name = \"sto-3g\" }]",
+        "[{ basis.name = \"sto-3g\", method.hf.max_iterations = 1 }, { basis.name = \"sto-3g\" }]",
     )
     .unwrap();
     let store = directory.path().join("data/rustiq/basis_sets");
@@ -237,5 +237,5 @@ fn json_output_write_failure_is_fatal() {
         .stdout(File::create("/dev/full").unwrap())
         .output()
         .unwrap();
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
 }

@@ -39,18 +39,19 @@ uses the single-result schema. A multi-entry Nickel study produces a batch
 document with one outcome per input, in source order. Each entry can be
 `success`, `non_converged`, or `error`. Later calculations continue after a
 recoverable per-calculation error, but fatal infrastructure errors stop the
-batch. Any recorded error or nonconvergence makes the overall command exit
-unsuccessfully. A valid JSON document can therefore accompany a failing exit
-status. For a batch, any entry error or non-convergence makes the command exit
-unsuccessfully while retaining the batch document. A single HF-only calculation
-that does not converge still produces the single result document with
-`converged: false`; its energy and diagnostics describe the final iterate, and
-the command exits successfully. If MP2 was
-requested, non-converged HF prevents MP2 execution and the run is reported as
-an error instead. Input, preparation, or runtime errors for a single
-calculation are reported as CLI diagnostics, so there is no single-result JSON
-document for that failed run. See the
-[Nickel studies guide](nickel-studies.md) for batch outcomes.
+batch. A valid JSON document can accompany a nonzero exit code. A single
+HF-only calculation that does not converge still produces the single result
+with `converged: false`; its energy and diagnostics describe the final iterate,
+and the command returns `3`. If MP2 was requested, non-converged HF prevents
+MP2 execution and the run reports a diagnostic with code `3` instead of a
+single-result JSON document. Other input, preparation, or runtime errors for a
+single calculation return `1` without result JSON.
+
+A completed batch returns `0` when all entries succeed, `4` when some succeed
+and others do not, `3` when none succeed and all stop because HF did not converge,
+and `1` when none succeed and any entry has another error. Fatal infrastructure
+errors always return `1`. See the [CLI exit-code contract](../reference/cli.md)
+and [Nickel studies guide](nickel-studies.md) for details.
 
 Results include `schema_version`, which lets consuming software select the
 matching contract. The single-calculation contract is

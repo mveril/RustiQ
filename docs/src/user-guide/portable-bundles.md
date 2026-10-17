@@ -234,7 +234,7 @@ Other existing destinations are left untouched.
 | --- | --- |
 | Every requested calculation produces a result | Publish the current collection. |
 | A preparation or execution error occurs | Do not publish; preserve any prior destination. |
-| HF-only run reaches its iteration limit | Its result can still publish the AO ERIs. A single HF run exits successfully; a batch with non-converged results and no execution errors publishes, then exits unsuccessfully. |
+| HF-only run reaches its iteration limit | Its result can still publish the AO ERIs. A single HF run returns exit code `3`; a batch with non-converged results and no execution errors publishes, then returns `3` if none converged or `4` if some succeeded. See the [CLI exit-code contract](../reference/cli.md). |
 | MP2 was requested but HF did not converge | MP2 execution fails, so the collection is not published. |
 
 JSON for a completed calculation or batch may already have been written when a

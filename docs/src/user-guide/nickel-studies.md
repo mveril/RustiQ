@@ -95,8 +95,11 @@ then run in source order. A calculation that has a recoverable runtime error
 or does not converge is recorded for that entry, and later entries are still
 attempted. Fatal infrastructure errors stop the batch.
 The batch returns an unsuccessful process status if any entry fails or does
-not converge, while retaining per-calculation results. A configuration error
-prevents execution of the batch.
+not converge, while retaining per-calculation results: `4` for partial success,
+`3` when every entry stops because HF did not converge, or `1` when no entry
+succeeds and at least one has another error. Fatal infrastructure errors return
+`1` regardless of earlier successes. A configuration error prevents execution
+of the batch and returns `1`. See the [CLI exit-code contract](../reference/cli.md).
 
 The integration coverage is in
 [`tests/nickel_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/nickel_cli.rs)

@@ -1,7 +1,7 @@
 // User text and filesystem paths require careful handling at the CLI boundary.
 #![deny(clippy::string_slice, clippy::path_buf_push_overwrite)]
 
-use std::env;
+use std::{env, io::Write, process::ExitCode};
 
 use clap::{CommandFactory, FromArgMatches};
 use cli::{commands::Runnable, Cli};
@@ -10,7 +10,20 @@ mod cli;
 mod config;
 mod runfile;
 
-fn main() -> miette::Result<()> {
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            let status = cli::exit_status::for_error(&error);
+            if writeln!(std::io::stderr().lock(), "Error: {error:?}").is_err() {
+                return ExitCode::FAILURE;
+            }
+            status
+        }
+    }
+}
+
+fn run() -> miette::Result<()> {
     let mode = cli::color::from_process_args(env::args_os().skip(1));
     let command = Cli::command().color(mode);
     let matches = command.get_matches();
