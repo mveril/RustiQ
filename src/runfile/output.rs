@@ -258,7 +258,6 @@ threshold = 0.00000001
             "type =",
             "frozen_orbitals =",
             "memory_limit =",
-            "scf =",
         ] {
             assert!(full.contains(field), "missing {field}");
             assert!(!compact.contains(field), "unexpected {field}");

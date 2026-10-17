@@ -69,6 +69,9 @@ impl CalculationOutputCollector {
         }
     }
 
+    /// Finishing is only valid after a successful core execution. The core
+    /// event contract guarantees `HfCompleted` before returning `Ok`, and the
+    /// command calls this method only on that success path.
     pub(crate) fn finish(self) -> CalculationOutput {
         self.output
             .expect("successful calculation emits HfCompleted")
