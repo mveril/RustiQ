@@ -703,7 +703,7 @@ type = "CoreHamiltonian"
 }
 
 #[test]
-fn test_cli_h2_sample_can_quiet_scf_output() {
+fn test_cli_rejects_removed_output_section() {
     let temp_root = temp_root("cli-sample-quiet-scf");
     prepare_basis_store(&temp_root);
 
@@ -733,11 +733,9 @@ scf = "Quiet"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_success(&output);
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("SCF converged after"));
-    assert!(!stdout.contains("Total Energy (including nuclear repulsion):"));
+    assert_error(&output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("output"));
 }
 
 #[test]

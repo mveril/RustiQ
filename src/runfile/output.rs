@@ -1,18 +1,6 @@
 use super::RunFile;
 use serde::Serialize;
 
-#[derive(Debug, Default, Serialize)]
-pub struct OutputConfig {
-    pub scf: ScfOutput,
-}
-
-#[derive(Debug, Default, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
-pub enum ScfOutput {
-    #[default]
-    Normal,
-    Quiet,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Defaults {
     Include,

@@ -17,12 +17,8 @@ use rustiq_core::{
 };
 
 use crate::runfile::{
-    basis::BasisConfig,
-    cache::CacheConfig,
-    integrals::IntegralConfig,
-    method::MethodConfig,
-    molecule::MoleculeConfig,
-    output::{OutputConfig, RenderError, ScfOutput},
+    basis::BasisConfig, cache::CacheConfig, integrals::IntegralConfig, method::MethodConfig,
+    molecule::MoleculeConfig, output::RenderError,
 };
 
 /// CLI rendering schema, not a scientific persistence schema. The generated
@@ -35,12 +31,10 @@ struct CalculationToml {
     integrals: IntegralConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     cache: Option<CacheConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    output: Option<OutputConfig>,
 }
 
 impl CalculationToml {
-    fn requested(request: &CalculationRequest, cache_enabled: bool, scf_output: ScfOutput) -> Self {
+    fn requested(request: &CalculationRequest, cache_enabled: bool) -> Self {
         Self {
             molecule: MoleculeConfig {
                 geometry: "molecule.xyz".into(),
@@ -59,7 +53,6 @@ impl CalculationToml {
             cache: Some(CacheConfig {
                 enabled: cache_enabled,
             }),
-            output: Some(OutputConfig { scf: scf_output }),
         }
     }
 
@@ -81,7 +74,6 @@ impl CalculationToml {
             },
             integrals: (&prepared.integral_config()).into(),
             cache: None,
-            output: None,
         }
     }
 }
@@ -133,13 +125,8 @@ impl CanonicalPair {
 pub(crate) fn requested_calculation(
     request: &CalculationRequest,
     cache_enabled: bool,
-    scf_output: ScfOutput,
 ) -> Result<CanonicalPair, RenderError> {
-    let toml = render_calculation_toml(CalculationToml::requested(
-        request,
-        cache_enabled,
-        scf_output,
-    ))?;
+    let toml = render_calculation_toml(CalculationToml::requested(request, cache_enabled))?;
     Ok(CanonicalPair {
         toml,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
@@ -152,9 +139,8 @@ pub(crate) fn requested_calculation(
 pub(crate) fn portable_requested_calculation(
     request: &CalculationRequest,
 ) -> Result<CanonicalPair, RenderError> {
-    let mut configuration = CalculationToml::requested(request, false, ScfOutput::Quiet);
+    let mut configuration = CalculationToml::requested(request, false);
     configuration.cache = None;
-    configuration.output = None;
     Ok(CanonicalPair {
         toml: render_calculation_toml(configuration)?,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
@@ -313,8 +299,7 @@ mod tests {
             Geometry::from_source("input.xyz", "2\nH2\nH 0 0 -0.37\nH 0 0 0.37\n").unwrap();
         let source = "[molecule]\n[basis]\nname = 'sto-3g'\n[method.hf]\n";
         let prepared = prepare(source, &geometry);
-        let requested =
-            requested_calculation(prepared.request(), false, ScfOutput::default()).unwrap();
+        let requested = requested_calculation(prepared.request(), false).unwrap();
         let resolved = resolved_calculation(&prepared).unwrap();
         let temp = tempfile::tempdir().unwrap();
 
@@ -354,7 +339,7 @@ mod tests {
             "[molecule]\n[basis]\nname = 'sto-3g'\n[method.hf]\n[method.hf.diis]\nenabled = true\nmax_history = 8\n[integrals]\nschwarz_threshold = 0.0\n",
             &geometry,
         );
-        let rendered = requested_calculation(prepared.request(), true, ScfOutput::Quiet)
+        let rendered = requested_calculation(prepared.request(), true)
             .unwrap()
             .toml;
 
@@ -363,12 +348,10 @@ mod tests {
         assert!(rendered.contains("[method.hf.orthogonalization]"));
         assert!(rendered.contains("[integrals]"));
         assert!(rendered.contains("schwarz_threshold = 0"));
-        assert!(rendered.contains("[output]"));
-        assert!(rendered.contains("scf = \"Quiet\""));
+        assert!(!rendered.contains("[output]"));
         assert!(rendered.contains("[cache]\nenabled = true"));
         let replay = parse_runfile("canonical.toml", &rendered).unwrap();
         assert!(replay.integral_config.schwarz_threshold.value.is_none());
         assert!(replay.runfile.cache.enabled);
-        assert_eq!(replay.runfile.output.scf, ScfOutput::Quiet);
     }
 }
