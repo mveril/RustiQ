@@ -28,8 +28,7 @@ fn render_branding_name(branding_name: &str) -> String {
         .font(Font::Standard)
         .build()
         .and_then(|font| font.render(branding_name))
-        .map(|banner| banner.to_string())
-        .unwrap_or_else(|_| branding_name.to_string())
+        .map_or_else(|_| branding_name.to_string(), |banner| banner.to_string())
 }
 
 fn print_plain_banner(
