@@ -1,11 +1,12 @@
 use std::io::{self, Write};
 
 use rand::RngExt;
-use rusty_figlet::{FigletBuilder, Font};
+use rusty_figlet::FigletBuilder;
 
 use crate::cli::{color, BRANDING_NAME};
 
 const BANNER_STYLE_COUNT: u8 = 4;
+const STANDARD_FONT: &[u8] = include_bytes!("../../../assets/fonts/standard.flf");
 
 pub(crate) fn print_startup_banner() -> io::Result<()> {
     let package_version = env!("CARGO_PKG_VERSION");
@@ -25,7 +26,7 @@ pub(crate) fn print_startup_banner() -> io::Result<()> {
 
 fn render_branding_name(branding_name: &str) -> String {
     FigletBuilder::new()
-        .font(Font::Standard)
+        .font_bytes(STANDARD_FONT)
         .build()
         .and_then(|font| font.render(branding_name))
         .map_or_else(|_| branding_name.to_string(), |banner| banner.to_string())
