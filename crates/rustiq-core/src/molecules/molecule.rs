@@ -13,6 +13,10 @@ pub struct Molecule {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum MoleculeError {
+    #[error("molecule geometry must contain at least one atom")]
+    EmptyGeometry,
+    #[error("electron count is outside the supported integer range: nuclear charge = {nuclear_charge}, molecular charge = {charge}")]
+    ElectronCountOutOfRange { nuclear_charge: i32, charge: i32 },
     #[error(
         "invalid molecular electron count: nuclear charge = {nuclear_charge}, molecular charge = {charge}, total electrons = {electrons}"
     )]
@@ -52,6 +56,9 @@ impl Molecule {
         charge: i32,
         multiplicity: NonZero<u8>,
     ) -> Result<Self, MoleculeError> {
+        if geometry.atoms.is_empty() {
+            return Err(MoleculeError::EmptyGeometry);
+        }
         let molecule = Self {
             geometry,
             unit,
@@ -85,7 +92,12 @@ impl Molecule {
 
     fn validate_electron_configuration(&self) -> Result<(), MoleculeError> {
         let nuclear_charge = self.nuclear_charge();
-        let electrons = nuclear_charge - self.charge;
+        let electrons = nuclear_charge.checked_sub(self.charge).ok_or(
+            MoleculeError::ElectronCountOutOfRange {
+                nuclear_charge,
+                charge: self.charge,
+            },
+        )?;
         if electrons <= 0 {
             return Err(MoleculeError::InvalidElectronCount {
                 nuclear_charge,
@@ -232,6 +244,36 @@ mod tests {
                 electrons: -1
             }
         );
+    }
+
+    #[test]
+    fn try_new_rejects_empty_geometry() {
+        let result = Molecule::try_new(
+            Geometry::new("empty".to_string(), Vec::new()),
+            Units::Bohr,
+            0,
+            NonZeroU8::new(1).unwrap(),
+        );
+
+        assert!(matches!(result, Err(MoleculeError::EmptyGeometry)));
+    }
+
+    #[test]
+    fn try_new_rejects_electron_count_subtraction_overflow() {
+        let result = Molecule::try_new(
+            Geometry::new("hydrogen".to_string(), atoms(&["H"])),
+            Units::Bohr,
+            i32::MIN,
+            NonZeroU8::new(1).unwrap(),
+        );
+
+        assert!(matches!(
+            result,
+            Err(MoleculeError::ElectronCountOutOfRange {
+                nuclear_charge: 1,
+                charge: i32::MIN,
+            })
+        ));
     }
 
     #[test]

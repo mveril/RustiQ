@@ -112,7 +112,14 @@ impl Geometry {
         clippy::cast_precision_loss,
         reason = "The allocated atom count is represented in f64 to compute the coordinate average"
     )]
+    /// Returns the geometric center, or the origin for an empty geometry.
+    ///
+    /// Empty geometries are not valid molecules; the origin is retained here as
+    /// a defensive convention for geometry-only transformations.
     pub fn center(&self) -> Point3<f64> {
+        if self.atoms.is_empty() {
+            return Point3::origin();
+        }
         (self
             .atoms
             .iter()
@@ -123,11 +130,16 @@ impl Geometry {
     }
 
     /// Computes the center of mass using the element atomic masses.
+    /// An empty geometry returns the origin as a defensive convention; it is
+    /// rejected by [`crate::molecules::Molecule::try_new`].
     ///
     /// # Errors
     ///
     /// Returns an error if an element has an unparseable atomic mass.
     pub fn mass_center(&self) -> Result<Point3<f64>, AtomicMassParseError> {
+        if self.atoms.is_empty() {
+            return Ok(Point3::origin());
+        }
         let total_mass: f64 = self
             .atoms
             .iter()
@@ -151,7 +163,12 @@ impl Geometry {
     }
 
     #[must_use]
+    /// Returns the nuclear-charge-weighted center, or the origin for an empty
+    /// geometry. Empty geometries are not valid molecules.
     pub fn charge_center(&self) -> Point3<f64> {
+        if self.atoms.is_empty() {
+            return Point3::origin();
+        }
         (self
             .atoms
             .iter()
@@ -532,6 +549,15 @@ H  0.000000  0.000000   0.370000
         assert_point_close(geometry.center(), Point3::origin());
         assert_point_close(geometry.atoms[0].position, point![-1.0, 0.0, 0.0]);
         assert_point_close(geometry.atoms[1].position, point![1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn empty_geometry_centers_use_defensive_origin() {
+        let geometry = Geometry::new("empty".to_string(), Vec::new());
+
+        assert_eq!(geometry.center(), Point3::origin());
+        assert_eq!(geometry.mass_center().unwrap(), Point3::origin());
+        assert_eq!(geometry.charge_center(), Point3::origin());
     }
 
     #[test]
