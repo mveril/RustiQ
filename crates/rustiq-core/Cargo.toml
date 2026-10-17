@@ -54,7 +54,7 @@ smallvec = "1"
 tempfile.workspace = true
 bytesize.workspace = true
 sysinfo.workspace = true
-zip = { version = "8", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
 approx.workspace = true

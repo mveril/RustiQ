@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
-use figlet_rs::FIGlet;
 use rand::RngExt;
+use rusty_figlet::{FigletBuilder, Font};
 
 use crate::cli::{color, BRANDING_NAME};
 
@@ -24,12 +24,12 @@ pub(crate) fn print_startup_banner() -> io::Result<()> {
 }
 
 fn render_branding_name(branding_name: &str) -> String {
-    match FIGlet::standard() {
-        Ok(font) => font
-            .convert(branding_name)
-            .map_or_else(|| branding_name.to_string(), |figure| figure.to_string()),
-        Err(_) => branding_name.to_string(),
-    }
+    FigletBuilder::new()
+        .font(Font::Standard)
+        .build()
+        .and_then(|font| font.render(branding_name))
+        .map(|banner| banner.to_string())
+        .unwrap_or_else(|_| branding_name.to_string())
 }
 
 fn print_plain_banner(

@@ -274,7 +274,7 @@ fn explicit_input_reports_corrupt_and_unsupported_eri() {
         let mut writer = ZipWriter::new(File::create(&path).unwrap());
         for index in 0..archive.len() {
             let mut member = archive.by_index(index).unwrap();
-            let name = member.name().to_owned();
+            let name = member.name().unwrap().into_owned();
             let mut bytes = Vec::new();
             member.read_to_end(&mut bytes).unwrap();
             if unsupported && name == "manifest.json" {
