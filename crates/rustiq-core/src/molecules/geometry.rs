@@ -113,6 +113,9 @@ impl Geometry {
         reason = "The allocated atom count is represented in f64 to compute the coordinate average"
     )]
     pub fn center(&self) -> Point3<f64> {
+        if self.atoms.is_empty() {
+            return Point3::origin();
+        }
         (self
             .atoms
             .iter()
@@ -128,6 +131,9 @@ impl Geometry {
     ///
     /// Returns an error if an element has an unparseable atomic mass.
     pub fn mass_center(&self) -> Result<Point3<f64>, AtomicMassParseError> {
+        if self.atoms.is_empty() {
+            return Ok(Point3::origin());
+        }
         let total_mass: f64 = self
             .atoms
             .iter()
@@ -152,6 +158,9 @@ impl Geometry {
 
     #[must_use]
     pub fn charge_center(&self) -> Point3<f64> {
+        if self.atoms.is_empty() {
+            return Point3::origin();
+        }
         (self
             .atoms
             .iter()
