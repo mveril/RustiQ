@@ -187,6 +187,7 @@ fn pretty_requires_json_format() {
         .output()
         .expect("run RustiQ");
     assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("--pretty requires --format json"));
 }
 
@@ -197,6 +198,7 @@ fn pretty_without_format_requires_json_format() {
         .output()
         .expect("run RustiQ");
     assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("--pretty requires --format json"));
 }
 

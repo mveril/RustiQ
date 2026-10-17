@@ -68,20 +68,47 @@ The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
 manage entries from a run that used a custom cache root.
 
-The CLI reports input, basis, preparation, and single-run calculation errors
-as diagnostics. A single HF calculation that reaches its iteration limit
-returns its final-iteration result with a successful process status and, in
-JSON, `converged: false`. MP2 requires converged HF. For a multi-calculation
-Nickel or `.rustiq` batch, recoverable per-entry errors do not prevent later
-entries from running; the JSON document records each outcome, but any error or
-non-convergence makes the overall process exit unsuccessfully. Fatal
-infrastructure failures stop the batch. JSON output for an unsuccessful batch
-is still a valid document. The exact output fields are defined by the
-[versioned schemas](index.md#authoritative-references); see the
-[JSON guide](../user-guide/json-output.md) for examples and interpretation.
-For a single calculation, an input, preparation, or runtime failure is
-reported as a diagnostic and does not produce result JSON. A non-converged
-single HF run is a result, not a runtime failure.
+The CLI reports input, basis, preparation, and calculation errors as diagnostics.
+Exit codes follow the Unix convention: zero means complete success; any nonzero
+code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.
+
+| Code | Meaning |
+| --- | --- |
+| `0` | All requested calculations succeeded. Help and version requests also return zero. |
+| `1` | General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error. |
+| `2` | Invalid command-line arguments. |
+| `3` | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge. |
+| `4` | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors. |
+
+These codes apply to TOML, Nickel, and `.rustiq` inputs, with text or JSON output.
+A calculation succeeds only when the complete requested method succeeds: converged
+HF followed by an MP2 error is not a successful calculation. MP2 blocked by HF
+non-convergence counts as non-convergence, so a single such run returns `3`.
+Input validation before execution returns `1`; CLI argument validation returns `2`.
+Fatal infrastructure errors, including output or artifact publication failures,
+return `1` even if some calculations succeeded.
+
+A single HF-only calculation that reaches its iteration limit still returns its
+final-iteration result, with `converged: false` in JSON, but exits with `3`.
+MP2 requires converged HF; a single MP2 run blocked by non-convergence reports a
+diagnostic without result JSON. Recoverable per-entry errors in a batch do not
+prevent later entries from running. The batch JSON records each outcome, and a
+valid JSON document can accompany a nonzero exit code. Output fields remain
+defined by the [versioned schemas](index.md#authoritative-references).
+Convergence alone does not establish the physical validity of a result.
+
+From the repository root, capture the status even when the calculation fails
+(the conditional also works in shells using `set -e`):
+
+```sh
+status=0
+cargo run -- run samples/h2/sto-3g/calculation.toml --format json > result.json || status=$?
+printf 'Exit code: %s\n' "$status"
+```
+
+When using the installed binary, replace `cargo run --` with `rustiq`. In scripts,
+inspect the exit code and, when available, individual JSON outcomes; see the
+[JSON guide](../user-guide/json-output.md).
 
 ## Feature availability
 

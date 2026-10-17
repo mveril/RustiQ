@@ -2,6 +2,7 @@ pub(crate) mod color;
 pub mod commands;
 pub(crate) mod directories;
 pub(crate) mod env;
+pub(crate) mod exit_status;
 pub mod ux;
 
 pub(crate) const BRANDING_NAME: &str = "RustiQ";
