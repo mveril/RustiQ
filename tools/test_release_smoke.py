@@ -35,6 +35,8 @@ class ReleaseSmokeTests(unittest.TestCase):
             log.write_text("controlled\n")
             if args == ["--help"]:
                 return "usage: rustiq"
+            if args == ["--version", "--verbose"]:
+                return "rustiq 0.1.0-alpha.1\nGit commit: " + "a" * 40 + "\n"
             if args[0] == "run":
                 if isinstance(json_output, Exception):
                     raise json_output
@@ -49,6 +51,17 @@ class ReleaseSmokeTests(unittest.TestCase):
     def validate(self, runner=None):
         return validate(self.archive, self.fixture, self.geometry, self.reference,
                         self.root / "logs", self.checksum, command_runner=runner or self.runner())
+
+    def test_missing_git_provenance(self):
+        original = self.runner()
+
+        def execute(binary, args, cwd, env, log):
+            if args == ["--version", "--verbose"]:
+                return "rustiq 0.1.0-alpha.1\nGit commit: unknown\n"
+            return original(binary, args, cwd, env, log)
+
+        with self.assertRaisesRegex(ValueError, "lacks Git provenance"):
+            self.validate(runner=execute)
 
     def test_missing_executable(self):
         empty = self.root / "empty.tar.gz"

@@ -245,6 +245,16 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert_success(&output);
 
     let stdout = strip_ansi(&String::from_utf8_lossy(&output.stdout));
+    let version_output = run_rustiq(&["--version", "--verbose"]);
+    assert_success(&version_output);
+    let version_text = String::from_utf8(version_output.stdout).unwrap();
+    let commit_line = version_text.lines().nth(1).unwrap();
+    let banner_lines: Vec<_> = stdout.lines().collect();
+    let version_index = banner_lines
+        .iter()
+        .position(|line| line.trim() == format!("v{}", env!("CARGO_PKG_VERSION")))
+        .unwrap();
+    assert_eq!(banner_lines[version_index + 1].trim(), commit_line);
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));

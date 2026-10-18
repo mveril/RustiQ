@@ -142,6 +142,16 @@
             commonCargoArgs
             // {
               inherit cargoArtifacts;
+              RUSTIQ_BUILD_GIT_COMMIT = pkgs.lib.removeSuffix "-dirty" (
+                inputs.self.rev or inputs.self.dirtyRev or "unknown"
+              );
+              RUSTIQ_BUILD_GIT_STATE =
+                if inputs.self ? rev then
+                  "clean"
+                else if inputs.self ? dirtyRev then
+                  "dirty"
+                else
+                  "unknown";
               postInstall = ''
                 mkdir -p "$out/share/doc/rustiq"
                 cp COPYING LICENSE-MIT LICENSE-APACHE DISTRIBUTION.md THIRD-PARTY-NOTICES.txt \

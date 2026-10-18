@@ -6,6 +6,44 @@ binary. In a source checkout without an installed executable, replace the
 `rustiq --help` and `rustiq <command> --help` show the
 options supported by the installed build.
 
+## Binary version and build details
+
+`rustiq --version` (or `rustiq -V`) prints the package version on one line.
+Use `rustiq --version --verbose` (or `rustiq -V -v`) for build details; the
+two flags can also appear in reverse order. These requests return exit code
+zero and write plain text to standard output. The top-level `--verbose` flag
+requires `--version`; `basis list --verbose` retains its existing meaning.
+
+The detailed output includes the full Git commit, source state, compilation
+target, Rust compiler version and commit, optimization level, debug information
+setting, and enabled Cargo features. For example, its first two lines have this
+shape (the hash and state depend on the build):
+
+```text
+rustiq 0.1.0-alpha.1
+Git commit: <full commit hash>
+```
+
+Text calculation output also shows the commit and source state immediately
+below the version in every startup-banner style. JSON calculation output
+remains free of banners and retains its existing schema.
+
+All fields are embedded during compilation and remain available when the
+executable is copied elsewhere, without Git or Rust installed. The source
+state is `clean` or `dirty` according to changes to tracked files at build
+time; untracked files are ignored. A clean build prints the commit alone;
+`(dirty)` or `(unknown)` is appended when applicable. When both the commit and
+state are missing, the line is simply `Git commit: unknown`, as can happen when
+compiling an unpacked source archive without Git metadata.
+These fields describe declared build provenance, not a cryptographic identity
+of the executable or proof that two builds are identical.
+
+Packagers may set `RUSTIQ_BUILD_GIT_COMMIT` to a full Git hash (or `unknown`)
+and `RUSTIQ_BUILD_GIT_STATE` to `clean`, `dirty`, or `unknown` **at compilation
+time** to override Git discovery. An injected commit without an injected state
+uses state `unknown`. Nix builds obtain these values from the source flake.
+Setting these variables when running an already built binary has no effect.
+
 ## Commands
 
 | Command | Purpose |
