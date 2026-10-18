@@ -12,7 +12,7 @@ pub(crate) fn print_startup_banner() -> io::Result<()> {
     let package_version = build_info::VERSION;
     let banner = render_branding_name(BRANDING_NAME);
     let style = rand::rng().random_range(0..BANNER_STYLE_COUNT);
-    let mut stdout = color::stdout().lock();
+    let mut stdout = color::stdout_with_hyperlinks().lock();
 
     match style {
         0 => print_plain_banner(&mut stdout, &banner, package_version)?,
@@ -39,7 +39,7 @@ fn print_plain_banner(
 ) -> io::Result<()> {
     write!(writer, "{}", color::title(banner))?;
     writeln!(writer, "{}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "{}", color::value(build_info::git_line()))
+    writeln!(writer, "{}", color::value(build_info::terminal_git_line()))
 }
 
 fn print_framed_banner(
@@ -60,7 +60,17 @@ fn print_framed_banner(
         "{}",
         color::value(format!("{:^width$}", format!("v{package_version}")))
     )?;
-    writeln!(writer, "{}", color::value(format!("{commit:^width$}")))?;
+    let commit_display = build_info::terminal_git_line();
+    let padding = width.saturating_sub(commit.len());
+    let left_padding = padding / 2;
+    let right_padding = padding - left_padding;
+    writeln!(
+        writer,
+        "{}{}{}",
+        color::value(" ".repeat(left_padding)),
+        color::value(commit_display),
+        color::value(" ".repeat(right_padding))
+    )?;
     writeln!(writer, "{}", color::title(&border))
 }
 
@@ -80,7 +90,7 @@ fn print_rule_banner(
         )
     )?;
     writeln!(writer, "{}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "{}", color::value(build_info::git_line()))
+    writeln!(writer, "{}", color::value(build_info::terminal_git_line()))
 }
 
 fn print_compact_banner(
@@ -93,7 +103,11 @@ fn print_compact_banner(
     }
 
     writeln!(writer, "  {}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "  {}", color::value(build_info::git_line()))
+    writeln!(
+        writer,
+        "  {}",
+        color::value(build_info::terminal_git_line())
+    )
 }
 
 fn banner_width(banner: &str) -> usize {

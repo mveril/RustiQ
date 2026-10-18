@@ -46,10 +46,34 @@ fn format_git_line(commit: &str, state: &str) -> String {
     }
 }
 
+pub(crate) fn terminal_git_line() -> String {
+    let commit = git_commit();
+    let linked_commit = if supports_hyperlinks::on(supports_hyperlinks::Stream::Stdout) {
+        hyperlink_commit(commit)
+    } else {
+        commit.to_owned()
+    };
+    format_git_line(&linked_commit, git_state())
+}
+
+fn hyperlink_commit(commit: &str) -> String {
+    if !matches!(commit.len(), 40 | 64) || !commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return commit.to_owned();
+    }
+
+    let repository = env!("CARGO_PKG_REPOSITORY").trim_end_matches('/');
+    if !repository.starts_with("https://") {
+        return commit.to_owned();
+    }
+
+    let url_commit = commit.to_ascii_lowercase();
+    format!("\x1b]8;;{repository}/commit/{url_commit}\x1b\\{commit}\x1b]8;;\x1b\\")
+}
+
 pub(crate) fn print_version(writer: &mut impl Write, verbose: bool) -> io::Result<()> {
     writeln!(writer, "rustiq {VERSION}")?;
     if verbose {
-        writeln!(writer, "{}", git_line())?;
+        writeln!(writer, "{}", terminal_git_line())?;
         for (label, value) in [
             ("Target", env!("VERGEN_CARGO_TARGET_TRIPLE")),
             ("Rust compiler", env!("VERGEN_RUSTC_SEMVER")),
