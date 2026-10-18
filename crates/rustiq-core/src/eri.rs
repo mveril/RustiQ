@@ -762,16 +762,14 @@ mod tests {
 
     /// Helper function to create an H2 geometry.
     fn create_h2_geometry() -> Geometry {
-        let elements = periodic_table::periodic_table();
-        let h = &elements[0]; // Hydrogen
+        let h = mendeleev::Element::H; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.40]);
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.40]);
         Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])
     }
 
     fn create_distant_h2_geometry() -> Geometry {
-        let elements = periodic_table::periodic_table();
-        let h = &elements[0];
+        let h = mendeleev::Element::H;
         let atom1 = Atom::new(h, point![0.0, 0.0, -100.0]);
         let atom2 = Atom::new(h, point![0.0, 0.0, 100.0]);
         Geometry::new(

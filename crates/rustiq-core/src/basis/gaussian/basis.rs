@@ -282,7 +282,7 @@ impl Basis {
 
             if let Some(electron_shells) = basis_file
                 .elements
-                .get(&element.atomic_number)
+                .get(&element.atomic_number())
                 .map(|e| &e.electron_shells)
             {
                 for (shell_index, shell) in electron_shells.iter().enumerate() {
@@ -316,13 +316,13 @@ impl Basis {
                         // Add the shell
                         let shell = Shell::try_new(alpha.clone(), vec![contraction], position)
                             .map_err(|_| BasisError::InvalidContractionNorm {
-                                atomic_number: element.atomic_number,
+                                atomic_number: element.atomic_number(),
                                 shell_index,
                                 coefficient_group,
                             })?;
                         validate_normalized_primitives(
                             &shell,
-                            element.atomic_number,
+                            element.atomic_number(),
                             shell_index,
                             coefficient_group,
                         )?;
@@ -342,7 +342,7 @@ impl Basis {
         // File-wide function types also describe elements absent from the molecule.
         // Validate the actual shells of the requested elements below.
         for atom in &mol.atoms {
-            let atomic_number = atom.element.atomic_number;
+            let atomic_number = atom.element.atomic_number();
             let Some(element) = basis_file.elements.get(&atomic_number) else {
                 return Err(BasisError::MissingElement { atomic_number });
             };
@@ -887,7 +887,6 @@ mod tests {
     use crate::{molecules::atom::Atom, test_utils};
     use approx::assert_abs_diff_eq;
     use nalgebra::*;
-    use periodic_table::periodic_table;
     use proptest::prelude::*;
     use std::collections::{HashMap, HashSet};
 
@@ -1157,7 +1156,7 @@ mod tests {
     #[test]
     fn test_basis_hydrogen_minimal() {
         let basis_file = test_utils::load_minimal_basis_file();
-        let element = periodic_table()[0];
+        let element = mendeleev::Element::list()[0];
         let atom = Atom {
             element,
             position: Point3::origin(),
@@ -1215,7 +1214,7 @@ mod tests {
             tags: Vec::new(),
             version: "test".to_string(),
         };
-        let element = periodic_table()[0];
+        let element = mendeleev::Element::list()[0];
         let atom = Atom {
             element,
             position: Point3::origin(),
@@ -1236,7 +1235,7 @@ mod tests {
         Geometry {
             comment: "Hydrogen Atom".to_string(),
             atoms: vec![Atom {
-                element: periodic_table()[0],
+                element: mendeleev::Element::list()[0],
                 position: Point3::origin(),
             }],
         }

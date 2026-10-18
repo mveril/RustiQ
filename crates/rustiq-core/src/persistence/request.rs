@@ -99,7 +99,7 @@ impl RequestSnapshot {
                 .atoms
                 .iter()
                 .map(|atom| RequestAtom {
-                    atomic_number: atom.element.atomic_number,
+                    atomic_number: atom.element.atomic_number(),
                     position: atom.position.into(),
                 })
                 .collect(),
@@ -163,9 +163,9 @@ impl RequestSnapshot {
             .atoms
             .iter()
             .map(|atom| {
-                let element = periodic_table::periodic_table()
+                let element = mendeleev::Element::list()
                     .iter()
-                    .find(|e| e.atomic_number == atom.atomic_number)
+                    .find(|e| e.atomic_number() == atom.atomic_number)
                     .copied()
                     .ok_or_else(invalid)?;
                 if !atom.position.iter().all(|v| v.is_finite()) {

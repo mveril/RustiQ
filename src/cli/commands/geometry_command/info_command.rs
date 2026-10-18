@@ -58,7 +58,7 @@ impl Runnable for InfoCommand {
 
         let mut counts = BTreeMap::new();
         for atom in &geometry.atoms {
-            *counts.entry(atom.element.symbol).or_insert(0) += 1;
+            *counts.entry(atom.element.symbol()).or_insert(0) += 1;
         }
         for (element, count) in counts {
             writeln!(stdout, "{}: {}", color::value(element), count).into_diagnostic()?;

@@ -32,7 +32,7 @@ reqwest = { version = "0.13", default-features = false, optional = true, feature
 ] }
 nalgebra.workspace = true
 npyz = "0.9.1"
-periodic_table.workspace = true
+mendeleev.workspace = true
 rayon.workspace = true
 relative-path.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"], optional = true }

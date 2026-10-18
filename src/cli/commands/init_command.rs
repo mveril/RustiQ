@@ -104,7 +104,7 @@ impl Runnable for InitCommand {
         let nuclear_charge: i64 = geometry
             .atoms
             .iter()
-            .map(|atom| i64::from(atom.element.atomic_number))
+            .map(|atom| i64::from(atom.element.atomic_number()))
             .sum();
         let electrons = nuclear_charge - i64::from(self.charge);
         if electrons <= 0 || electrons > i64::from(i32::MAX) || nuclear_charge > i64::from(i32::MAX)

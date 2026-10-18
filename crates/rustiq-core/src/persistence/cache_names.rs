@@ -80,8 +80,8 @@ static NOUNS: LazyLock<String> = LazyLock::new(|| {
         .iter()
         .map(|word| (*word).to_owned())
         .collect();
-    for element in periodic_table::periodic_table() {
-        let name = element.name.to_ascii_lowercase();
+    for element in mendeleev::Element::list() {
+        let name = element.name().to_ascii_lowercase();
         if !nouns.contains(&name) {
             nouns.push(name);
         }
@@ -270,9 +270,9 @@ mod tests {
         assert_eq!(nouns.len(), NOUNS.split_whitespace().count());
         assert!(nouns.contains("quanta"));
         assert!(!nouns.contains("quantum"));
-        assert_eq!(periodic_table::periodic_table().len(), 118);
-        for element in periodic_table::periodic_table() {
-            assert!(nouns.contains(element.name.to_ascii_lowercase().as_str()));
+        assert_eq!(mendeleev::Element::list().len(), 118);
+        for element in mendeleev::Element::list() {
+            assert!(nouns.contains(element.name().to_ascii_lowercase().as_str()));
         }
         let mut rng = ChaCha8Rng::from_seed([0; 32]);
         for name in WORDS.namer(2, "-").iter(&mut rng).take(512) {

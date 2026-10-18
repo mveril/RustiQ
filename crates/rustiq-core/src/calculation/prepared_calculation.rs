@@ -48,12 +48,12 @@ impl PreparedCalculation {
         let atoms = context
             .atoms()
             .map(|(atomic_number, position)| {
-                let element = periodic_table::periodic_table()
+                let element = mendeleev::Element::list()
                     .iter()
-                    .find(|element| element.atomic_number == atomic_number)
+                    .find(|element| element.atomic_number() == atomic_number)
                     .expect("validated portable context uses a known element");
                 Atom::new(
-                    element,
+                    *element,
                     nalgebra::Point3::new(position[0], position[1], position[2]),
                 )
             })

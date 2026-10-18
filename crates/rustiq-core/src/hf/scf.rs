@@ -755,8 +755,7 @@ mod tests {
 
     /// Helper function to create a Geometry for H2 molecule.
     fn create_h2_geometry() -> Geometry {
-        let elements = periodic_table::periodic_table();
-        let h = &elements[0]; // Hydrogen
+        let h = mendeleev::Element::H; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.40]); // 0.74 Å ≈ 1.40 Bohr
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.40]);
         Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])

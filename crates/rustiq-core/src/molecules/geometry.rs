@@ -1,4 +1,4 @@
-use super::element_ext::{AtomicMassParseError, ElementExt};
+use super::element_ext::{AtomicWeightError, ElementExt};
 use super::nuclear_repulsion_error::NuclearRepulsionError;
 use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::parse_xyz};
 use core::iter::Iterator;
@@ -100,8 +100,8 @@ impl Geometry {
                 if r_ij == 0.0 {
                     return Err(NuclearRepulsionError::CoincidentAtoms);
                 }
-                let z_i = f64::from(atom_i.element.atomic_number);
-                let z_j = f64::from(atom_j.element.atomic_number);
+                let z_i = f64::from(atom_i.element.atomic_number());
+                let z_j = f64::from(atom_j.element.atomic_number());
                 Ok(energy + z_i * z_j / r_ij)
             },
         )
@@ -135,15 +135,15 @@ impl Geometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an element has an unparseable atomic mass.
-    pub fn mass_center(&self) -> Result<Point3<f64>, AtomicMassParseError> {
+    /// Returns an error if an element has a non-finite atomic weight.
+    pub fn mass_center(&self) -> Result<Point3<f64>, AtomicWeightError> {
         if self.atoms.is_empty() {
             return Ok(Point3::origin());
         }
         let total_mass: f64 = self
             .atoms
             .iter()
-            .map(|a| a.element.atomic_mass_f64())
+            .map(|a| a.element.atomic_weight_f64())
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .sum();
@@ -152,7 +152,7 @@ impl Geometry {
             .iter()
             .map(|a| {
                 a.element
-                    .atomic_mass_f64()
+                    .atomic_weight_f64()
                     .map(|mass| a.position.coords * mass)
             })
             .collect::<Result<Vec<_>, _>>()?
@@ -172,12 +172,12 @@ impl Geometry {
         (self
             .atoms
             .iter()
-            .map(|a| a.position.coords * f64::from(a.element.atomic_number))
+            .map(|a| a.position.coords * f64::from(a.element.atomic_number()))
             .sum::<Vector3<f64>>()
             / self
                 .atoms
                 .iter()
-                .map(|a| f64::from(a.element.atomic_number))
+                .map(|a| f64::from(a.element.atomic_number()))
                 .sum::<f64>())
         .into()
     }
@@ -210,8 +210,8 @@ impl Geometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an element has an unparseable atomic mass.
-    pub fn mass_centering(&mut self) -> Result<(), AtomicMassParseError> {
+    /// Returns an error if an element has a non-finite atomic weight.
+    pub fn mass_centering(&mut self) -> Result<(), AtomicWeightError> {
         let mass_center = self.mass_center()?;
         let translation = Translation3::from(-mass_center.coords);
         self.translate(translation);
@@ -228,12 +228,12 @@ impl Geometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an element has an unparseable atomic mass.
-    pub fn inertia_tensor(&self) -> Result<Matrix3<f64>, AtomicMassParseError> {
+    /// Returns an error if an element has a non-finite atomic weight.
+    pub fn inertia_tensor(&self) -> Result<Matrix3<f64>, AtomicWeightError> {
         self.atoms
             .iter()
             .try_fold(Matrix3::zeros(), |tensor, atom| {
-                let mass = atom.element.atomic_mass_f64()?;
+                let mass = atom.element.atomic_weight_f64()?;
                 let r = atom.position.coords;
                 let atom_tensor = mass * (r.dot(&r) * Matrix3::identity() - r * r.transpose());
 
@@ -245,8 +245,8 @@ impl Geometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if an element has an unparseable atomic mass.
-    pub fn orient_along_principal_axes(&mut self) -> Result<(), AtomicMassParseError> {
+    /// Returns an error if an element has a non-finite atomic weight.
+    pub fn orient_along_principal_axes(&mut self) -> Result<(), AtomicWeightError> {
         self.mass_centering()?;
 
         let eigen = self.inertia_tensor()?.symmetric_eigen();
@@ -290,7 +290,7 @@ impl Display for Geometry {
             writeln!(
                 f,
                 "{:<2} {:>width$.precision$} {:>width$.precision$} {:>width$.precision$}",
-                atom.element.symbol,
+                atom.element.symbol(),
                 atom.position.x,
                 atom.position.y,
                 atom.position.z,
@@ -416,7 +416,6 @@ impl AsMut<[Atom]> for Geometry {
 #[cfg(test)]
 mod tests {
     use nalgebra::{point, Isometry3, Matrix3, Rotation3, Translation3, Vector3};
-    use periodic_table::elements;
     use std::f64::consts::FRAC_PI_2;
 
     use super::*;
@@ -455,8 +454,8 @@ H  0.000000  0.000000   0.370000
         let atom1 = &geometry.atoms[0];
         let atom2 = &geometry.atoms[1];
 
-        assert_eq!(atom1.element.symbol, "H");
-        assert_eq!(atom2.element.symbol, "H");
+        assert_eq!(atom1.element.symbol(), "H");
+        assert_eq!(atom2.element.symbol(), "H");
 
         assert!((atom1.position.x - expected_position1.x).abs() < 1e-6);
         assert!((atom1.position.y - expected_position1.y).abs() < 1e-6);
@@ -470,8 +469,11 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_geometry_display() {
         let point_angstrom = point!(0.0, 0.0, -0.370_000);
-        let atom1 = Atom::new(&elements::H, point_angstrom);
-        let atom2 = Atom::new(&elements::H, Point3::new(0.0, 0.0, -point_angstrom.z));
+        let atom1 = Atom::new(mendeleev::Element::H, point_angstrom);
+        let atom2 = Atom::new(
+            mendeleev::Element::H,
+            Point3::new(0.0, 0.0, -point_angstrom.z),
+        );
         let geometry = Geometry::new(
             "Hydrogen molecule (centered)".to_string(),
             vec![atom1, atom2],
@@ -496,8 +498,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Translate".to_string(),
             vec![
-                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
-                Atom::new(&elements::HE, point![1.0, 2.0, 3.0]),
+                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::He, point![1.0, 2.0, 3.0]),
             ],
         );
 
@@ -511,7 +513,7 @@ H  0.000000  0.000000   0.370000
     fn test_rotate_geometry() {
         let mut geometry = Geometry::new(
             "Rotate".to_string(),
-            vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
+            vec![Atom::new(mendeleev::Element::H, point![1.0, 0.0, 0.0])],
         );
 
         geometry.rotate(Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2));
@@ -523,7 +525,7 @@ H  0.000000  0.000000   0.370000
     fn test_transform_geometry_with_isometry() {
         let mut geometry = Geometry::new(
             "Transform".to_string(),
-            vec![Atom::new(&elements::H, point![1.0, 0.0, 0.0])],
+            vec![Atom::new(mendeleev::Element::H, point![1.0, 0.0, 0.0])],
         );
         let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2);
         let translation = Translation3::new(0.0, 1.0, 0.0);
@@ -539,8 +541,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Center".to_string(),
             vec![
-                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
-                Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::He, point![2.0, 0.0, 0.0]),
             ],
         );
 
@@ -565,8 +567,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Mass center".to_string(),
             vec![
-                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
-                Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::He, point![2.0, 0.0, 0.0]),
             ],
         );
 
@@ -580,8 +582,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Charge center".to_string(),
             vec![
-                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
-                Atom::new(&elements::HE, point![2.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::He, point![2.0, 0.0, 0.0]),
             ],
         );
 
@@ -597,11 +599,11 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new(
             "Inertia tensor".to_string(),
             vec![
-                Atom::new(&elements::H, point![1.0, 2.0, 3.0]),
-                Atom::new(&elements::H, point![-2.0, 0.5, 1.0]),
+                Atom::new(mendeleev::Element::H, point![1.0, 2.0, 3.0]),
+                Atom::new(mendeleev::Element::H, point![-2.0, 0.5, 1.0]),
             ],
         );
-        let mass = elements::H.atomic_mass_f64().unwrap();
+        let mass = mendeleev::Element::H.atomic_weight_f64().unwrap();
         let expected = mass
             * Matrix3::new(
                 13.0 + 1.25,
@@ -623,9 +625,9 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Orient".to_string(),
             vec![
-                Atom::new(&elements::O, point![1.0, 2.0, 0.5]),
-                Atom::new(&elements::H, point![2.2, 2.4, 1.7]),
-                Atom::new(&elements::H, point![0.4, 3.1, 1.2]),
+                Atom::new(mendeleev::Element::O, point![1.0, 2.0, 0.5]),
+                Atom::new(mendeleev::Element::H, point![2.2, 2.4, 1.7]),
+                Atom::new(mendeleev::Element::H, point![0.4, 3.1, 1.2]),
             ],
         );
 
@@ -643,10 +645,10 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Orient distances".to_string(),
             vec![
-                Atom::new(&elements::C, point![1.0, -0.4, 0.2]),
-                Atom::new(&elements::O, point![0.2, 1.3, -0.6]),
-                Atom::new(&elements::H, point![-0.8, 0.1, 1.5]),
-                Atom::new(&elements::H, point![1.9, 0.6, 1.1]),
+                Atom::new(mendeleev::Element::C, point![1.0, -0.4, 0.2]),
+                Atom::new(mendeleev::Element::O, point![0.2, 1.3, -0.6]),
+                Atom::new(mendeleev::Element::H, point![-0.8, 0.1, 1.5]),
+                Atom::new(mendeleev::Element::H, point![1.9, 0.6, 1.1]),
             ],
         );
         let original_distances = pairwise_distances(&geometry);
@@ -676,8 +678,8 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_nucl_repulsion_h2() {
         // Create a simple geometry for the H2 molecule
-        let atom1 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
-        let atom2 = Atom::new(&elements::H, point![0.0, 0.0, 1.40]);
+        let atom1 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]);
+        let atom2 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 1.40]);
 
         let geometry = Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2]);
 
@@ -700,8 +702,8 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new(
             "Coincident atoms".to_string(),
             vec![
-                Atom::new(&elements::H, point![0.0, 0.0, 0.0]),
-                Atom::new(&elements::HE, point![0.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(mendeleev::Element::He, point![0.0, 0.0, 0.0]),
             ],
         );
 
@@ -714,9 +716,9 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_nucl_repulsion_h3() {
         // Create a geometry for a hypothetical linear H3 system
-        let atom1 = Atom::new(&elements::H, point![0.0, 0.0, -1.0]);
-        let atom2 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
-        let atom3 = Atom::new(&elements::H, point![0.0, 0.0, 1.0]);
+        let atom1 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, -1.0]);
+        let atom2 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]);
+        let atom3 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 1.0]);
 
         let geometry = Geometry::new(
             "Hydrogen molecule (H3)".to_string(),
@@ -739,9 +741,9 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_nucl_repulsion_he_h2() {
         // Create a geometry for a system with one He atom and H2
-        let helium = Atom::new(&elements::HE, point![0.0, 0.0, -2.0]);
-        let atom_h1 = Atom::new(&elements::H, point![0.0, 0.0, 0.0]);
-        let atom_h2 = Atom::new(&elements::H, point![0.0, 0.0, 1.0]);
+        let helium = Atom::new(mendeleev::Element::He, point![0.0, 0.0, -2.0]);
+        let atom_h1 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]);
+        let atom_h2 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 1.0]);
 
         let geometry = Geometry::new(
             "Helium and Hydrogen molecule".to_string(),

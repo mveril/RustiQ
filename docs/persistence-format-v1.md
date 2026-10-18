@@ -47,7 +47,7 @@ prints `No cache entries found.`
 
 Entries receive persistent English aliases such as `calm-photon` or
 `quiet-xenon`, generated with `petname`. Nouns include scientific terms (including
-`quanta`) and all 118 element names from `periodic_table`. Existing names remain
+`quanta`) and all 118 element names from `mendeleev`. Existing names remain
 unchanged when the vocabulary changes. Names are management metadata, not part
 of scientific identity, the manifest, or NPY:
 

@@ -9,4 +9,4 @@ pub mod nuclear_repulsion_error;
 pub mod units;
 pub(crate) mod xyz_parser;
 
-pub use element_ext::AtomicMassParseError;
+pub use element_ext::AtomicWeightError;

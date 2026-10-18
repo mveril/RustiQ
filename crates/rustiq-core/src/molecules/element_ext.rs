@@ -1,41 +1,41 @@
-use periodic_table::Element;
+use mendeleev::Element;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[error("Unable to parse atomic mass '{mass}': {source}")]
-pub struct AtomicMassParseError {
-    mass: &'static str,
-    #[source]
-    source: std::num::ParseFloatError,
+#[error("Element {symbol} has a non-finite atomic weight")]
+pub struct AtomicWeightError {
+    symbol: &'static str,
 }
 
 pub(crate) trait ElementExt {
-    fn atomic_mass_f64(&self) -> Result<f64, AtomicMassParseError>;
+    fn atomic_weight_f64(&self) -> Result<f64, AtomicWeightError>;
 }
 
 impl ElementExt for Element {
-    fn atomic_mass_f64(&self) -> Result<f64, AtomicMassParseError> {
-        let mass = self.atomic_mass;
-        mass.split_once('(')
-            .map_or(mass, |(before, _)| before)
-            .trim_matches(['[', ']'])
-            .parse::<f64>()
-            .map_err(|source| AtomicMassParseError { mass, source })
+    fn atomic_weight_f64(&self) -> Result<f64, AtomicWeightError> {
+        let weight = f64::from(self.atomic_weight());
+        if weight.is_finite() {
+            Ok(weight)
+        } else {
+            Err(AtomicWeightError {
+                symbol: self.symbol(),
+            })
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use periodic_table::periodic_table;
+    use mendeleev::Element;
 
     use super::ElementExt;
 
     #[test]
-    fn test_atomic_mass_parses_for_all_classic_elements() {
-        for element in periodic_table() {
+    fn test_atomic_weight_is_finite_for_all_elements() {
+        for element in Element::iter() {
             element
-                .atomic_mass_f64()
-                .unwrap_or_else(|err| panic!("{}: {}", element.symbol, err));
+                .atomic_weight_f64()
+                .unwrap_or_else(|err| panic!("{}: {}", element.symbol(), err));
         }
     }
 }

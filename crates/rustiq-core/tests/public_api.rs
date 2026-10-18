@@ -28,7 +28,7 @@ use rustiq_core::{
 };
 
 fn geometry() -> Geometry {
-    let hydrogen = &periodic_table::periodic_table()[0];
+    let hydrogen = mendeleev::Element::H;
     Geometry::new(
         "H2".into(),
         vec![
