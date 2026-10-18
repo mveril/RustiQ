@@ -35,9 +35,11 @@ time; untracked files are ignored. A clean build prints the commit alone;
 `(dirty)` or `(unknown)` is appended when applicable. When both the commit and
 state are missing, the line is simply `Git commit: unknown`, as can happen when
 compiling an unpacked source archive without Git metadata.
-When stdout is a terminal that supports hyperlinks, the commit hash links to
-that commit in the repository. Redirected output stays plain text unless
-`FORCE_HYPERLINK` explicitly enables links.
+When stdout is a terminal that supports hyperlinks, the Git commit hash links to
+that commit in the RustiQ repository, and the Rust compiler commit links to its
+commit in the [Rust compiler repository](https://github.com/rust-lang/rust).
+Redirected output stays plain text unless `FORCE_HYPERLINK` explicitly enables
+links.
 These fields describe declared build provenance, not a cryptographic identity
 of the executable or proof that two builds are identical.
 

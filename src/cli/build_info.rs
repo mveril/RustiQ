@@ -57,11 +57,19 @@ pub(crate) fn terminal_git_line() -> String {
 }
 
 fn hyperlink_commit(commit: &str) -> String {
+    hyperlink_to_commit(commit, env!("CARGO_PKG_REPOSITORY"))
+}
+
+fn hyperlink_rustc_commit(commit: &str) -> String {
+    hyperlink_to_commit(commit, "https://github.com/rust-lang/rust")
+}
+
+fn hyperlink_to_commit(commit: &str, repository: &str) -> String {
     if !matches!(commit.len(), 40 | 64) || !commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return commit.to_owned();
     }
 
-    let repository = env!("CARGO_PKG_REPOSITORY").trim_end_matches('/');
+    let repository = repository.trim_end_matches('/');
     if !repository.starts_with("https://") {
         return commit.to_owned();
     }
@@ -77,7 +85,17 @@ pub(crate) fn print_version(writer: &mut impl Write, verbose: bool) -> io::Resul
         for (label, value) in [
             ("Target", env!("VERGEN_CARGO_TARGET_TRIPLE")),
             ("Rust compiler", env!("VERGEN_RUSTC_SEMVER")),
-            ("Rust compiler commit", env!("VERGEN_RUSTC_COMMIT_HASH")),
+        ] {
+            writeln!(writer, "{label}: {}", known(value))?;
+        }
+        let rustc_commit = known(env!("VERGEN_RUSTC_COMMIT_HASH"));
+        let rustc_commit = if supports_hyperlinks::on(supports_hyperlinks::Stream::Stdout) {
+            hyperlink_rustc_commit(rustc_commit)
+        } else {
+            rustc_commit.to_owned()
+        };
+        writeln!(writer, "Rust compiler commit: {rustc_commit}")?;
+        for (label, value) in [
             ("Optimization level", env!("VERGEN_CARGO_OPT_LEVEL")),
             ("Debug information", env!("VERGEN_CARGO_DEBUG")),
         ] {
