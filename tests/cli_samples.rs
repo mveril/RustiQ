@@ -538,7 +538,7 @@ type = "CoreHamiltonian"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_error(&output);
+    assert_eq!(output.status.code(), Some(3));
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -577,7 +577,7 @@ type = "CoreHamiltonian"
             .unwrap();
             let output =
                 run_rustiq_with_data_home(&["run", path.to_str().unwrap()], directory.path());
-            assert_success(&output);
+            assert_eq!(output.status.code(), Some(if converged { 0 } else { 3 }));
             let text = String::from_utf8_lossy(&output.stdout);
             assert!(text.contains(if converged {
                 "SCF converged after"
@@ -597,7 +597,7 @@ type = "CoreHamiltonian"
                 &["run", path.to_str().unwrap(), "--format", "json"],
                 directory.path(),
             );
-            assert_success(&output);
+            assert_eq!(output.status.code(), Some(if converged { 0 } else { 3 }));
             let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
             assert_eq!(value["schema_version"], 1);
             assert_eq!(value["calculation"]["hf"]["converged"], converged);
@@ -693,7 +693,7 @@ type = "CoreHamiltonian"
 
     let output = run_rustiq_with_data_home(&["run", toml_path.to_str().unwrap()], &temp_root);
 
-    assert_error(&output);
+    assert_eq!(output.status.code(), Some(3));
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1294,4 +1294,12 @@ fn run_resolves_stdin_geometry_from_callers_directory() {
     let output = child.wait_with_output().unwrap();
     assert_success(&output);
     serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap();
+}
+
+#[test]
+fn informational_and_invalid_arguments_keep_conventional_exit_codes() {
+    for args in [["--help"], ["--version"]] {
+        assert_eq!(run_rustiq(&args).status.code(), Some(0));
+    }
+    assert_eq!(run_rustiq(&["--invalid-option"]).status.code(), Some(2));
 }
