@@ -48,20 +48,11 @@ impl<T: ExecutionResult, E> CampaignResult<T, E> {
     }
 }
 
-/// Synchronous CLI notifications; scientific events remain in rustiq-core.
-pub(crate) enum CampaignEvent<'a, T, E> {
-    /// All items were attempted. Recoverable errors remain in the results.
-    Completed(&'a CampaignResult<T, E>),
-}
-
 pub(crate) type BatchExecutionResult<T, E> = Result<CampaignResult<T, E>, E>;
 
 /// Execute each item once, in iterator order. Fatal errors stop the batch;
 /// recoverable errors are retained so later items still run.
-pub(crate) fn execute_batch<I, Item>(
-    items: I,
-    mut events: impl FnMut(CampaignEvent<'_, Item::Output, Item::Error>),
-) -> BatchExecutionResult<Item::Output, Item::Error>
+pub(crate) fn execute_batch<I, Item>(items: I) -> BatchExecutionResult<Item::Output, Item::Error>
 where
     I: IntoIterator<Item = Item>,
     Item: Executable,
@@ -74,18 +65,14 @@ where
             result => results.push(result),
         }
     }
-    let campaign = CampaignResult { results };
-    events(CampaignEvent::Completed(&campaign));
-    Ok(campaign)
+    Ok(CampaignResult { results })
 }
 
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
 
-    use super::{
-        execute_batch, BatchSummary, CampaignEvent, Executable, ExecutionError, ExecutionResult,
-    };
+    use super::{execute_batch, BatchSummary, Executable, ExecutionError, ExecutionResult};
 
     #[derive(Debug, PartialEq, Eq)]
     enum TestError {
@@ -127,18 +114,7 @@ mod tests {
                 result,
                 seen: &seen,
             });
-        let mut completions = 0;
-        let campaign = execute_batch(tasks, |event| {
-            let CampaignEvent::Completed(campaign) = event;
-            assert_eq!(*seen.borrow(), [0, 1, 2]);
-            assert_eq!(
-                campaign.results,
-                [Ok(1), Err(TestError::Recoverable), Ok(3)]
-            );
-            completions += 1;
-        })
-        .unwrap();
-        assert_eq!(completions, 1);
+        let campaign = execute_batch(tasks).unwrap();
         assert_eq!(
             campaign.results,
             [Ok(1), Err(TestError::Recoverable), Ok(3)]
@@ -162,28 +138,14 @@ mod tests {
             result,
             seen: &seen,
         });
-        let mut completed = false;
-        assert_eq!(
-            execute_batch(tasks, |_| {
-                completed = true;
-            }),
-            Err(TestError::Fatal)
-        );
-        assert!(!completed);
+        assert_eq!(execute_batch(tasks), Err(TestError::Fatal));
         assert_eq!(*seen.borrow(), [0, 1, 2]);
     }
 
     #[test]
     fn empty_batch_returns_no_results() {
-        let mut completions = 0;
-        let campaign = execute_batch(std::iter::empty::<Task<'_>>(), |event| {
-            let CampaignEvent::Completed(campaign) = event;
-            assert_eq!(campaign.results, []);
-            completions += 1;
-        })
-        .unwrap();
+        let campaign = execute_batch(std::iter::empty::<Task<'_>>()).unwrap();
         assert_eq!(campaign.results, []);
-        assert_eq!(completions, 1);
     }
 
     struct TestResult(bool);

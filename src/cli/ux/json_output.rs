@@ -10,7 +10,7 @@ use rustiq_core::{
 
 use crate::cli::{
     commands::{
-        batch_orchestration::{CampaignEvent, CampaignResult, ExecutionResult},
+        batch_orchestration::{CampaignResult, ExecutionResult},
         calculation_result::CalculationSummary,
     },
     ux::bat,
@@ -18,15 +18,13 @@ use crate::cli::{
 
 pub(crate) fn print_calculation(result: &CalculationSummary, pretty: bool) -> miette::Result<()> {
     let output = CalculationOutput::from(result);
-    output.ensure_finite().into_diagnostic()?;
     print_json(&output, pretty)
 }
 
-pub(crate) fn on_campaign_event<E: std::fmt::Display>(
-    event: &CampaignEvent<'_, CalculationSummary, E>,
+pub(crate) fn print_campaign<E: std::fmt::Display>(
+    campaign: &CampaignResult<CalculationSummary, E>,
     pretty: bool,
 ) -> miette::Result<()> {
-    let CampaignEvent::Completed(campaign) = event;
     let output = BatchOutput::from_campaign(campaign).into_diagnostic()?;
     print_json(&output, pretty)
 }
@@ -144,40 +142,6 @@ impl CalculationOutput {
             },
         }
     }
-
-    /// Reject values that JSON would silently convert to null before serializing.
-    pub(crate) fn ensure_finite(&self) -> Result<(), serde_json::Error> {
-        let hf = &self.calculation.hf;
-        let mut values = vec![
-            hf.electronic_energy,
-            hf.nuclear_repulsion_energy,
-            hf.total_energy,
-            hf.delta_energy,
-            hf.residual_norm,
-            hf.orthogonalization.relative_linear_dependency_threshold,
-        ];
-        if let Some(spin) = &hf.spin {
-            values.extend([
-                spin.s_squared,
-                spin.ideal_s_squared,
-                spin.spin_contamination,
-            ]);
-        }
-        if let Some(mp2) = &self.calculation.mp2 {
-            values.extend([
-                mp2.correlation_energy,
-                mp2.electronic_energy,
-                mp2.total_energy,
-            ]);
-        }
-        if values.into_iter().all(f64::is_finite) {
-            Ok(())
-        } else {
-            Err(<serde_json::Error as serde::ser::Error>::custom(
-                "calculation result contains a non-finite floating-point value",
-            ))
-        }
-    }
 }
 
 #[derive(Debug, Serialize)]
@@ -197,8 +161,10 @@ impl BatchOutput {
             .map(|outcome| {
                 let outcome = match outcome {
                     Ok(result) => {
+                        result.ensure_finite().map_err(|error| {
+                            <serde_json::Error as serde::ser::Error>::custom(error)
+                        })?;
                         let output = CalculationOutput::from(result);
-                        output.ensure_finite()?;
                         if result.is_converged() {
                             BatchOutcome::Success { result: output }
                         } else {
@@ -398,8 +364,9 @@ mod tests {
     fn json_output_rejects_non_finite_values() {
         let mut result = scf_result();
         result.total_energy = f64::NAN;
-        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, true, None);
-        assert!(output.ensure_finite().is_err());
+        let mut summary = summary(true);
+        summary.hf.scf = result;
+        assert!(summary.ensure_finite().is_err());
     }
 
     #[test]
@@ -410,8 +377,30 @@ mod tests {
             ideal_s_squared: 0.75,
             spin_contamination: 0.0,
         });
-        let output = CalculationOutput::new(ResolvedHfMethod::Uhf, &result, true, None);
-        assert!(output.ensure_finite().is_err());
+        let mut summary = summary(true);
+        summary.hf.scf = result;
+        assert!(summary.ensure_finite().is_err());
+    }
+
+    #[test]
+    fn summary_validation_covers_json_threshold_and_mp2_fields() {
+        let mut result = summary(true);
+        result.hf.scf.orthogonalization.relative_threshold = f64::NEG_INFINITY;
+        assert!(result.ensure_finite().is_err());
+
+        let mut result = summary(true);
+        result.mp2 = Some(Mp2Result {
+            correlation_energy: f64::INFINITY,
+            electronic_energy: -1.0,
+        });
+        assert!(result.ensure_finite().is_err());
+
+        let mut result = summary(true);
+        result.mp2 = Some(Mp2Result {
+            correlation_energy: -0.01,
+            electronic_energy: f64::NAN,
+        });
+        assert!(result.ensure_finite().is_err());
     }
 
     fn summary(converged: bool) -> CalculationSummary {

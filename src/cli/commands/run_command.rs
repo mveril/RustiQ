@@ -9,9 +9,7 @@ use clap::{ArgAction, ValueEnum};
 use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report, WrapErr};
 
 use super::artifact_session::ArtifactSession;
-use super::batch_orchestration::{
-    self, CampaignEvent, Executable, ExecutionError, ExecutionResult,
-};
+use super::batch_orchestration::{self, Executable, ExecutionError, ExecutionResult};
 use super::calculation_result::{CalculationSummary, CalculationSummaryCollector};
 use crate::cli::{
     self, directories,
@@ -442,7 +440,6 @@ impl RunCommand {
         result.ensure_finite().into_diagnostic()?;
         let publication = artifacts.publish();
         if json_output {
-            result.ensure_finite().into_diagnostic()?;
             json_output::print_calculation(&result, self.pretty)?;
         }
         publication?;
@@ -482,21 +479,16 @@ impl RunCommand {
         I: IntoIterator<Item = Item>,
         Item: Executable<Output = CalculationSummary, Error = CalculationExecutionError>,
     {
-        let mut presentation = Ok(());
-        let mut publication = Ok(());
-        let campaign = batch_orchestration::execute_batch(tasks, |event| {
-            let CampaignEvent::Completed(campaign) = &event;
-            if campaign.summary().failed == 0 {
-                if let Some(artifacts) = artifacts {
-                    publication = artifacts.publish();
-                }
-            }
-            presentation = self.report_campaign(&event, json_output);
-        })
-        .map_err(CalculationExecutionError::into_report)?;
-        presentation?;
-        publication?;
+        let campaign = batch_orchestration::execute_batch(tasks)
+            .map_err(CalculationExecutionError::into_report)?;
         let summary = campaign.summary();
+        let publication = if summary.failed == 0 {
+            artifacts.map_or(Ok(()), ArtifactSession::publish)
+        } else {
+            Ok(())
+        };
+        self.report_campaign(&campaign, json_output)?;
+        publication?;
         if summary.failed + summary.non_converged > 0 {
             let general_errors = campaign.results.iter().filter(|outcome| {
                 matches!(outcome, Err(error) if !exit_status::is_non_convergence(error.report()))
@@ -514,13 +506,15 @@ impl RunCommand {
 
     fn report_campaign(
         &self,
-        event: &CampaignEvent<'_, CalculationSummary, CalculationExecutionError>,
+        campaign: &batch_orchestration::CampaignResult<
+            CalculationSummary,
+            CalculationExecutionError,
+        >,
         json_output: bool,
     ) -> CommandResult {
         if json_output {
-            return json_output::on_campaign_event(event, self.pretty);
+            return json_output::print_campaign(campaign, self.pretty);
         }
-        let CampaignEvent::Completed(campaign) = event;
         for (index, outcome) in campaign.results.iter().enumerate() {
             if let Err(error) = outcome {
                 writeln!(

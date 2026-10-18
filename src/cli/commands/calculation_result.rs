@@ -25,29 +25,30 @@ impl CalculationSummary {
     /// Validate numerical summaries independently of the selected output format.
     pub(crate) fn ensure_finite(&self) -> Result<(), NonFiniteResult> {
         let hf = &self.hf.scf;
-        let mut values = vec![
+        let mut values = [
             hf.electronic_energy,
             hf.nuclear_repulsion_energy,
             hf.total_energy,
             hf.delta_energy,
             hf.residual_norm,
             hf.orthogonalization.relative_threshold,
-        ];
-        if let Some(spin) = &hf.spin {
-            values.extend([
+        ]
+        .into_iter()
+        .chain(hf.spin.into_iter().flat_map(|spin| {
+            [
                 spin.s_squared,
                 spin.ideal_s_squared,
                 spin.spin_contamination,
-            ]);
-        }
-        if let Some(mp2) = &self.mp2 {
-            values.extend([
+            ]
+        }))
+        .chain(self.mp2.iter().flat_map(|mp2| {
+            [
                 mp2.correlation_energy,
                 mp2.electronic_energy,
                 mp2.electronic_energy + hf.nuclear_repulsion_energy,
-            ]);
-        }
-        if values.into_iter().all(f64::is_finite) {
+            ]
+        }));
+        if values.all(f64::is_finite) {
             Ok(())
         } else {
             Err(NonFiniteResult)

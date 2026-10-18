@@ -139,6 +139,14 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
         let result = builder
             .execute_with_events(|event| observer.on_event(event))
             .unwrap();
+        assert_eq!(
+            observer
+                .events
+                .iter()
+                .filter(|&&event| event == "calculation_complete")
+                .count(),
+            1
+        );
         assert_abs_diff_eq!(
             result.hf.summary().scf.total_energy,
             -1.116_759_307_506_361_3,

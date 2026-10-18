@@ -34,14 +34,19 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
         .prepare()
         .unwrap();
     let mut mp2_events = 0;
+    let mut calculation_events = 0;
     let hf = prepared
         .run_hf_with_events(|event| {
             if matches!(event, CalculationEvent::Mp2Completed { .. }) {
                 mp2_events += 1;
             }
+            if matches!(event, CalculationEvent::CalculationCompleted(_)) {
+                calculation_events += 1;
+            }
         })
         .unwrap();
     assert_eq!(mp2_events, 0);
+    assert_eq!(calculation_events, 0);
     hf
 }
 

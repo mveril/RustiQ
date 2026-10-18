@@ -66,12 +66,13 @@ Important options:
 
 Output presentation is selected exclusively by the CLI `--format text|json` option.
 The TOML and Nickel calculation contracts do not accept an `output` section.
-Both result presentations consume calculation events; JSON retains its single
-versioned result document (including the existing batch envelope), without streaming
-intermediate events. For Nickel and `.rustiq` batches, the CLI orchestrator
-supplies all ordered outcomes through one campaign-completion event. The JSON
-formatter builds the batch envelope from this object after execution; fatal
-infrastructure errors prevent campaign completion and produce no batch document.
+Scientific execution emits a completion event after all requested stages complete.
+An HF-only result can be unconverged and still be a completed execution.
+The CLI consumes it to retain a lightweight summary, then selects text or JSON
+presentation after execution. JSON retains its single versioned result document
+(including the existing batch envelope), without streaming intermediate events.
+The campaign runner returns ordered outcomes directly; recoverable failures remain
+in that result and fatal orchestration failures stop the campaign before rendering.
 
 The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
@@ -94,8 +95,11 @@ A calculation succeeds only when the complete requested method succeeds: converg
 HF followed by an MP2 error is not a successful calculation. MP2 blocked by HF
 non-convergence counts as non-convergence, so a single such run returns `3`.
 Input validation before execution returns `1`; CLI argument validation returns `2`.
-Fatal infrastructure errors, including output or artifact publication failures,
-return `1` even if some calculations succeeded.
+Fatal infrastructure errors during execution or output writing return `1` and can
+prevent result JSON from being produced. Artifact publication happens after
+successful scientific execution. If publication then fails, the CLI still writes
+the completed calculation or campaign JSON before returning `1`; this behavior is
+covered by `publication_error_keeps_complete_calculation_and_batch_json`.
 
 A single HF-only calculation that reaches its iteration limit still returns its
 final-iteration result, with `converged: false` in JSON, but exits with `3`.
@@ -255,8 +259,9 @@ optional `artifacts` array. `decision` reports archive selection (`reused`,
 `run FILE.rustiq --format json` uses the regular single-calculation or batch
 result schema but does not include this reuse-decision array: the bundle is the
 implicit artifact source for that mode.
-Publication failures are reported on stderr and return a failing exit status;
-JSON results for a completed calculation or batch may already have been written.
+Publication failures are reported on stderr and return a failing exit status.
+Since publication follows scientific execution, JSON for the completed calculation
+or campaign is written before that publication error is returned.
 
 `artifact inspect PATH` displays requested and resolved scientific snapshots,
 producer details, artifact representations, and captured source names and sizes.
