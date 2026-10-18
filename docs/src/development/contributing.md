@@ -72,6 +72,20 @@ solution exposes `mp2()`. This type boundary prevents accidental MP2 execution
 on unconverged orbitals. Cloned solutions share immutable scientific data;
 execution errors retain completed HF outcomes when available.
 
+The core emits `CalculationCompleted` once after all requested stages complete.
+An HF-only run emits it even when the returned HF outcome is unconverged; execution
+completion and convergence are separate facts. A failing requested MP2 stage leaves
+the earlier HF notification available but emits no calculation completion. Callbacks
+borrow results synchronously; retaining them requires copying.
+The CLI copies only numerical summaries and artifact reports for batch presentation,
+so collecting a campaign does not retain orbital matrices or AO integrals.
+Campaign execution returns one ordered `CampaignResult` directly, including
+recoverable errors. Fatal errors stop execution before presentation. The CLI then
+derives the campaign summary, publishes artifacts when allowed, and renders the
+complete text or versioned JSON document. Publication failure after successful
+scientific execution still leaves the completed JSON on stdout while returning a
+failing process status. Portable bundle reruns use the same result presentation.
+
 The normalized `CalculationRequest` records scientific input without geometry
 paths or frontend source spans. Canonical TOML/XYZ rendering belongs to CLI
 adapters. Core consumers supply explicit paths to `BasisStore::new`; application

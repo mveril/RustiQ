@@ -39,12 +39,6 @@ pub fn parsed_calculation(
             cache: super::cache::CacheConfig {
                 enabled: calculation.cache.enabled,
             },
-            output: super::output::OutputConfig {
-                scf: match calculation.output.scf {
-                    super::resolved::ScfOutput::Normal => super::output::ScfOutput::Normal,
-                    super::resolved::ScfOutput::Quiet => super::output::ScfOutput::Quiet,
-                },
-            },
         },
         hf_config: Some(calculation.hf_config().into_diagnostic()?),
         mp2_config: calculation.mp2_config(),
@@ -115,12 +109,6 @@ pub fn parse_runfile(
         integrals: (&integral_config).into(),
         cache: super::cache::CacheConfig {
             enabled: calculation.cache.enabled,
-        },
-        output: super::output::OutputConfig {
-            scf: match calculation.output.scf {
-                super::resolved::ScfOutput::Normal => super::output::ScfOutput::Normal,
-                super::resolved::ScfOutput::Quiet => super::output::ScfOutput::Quiet,
-            },
         },
     };
     let span = |path: &[&str]| source_map.span(path);

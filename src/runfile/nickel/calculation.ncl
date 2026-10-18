@@ -83,5 +83,4 @@ let Hf = {
   } | default = {},
   integrals | { schwarz_threshold | NonNegative | default = 0.000000000001 } | default = {},
   cache | { enabled | Bool | default = false } | default = {},
-  output | { scf | Choice ["Normal", "Quiet"] | default = "Normal" } | default = {},
 }

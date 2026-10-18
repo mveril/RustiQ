@@ -17,7 +17,7 @@ use crate::runfile::{
     method::MethodConfig,
     molecule::MoleculeConfig,
     mp2::Mp2Config,
-    output::{Defaults, OutputConfig},
+    output::Defaults,
     RunFile,
 };
 use rustiq_core::molecules::{geometry::Geometry, molecule::Molecule, units::Units};
@@ -180,7 +180,6 @@ impl Runnable for InitCommand {
             },
             integrals: IntegralConfig::default(),
             cache: CacheConfig::default(),
-            output: OutputConfig::default(),
         };
         let content = run.output(Defaults::Omit).render().into_diagnostic()?;
         let mut temporary = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;

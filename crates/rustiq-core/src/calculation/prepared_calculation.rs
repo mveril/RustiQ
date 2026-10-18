@@ -327,7 +327,9 @@ impl PreparedCalculation {
                 Ok::<_, CalculationExecutionError>(result)
             })
             .transpose()?;
-        Ok(CalculationResult { hf, mp2 })
+        let result = CalculationResult { hf, mp2 };
+        events(CalculationEvent::CalculationCompleted(&result));
+        Ok(result)
     }
 }
 

@@ -57,6 +57,8 @@ pub struct CalculationResult {
 /// References are valid during the callback; retaining data requires copying it.
 /// Basis preparation precedes HF setup and iterations (including finalization).
 /// Completed HF is reported before optional MP2, even if MP2 subsequently fails.
+/// `CalculationCompleted` follows all requested stages and is absent on errors.
+/// Standalone `run_hf_with_events` reports HF completion only.
 /// Scientific errors are returned by execution, not emitted as events. Frontends
 /// retain their own rendering errors; callbacks do not control execution.
 #[non_exhaustive]
@@ -81,6 +83,9 @@ pub enum CalculationEvent<'a> {
         hf: &'a HfCalculationResult,
         result: &'a Mp2Result,
     },
+    /// All requested stages completed successfully; emitted once before returning `Ok`.
+    /// HF-only execution may complete with an unconverged HF outcome.
+    CalculationCompleted(&'a CalculationResult),
 }
 
 /// Shared execution interface for builders and prepared calculations.

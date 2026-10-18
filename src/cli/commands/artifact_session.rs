@@ -15,7 +15,7 @@ use rustiq_core::{
 };
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct ArtifactReport {
     pub name: &'static str,
     pub decision: &'static str,

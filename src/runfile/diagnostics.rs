@@ -151,10 +151,6 @@ pub(crate) fn humanized_runfile_error(
             "The DIIS history size must be an integer greater than or equal to 2.".to_string(),
             "expected a DIIS history size of at least 2".to_string(),
         ),
-        "output.scf" => (
-            "The HF output format must be one of the supported format names.".to_string(),
-            "expected Normal or Quiet".to_string(),
-        ),
         "method.mp2.frozen_orbitals" => (
             "The MP2 frozen orbital count must be a non-negative integer.".to_string(),
             "expected a count of frozen orbitals".to_string(),

@@ -127,9 +127,12 @@ Unconverged results describe the final iteration, not a converged wavefunction.
 One calculation, including an array of length one, produces the single-result
 contract. Larger arrays produce the batch contract in source order, with
 `success`, `non_converged`, or `error` outcomes. Configuration is validated
-before execution. Runtime calculation failures allow later entries to run;
-any failure or nonconvergence makes the batch exit unsuccessfully while its
-JSON remains a complete document. Empty arrays are rejected.
+before execution. Recoverable runtime failures allow later entries to run; fatal
+execution or output errors can stop the campaign before a complete document is
+rendered. Completed campaign JSON records ordered per-entry outcomes, and a
+nonzero exit code can accompany that document. Artifact publication occurs after
+successful execution, so a publication failure preserves the completed JSON but
+still makes the command fail. Empty arrays are rejected.
 
 Compact JSON has no ANSI styling even with forced color. `--pretty` requires
 `--format json` and can add syntax highlighting when colors are enabled;

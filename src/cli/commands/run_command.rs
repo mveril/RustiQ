@@ -9,7 +9,8 @@ use clap::{ArgAction, ValueEnum};
 use miette::{miette, Diagnostic, IntoDiagnostic, NamedSource, Report, WrapErr};
 
 use super::artifact_session::ArtifactSession;
-use super::batch_orchestration::{self, BatchSummary, Executable, ExecutionError, ExecutionResult};
+use super::batch_orchestration::{self, Executable, ExecutionError, ExecutionResult};
+use super::calculation_result::{CalculationSummary, CalculationSummaryCollector};
 use crate::cli::{
     self, directories,
     exit_status::{self, IncompleteBatch, NonConvergence},
@@ -17,10 +18,10 @@ use crate::cli::{
         bat,
         calculation_presentation::{calculation_summary, requested_calculation},
         calculation_report::CalculationReporter,
-        json_output::{self, BatchEntry, BatchError, BatchOutcome, BatchOutput, CalculationOutput},
+        json_output,
     },
 };
-use crate::runfile::{parser::parse_runfile, resolved::ScfOutput};
+use crate::runfile::parser::parse_runfile;
 use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
@@ -122,7 +123,7 @@ struct CalculationTask<'a> {
 }
 
 impl Executable for CalculationTask<'_> {
-    type Output = CalculationOutput;
+    type Output = CalculationSummary;
     type Error = CalculationExecutionError;
 
     fn execute(self) -> Result<Self::Output, Self::Error> {
@@ -149,6 +150,38 @@ impl Executable for CalculationTask<'_> {
                 .map_err(CalculationExecutionError::recoverable)?;
         }
         Ok(result)
+    }
+}
+
+struct PortableCalculationTask<'a> {
+    command: &'a RunCommand,
+    data: RustiQData,
+    position: usize,
+    total: usize,
+}
+
+impl Executable for PortableCalculationTask<'_> {
+    type Output = CalculationSummary;
+    type Error = CalculationExecutionError;
+
+    fn execute(self) -> Result<Self::Output, Self::Error> {
+        if self.command.format == CalculationOutputFormat::Text {
+            writeln!(
+                cli::color::stdout(),
+                "\nCalculation {}/{}",
+                self.position,
+                self.total
+            )
+            .map_err(ReportWriteError)
+            .map_err(CalculationExecutionError::fatal)?;
+        }
+        self.command.execute_portable_calculation(self.data)
+    }
+}
+
+impl std::fmt::Display for CalculationExecutionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}", self.report())
     }
 }
 
@@ -321,12 +354,12 @@ impl RunCommand {
             .map_err(CalculationExecutionError::into_report)?;
         result.ensure_finite().into_diagnostic()?;
         if json_output {
-            json_output::print_json(&result, self.pretty)?;
+            json_output::print_calculation(&result, self.pretty)?;
         }
         Self::check_convergence(&result)
     }
 
-    fn check_convergence(result: &CalculationOutput) -> CommandResult {
+    fn check_convergence(result: &CalculationSummary) -> CommandResult {
         if result.is_converged() {
             Ok(())
         } else {
@@ -340,93 +373,37 @@ impl RunCommand {
         json_output: bool,
     ) -> CommandResult {
         let total = calculations.len();
-        let mut outcomes = Vec::with_capacity(total);
-        for (index, data) in calculations.into_iter().enumerate() {
-            if !json_output {
-                writeln!(
-                    cli::color::stdout(),
-                    "\nCalculation {}/{}",
-                    index + 1,
-                    total
-                )
-                .into_diagnostic()?;
-            }
-            match self.execute_portable_calculation(data) {
-                Err(error) if error.is_fatal() => {
-                    return Err(CalculationExecutionError::into_report(error));
-                }
-                outcome => outcomes.push(outcome),
-            }
-        }
-        let general_errors = outcomes.iter().filter(|outcome| {
-            matches!(outcome, Err(error) if !exit_status::is_non_convergence(error.report()))
-        }).count();
-        let summary = BatchSummary::from_results(&outcomes);
-        let mut entries = Vec::with_capacity(outcomes.len());
-        for (index, outcome) in outcomes.into_iter().enumerate() {
-            let outcome = match outcome {
-                Ok(result) if result.is_converged() => BatchOutcome::Success { result },
-                Ok(result) => BatchOutcome::NonConverged { result },
-                Err(error) => {
-                    let error = error.into_report();
-                    if !json_output {
-                        writeln!(io::stderr().lock(), "Calculation {}: {error:?}", index + 1)
-                            .into_diagnostic()?;
-                    }
-                    BatchOutcome::Error {
-                        error: BatchError {
-                            message: format!("{error}"),
-                        },
-                    }
-                }
-            };
-            entries.push(BatchEntry { outcome });
-        }
-        if json_output {
-            json_output::print_json(
-                &BatchOutput {
-                    schema_version: 1,
-                    kind: "batch",
-                    calculations: entries,
-                },
-                self.pretty,
-            )?;
-        } else {
-            writeln!(
-                cli::color::stdout(),
-                "\nBatch: {} succeeded, {} non-converged, {} failed",
-                summary.succeeded,
-                summary.non_converged,
-                summary.failed
-            )
-            .into_diagnostic()?;
-        }
-        if summary.failed + summary.non_converged > 0 {
-            return Err(IncompleteBatch {
-                succeeded: summary.succeeded,
-                non_converged: summary.non_converged,
-                failed: summary.failed,
-                general_errors,
-            }
-            .into());
-        }
-        Ok(())
+        let tasks =
+            calculations
+                .into_iter()
+                .enumerate()
+                .map(|(index, data)| PortableCalculationTask {
+                    command: self,
+                    data,
+                    position: index + 1,
+                    total,
+                });
+        self.execute_campaign(tasks, json_output, None)
     }
 
     fn execute_portable_calculation(
         &self,
         data: RustiQData,
-    ) -> Result<CalculationOutput, CalculationExecutionError> {
+    ) -> Result<CalculationSummary, CalculationExecutionError> {
         let prepared = data
             .prepare_calculation()
             .into_diagnostic()
             .map_err(CalculationExecutionError::recoverable)?;
         let show_scf = true;
         let json_output = self.format == CalculationOutputFormat::Json;
-        let result = {
+        let mut collector = CalculationSummaryCollector::default();
+        {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
-            let outcome = prepared.execute_with_events(|event| reporter.on_event(event));
+            let outcome = prepared.execute_with_events(|event| {
+                collector.on_event(&event);
+                reporter.on_event(event);
+            });
             if let Some(error) = reporter.take_error() {
                 return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
@@ -434,7 +411,7 @@ impl RunCommand {
                 .into_diagnostic()
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        let output = CalculationOutput::from(&result);
+        let output = collector.finish();
         output
             .ensure_finite()
             .into_diagnostic()
@@ -463,8 +440,7 @@ impl RunCommand {
         result.ensure_finite().into_diagnostic()?;
         let publication = artifacts.publish();
         if json_output {
-            result.ensure_finite().into_diagnostic()?;
-            json_output::print_json(&result, self.pretty)?;
+            json_output::print_calculation(&result, self.pretty)?;
         }
         publication?;
         Self::check_convergence(&result)
@@ -490,75 +466,75 @@ impl RunCommand {
                 source_content,
                 batch_position: Some((index + 1, total)),
             });
-        let outcomes = batch_orchestration::execute_batch(tasks)
-            .map_err(CalculationExecutionError::into_report)?;
+        self.execute_campaign(tasks, json_output, Some(artifacts))
+    }
 
-        let general_errors = outcomes.iter().filter(|outcome| {
-            matches!(outcome, Err(error) if !exit_status::is_non_convergence(error.report()))
-        }).count();
-        let BatchSummary {
-            succeeded,
-            non_converged,
-            failed,
-        } = BatchSummary::from_results(&outcomes);
-        let publication = if failed == 0 {
-            artifacts.publish()
+    fn execute_campaign<I, Item>(
+        &self,
+        tasks: I,
+        json_output: bool,
+        artifacts: Option<&ArtifactSession>,
+    ) -> CommandResult
+    where
+        I: IntoIterator<Item = Item>,
+        Item: Executable<Output = CalculationSummary, Error = CalculationExecutionError>,
+    {
+        let campaign = batch_orchestration::execute_batch(tasks)
+            .map_err(CalculationExecutionError::into_report)?;
+        let summary = campaign.summary();
+        let publication = if summary.failed == 0 {
+            artifacts.map_or(Ok(()), ArtifactSession::publish)
         } else {
             Ok(())
         };
-        let entries = outcomes
-            .into_iter()
-            .enumerate()
-            .map(|(index, outcome)| {
-                let outcome = match outcome {
-                    Ok(result) if result.is_converged() => BatchOutcome::Success { result },
-                    Ok(result) => BatchOutcome::NonConverged { result },
-                    Err(error) => {
-                        let error = error.into_report();
-                        if !json_output {
-                            writeln!(
-                                io::stderr().lock(),
-                                "Calculation {}: {:?}",
-                                index + 1,
-                                error
-                            )
-                            .into_diagnostic()?;
-                        }
-                        BatchOutcome::Error {
-                            error: BatchError {
-                                message: format!("{error}"),
-                            },
-                        }
-                    }
-                };
-                Ok(BatchEntry { outcome })
-            })
-            .collect::<miette::Result<Vec<_>>>()?;
-        if json_output {
-            let batch = BatchOutput {
-                schema_version: 1,
-                kind: "batch",
-                calculations: entries,
-            };
-            json_output::print_json(&batch, self.pretty)?;
-        } else {
-            writeln!(
-                cli::color::stdout(),
-                "\nBatch: {succeeded} succeeded, {non_converged} non-converged, {failed} failed"
-            )
-            .into_diagnostic()?;
-        }
+        self.report_campaign(&campaign, json_output)?;
         publication?;
-        if failed + non_converged > 0 {
+        if summary.failed + summary.non_converged > 0 {
+            let general_errors = campaign.results.iter().filter(|outcome| {
+                matches!(outcome, Err(error) if !exit_status::is_non_convergence(error.report()))
+            }).count();
             return Err(IncompleteBatch {
-                succeeded,
-                non_converged,
-                failed,
+                succeeded: summary.succeeded,
+                non_converged: summary.non_converged,
+                failed: summary.failed,
                 general_errors,
             }
             .into());
         }
         Ok(())
+    }
+
+    fn report_campaign(
+        &self,
+        campaign: &batch_orchestration::CampaignResult<
+            CalculationSummary,
+            CalculationExecutionError,
+        >,
+        json_output: bool,
+    ) -> CommandResult {
+        if json_output {
+            return json_output::print_campaign(campaign, self.pretty);
+        }
+        for (index, outcome) in campaign.results.iter().enumerate() {
+            if let Err(error) = outcome {
+                writeln!(
+                    io::stderr().lock(),
+                    "Calculation {}: {:?}",
+                    index + 1,
+                    error.report()
+                )
+                .into_diagnostic()?;
+            }
+        }
+        let summary = campaign.summary();
+        writeln!(
+            cli::color::stdout(),
+            "\nBatch: {} succeeded, {} non-converged, {} failed",
+            summary.succeeded,
+            summary.non_converged,
+            summary.failed
+        )
+        .into_diagnostic()
     }
 }
 
@@ -573,7 +549,7 @@ impl RunCommand {
         source_name: &str,
         source_content: &str,
         artifacts: &ArtifactSession,
-    ) -> Result<CalculationOutput, CalculationExecutionError> {
+    ) -> Result<CalculationSummary, CalculationExecutionError> {
         let json_output = self.format == CalculationOutputFormat::Json;
         let run = parsed
             .resolved
@@ -617,7 +593,7 @@ impl RunCommand {
             .map_err(ReportWriteError)
             .map_err(CalculationExecutionError::fatal)?;
         }
-        let show_scf = run.output.scf != ScfOutput::Quiet;
+        let show_scf = true;
         let calculation = CalculationBuilder::new(&geom, &basis_file)
             .with_basis_label(&run.basis.name)
             .with_molecule_config(parsed.molecule_config)
@@ -652,14 +628,9 @@ impl RunCommand {
             .prepare(prepared)
             .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
-            let output_format = match run.output.scf {
-                ScfOutput::Normal => crate::runfile::output::ScfOutput::Normal,
-                ScfOutput::Quiet => crate::runfile::output::ScfOutput::Quiet,
-            };
-            let requested =
-                requested_calculation(prepared.request(), run.cache.enabled, output_format)
-                    .into_diagnostic()
-                    .map_err(CalculationExecutionError::recoverable)?;
+            let requested = requested_calculation(prepared.request(), run.cache.enabled)
+                .into_diagnostic()
+                .map_err(CalculationExecutionError::recoverable)?;
             {
                 let mut stdout = cli::color::stdout();
                 writeln!(
@@ -693,10 +664,12 @@ impl RunCommand {
             .map_err(ReportWriteError)
             .map_err(CalculationExecutionError::fatal)?;
         }
+        let mut collector = CalculationSummaryCollector::default();
         let result = {
             let stdout = cli::color::stdout();
             let mut reporter = CalculationReporter::new(stdout.lock(), !json_output, show_scf);
             let outcome = prepared.execute_with_events(|event| {
+                collector.on_event(&event);
                 if let Some(report) = &mut artifact_report {
                     report.on_event(&event);
                 }
@@ -709,7 +682,7 @@ impl RunCommand {
                 .map_err(|error| with_input_source(error, source_name, source_content))
                 .map_err(CalculationExecutionError::recoverable)?
         };
-        let mut output = CalculationOutput::from(&result);
+        let mut output = collector.finish();
         output
             .ensure_finite()
             .into_diagnostic()

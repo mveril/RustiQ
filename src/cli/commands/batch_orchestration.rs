@@ -36,7 +36,19 @@ impl BatchSummary {
     }
 }
 
-pub(crate) type BatchExecutionResult<T, E> = Result<Vec<Result<T, E>>, E>;
+/// Ordered outcomes, independent of presentation and scientific data ownership.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct CampaignResult<T, E> {
+    pub results: Vec<Result<T, E>>,
+}
+
+impl<T: ExecutionResult, E> CampaignResult<T, E> {
+    pub(crate) fn summary(&self) -> BatchSummary {
+        BatchSummary::from_results(&self.results)
+    }
+}
+
+pub(crate) type BatchExecutionResult<T, E> = Result<CampaignResult<T, E>, E>;
 
 /// Execute each item once, in iterator order. Fatal errors stop the batch;
 /// recoverable errors are retained so later items still run.
@@ -53,7 +65,7 @@ where
             result => results.push(result),
         }
     }
-    Ok(results)
+    Ok(CampaignResult { results })
 }
 
 #[cfg(test)]
@@ -102,8 +114,9 @@ mod tests {
                 result,
                 seen: &seen,
             });
+        let campaign = execute_batch(tasks).unwrap();
         assert_eq!(
-            execute_batch(tasks).unwrap(),
+            campaign.results,
             [Ok(1), Err(TestError::Recoverable), Ok(3)]
         );
         assert_eq!(*seen.borrow(), [0, 1, 2]);
@@ -131,7 +144,8 @@ mod tests {
 
     #[test]
     fn empty_batch_returns_no_results() {
-        assert_eq!(execute_batch(std::iter::empty::<Task<'_>>()).unwrap(), []);
+        let campaign = execute_batch(std::iter::empty::<Task<'_>>()).unwrap();
+        assert_eq!(campaign.results, []);
     }
 
     struct TestResult(bool);
