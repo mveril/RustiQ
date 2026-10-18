@@ -1,4 +1,3 @@
-use super::element_ext::{AtomicWeightError, ElementExt};
 use super::nuclear_repulsion_error::NuclearRepulsionError;
 use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::parse_xyz};
 use core::iter::Iterator;
@@ -132,34 +131,23 @@ impl Geometry {
     /// Computes the center of mass using the element atomic masses.
     /// An empty geometry returns the origin as a defensive convention; it is
     /// rejected by [`crate::molecules::Molecule::try_new`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an element has a non-finite atomic weight.
-    pub fn mass_center(&self) -> Result<Point3<f64>, AtomicWeightError> {
+    #[must_use]
+    pub fn mass_center(&self) -> Point3<f64> {
         if self.atoms.is_empty() {
-            return Ok(Point3::origin());
+            return Point3::origin();
         }
         let total_mass: f64 = self
             .atoms
             .iter()
-            .map(|a| a.element.atomic_weight_f64())
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
+            .map(|atom| f64::from(atom.element.atomic_weight()))
             .sum();
-        Ok((self
+        (self
             .atoms
             .iter()
-            .map(|a| {
-                a.element
-                    .atomic_weight_f64()
-                    .map(|mass| a.position.coords * mass)
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
+            .map(|atom| atom.position.coords * f64::from(atom.element.atomic_weight()))
             .sum::<Vector3<f64>>()
             / total_mass)
-            .into())
+            .into()
     }
 
     #[must_use]
@@ -207,15 +195,10 @@ impl Geometry {
     }
 
     /// Translates the geometry so that its center of mass is at the origin.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an element has a non-finite atomic weight.
-    pub fn mass_centering(&mut self) -> Result<(), AtomicWeightError> {
-        let mass_center = self.mass_center()?;
+    pub fn mass_centering(&mut self) {
+        let mass_center = self.mass_center();
         let translation = Translation3::from(-mass_center.coords);
         self.translate(translation);
-        Ok(())
     }
 
     pub fn charge_centering(&mut self) {
@@ -225,31 +208,22 @@ impl Geometry {
     }
 
     /// Computes the inertia tensor about the current coordinate origin.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an element has a non-finite atomic weight.
-    pub fn inertia_tensor(&self) -> Result<Matrix3<f64>, AtomicWeightError> {
-        self.atoms
-            .iter()
-            .try_fold(Matrix3::zeros(), |tensor, atom| {
-                let mass = atom.element.atomic_weight_f64()?;
-                let r = atom.position.coords;
-                let atom_tensor = mass * (r.dot(&r) * Matrix3::identity() - r * r.transpose());
+    #[must_use]
+    pub fn inertia_tensor(&self) -> Matrix3<f64> {
+        self.atoms.iter().fold(Matrix3::zeros(), |tensor, atom| {
+            let mass = f64::from(atom.element.atomic_weight());
+            let r = atom.position.coords;
+            let atom_tensor = mass * (r.dot(&r) * Matrix3::identity() - r * r.transpose());
 
-                Ok(tensor + atom_tensor)
-            })
+            tensor + atom_tensor
+        })
     }
 
     /// Centers the geometry by mass and rotates it onto its principal axes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an element has a non-finite atomic weight.
-    pub fn orient_along_principal_axes(&mut self) -> Result<(), AtomicWeightError> {
-        self.mass_centering()?;
+    pub fn orient_along_principal_axes(&mut self) {
+        self.mass_centering();
 
-        let eigen = self.inertia_tensor()?.symmetric_eigen();
+        let eigen = self.inertia_tensor().symmetric_eigen();
         let axes: nalgebra::Matrix<
             f64,
             nalgebra::Const<3>,
@@ -259,8 +233,6 @@ impl Geometry {
         let rotation = Rotation3::from_matrix_unchecked(axes.transpose());
 
         self.rotate(rotation);
-
-        Ok(())
     }
 }
 
@@ -558,7 +530,7 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new("empty".to_string(), Vec::new());
 
         assert_eq!(geometry.center(), Point3::origin());
-        assert_eq!(geometry.mass_center().unwrap(), Point3::origin());
+        assert_eq!(geometry.mass_center(), Point3::origin());
         assert_eq!(geometry.charge_center(), Point3::origin());
     }
 
@@ -572,9 +544,9 @@ H  0.000000  0.000000   0.370000
             ],
         );
 
-        geometry.mass_centering().unwrap();
+        geometry.mass_centering();
 
-        assert_point_close(geometry.mass_center().unwrap(), Point3::origin());
+        assert_point_close(geometry.mass_center(), Point3::origin());
     }
 
     #[test]
@@ -603,7 +575,7 @@ H  0.000000  0.000000   0.370000
                 Atom::new(mendeleev::Element::H, point![-2.0, 0.5, 1.0]),
             ],
         );
-        let mass = mendeleev::Element::H.atomic_weight_f64().unwrap();
+        let mass = f64::from(mendeleev::Element::H.atomic_weight());
         let expected = mass
             * Matrix3::new(
                 13.0 + 1.25,
@@ -617,7 +589,7 @@ H  0.000000  0.000000   0.370000
                 5.0 + 4.25,
             );
 
-        assert_matrix_close(geometry.inertia_tensor().unwrap(), expected);
+        assert_matrix_close(geometry.inertia_tensor(), expected);
     }
 
     #[test]
@@ -631,10 +603,10 @@ H  0.000000  0.000000   0.370000
             ],
         );
 
-        geometry.orient_along_principal_axes().unwrap();
+        geometry.orient_along_principal_axes();
 
-        assert_point_close(geometry.mass_center().unwrap(), Point3::origin());
-        let tensor = geometry.inertia_tensor().unwrap();
+        assert_point_close(geometry.mass_center(), Point3::origin());
+        let tensor = geometry.inertia_tensor();
         assert!(tensor[(0, 1)].abs() < 1e-10);
         assert!(tensor[(0, 2)].abs() < 1e-10);
         assert!(tensor[(1, 2)].abs() < 1e-10);
@@ -653,7 +625,7 @@ H  0.000000  0.000000   0.370000
         );
         let original_distances = pairwise_distances(&geometry);
 
-        geometry.orient_along_principal_axes().unwrap();
+        geometry.orient_along_principal_axes();
 
         let oriented_distances = pairwise_distances(&geometry);
         assert_eq!(oriented_distances.len(), original_distances.len());

@@ -92,6 +92,8 @@ the most stable isotope. Consequently, these transformations can produce
 slightly different coordinates than versions that used a different periodic
 table dataset. In the Rust core API, `Atom` stores `mendeleev::Element` by
 value; for example, construct hydrogen atoms with `mendeleev::Element::H`.
+The core methods for mass centering, inertia tensors, and principal-axis
+orientation return their values directly without an atomic-weight error.
 
 For a TOML calculation, the geometry path is relative to the TOML file's
 directory. `init` can create a TOML file that refers to an XYZ file without

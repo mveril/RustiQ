@@ -44,7 +44,7 @@ impl Runnable for InfoCommand {
             stdout,
             "{} {}",
             color::title("Center of mass:"),
-            geometry.mass_center().into_diagnostic()?
+            geometry.mass_center()
         )
         .into_diagnostic()?;
         writeln!(
