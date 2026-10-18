@@ -48,6 +48,7 @@ fn builder_propagates_mp2_memory_budget_and_reports_plan() {
             ..Default::default()
         });
         let span = Some((12, 4).into());
+        let mut observer = WorkflowObserver::default();
         let error = builder
             .clone()
             .with_mp2(Mp2Config {
@@ -57,8 +58,11 @@ fn builder_propagates_mp2_memory_budget_and_reports_plan() {
                 },
                 ..Default::default()
             })
-            .execute()
+            .execute_with_events(|event| observer.on_event(event))
             .unwrap_err();
+        assert!(observer.events.contains(&"hf_complete"));
+        assert!(!observer.events.contains(&"mp2_complete"));
+        assert!(!observer.events.contains(&"calculation_complete"));
         assert!(matches!(
             error.cause(),
             CalculationError::Mp2 {
@@ -106,6 +110,7 @@ impl WorkflowObserver {
             CalculationEvent::ScfIteration(_) => self.events.push("iteration"),
             CalculationEvent::HfCompleted(_) => self.events.push("hf_complete"),
             CalculationEvent::Mp2Completed { .. } => self.events.push("mp2_complete"),
+            CalculationEvent::CalculationCompleted(_) => self.events.push("calculation_complete"),
             _ => {}
         }
     }
@@ -150,8 +155,8 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
         );
         assert!(observer.events.contains(&"iteration"));
         assert_eq!(
-            &observer.events[observer.events.len() - 2..],
-            &["hf_complete", "mp2_complete"]
+            &observer.events[observer.events.len() - 3..],
+            &["hf_complete", "mp2_complete", "calculation_complete"]
         );
         assert_eq!(
             &observer.setup_steps[..3],
@@ -188,7 +193,15 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
             .unwrap();
         assert_eq!(observer.events.first(), Some(&"hf_start"));
         assert!(!observer.events.contains(&"basis_start"));
-        assert_eq!(observer.events.last(), Some(&"mp2_complete"));
+        assert_eq!(observer.events.last(), Some(&"calculation_complete"));
+        assert_eq!(
+            observer
+                .events
+                .iter()
+                .filter(|&&event| event == "calculation_complete")
+                .count(),
+            1
+        );
         assert_abs_diff_eq!(
             repeated.hf.summary().scf.total_energy,
             result.hf.summary().scf.total_energy,
@@ -364,6 +377,7 @@ fn builder_never_runs_mp2_after_unconverged_hf() {
     ));
     assert_eq!(observer.events.last(), Some(&"hf_complete"));
     assert!(!observer.events.contains(&"mp2_complete"));
+    assert!(!observer.events.contains(&"calculation_complete"));
 }
 
 #[test]

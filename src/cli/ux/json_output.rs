@@ -4,11 +4,45 @@ use miette::IntoDiagnostic;
 use serde::Serialize;
 
 use rustiq_core::{
-    calculation::{CalculationEvent, Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics},
+    calculation::{Mp2Result, OrthogonalizationInfo, ScfResult, SpinDiagnostics},
     config::ResolvedHfMethod,
 };
 
-use crate::cli::{commands::batch_orchestration::ExecutionResult, ux::bat};
+use crate::cli::{
+    commands::{
+        batch_orchestration::{CampaignEvent, CampaignResult, ExecutionResult},
+        calculation_result::CalculationSummary,
+    },
+    ux::bat,
+};
+
+pub(crate) fn print_calculation(result: &CalculationSummary, pretty: bool) -> miette::Result<()> {
+    let output = CalculationOutput::from(result);
+    output.ensure_finite().into_diagnostic()?;
+    print_json(&output, pretty)
+}
+
+pub(crate) fn on_campaign_event<E: std::fmt::Display>(
+    event: &CampaignEvent<'_, CalculationSummary, E>,
+    pretty: bool,
+) -> miette::Result<()> {
+    let CampaignEvent::Completed(campaign) = event;
+    let output = BatchOutput::from_campaign(campaign).into_diagnostic()?;
+    print_json(&output, pretty)
+}
+
+impl From<&CalculationSummary> for CalculationOutput {
+    fn from(result: &CalculationSummary) -> Self {
+        let mut output = Self::new(
+            result.hf.method,
+            &result.hf.scf,
+            result.converged,
+            result.mp2.as_ref(),
+        );
+        output.artifacts.clone_from(&result.artifacts);
+        output
+    }
+}
 
 /// Serialize before writing to stdout so a serialization error cannot emit partial JSON.
 fn serialize_json<T: Serialize>(value: &T, pretty: bool) -> serde_json::Result<Vec<u8>> {
@@ -28,53 +62,6 @@ pub(crate) fn print_json<T: Serialize>(value: &T, pretty: bool) -> miette::Resul
         let mut stdout = io::stdout().lock();
         stdout.write_all(&json).into_diagnostic()?;
         writeln!(stdout).into_diagnostic()
-    }
-}
-
-impl ExecutionResult for CalculationOutput {
-    fn is_converged(&self) -> bool {
-        self.calculation.hf.converged
-    }
-}
-
-/// Collect the final document from scientific notifications without publishing
-/// partial results if a later stage fails.
-#[derive(Default)]
-pub(crate) struct CalculationOutputCollector {
-    output: Option<CalculationOutput>,
-}
-
-impl CalculationOutputCollector {
-    pub(crate) fn on_event(&mut self, event: &CalculationEvent<'_>) {
-        match event {
-            CalculationEvent::HfCompleted(result) => {
-                let hf = result.summary();
-                self.output = Some(CalculationOutput::new(
-                    hf.method,
-                    &hf.scf,
-                    result.is_converged(),
-                    None,
-                ));
-            }
-            CalculationEvent::Mp2Completed { hf, result } => {
-                // MP2 completion requires converged HF orbitals.
-                self.output = Some(CalculationOutput::new(
-                    hf.method,
-                    &hf.scf,
-                    true,
-                    Some(result),
-                ));
-            }
-            _ => {}
-        }
-    }
-
-    /// Finishing is only valid after a successful core execution. The core
-    /// event contract guarantees `HfCompleted` before returning `Ok`, and the
-    /// command calls this method only on that success path.
-    pub(crate) fn finish(self) -> CalculationOutput {
-        self.output
-            .expect("successful calculation emits HfCompleted")
     }
 }
 
@@ -200,6 +187,41 @@ pub(crate) struct BatchOutput {
     pub calculations: Vec<BatchEntry>,
 }
 
+impl BatchOutput {
+    fn from_campaign<E: std::fmt::Display>(
+        campaign: &CampaignResult<CalculationSummary, E>,
+    ) -> serde_json::Result<Self> {
+        let calculations = campaign
+            .results
+            .iter()
+            .map(|outcome| {
+                let outcome = match outcome {
+                    Ok(result) => {
+                        let output = CalculationOutput::from(result);
+                        output.ensure_finite()?;
+                        if result.is_converged() {
+                            BatchOutcome::Success { result: output }
+                        } else {
+                            BatchOutcome::NonConverged { result: output }
+                        }
+                    }
+                    Err(error) => BatchOutcome::Error {
+                        error: BatchError {
+                            message: error.to_string(),
+                        },
+                    },
+                };
+                Ok(BatchEntry { outcome })
+            })
+            .collect::<serde_json::Result<Vec<_>>>()?;
+        Ok(Self {
+            schema_version: 1,
+            kind: "batch",
+            calculations,
+        })
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub(crate) struct BatchEntry {
     #[serde(flatten)]
@@ -306,7 +328,8 @@ mod tests {
         )
         .unwrap();
         for (max_iterations, mp2) in [(100, false), (100, true), (1, false)] {
-            let mut collector = CalculationOutputCollector::default();
+            let mut collector =
+                crate::cli::commands::calculation_result::CalculationSummaryCollector::default();
             let calculation = CalculationBuilder::new(&geometry, &basis)
                 .with_hf(HfConfig {
                     max_iterations: std::num::NonZeroUsize::new(max_iterations).unwrap(),
@@ -325,7 +348,7 @@ mod tests {
                 result.mp2.as_ref(),
             );
             assert_eq!(
-                serde_json::to_value(collector.finish()).unwrap(),
+                serde_json::to_value(CalculationOutput::from(&collector.finish())).unwrap(),
                 serde_json::to_value(expected).unwrap(),
             );
         }
@@ -391,11 +414,70 @@ mod tests {
         assert!(output.ensure_finite().is_err());
     }
 
+    fn summary(converged: bool) -> CalculationSummary {
+        CalculationSummary {
+            hf: rustiq_core::calculation::HfCalculationResult {
+                method: ResolvedHfMethod::Rhf,
+                scf: scf_result(),
+            },
+            converged,
+            mp2: None,
+            artifacts: None,
+        }
+    }
+
+    #[test]
+    fn campaign_formatter_builds_ordered_outcomes_and_preserves_artifacts() {
+        let mut success = summary(true);
+        success.artifacts = Some(vec![
+            crate::cli::commands::artifact_session::ArtifactReport {
+                name: "ao_eri",
+                decision: "reused",
+                origin: "bundle",
+                source_index: Some(2),
+            },
+        ]);
+        let campaign = CampaignResult {
+            results: vec![Ok(success), Ok(summary(false)), Err("calculation failed")],
+        };
+        let output = BatchOutput::from_campaign(&campaign).unwrap();
+        for pretty in [false, true] {
+            let bytes = serialize_json(&output, pretty).unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(value["schema_version"], 1);
+            assert_eq!(value["kind"], "batch");
+            assert_eq!(value["calculations"][0]["status"], "success");
+            assert_eq!(value["calculations"][1]["status"], "non_converged");
+            assert_eq!(value["calculations"][2]["status"], "error");
+            assert_eq!(
+                value["calculations"][2]["error"]["message"],
+                "calculation failed"
+            );
+            assert_eq!(
+                value["calculations"][0]["result"]["artifacts"][0]["source_index"],
+                2
+            );
+        }
+        assert_eq!(
+            campaign.summary(),
+            crate::cli::commands::batch_orchestration::BatchSummary {
+                succeeded: 1,
+                non_converged: 1,
+                failed: 1,
+            }
+        );
+    }
+
     #[test]
     fn batch_cannot_turn_non_finite_result_into_json_null() {
-        let mut result = scf_result();
-        result.residual_norm = f64::INFINITY;
-        let output = CalculationOutput::new(ResolvedHfMethod::Rhf, &result, false, None);
-        assert!(output.ensure_finite().is_err());
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut result = summary(false);
+            result.hf.scf.residual_norm = value;
+            assert!(result.ensure_finite().is_err());
+            let campaign = CampaignResult::<_, &str> {
+                results: vec![Ok(summary(true)), Ok(result)],
+            };
+            assert!(BatchOutput::from_campaign(&campaign).is_err());
+        }
     }
 }

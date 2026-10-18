@@ -68,7 +68,10 @@ Output presentation is selected exclusively by the CLI `--format text|json` opti
 The TOML and Nickel calculation contracts do not accept an `output` section.
 Both result presentations consume calculation events; JSON retains its single
 versioned result document (including the existing batch envelope), without streaming
-intermediate events.
+intermediate events. For Nickel and `.rustiq` batches, the CLI orchestrator
+supplies all ordered outcomes through one campaign-completion event. The JSON
+formatter builds the batch envelope from this object after execution; fatal
+infrastructure errors prevent campaign completion and produce no batch document.
 
 The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to

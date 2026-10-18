@@ -3,6 +3,7 @@ pub(crate) mod artifact_session;
 mod basis_command;
 pub(crate) mod batch_orchestration;
 mod cache_command;
+pub(crate) mod calculation_result;
 mod init_command;
 mod run_command;
 pub(crate) use run_command::{validate_run_arguments, RunCommand};
