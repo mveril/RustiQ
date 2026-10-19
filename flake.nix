@@ -117,13 +117,20 @@
                 "LICENSE-APACHE"
                 "DISTRIBUTION.md"
                 "THIRD-PARTY-NOTICES.txt"
+                "THIRD-PARTY-NOTICES.sha256"
               ]
               || craneLib.filterCargoSources path type
               || inProjectTree "assets"
+              || inProjectTree "build"
+              || builtins.elem relativePath [
+                ".cargo/config"
+                ".cargo/config.toml"
+              ]
               || inProjectTree "third-party"
               || inProjectTree "samples"
               || inProjectTree "schemas"
               || inProjectTree "src/runfile/nickel"
+              || inProjectTree "crates/rustiq-core/build"
               || inProjectTree "tests/data"
               || inProjectTree "crates/rustiq-core/tests/data";
           };
@@ -142,6 +149,11 @@
             commonCargoArgs
             // {
               inherit cargoArtifacts;
+              nativeBuildInputs = [ pkgs.git ];
+              # Crane's package build uses Cargo's release profile. Pass the
+              # exact profile name because PROFILE is only debug/release-like.
+              RUSTIQ_BUILD_PROFILE = "release";
+              RUSTIQ_BUILD_SYSTEM = "Nix";
               RUSTIQ_BUILD_GIT_COMMIT = pkgs.lib.removeSuffix "-dirty" (
                 inputs.self.rev or inputs.self.dirtyRev or "unknown"
               );
@@ -383,7 +395,13 @@
             }
           );
 
-          checks.unit-tests = rustiq;
+          checks.unit-tests = craneLib.cargoTest (
+            commonCargoArgs
+            // {
+              inherit cargoArtifacts;
+              nativeBuildInputs = [ pkgs.git ];
+            }
+          );
           checks.book = book;
         };
     };
