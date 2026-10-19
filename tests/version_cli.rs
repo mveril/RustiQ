@@ -42,8 +42,8 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
     let lines: Vec<_> = text.lines().collect();
     assert!(lines.contains(&"SOURCE"));
     assert!(lines.contains(&"COMPILER"));
+    assert!(lines.contains(&"CPU COMPATIBILITY"));
     assert!(lines.contains(&"BUILD CONFIGURATION"));
-    assert!(!text.contains("CPU COMPATIBILITY"));
     assert!(!text.contains("PROFILING"));
     assert!(!text.contains("PLATFORM"));
     for label in [
@@ -54,12 +54,19 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
         "Rust",
         "LLVM",
         "Target",
+        "Architecture",
+        "Target features",
         "Optimization",
     ] {
         assert!(lines
             .iter()
             .any(|line| line.trim_start().starts_with(label)));
     }
+    let architecture = lines
+        .iter()
+        .find(|line| line.starts_with("  Architecture"))
+        .unwrap();
+    assert!(architecture.contains(std::env::consts::ARCH));
     let feature_line = lines
         .iter()
         .find(|line| line.starts_with("  Cargo features"));

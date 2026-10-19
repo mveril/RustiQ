@@ -14,12 +14,13 @@ the two flags can also appear in reverse order. These requests return exit code
 zero and write plain text to standard output. The top-level `--verbose` flag
 requires `--version`; `basis list --verbose` retains its existing meaning.
 
-The detailed output groups source, compiler, and build configuration metadata.
+The detailed output groups source, compiler, CPU compatibility, and build
+configuration metadata.
 It includes the full Git commit and status, SHA-256 digests, compilation
 target, Rust compiler and LLVM versions, Cargo optimization level, exact
 profile when supplied by the build, declared debug-information, LTO, and
-codegen-unit settings, explicitly requested target CPU, enabled target
-features, and enabled Cargo features.
+codegen-unit settings, target architecture, explicitly requested target CPU,
+known ISA baseline, enabled target features, and enabled Cargo features.
 Cargo's synthetic `default` feature marker is omitted. Values that Cargo or
 the build system cannot establish are omitted from text output. Cargo's
 `PROFILE` variable does not identify custom profiles reliably, so the profile
@@ -42,8 +43,11 @@ compiler arguments or Cargo configuration.
 LTO and codegen units are labeled as declared because Cargo does not expose
 their effective compiler values to build scripts. Target features describe
 compile-time target settings, not instructions supported by the machine at
-runtime. An explicit `native` target CPU remains `native`; RustiQ does not
-guess the concrete build-host CPU, especially in cross-compilation.
+runtime. The architecture comes from Cargo's final compilation target, which
+remains correct during cross-compilation. An ISA baseline is reported only for
+recognized generic x86-64 targets such as `x86-64-v3`. A CPU model name or
+`native` does not identify a standard baseline reliably, so that row is
+omitted for those values. RustiQ does not guess the concrete build-host CPU.
 
 For example, the grouped output has this shape (unknown optional fields are
 omitted and the values depend on the build):
@@ -62,14 +66,18 @@ COMPILER
   LLVM                <LLVM version>
   Target              <target triple>
 
+CPU COMPATIBILITY
+  Architecture        <target architecture>
+  Target CPU          <explicit CPU request, if known>
+  ISA baseline        <recognized generic x86-64 baseline, if known>
+  Target features     <features enabled for the compilation target>
+
 BUILD CONFIGURATION
   Profile             <exact profile, if supplied>
   Optimization        <Cargo value>
   Debug information   <profile value, if declared>
   LTO                 <profile value (declared)>
   Codegen units       <profile value (declared)>
-  Target CPU          <explicit target CPU, if known>
-  Target features     <features enabled for the compilation target>
   Cargo features      <enabled features, excluding the default marker>
 ```
 
@@ -83,6 +91,7 @@ output remains free of banners and retains its existing schema.
 
 All fields are embedded during compilation and remain available when the
 executable is copied elsewhere, without Git or Rust installed. The source
+state is `clean` or `dirty` according to changes to tracked files at build
 time; untracked files do not affect this Git dirty flag. The `Status` row
 displays `clean`, `dirty`, or `unknown`; a missing commit is displayed as
 `unknown`, as can happen when compiling an unpacked source archive without Git

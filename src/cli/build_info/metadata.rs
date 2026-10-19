@@ -7,6 +7,7 @@ const UNKNOWN: &str = "VERGEN_IDEMPOTENT_OUTPUT";
 pub(crate) struct BuildInfo {
     pub source: Source,
     pub compiler: Compiler,
+    pub cpu: CpuCompatibility,
     pub build: Build,
 }
 
@@ -26,14 +27,20 @@ pub(crate) struct Compiler {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct CpuCompatibility {
+    pub architecture: Option<&'static str>,
+    pub target_cpu: Option<&'static str>,
+    pub isa_baseline: Option<&'static str>,
+    pub target_features: Vec<&'static str>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct Build {
     pub profile: Option<&'static str>,
     pub cargo_optimization: Option<&'static str>,
     pub debug_information_declared: Option<&'static str>,
     pub lto_declared: Option<&'static str>,
     pub codegen_units_declared: Option<&'static str>,
-    pub target_cpu: Option<&'static str>,
-    pub target_features: Vec<&'static str>,
     pub cargo_features: Vec<String>,
 }
 
@@ -49,14 +56,21 @@ pub(crate) static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| BuildInfo {
         llvm: optional(env!("VERGEN_RUSTC_LLVM_VERSION")),
         target: optional(env!("VERGEN_CARGO_TARGET_TRIPLE")),
     },
+    cpu: CpuCompatibility {
+        architecture: optional(env!("RUSTIQ_TARGET_ARCH")),
+        target_cpu: optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
+        isa_baseline: isa_baseline(
+            env!("RUSTIQ_TARGET_ARCH"),
+            optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
+        ),
+        target_features: target_feature_values(env!("RUSTIQ_TARGET_FEATURES")),
+    },
     build: Build {
         profile: optional(env!("RUSTIQ_BUILD_PROFILE")),
         cargo_optimization: optional(env!("VERGEN_CARGO_OPT_LEVEL")),
         debug_information_declared: optional(env!("RUSTIQ_DEBUG_INFO_DECLARED")),
         lto_declared: optional(env!("RUSTIQ_LTO_DECLARED")),
         codegen_units_declared: optional(env!("RUSTIQ_CODEGEN_UNITS_DECLARED")),
-        target_cpu: optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
-        target_features: target_feature_values(env!("RUSTIQ_TARGET_FEATURES")),
         cargo_features: cargo_feature_values(env!("VERGEN_CARGO_FEATURES")),
     },
 });
@@ -117,6 +131,19 @@ fn target_feature_values(value: &'static str) -> Vec<&'static str> {
         .collect()
 }
 
+fn isa_baseline(architecture: &str, target_cpu: Option<&str>) -> Option<&'static str> {
+    if architecture != "x86_64" {
+        return None;
+    }
+    match target_cpu? {
+        "x86-64" | "x86_64" => Some("x86-64"),
+        "x86-64-v2" | "x86_64_v2" => Some("x86-64-v2"),
+        "x86-64-v3" | "x86_64_v3" => Some("x86-64-v3"),
+        "x86-64-v4" | "x86_64_v4" => Some("x86-64-v4"),
+        _ => None,
+    }
+}
+
 fn cargo_feature_values(value: &'static str) -> Vec<String> {
     let mut features: Vec<_> = feature_values(value)
         .into_iter()
@@ -148,7 +175,7 @@ pub(crate) fn hyperlink_commit_as(commit: &str, label: &str, repository: &str) -
 
 #[cfg(test)]
 mod tests {
-    use super::{cargo_feature_values, target_feature_values};
+    use super::{cargo_feature_values, isa_baseline, target_feature_values};
 
     #[test]
     fn cargo_feature_list_hides_the_default_marker_and_is_sorted() {
@@ -163,5 +190,14 @@ mod tests {
     fn target_features_omit_the_linking_mode_marker() {
         assert!(target_feature_values("avx2,crt-static").contains(&"avx2"));
         assert!(!target_feature_values("avx2,crt-static").contains(&"crt-static"));
+    }
+
+    #[test]
+    fn isa_baseline_is_reported_only_for_known_generic_x86_targets() {
+        assert_eq!(isa_baseline("x86_64", Some("x86-64-v3")), Some("x86-64-v3"));
+        assert_eq!(isa_baseline("x86_64", Some("x86_64_v2")), Some("x86-64-v2"));
+        assert_eq!(isa_baseline("x86_64", Some("native")), None);
+        assert_eq!(isa_baseline("x86_64", Some("haswell")), None);
+        assert_eq!(isa_baseline("aarch64", Some("generic")), None);
     }
 }

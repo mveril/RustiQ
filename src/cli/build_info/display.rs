@@ -25,6 +25,7 @@ fn print_version_details(
 ) -> io::Result<()> {
     print_source(writer, &info.source, hyperlinks)?;
     print_compiler(writer, &info.compiler)?;
+    print_cpu_compatibility(writer, &info.cpu)?;
     print_build(writer, &info.build)?;
     Ok(())
 }
@@ -59,6 +60,33 @@ fn print_source(
     Ok(())
 }
 
+fn print_cpu_compatibility(
+    writer: &mut impl Write,
+    cpu: &super::metadata::CpuCompatibility,
+) -> io::Result<()> {
+    if cpu.architecture.is_none()
+        && cpu.target_cpu.is_none()
+        && cpu.isa_baseline.is_none()
+        && cpu.target_features.is_empty()
+    {
+        return Ok(());
+    }
+    section(writer, "CPU COMPATIBILITY")?;
+    if let Some(value) = cpu.architecture {
+        row(writer, "Architecture", value)?;
+    }
+    if let Some(value) = cpu.target_cpu {
+        row(writer, "Target CPU", value)?;
+    }
+    if let Some(value) = cpu.isa_baseline {
+        row(writer, "ISA baseline", value)?;
+    }
+    if !cpu.target_features.is_empty() {
+        row(writer, "Target features", cpu.target_features.join(", "))?;
+    }
+    Ok(())
+}
+
 fn print_compiler(writer: &mut impl Write, compiler: &super::metadata::Compiler) -> io::Result<()> {
     if compiler.rustc.is_none() && compiler.llvm.is_none() && compiler.target.is_none() {
         return Ok(());
@@ -82,8 +110,6 @@ fn print_build(writer: &mut impl Write, build: &super::metadata::Build) -> io::R
         || build.debug_information_declared.is_some()
         || build.lto_declared.is_some()
         || build.codegen_units_declared.is_some()
-        || build.target_cpu.is_some()
-        || !build.target_features.is_empty()
         || !build.cargo_features.is_empty();
     if !any {
         return Ok(());
@@ -103,12 +129,6 @@ fn print_build(writer: &mut impl Write, build: &super::metadata::Build) -> io::R
     }
     if let Some(value) = build.codegen_units_declared {
         row(writer, "Codegen units", format!("{value} (declared)"))?;
-    }
-    if let Some(value) = build.target_cpu {
-        row(writer, "Target CPU", value)?;
-    }
-    if !build.target_features.is_empty() {
-        row(writer, "Target features", build.target_features.join(", "))?;
     }
     if !build.cargo_features.is_empty() {
         row(writer, "Cargo features", build.cargo_features.join(", "))?;

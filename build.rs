@@ -61,6 +61,8 @@ fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>>
 
     emit_declared_profile_settings(manifest_dir)?;
 
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    println!("cargo:rustc-env=RUSTIQ_TARGET_ARCH={target_arch}");
     let target_features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
     println!("cargo:rustc-env=RUSTIQ_TARGET_FEATURES={target_features}");
     let flags = env::var("CARGO_ENCODED_RUSTFLAGS")
