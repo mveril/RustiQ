@@ -19,8 +19,10 @@ configuration metadata.
 It includes the full Git commit and status, SHA-256 digests, compilation
 target, Rust compiler and LLVM versions, Cargo optimization level, exact
 profile when supplied by the build, declared debug-information, LTO, and
-codegen-unit settings, target architecture, explicitly requested target CPU,
-known ISA baseline, enabled target features, and enabled Cargo features.
+codegen-unit settings, target architecture and explicitly requested target CPU
+when available, enabled target features, and enabled Cargo features. When no
+target CPU was explicitly requested, the CPU section shows only the enabled
+target features rather than suggesting a CPU model or ISA baseline.
 Cargo's synthetic `default` feature marker is omitted. Values that Cargo or
 the build system cannot establish are omitted from text output. Cargo's
 `PROFILE` variable does not identify custom profiles reliably, so the profile
@@ -44,13 +46,12 @@ LTO and codegen units are labeled as declared because Cargo does not expose
 their effective compiler values to build scripts. Target features describe
 compile-time target settings, not instructions supported by the machine at
 runtime. The architecture and globally enabled features come from Cargo's
-final compilation target, including during cross-compilation. RustiQ identifies
-an ISA baseline only when that complete feature set exactly matches a standard
-x86-64 level. Thus the ordinary `fxsr, sse, sse2` set identifies the `x86-64`
-baseline. When no CPU was explicitly requested, the target CPU row says so. A
-CPU model or `native` may enable extra features outside a standard level, so
-its ISA baseline is shown as `unknown` unless the resulting feature set exactly
-matches one. RustiQ does not guess the concrete build-host CPU.
+final compilation target, including during cross-compilation. If a CPU was
+explicitly requested, RustiQ identifies an ISA baseline only when the complete
+feature set exactly matches a standard x86-64 level. Otherwise, it omits the
+baseline. A CPU model or `native` may enable extra features outside a standard
+level, so no baseline is inferred in that case. RustiQ does not guess the
+concrete build-host CPU.
 
 For example, the grouped output has this shape (unknown optional fields are
 omitted and the values depend on the build):
@@ -70,9 +71,9 @@ COMPILER
   Target              <target triple>
 
 CPU COMPATIBILITY
-  Architecture        <target architecture>
-  Target CPU          <explicit CPU request, or not explicitly set>
-  ISA baseline        <recognized generic x86-64 baseline, or unknown>
+  Architecture        <shown when a target CPU was explicitly requested>
+  Target CPU          <explicit CPU request>
+  ISA baseline        <recognized baseline, when available>
   Target features     <features enabled for the compilation target>
 
 BUILD CONFIGURATION

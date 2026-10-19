@@ -64,27 +64,19 @@ fn print_cpu_compatibility(
     writer: &mut impl Write,
     cpu: &super::metadata::CpuCompatibility,
 ) -> io::Result<()> {
-    if cpu.architecture.is_none()
-        && cpu.target_cpu.is_none()
-        && cpu.isa_baseline.is_none()
-        && cpu.target_features.is_empty()
-    {
+    if cpu.target_cpu.is_none() && cpu.target_features.is_empty() {
         return Ok(());
     }
     section(writer, "CPU COMPATIBILITY")?;
-    if let Some(value) = cpu.architecture {
-        row(writer, "Architecture", value)?;
+    if let Some(value) = cpu.target_cpu {
+        if let Some(architecture) = cpu.architecture {
+            row(writer, "Architecture", architecture)?;
+        }
+        row(writer, "Target CPU", value)?;
+        if let Some(baseline) = cpu.isa_baseline {
+            row(writer, "ISA baseline", baseline)?;
+        }
     }
-    row(
-        writer,
-        "Target CPU",
-        cpu.target_cpu.unwrap_or("not explicitly set"),
-    )?;
-    row(
-        writer,
-        "ISA baseline",
-        cpu.isa_baseline.unwrap_or("unknown"),
-    )?;
     if !cpu.target_features.is_empty() {
         row(writer, "Target features", cpu.target_features.join(", "))?;
     }

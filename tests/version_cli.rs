@@ -54,9 +54,6 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
         "Rust",
         "LLVM",
         "Target",
-        "Architecture",
-        "Target CPU",
-        "ISA baseline",
         "Target features",
         "Optimization",
     ] {
@@ -64,11 +61,22 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
             .iter()
             .any(|line| line.trim_start().starts_with(label)));
     }
-    let architecture = lines
-        .iter()
-        .find(|line| line.starts_with("  Architecture"))
-        .unwrap();
-    assert!(architecture.contains(std::env::consts::ARCH));
+    if env!("RUSTIQ_BUILD_TARGET_CPU").is_empty() {
+        assert!(!lines.iter().any(|line| {
+            ["Architecture", "Target CPU", "ISA baseline"]
+                .iter()
+                .any(|label| line.trim_start().starts_with(label))
+        }));
+    } else {
+        let architecture = lines
+            .iter()
+            .find(|line| line.starts_with("  Architecture"))
+            .unwrap();
+        assert!(architecture.contains(std::env::consts::ARCH));
+        assert!(lines
+            .iter()
+            .any(|line| line.trim_start().starts_with("Target CPU")));
+    }
     let feature_line = lines
         .iter()
         .find(|line| line.starts_with("  Cargo features"));
