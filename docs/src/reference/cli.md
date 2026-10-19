@@ -9,45 +9,117 @@ options supported by the installed build.
 ## Binary version and build details
 
 `rustiq --version` (or `rustiq -V`) prints the package version on one line.
-Use `rustiq --version --verbose` (or `rustiq -V -v`) for build details; the
-two flags can also appear in reverse order. These requests return exit code
+Use `rustiq --version --verbose` (or `rustiq -V -v`) for grouped build details;
+the two flags can also appear in reverse order. These requests return exit code
 zero and write plain text to standard output. The top-level `--verbose` flag
 requires `--version`; `basis list --verbose` retains its existing meaning.
 
-The detailed output includes the full Git commit, source state, compilation
-target, Rust compiler version and commit, optimization level, debug information
-setting, and enabled Cargo features. For example, its first two lines have this
-shape (the hash and state depend on the build):
+The detailed output groups source, compiler, and build configuration metadata.
+It includes the full Git commit and status, SHA-256 digests, compilation
+target, Rust compiler and LLVM versions, Cargo optimization level, exact
+profile when supplied by the build, declared debug-information, LTO, and
+codegen-unit settings, explicitly requested target CPU, enabled target
+features, and enabled Cargo features.
+Cargo's synthetic `default` feature marker is omitted. Values that Cargo or
+the build system cannot establish are omitted from text output. Cargo's
+`PROFILE` variable does not identify custom profiles reliably, so the profile
+is shown only when the build supplies its exact name. Release artifacts built
+by `cargo-dist` declare `dist` in their workflow; Nix package builds declare
+`release`.
+
+Configuration declared in the selected package profile in `Cargo.toml` is
+labeled as declared. Profile inheritance is followed. Cargo does not expose
+effective LTO, codegen-unit, overflow-check, debug-assertion, or
+debug-information settings to build scripts, so these are reported only when
+the selected profile declares them. Cargo's optimization value is supplied to
+build scripts; a separate compiler flag can override it. Target CPU is
+populated only from an explicit RustiQ build override or a recognized
+`target-cpu` option in Cargo's encoded rustflags or `RUSTFLAGS`. The target
+feature list comes from Cargo's target cfg for the final target; it does not
+describe runtime CPU support. Observed rustflags are not a complete record of
+compiler arguments or Cargo configuration.
+
+LTO and codegen units are labeled as declared because Cargo does not expose
+their effective compiler values to build scripts. Target features describe
+compile-time target settings, not instructions supported by the machine at
+runtime. An explicit `native` target CPU remains `native`; RustiQ does not
+guess the concrete build-host CPU, especially in cross-compilation.
+
+For example, the grouped output has this shape (unknown optional fields are
+omitted and the values depend on the build):
 
 ```text
 rustiq 0.1.0-alpha.1
-Git commit: <full commit hash>
+
+SOURCE
+  Git commit          <full commit hash>
+  Status              dirty
+  Source SHA-256      <12-character digest prefix>…
+  Cargo.lock SHA-256  <12-character digest prefix>…
+
+COMPILER
+  Rust                <compiler version>
+  LLVM                <LLVM version>
+  Target              <target triple>
+
+BUILD CONFIGURATION
+  Profile             <exact profile, if supplied>
+  Optimization        <Cargo value>
+  Debug information   <profile value, if declared>
+  LTO                 <profile value (declared)>
+  Codegen units       <profile value (declared)>
+  Target CPU          <explicit target CPU, if known>
+  Target features     <features enabled for the compilation target>
+  Cargo features      <enabled features, excluding the default marker>
 ```
 
-Text calculation output also shows the commit and source state immediately
-below the version in every startup-banner style. JSON calculation output
-remains free of banners and retains its existing schema.
+The full fingerprints are embedded at build time. Text output abbreviates
+their display to keep the terminal view readable.
+
+Text calculation banners show a 12-character commit abbreviation and its
+source state. When Git provenance is unknown, they show `Build: unknown`.
+OSC 8 links, when enabled, target the complete commit hash. JSON calculation
+output remains free of banners and retains its existing schema.
 
 All fields are embedded during compilation and remain available when the
 executable is copied elsewhere, without Git or Rust installed. The source
-state is `clean` or `dirty` according to changes to tracked files at build
-time; untracked files are ignored. A clean build prints the commit alone;
-`(dirty)` or `(unknown)` is appended when applicable. When both the commit and
-state are missing, the line is simply `Git commit: unknown`, as can happen when
-compiling an unpacked source archive without Git metadata.
-When stdout is a terminal that supports hyperlinks, the Git commit hash links to
-that commit in the RustiQ repository, and the Rust compiler commit links to its
-commit in the [Rust compiler repository](https://github.com/rust-lang/rust).
+time; untracked files do not affect this Git dirty flag. The `Status` row
+displays `clean`, `dirty`, or `unknown`; a missing commit is displayed as
+`unknown`, as can happen when compiling an unpacked source archive without Git
+metadata. When stdout is a terminal that supports hyperlinks, the Git commit
+hash links to that commit in the RustiQ repository.
 Redirected output stays plain text unless `FORCE_HYPERLINK` explicitly enables
 links.
-These fields describe declared build provenance, not a cryptographic identity
-of the executable or proof that two builds are identical.
+The source SHA-256 fingerprint uses SHA-256 over the bytes
+`rustiq-source-fingerprint-v1\0`, followed by each UTF-8 relative path and file
+content in lexicographically sorted, `/`-separated path order. Each path is
+encoded as an eight-byte big-endian byte length followed by its bytes; each
+content is encoded as an eight-byte big-endian byte length followed by the raw
+file bytes. It covers root and core Cargo manifests, `Cargo.lock`, both build
+scripts and build directories, both Rust source trees, `assets/`, and Cargo's
+`.cargo/config` or `.cargo/config.toml` when present. Untracked files in those
+paths affect the fingerprint; deleting a previously included file changes the
+digest. Git metadata, tests, samples, generated
+outputs, caches, timestamps, and files outside this explicit compile-input
+scope are excluded. The fingerprint identifies this scoped source snapshot;
+it is not a hash of the executable or a claim that external/generated inputs
+are represented. `Cargo.lock` also has its own raw-file SHA-256 digest and is
+reported as unavailable when the lockfile is absent.
+
+These fields describe build provenance, not a cryptographic identity of the
+executable or proof that two builds are identical.
 
 Packagers may set `RUSTIQ_BUILD_GIT_COMMIT` to a full Git hash (or `unknown`)
 and `RUSTIQ_BUILD_GIT_STATE` to `clean`, `dirty`, or `unknown` **at compilation
 time** to override Git discovery. An injected commit without an injected state
-uses state `unknown`. Nix builds obtain these values from the source flake.
-Setting these variables when running an already built binary has no effect.
+uses state `unknown`. `RUSTIQ_BUILD_PROFILE`, `RUSTIQ_BUILD_SYSTEM`, and
+`RUSTIQ_BUILD_TARGET_CPU` can supply exact build-system metadata when known;
+the profile, system name, and CPU values are validated before embedding. Nix
+supplies its profile, build-system name, and flake revision, while the
+cargo-dist release workflow supplies its profile and build-system name. The
+Nix source revision is the Git revision passed by the flake, not a Nix store
+path. Setting these variables when running an already built binary has no
+effect.
 
 ## Commands
 
