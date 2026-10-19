@@ -125,7 +125,7 @@ impl BasisStore {
             return Ok(None);
         };
         let file = fs::File::open(&basis_path)?;
-        let basis_file = serde_json::from_reader(file)?;
+        let basis_file = BasisFile::from_reader(file)?;
         Ok(Some(basis_file))
     }
 
