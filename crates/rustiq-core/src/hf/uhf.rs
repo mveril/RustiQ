@@ -537,46 +537,49 @@ impl<'a> UhfCalculation<'a> {
 
     fn build_fock_matrices(&self, density: &SpinMatrices) -> SpinMatrices {
         let total_density = &density.alpha + &density.beta;
-        SpinMatrices {
-            alpha: self.build_spin_fock_matrix(&total_density, &density.alpha),
-            beta: self.build_spin_fock_matrix(&total_density, &density.beta),
-        }
-    }
-
-    fn build_spin_fock_matrix(
-        &self,
-        total_density: &DMatrix<f64>,
-        same_spin_density: &DMatrix<f64>,
-    ) -> DMatrix<f64> {
         let nbasis = self.basis.nbasis();
         let n_pairs = nbasis * (nbasis + 1) / 2;
         let values = (0..n_pairs)
             .into_par_iter()
             .map(|index| {
                 let (mu, nu) = PairIndex(index).indices();
-                let mut g_term = 0.0;
+                let mut alpha = 0.0;
+                let mut beta = 0.0;
 
                 for lambda in 0..nbasis {
                     for sigma in 0..nbasis {
-                        let coulomb_term = self.two_electron_integrals[(mu, nu, lambda, sigma)];
-                        let exchange_term = self.two_electron_integrals[(mu, sigma, lambda, nu)];
-                        g_term += total_density[(lambda, sigma)] * coulomb_term
-                            - same_spin_density[(lambda, sigma)] * exchange_term;
+                        let coulomb = total_density[(lambda, sigma)]
+                            * self.two_electron_integrals[(mu, nu, lambda, sigma)];
+                        let exchange = self.two_electron_integrals[(mu, sigma, lambda, nu)];
+                        // Share integral loads and Coulomb work, retaining each spin's
+                        // exchange density and the established accumulation order.
+                        alpha += coulomb - density.alpha[(lambda, sigma)] * exchange;
+                        beta += coulomb - density.beta[(lambda, sigma)] * exchange;
                     }
                 }
 
-                (mu, nu, self.h_core[(mu, nu)] + g_term)
+                (
+                    mu,
+                    nu,
+                    self.h_core[(mu, nu)] + alpha,
+                    self.h_core[(mu, nu)] + beta,
+                )
             })
             .collect::<Vec<_>>();
 
-        let mut fock_matrix = DMatrix::zeros(nbasis, nbasis);
-        for (mu, nu, value) in values {
-            fock_matrix[(mu, nu)] = value;
+        let mut fock = SpinMatrices {
+            alpha: DMatrix::zeros(nbasis, nbasis),
+            beta: DMatrix::zeros(nbasis, nbasis),
+        };
+        for (mu, nu, alpha, beta) in values {
+            fock.alpha[(mu, nu)] = alpha;
+            fock.beta[(mu, nu)] = beta;
             if mu != nu {
-                fock_matrix[(nu, mu)] = value;
+                fock.alpha[(nu, mu)] = alpha;
+                fock.beta[(nu, mu)] = beta;
             }
         }
-        fock_matrix
+        fock
     }
 
     fn update_total_energy_from_current_fock(&mut self) {
@@ -694,6 +697,68 @@ mod tests {
         )
         .unwrap();
         (molecule, basis)
+    }
+
+    #[test]
+    fn spin_fock_matrices_match_independent_contractions() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::new(2).unwrap(),
+        )
+        .unwrap();
+        let uhf = UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
+            .unwrap();
+        let n = basis.nbasis();
+        // Unequal off-diagonal spin densities detect accidentally shared exchange terms.
+        let alpha = DMatrix::from_fn(n, n, |i, j| if i == j { 0.4 } else { -0.03 });
+        let beta = DMatrix::from_fn(n, n, |i, j| if i == j { 0.2 } else { 0.01 });
+        for density in [
+            SpinMatrices {
+                alpha: alpha.clone(),
+                beta,
+            },
+            SpinMatrices {
+                alpha: alpha.clone(),
+                beta: alpha.clone(),
+            },
+            SpinMatrices {
+                alpha,
+                beta: DMatrix::zeros(n, n),
+            },
+        ] {
+            let total_density = &density.alpha + &density.beta;
+            let reference = |spin: &DMatrix<f64>| {
+                DMatrix::from_fn(n, n, |mu, nu| {
+                    let mut correction = 0.0;
+                    for lambda in 0..n {
+                        for sigma in 0..n {
+                            correction += total_density[(lambda, sigma)]
+                                * uhf.two_electron_integrals[(mu, nu, lambda, sigma)]
+                                - spin[(lambda, sigma)]
+                                    * uhf.two_electron_integrals[(mu, sigma, lambda, nu)];
+                        }
+                    }
+                    uhf.h_core[(mu, nu)] + correction
+                })
+            };
+            let expected_alpha = reference(&density.alpha);
+            let expected_beta = reference(&density.beta);
+            for threads in [1, 2, 12] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                let actual = pool.install(|| uhf.build_fock_matrices(&density));
+                assert_abs_diff_eq!(actual.alpha, expected_alpha, epsilon = 1e-12);
+                assert_abs_diff_eq!(actual.beta, expected_beta, epsilon = 1e-12);
+                assert_symmetric(&actual.alpha);
+                assert_symmetric(&actual.beta);
+            }
+        }
     }
 
     #[test]

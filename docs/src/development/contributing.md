@@ -60,6 +60,13 @@ dependency locking, feature selection, and tests into one workflow. These
 engineering tools help make assumptions inspectable; they do not establish
 numerical correctness or a performance advantage over other languages.
 
+UHF builds the alpha and beta Fock matrices in one pass over AO pairs. Each
+pair shares the Coulomb contribution from the total density and the integral
+loads, while retaining a separate exchange contribution for each spin density.
+The independent scalar contraction regression covers unequal spin densities,
+equal spin densities, and an empty beta density across different Rayon pools:
+`cargo test -p rustiq-chem-core spin_fock_matrices_match_independent_contractions`.
+
 Typed errors distinguish invalid input from numerical failures. Optional source
 locations let the CLI attach diagnostics to input text without making the
 library own that text or its presentation.
