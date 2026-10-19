@@ -55,6 +55,8 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
         "LLVM",
         "Target",
         "Architecture",
+        "Target CPU",
+        "ISA baseline",
         "Target features",
         "Optimization",
     ] {

@@ -75,12 +75,16 @@ fn print_cpu_compatibility(
     if let Some(value) = cpu.architecture {
         row(writer, "Architecture", value)?;
     }
-    if let Some(value) = cpu.target_cpu {
-        row(writer, "Target CPU", value)?;
-    }
-    if let Some(value) = cpu.isa_baseline {
-        row(writer, "ISA baseline", value)?;
-    }
+    row(
+        writer,
+        "Target CPU",
+        cpu.target_cpu.unwrap_or("not explicitly set"),
+    )?;
+    row(
+        writer,
+        "ISA baseline",
+        cpu.isa_baseline.unwrap_or("unknown"),
+    )?;
     if !cpu.target_features.is_empty() {
         row(writer, "Target features", cpu.target_features.join(", "))?;
     }
