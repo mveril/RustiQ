@@ -10,7 +10,7 @@ use super::utils::{
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::io::Read;
+use std::io::{BufReader, Read};
 
 use super::{BasisId, InvalidBasisId};
 
@@ -59,7 +59,7 @@ impl BasisFile {
     ///
     /// Returns an error if reading or deserializing the basis JSON fails.
     pub fn from_reader(reader: impl Read) -> Result<Self, serde_json::Error> {
-        serde_json::from_reader(reader)
+        serde_json::from_reader(BufReader::new(reader))
     }
 
     /// Returns the alternative names declared in the basis file.
@@ -240,4 +240,87 @@ pub(crate) enum Role {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum TagElement {
     Deprecated,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{self, Cursor};
+
+    struct CountingReader<'a> {
+        data: Cursor<&'a [u8]>,
+        calls: usize,
+    }
+
+    impl Read for CountingReader<'_> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            self.calls += 1;
+            self.data.read(buffer)
+        }
+    }
+
+    #[test]
+    fn basis_json_uses_bulk_reads_and_preserves_shell_data() {
+        let data = include_bytes!("../../tests/data/sto-3g.json");
+        let mut reader = CountingReader {
+            data: Cursor::new(data.as_slice()),
+            calls: 0,
+        };
+        let basis = BasisFile::from_reader(&mut reader).unwrap();
+        assert_eq!(basis.name(), "STO-3G");
+        let hydrogen = basis.elements.get(&1).unwrap();
+        assert_eq!(hydrogen.electron_shells.len(), 1);
+        assert_eq!(hydrogen.electron_shells[0].exponents.len(), 3);
+        assert!(
+            reader.calls <= data.len().div_ceil(1024) + 1,
+            "{} underlying reads for {} bytes",
+            reader.calls,
+            data.len()
+        );
+    }
+
+    struct ReaderFn<F>(F);
+
+    impl<F: FnMut(&mut [u8]) -> io::Result<usize>> Read for ReaderFn<F> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            (self.0)(buffer)
+        }
+    }
+
+    #[test]
+    fn basis_json_accepts_short_reads() {
+        let data = include_bytes!("../../tests/data/sto-3g.json");
+        let mut remaining = data.as_slice();
+        let reader = ReaderFn(move |buffer: &mut [u8]| {
+            let length = buffer.len().min(7);
+            remaining.read(&mut buffer[..length])
+        });
+        assert_eq!(BasisFile::from_reader(reader).unwrap().name(), "STO-3G");
+    }
+
+    #[test]
+    fn basis_json_preserves_reader_errors() {
+        let reader = ReaderFn(|_: &mut [u8]| {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "read denied",
+            ))
+        });
+        let error = BasisFile::from_reader(reader).unwrap_err();
+        assert!(error.is_io());
+        assert_eq!(error.io_error_kind(), Some(io::ErrorKind::PermissionDenied));
+    }
+
+    #[test]
+    fn basis_json_rejects_truncated_documents_and_trailing_content() {
+        let data = include_bytes!("../../tests/data/sto-3g.json");
+        assert!(BasisFile::from_reader(&data[..data.len() / 2])
+            .unwrap_err()
+            .is_eof());
+        let mut trailing = data.to_vec();
+        trailing.extend_from_slice(b" {} ");
+        assert!(BasisFile::from_reader(trailing.as_slice())
+            .unwrap_err()
+            .is_syntax());
+    }
 }
