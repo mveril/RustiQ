@@ -193,6 +193,14 @@ cargo bench --bench eri_storage_allocation --features bench-support
 cargo bench --bench eri_storage_memory --features bench-support
 ```
 
+DIIS scales the minimum Rayon grain for its residual dot products with the
+residual matrix length and uses a minimum split grain of 1024 extrapolated Fock
+entries. Small histories and matrices therefore avoid fine task splitting.
+`RAYON_NUM_THREADS` bounds the pool size; each operation can use fewer workers.
+When tuning this policy, compare small and larger calculations at several thread
+counts and check the analytic DIIS reference across pools with
+`cargo test -p rustiq-chem-core diis_extrapolation_matches_analytic_weights`.
+
 The MP2 benchmark compares the dense AO-to-MO transformation and correlation
 energy evaluation with the production memory-blocked path on deterministic
 synthetic RHF inputs. Each blocked case is constrained to process occupied
