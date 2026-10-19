@@ -180,7 +180,13 @@ available. If memory information is unavailable, the fallback is 512 MiB.
 Explicit sizes such as `"500 MB"` (decimal units) and `"1.5 GiB"` (binary units)
 are accepted. The budget covers additional matrix payloads for the blocked
 transformation from atomic to molecular orbitals, including panels and
-coefficient copies. HF data and compact atomic-orbital integrals are separate.
+coefficient copies. The transformation stages the left virtual coefficient
+transpose once per spin sector and borrows contiguous right occupied and virtual
+coefficient columns across occupied blocks. Each AO panel is expanded using its
+first-pair symmetry, and the transformed panel is reused for the swapped
+second AO pair. Panels are still expanded again for each occupied block. The
+workspace estimate remains a conservative bound on these temporary payloads.
+HF data and compact atomic-orbital integrals are separate.
 It does not cap total process memory, allocator overhead, or matrix-kernel
 scratch storage. A budget too small for one occupied block fails before the
 transformation buffers are allocated. The text report shows block size and
