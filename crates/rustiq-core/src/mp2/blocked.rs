@@ -229,10 +229,11 @@ pub(super) fn energy(
         dense_workspace_bytes: d.dense()?,
         resident_input_bytes: bytes(resident)?,
     });
+    let staged = StagedCoefficients::new(left, right);
     let mut total = 0.0;
     for start in (0..d.left).step_by(block_size) {
         let b = block_size.min(d.left - start);
-        let (integrals, actual_payload) = transform(left, right, eri, d, start, b);
+        let (integrals, actual_payload) = transform(left, &staged, eri, d, start, b);
         debug_assert!(actual_payload <= workspace_bytes);
         for i in 0..b {
             let ii = left.frozen_orbitals + start + i;
@@ -271,9 +272,39 @@ pub(super) fn energy(
     Ok(total)
 }
 
+// These columns are invariant across occupied blocks. Only the left virtual
+// transpose needs staging; contiguous right columns can borrow the input.
+struct StagedCoefficients<'a> {
+    cj: DMatrixView<'a, f64>,
+    ca: DMatrix<f64>,
+    cb: DMatrixView<'a, f64>,
+}
+
+impl<'a> StagedCoefficients<'a> {
+    fn new(left: Mp2SpinInput<'a>, right: Mp2SpinInput<'a>) -> Self {
+        Self {
+            cj: right.mo_coefficients.columns(
+                right.frozen_orbitals,
+                right.occupied_orbitals - right.frozen_orbitals,
+            ),
+            ca: left
+                .mo_coefficients
+                .columns(
+                    left.occupied_orbitals,
+                    left.mo_coefficients.ncols() - left.occupied_orbitals,
+                )
+                .transpose(),
+            cb: right.mo_coefficients.columns(
+                right.occupied_orbitals,
+                right.mo_coefficients.ncols() - right.occupied_orbitals,
+            ),
+        }
+    }
+}
+
 fn transform(
     left: Mp2SpinInput<'_>,
-    right: Mp2SpinInput<'_>,
+    staged: &StagedCoefficients<'_>,
     eri: &CompactEri,
     d: Dimensions,
     start: usize,
@@ -290,19 +321,8 @@ fn transform(
         .mo_coefficients
         .columns(left.frozen_orbitals + start, b)
         .transpose();
-    let cj = right
-        .mo_coefficients
-        .columns(right.frozen_orbitals, o)
-        .into_owned();
-    let ca = left
-        .mo_coefficients
-        .columns(left.occupied_orbitals, va)
-        .transpose();
-    let cb = right
-        .mo_coefficients
-        .columns(right.occupied_orbitals, vb)
-        .into_owned();
-    let coefficients = ci.len() + cj.len() + ca.len() + cb.len();
+    let StagedCoefficients { cj, ca, cb } = staged;
+    let coefficients = ci.len() + ca.len();
     let mut peak;
 
     // Storage order: i, nu, lambda, sigma. Only one N x N AO panel is expanded.
@@ -311,18 +331,29 @@ fn transform(
         let mut panel = DMatrix::zeros(n, n);
         peak = coefficients + t1.len() + panel.len();
         for sigma in 0..n {
-            for lambda in 0..n {
-                panel
-                    .as_mut_slice()
-                    .chunks_mut(n)
-                    .enumerate()
-                    .for_each(|(nu, col)| {
-                        for (mu, value) in col.iter_mut().enumerate() {
-                            *value = eri[(mu, nu, lambda, sigma)];
-                        }
-                    });
+            for lambda in 0..=sigma {
+                // Compact ERIs are symmetric in the first AO pair. Expand
+                // both triangles from one lookup without changing GEMM order.
+                for nu in 0..n {
+                    for mu in 0..=nu {
+                        let value = eri[(mu, nu, lambda, sigma)];
+                        panel[(mu, nu)] = value;
+                        panel[(nu, mu)] = value;
+                    }
+                }
                 t1.columns_mut(n * (lambda + n * sigma), n)
                     .gemm(1.0, &ci, &panel, 0.0);
+                // Symmetry of the second AO pair survives the mu contraction:
+                // reuse the transformed panel for the swapped lambda/sigma pair.
+                if lambda != sigma {
+                    for nu in 0..n {
+                        let source = nu + n * (lambda + n * sigma);
+                        let target = nu + n * (sigma + n * lambda);
+                        for i in 0..b {
+                            t1[(i, target)] = t1[(i, source)];
+                        }
+                    }
+                }
             }
         }
     }
@@ -334,7 +365,7 @@ fn transform(
         .enumerate()
         .for_each(|(sigma, output)| {
             let panel = DMatrixView::from_slice(&t1.as_slice()[sigma * b * n * n..], b * n, n);
-            DMatrixViewMut::from_slice(output, b * n, o).gemm(1.0, &panel, &cj, 0.0);
+            DMatrixViewMut::from_slice(output, b * n, o).gemm(1.0, &panel, cj, 0.0);
         });
     drop(t1);
     // a, i, j, sigma: a small transposed view avoids a full tensor permutation.
@@ -348,13 +379,13 @@ fn transform(
                 va,
                 b,
             );
-            output.gemm(1.0, &ca, &panel.transpose(), 0.0);
+            output.gemm(1.0, ca, &panel.transpose(), 0.0);
         }
     }
     drop(t2);
     let mut t4 = DMatrix::zeros(va * b * o, vb);
     peak = peak.max(coefficients + t3.len() + t4.len());
-    t4.gemm(1.0, &t3, &cb, 0.0);
+    t4.gemm(1.0, &t3, cb, 0.0);
     (t4, (peak * size_of::<f64>()) as u64)
 }
 
@@ -415,6 +446,47 @@ mod tests {
     }
 
     #[test]
+    fn staged_coefficients_borrow_untransposed_columns_and_reuse_virtual_transpose() {
+        let ca = coefficients(7, 6, 0.3);
+        let cb = coefficients(7, 6, 1.2);
+        let energies = DVector::from_element(6, 1.0);
+        let left = Mp2SpinInput {
+            mo_coefficients: &ca,
+            orbital_energies: &energies,
+            occupied_orbitals: 4,
+            frozen_orbitals: 1,
+        };
+        let right = Mp2SpinInput {
+            mo_coefficients: &cb,
+            occupied_orbitals: 3,
+            ..left
+        };
+        let staged = StagedCoefficients::new(left, right);
+        assert_eq!(staged.cj.as_ptr(), cb.column(1).as_ptr());
+        assert_eq!(staged.cb.as_ptr(), cb.column(3).as_ptr());
+        assert_eq!(staged.ca, ca.columns(4, 2).transpose());
+        let d = Dimensions {
+            n: 7,
+            left: 3,
+            right: 2,
+            va: 2,
+            vb: 3,
+        };
+        let eri = integrals(7);
+        let transpose_ptr = staged.ca.as_ptr();
+        for start in 0..d.left {
+            let (actual, payload) = transform(left, &staged, &eri, d, start, 1);
+            assert!(payload <= d.workspace(1).unwrap());
+            assert_eq!(staged.ca.as_ptr(), transpose_ptr);
+            assert_relative_eq!(
+                actual[(0, 0)],
+                direct(&ca, &cb, &eri, [1 + start, 4, 1, 3]),
+                epsilon = 1e-12
+            );
+        }
+    }
+
+    #[test]
     fn blocked_integrals_match_independent_four_index_contraction() {
         for threads in [1, 4] {
             let pool = rayon::ThreadPoolBuilder::new()
@@ -447,11 +519,12 @@ mod tests {
                         va: 2,
                         vb: 3,
                     };
+                    let staged = StagedCoefficients::new(left, right);
                     for block in [1, 2, 3, d.left] {
                         for start in (0..d.left).step_by(block) {
                             let b = block.min(d.left - start);
-                            let (actual, payload) = transform(left, right, &eri, d, start, b);
-                            assert_eq!(payload, d.workspace(b).unwrap());
+                            let (actual, payload) = transform(left, &staged, &eri, d, start, b);
+                            assert!(payload <= d.workspace(b).unwrap());
                             for i in 0..b {
                                 for j in 0..d.right {
                                     for a in 0..d.va {
@@ -479,6 +552,31 @@ mod tests {
         }
     }
 
+    fn rhf_dense_energy(
+        dense: &DMatrix<f64>,
+        energies: &DVector<f64>,
+        occupied: usize,
+        frozen: usize,
+        d: Dimensions,
+    ) -> f64 {
+        let mut value = 0.0;
+        for i in 0..d.left {
+            for j in 0..d.right {
+                for a in 0..d.va {
+                    for b in 0..d.vb {
+                        let direct = dense[(i * d.va + a, j * d.vb + b)];
+                        let exchange = dense[(i * d.va + b, j * d.vb + a)];
+                        value += direct * (2.0 * direct - exchange)
+                            / (energies[frozen + i] + energies[frozen + j]
+                                - energies[occupied + a]
+                                - energies[occupied + b]);
+                    }
+                }
+            }
+        }
+        value
+    }
+
     #[test]
     fn blocked_energies_match_dense_reference_for_every_sector_and_block_size() {
         let n = 7;
@@ -488,7 +586,7 @@ mod tests {
         let eb = DVector::from_vec(vec![-2.8, -1.8, -0.9, 0.2, 0.6, 1.2]);
         let eri = integrals(n);
         for frozen in [0, 1] {
-            let left = Mp2SpinInput {
+            let alpha = Mp2SpinInput {
                 mo_coefficients: &ca,
                 orbital_energies: &ea,
                 occupied_orbitals: 4,
@@ -503,8 +601,14 @@ mod tests {
             for sector in [
                 Mp2Sector::Rhf,
                 Mp2Sector::UhfAlphaAlpha,
+                Mp2Sector::UhfBetaBeta,
                 Mp2Sector::UhfAlphaBeta,
             ] {
+                let left = if matches!(sector, Mp2Sector::UhfBetaBeta) {
+                    beta
+                } else {
+                    alpha
+                };
                 let right = if matches!(sector, Mp2Sector::UhfAlphaBeta) {
                     beta
                 } else {
@@ -512,12 +616,16 @@ mod tests {
                 };
                 let d = Dimensions {
                     n,
-                    left: 4 - frozen,
+                    left: left.occupied_orbitals - frozen,
                     right: right.occupied_orbitals - frozen,
-                    va: 2,
+                    va: 6 - left.occupied_orbitals,
                     vb: 6 - right.occupied_orbitals,
                 };
-                let tl = super::super::build_orbital_pair_transform(&ca, frozen, 4);
+                let tl = super::super::build_orbital_pair_transform(
+                    left.mo_coefficients,
+                    frozen,
+                    left.occupied_orbitals,
+                );
                 let tr = super::super::build_orbital_pair_transform(
                     right.mo_coefficients,
                     frozen,
@@ -526,37 +634,26 @@ mod tests {
                 let dense = tl.transpose() * super::super::build_ao_pair_matrix(&eri, n) * tr;
                 let expected = match sector {
                     Mp2Sector::UhfAlphaAlpha | Mp2Sector::UhfBetaBeta => {
-                        super::super::same_spin_correlation_energy(&dense, &ea, 4, frozen).unwrap()
+                        super::super::same_spin_correlation_energy(
+                            &dense,
+                            left.orbital_energies,
+                            left.occupied_orbitals,
+                            frozen,
+                        )
+                        .unwrap()
                     }
                     Mp2Sector::UhfAlphaBeta => super::super::opposite_spin_correlation_energy(
                         &dense, &ea, 4, frozen, &eb, 3, frozen,
                     )
                     .unwrap(),
-                    Mp2Sector::Rhf => {
-                        let mut value = 0.0;
-                        for i in 0..d.left {
-                            for j in 0..d.right {
-                                for a in 0..d.va {
-                                    for b in 0..d.vb {
-                                        let g = dense[(i * d.va + a, j * d.vb + b)];
-                                        let x = dense[(i * d.va + b, j * d.vb + a)];
-                                        value += g * (2.0 * g - x)
-                                            / (ea[frozen + i] + ea[frozen + j]
-                                                - ea[4 + a]
-                                                - ea[4 + b]);
-                                    }
-                                }
-                            }
-                        }
-                        value
-                    }
+                    Mp2Sector::Rhf => rhf_dense_energy(&dense, &ea, 4, frozen, d),
                 };
                 for threads in [1, 4] {
                     let pool = rayon::ThreadPoolBuilder::new()
                         .num_threads(threads)
                         .build()
                         .unwrap();
-                    for b in [1, 2, 3, d.left] {
+                    for b in [1, 2, 3, d.left].into_iter().filter(|&b| b <= d.left) {
                         let budget = d.workspace(b).unwrap();
                         let actual = pool
                             .install(|| {
