@@ -165,6 +165,17 @@ to the build machine's CPU, use `RUSTFLAGS="-C target-cpu=native" cargo build
 In PowerShell, set `$env:RUSTFLAGS = "-C target-cpu=native"`, build, then remove
 it with `Remove-Item Env:RUSTFLAGS`. There is no separate `native` Cargo profile.
 
+Coulomb integrals cache Boys function values by order. When the requested
+maximum order is nonzero, positive arguments up to 20 use a positive-term series
+to seed the highest order, followed by downward recurrence; larger arguments
+retain the gamma-function seed. An order-zero cache uses the error-function
+expression. This changes numerical evaluation rather than the integral
+definition or screening policy. The unit tests in
+[`boys.rs`](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/math_utils/boys.rs)
+compare the cache against independent quadrature, including the series boundary.
+Run `cargo test -p rustiq-chem-core math_utils::boys` and the affected
+[PySCF comparisons](https://github.com/mveril/RustiQ/blob/main/tools/reference/README.md) after changing this path.
+
 The `eri_timings` and `mp2_timings` benchmarks use Criterion and require
 `bench-support`:
 

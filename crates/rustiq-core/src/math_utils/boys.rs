@@ -33,14 +33,18 @@ impl CachedBoysFunction {
             }
         } else if max_order == 0 {
             values.push(boys_zero(x));
-        } else if x < 0.5 {
+        } else if x < 0.0 {
             for m in 0..=max_order {
                 values.push(boys_function_value(u64::from(m), x));
             }
         } else {
             values.resize(count, 0.0);
             let exp_neg_x = (-x).exp();
-            values[max_order as usize] = boys_gamma_reference(u64::from(max_order), x);
+            values[max_order as usize] = if x <= 20.0 {
+                boys_positive_series(max_order, x, exp_neg_x)
+            } else {
+                boys_gamma_reference(u64::from(max_order), x)
+            };
             for m in (0..max_order).rev() {
                 values[m as usize] = (2.0 * x * values[m as usize + 1] + exp_neg_x)
                     / f64::from(2 * u32::from(m) + 1);
@@ -57,6 +61,25 @@ impl Index<u8> for CachedBoysFunction {
     fn index(&self, order: u8) -> &Self::Output {
         &self.values[order as usize]
     }
+}
+
+// Expanding around t = 1 gives a positive-term series:
+// F_m(x) = exp(-x)/(2m+1) * sum_k x^k / (m+3/2)_k.
+// Unlike the alternating Taylor series, this has no cancellation for x >= 0.
+// At x <= 20 the terms converge comfortably within this bound; one top-order
+// seed supplies all lower orders through stable downward recurrence.
+fn boys_positive_series(m: u8, x: f64, exp_neg_x: f64) -> f64 {
+    let a = f64::from(m) + 0.5;
+    let mut term = 1.0;
+    let mut sum = term;
+    for k in 1..=128 {
+        term *= x / (a + f64::from(k));
+        sum += term;
+        if term <= f64::EPSILON * sum {
+            break;
+        }
+    }
+    exp_neg_x * sum / (2.0 * a)
 }
 
 fn boys_zero(x: f64) -> f64 {
@@ -216,6 +239,67 @@ mod tests {
                         error <= 1e-9,
                         "max_order={max_order}, m={m}, x={x}, result={result}, expected={expected}, error={error}"
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cached_boys_matches_quadrature_across_series_boundary() {
+        for max_order in [1, 4, 12, 24, 32] {
+            for x in [
+                0.499_999, 0.5, 0.500_001, 2.0, 10.0, 19.999_999, 20.0, 20.000_001,
+            ] {
+                let cache = CachedBoysFunction::new(max_order, x);
+                for m in 0..=max_order {
+                    let expected = boys_integral_reference(u64::from(m), x);
+                    let error = (cache[m] - expected).abs();
+                    assert!(
+                        error <= 2e-12 + 2e-11 * expected.abs(),
+                        "max_order={max_order}, m={m}, x={x}, error={error}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cached_boys_top_order_matches_high_precision_boundary_values() {
+        // References: alternating integral Taylor expansion summed with 100-digit
+        // decimal arithmetic, independently of the production positive-term series.
+        let cases: &[(u8, f64, f64)] = &[
+            (1, 20.0, 0.004_954_159_069_220_500_5),
+            (4, 20.0, 8.127_855_549_358_838e-06),
+            (12, 20.0, 3.626_306_431_916_077_5e-09),
+            (32, 20.0, 7.485_266_990_933_971e-11),
+            (32, 19.999_999, 7.485_274_001_612_07e-11),
+            (32, 20.000_001, 7.485_259_980_262_462e-11),
+            (255, 20.0, 4.374_552_582_512_749e-12),
+        ];
+        for &(order, x, expected) in cases {
+            let actual = CachedBoysFunction::new(order, x)[order];
+            assert!(
+                (actual - expected).abs() <= 1e-13 * expected.abs(),
+                "order={order}, x={x}, actual={actual}, expected={expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn cached_boys_positive_series_supports_high_orders() {
+        for max_order in [64, 128, 255] {
+            for x in [1e-12, 0.5, 2.0, 10.0, 20.0] {
+                let cache = CachedBoysFunction::new(max_order, x);
+                for m in [0, 1, max_order / 2, max_order] {
+                    let expected = boys_integral_reference(u64::from(m), x);
+                    let error = (cache[m] - expected).abs();
+                    // Composite Simpson quadrature loses accuracy for the sharply
+                    // peaked integrand at the largest orders near x = 0.
+                    assert!(
+                        error <= 1e-8 * expected.abs() + 1e-15,
+                        "max_order={max_order}, m={m}, x={x}, error={error}"
+                    );
+                    assert!(cache[m] > 0.0);
                 }
             }
         }
