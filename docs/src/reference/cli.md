@@ -43,12 +43,14 @@ compiler arguments or Cargo configuration.
 LTO and codegen units are labeled as declared because Cargo does not expose
 their effective compiler values to build scripts. Target features describe
 compile-time target settings, not instructions supported by the machine at
-runtime. The architecture comes from Cargo's final compilation target, which
-remains correct during cross-compilation. An ISA baseline is reported only for
-recognized generic x86-64 targets such as `x86-64-v3`. When no CPU was
-explicitly requested, the output says so; for a CPU model name or `native`,
-the baseline is `unknown` because those values do not identify a standard
-baseline reliably. RustiQ does not guess the concrete build-host CPU.
+runtime. The architecture and globally enabled features come from Cargo's
+final compilation target, including during cross-compilation. RustiQ identifies
+an ISA baseline only when that complete feature set exactly matches a standard
+x86-64 level. Thus the ordinary `fxsr, sse, sse2` set identifies the `x86-64`
+baseline. When no CPU was explicitly requested, the target CPU row says so. A
+CPU model or `native` may enable extra features outside a standard level, so
+its ISA baseline is shown as `unknown` unless the resulting feature set exactly
+matches one. RustiQ does not guess the concrete build-host CPU.
 
 For example, the grouped output has this shape (unknown optional fields are
 omitted and the values depend on the build):

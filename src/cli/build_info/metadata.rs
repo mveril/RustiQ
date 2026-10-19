@@ -44,35 +44,35 @@ pub(crate) struct Build {
     pub cargo_features: Vec<String>,
 }
 
-pub(crate) static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| BuildInfo {
-    source: Source {
-        commit: optional_git(env!("RUSTIQ_BUILD_GIT_COMMIT"), env!("VERGEN_GIT_SHA")),
-        state: git_state(),
-        digest: optional(env!("RUSTIQ_SOURCE_SHA256")),
-        cargo_lock_digest: optional(env!("RUSTIQ_CARGO_LOCK_SHA256")),
-    },
-    compiler: Compiler {
-        rustc: optional(env!("VERGEN_RUSTC_SEMVER")),
-        llvm: optional(env!("VERGEN_RUSTC_LLVM_VERSION")),
-        target: optional(env!("VERGEN_CARGO_TARGET_TRIPLE")),
-    },
-    cpu: CpuCompatibility {
-        architecture: optional(env!("RUSTIQ_TARGET_ARCH")),
-        target_cpu: optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
-        isa_baseline: isa_baseline(
-            env!("RUSTIQ_TARGET_ARCH"),
-            optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
-        ),
-        target_features: target_feature_values(env!("RUSTIQ_TARGET_FEATURES")),
-    },
-    build: Build {
-        profile: optional(env!("RUSTIQ_BUILD_PROFILE")),
-        cargo_optimization: optional(env!("VERGEN_CARGO_OPT_LEVEL")),
-        debug_information_declared: optional(env!("RUSTIQ_DEBUG_INFO_DECLARED")),
-        lto_declared: optional(env!("RUSTIQ_LTO_DECLARED")),
-        codegen_units_declared: optional(env!("RUSTIQ_CODEGEN_UNITS_DECLARED")),
-        cargo_features: cargo_feature_values(env!("VERGEN_CARGO_FEATURES")),
-    },
+pub(crate) static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| {
+    let target_features = target_feature_values(env!("RUSTIQ_TARGET_FEATURES"));
+    BuildInfo {
+        source: Source {
+            commit: optional_git(env!("RUSTIQ_BUILD_GIT_COMMIT"), env!("VERGEN_GIT_SHA")),
+            state: git_state(),
+            digest: optional(env!("RUSTIQ_SOURCE_SHA256")),
+            cargo_lock_digest: optional(env!("RUSTIQ_CARGO_LOCK_SHA256")),
+        },
+        compiler: Compiler {
+            rustc: optional(env!("VERGEN_RUSTC_SEMVER")),
+            llvm: optional(env!("VERGEN_RUSTC_LLVM_VERSION")),
+            target: optional(env!("VERGEN_CARGO_TARGET_TRIPLE")),
+        },
+        cpu: CpuCompatibility {
+            architecture: optional(env!("RUSTIQ_TARGET_ARCH")),
+            target_cpu: optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
+            isa_baseline: isa_baseline(env!("RUSTIQ_TARGET_ARCH"), &target_features),
+            target_features,
+        },
+        build: Build {
+            profile: optional(env!("RUSTIQ_BUILD_PROFILE")),
+            cargo_optimization: optional(env!("VERGEN_CARGO_OPT_LEVEL")),
+            debug_information_declared: optional(env!("RUSTIQ_DEBUG_INFO_DECLARED")),
+            lto_declared: optional(env!("RUSTIQ_LTO_DECLARED")),
+            codegen_units_declared: optional(env!("RUSTIQ_CODEGEN_UNITS_DECLARED")),
+            cargo_features: cargo_feature_values(env!("VERGEN_CARGO_FEATURES")),
+        },
+    }
 });
 
 fn optional(value: &'static str) -> Option<&'static str> {
@@ -131,15 +131,16 @@ fn target_feature_values(value: &'static str) -> Vec<&'static str> {
         .collect()
 }
 
-fn isa_baseline(architecture: &str, target_cpu: Option<&str>) -> Option<&'static str> {
+fn isa_baseline(architecture: &str, target_features: &[&str]) -> Option<&'static str> {
     if architecture != "x86_64" {
         return None;
     }
-    match target_cpu? {
-        "x86-64" | "x86_64" => Some("x86-64"),
-        "x86-64-v2" | "x86_64_v2" => Some("x86-64-v2"),
-        "x86-64-v3" | "x86_64_v3" => Some("x86-64-v3"),
-        "x86-64-v4" | "x86_64_v4" => Some("x86-64-v4"),
+    let features = target_features.join(",");
+    match features.as_str() {
+        "fxsr,sse,sse2" => Some("x86-64"),
+        "cmpxchg16b,fxsr,popcnt,sse,sse2,sse3,sse4.1,sse4.2,ssse3" => Some("x86-64-v2"),
+        "avx,avx2,bmi1,bmi2,cmpxchg16b,f16c,fma,fxsr,lzcnt,movbe,popcnt,sse,sse2,sse3,sse4.1,sse4.2,ssse3,xsave" => Some("x86-64-v3"),
+        "avx,avx2,avx512bw,avx512cd,avx512dq,avx512f,avx512vl,bmi1,bmi2,cmpxchg16b,f16c,fma,fxsr,lzcnt,movbe,popcnt,sse,sse2,sse3,sse4.1,sse4.2,ssse3,xsave" => Some("x86-64-v4"),
         _ => None,
     }
 }
@@ -193,11 +194,89 @@ mod tests {
     }
 
     #[test]
-    fn isa_baseline_is_reported_only_for_known_generic_x86_targets() {
-        assert_eq!(isa_baseline("x86_64", Some("x86-64-v3")), Some("x86-64-v3"));
-        assert_eq!(isa_baseline("x86_64", Some("x86_64_v2")), Some("x86-64-v2"));
-        assert_eq!(isa_baseline("x86_64", Some("native")), None);
-        assert_eq!(isa_baseline("x86_64", Some("haswell")), None);
-        assert_eq!(isa_baseline("aarch64", Some("generic")), None);
+    fn isa_baseline_matches_only_complete_standard_x86_feature_sets() {
+        assert_eq!(
+            isa_baseline("x86_64", &["fxsr", "sse", "sse2"]),
+            Some("x86-64")
+        );
+        assert_eq!(
+            isa_baseline(
+                "x86_64",
+                &[
+                    "avx",
+                    "avx2",
+                    "bmi1",
+                    "bmi2",
+                    "cmpxchg16b",
+                    "f16c",
+                    "fma",
+                    "fxsr",
+                    "lzcnt",
+                    "movbe",
+                    "popcnt",
+                    "sse",
+                    "sse2",
+                    "sse3",
+                    "sse4.1",
+                    "sse4.2",
+                    "ssse3",
+                    "xsave",
+                ]
+            ),
+            Some("x86-64-v3")
+        );
+        assert_eq!(
+            isa_baseline(
+                "x86_64",
+                &[
+                    "cmpxchg16b",
+                    "fxsr",
+                    "popcnt",
+                    "sse",
+                    "sse2",
+                    "sse3",
+                    "sse4.1",
+                    "sse4.2",
+                    "ssse3",
+                ]
+            ),
+            Some("x86-64-v2")
+        );
+        assert_eq!(
+            isa_baseline(
+                "x86_64",
+                &[
+                    "avx",
+                    "avx2",
+                    "avx512bw",
+                    "avx512cd",
+                    "avx512dq",
+                    "avx512f",
+                    "avx512vl",
+                    "bmi1",
+                    "bmi2",
+                    "cmpxchg16b",
+                    "f16c",
+                    "fma",
+                    "fxsr",
+                    "lzcnt",
+                    "movbe",
+                    "popcnt",
+                    "sse",
+                    "sse2",
+                    "sse3",
+                    "sse4.1",
+                    "sse4.2",
+                    "ssse3",
+                    "xsave",
+                ]
+            ),
+            Some("x86-64-v4")
+        );
+        assert_eq!(
+            isa_baseline("x86_64", &["fxsr", "sse", "sse2", "fma"]),
+            None
+        );
+        assert_eq!(isa_baseline("aarch64", &["neon"]), None);
     }
 }
