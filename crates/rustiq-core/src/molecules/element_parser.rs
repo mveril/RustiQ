@@ -1,5 +1,4 @@
 use mendeleev::Element;
-use Element;
 
 pub fn parse_element(e: &str) -> Result<Element, ParseElementError> {
     if let Ok(z0) = e.parse::<usize>() {

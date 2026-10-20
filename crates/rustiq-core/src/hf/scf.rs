@@ -1,3 +1,4 @@
+#[cfg(test)]
 use mendeleev::Element;
 // src/scf_calculation.rs
 

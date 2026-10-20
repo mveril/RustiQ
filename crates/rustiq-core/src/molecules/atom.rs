@@ -1,6 +1,5 @@
 use mendeleev::Element;
 use nalgebra::Point3;
-use Element;
 
 #[derive(Debug, Clone)]
 pub struct Atom {

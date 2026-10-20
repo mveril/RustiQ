@@ -3,6 +3,7 @@ use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::pa
 use core::iter::Iterator;
 use delegate::delegate;
 use itertools::Itertools;
+#[cfg(test)]
 use mendeleev::Element;
 use nalgebra::{distance, Isometry3, Matrix3, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::IntoParallelIterator;

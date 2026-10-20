@@ -4,6 +4,7 @@
     reason = "Symbols follow established matrix and Gaussian integral notation"
 )]
 
+#[cfg(test)]
 use mendeleev::Element;
 use nalgebra::{DMatrix, Point3, Vector3};
 use std::f64::consts::PI;

@@ -5,7 +5,6 @@ use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    sync::LazyLock,
 };
 
 use rand::SeedableRng;
@@ -23,18 +22,85 @@ const ADJECTIVES: &[&str] = &[
     "serene", "sharp", "silent", "silver", "simple", "smooth", "steady", "still", "subtle",
     "sunny", "swift", "tender", "tidy", "tranquil", "vivid", "warm", "wise",
 ];
-static NOUNS: LazyLock<Vec<String>> = LazyLock::new(|| {
-    Element::list()
-        .iter()
-        .map(|element| element.name().to_ascii_lowercase())
-        .collect()
-});
+// Resolve element names and lowercase them at compile time.
+macro_rules! cache_nouns {
+    ($($scientific:literal),*; $($element:ident),* $(,)?) => {
+        &[
+            $($scientific,)*
+            $(const_format::map_ascii_case!(
+                const_format::Case::Lower,
+                Element::$element.name()
+            ),)*
+        ]
+    };
+}
 
-static WORDS: LazyLock<petname::Petnames<'static>> = LazyLock::new(|| petname::Petnames {
+const NOUNS: &[&str] = cache_nouns!(
+    "accelerator",
+    "amplitude",
+    "anion",
+    "asteroid",
+    "atom",
+    "baryon",
+    "beam",
+    "boson",
+    "catalyst",
+    "cation",
+    "comet",
+    "condensate",
+    "cosmos",
+    "crystal",
+    "detector",
+    "dipole",
+    "electron",
+    "fermion",
+    "field",
+    "flux",
+    "galaxy",
+    "hadron",
+    "ion",
+    "isotope",
+    "lattice",
+    "lepton",
+    "magneton",
+    "molecule",
+    "nebula",
+    "neutrino",
+    "neutron",
+    "nucleus",
+    "orbital",
+    "particle",
+    "phonon",
+    "photon",
+    "plasma",
+    "planet",
+    "pluto",
+    "positron",
+    "proton",
+    "pulsar",
+    "quanta",
+    "quark",
+    "reagent",
+    "resonance",
+    "spectrum",
+    "spin",
+    "vector",
+    "wave";
+    H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S,
+    Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge,
+    As, Se, Br, Kr, Rb, Sr, Y, Zr, Nb, Mo, Tc, Ru, Rh, Pd, Ag, Cd,
+    In, Sn, Sb, Te, I, Xe, Cs, Ba, La, Ce, Pr, Nd, Pm, Sm, Eu, Gd,
+    Tb, Dy, Ho, Er, Tm, Yb, Lu, Hf, Ta, W, Re, Os, Ir, Pt, Au, Hg,
+    Tl, Pb, Bi, Po, At, Rn, Fr, Ra, Ac, Th, Pa, U, Np, Pu, Am, Cm,
+    Bk, Cf, Es, Fm, Md, No, Lr, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, Cn,
+    Nh, Fl, Mc, Lv, Ts, Og,
+);
+
+const WORDS: petname::Petnames<'static> = petname::Petnames {
     adjectives: Cow::Borrowed(ADJECTIVES),
     adverbs: Cow::Borrowed(&[]),
-    nouns: Cow::Owned(NOUNS.iter().map(String::as_str).collect()),
-});
+    nouns: Cow::Borrowed(NOUNS),
+};
 
 pub(super) fn regular_directory(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
@@ -207,7 +273,7 @@ mod tests {
 
     #[test]
     fn vocabulary_contains_every_element_and_only_unique_nouns() {
-        let nouns: std::collections::BTreeSet<_> = NOUNS.iter().map(String::as_str).collect();
+        let nouns: std::collections::BTreeSet<_> = NOUNS.iter().copied().collect();
         assert_eq!(nouns.len(), NOUNS.len());
         assert_eq!(Element::list().len(), 118);
         for element in Element::list() {

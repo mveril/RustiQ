@@ -1,4 +1,5 @@
 //! Explicit V1 wire records; domain structs are never serialized as the format.
+#[cfg(test)]
 use mendeleev::Element;
 use serde::{Deserialize, Serialize};
 

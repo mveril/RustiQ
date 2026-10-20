@@ -4,6 +4,7 @@
     reason = "Symbols follow established matrix and Gaussian integral notation"
 )]
 
+#[cfg(test)]
 use mendeleev::Element;
 use std::f64::consts::PI;
 #[cfg(feature = "bench-support")]

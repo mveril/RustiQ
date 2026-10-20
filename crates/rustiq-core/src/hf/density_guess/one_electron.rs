@@ -3,6 +3,7 @@ use super::{
 };
 use crate::basis::gaussian::basis::Basis;
 use crate::config::hf::GuessPerturbationConfig;
+#[cfg(test)]
 use mendeleev::Element;
 use nalgebra::DMatrix;
 

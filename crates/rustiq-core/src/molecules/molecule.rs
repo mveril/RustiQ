@@ -1,3 +1,4 @@
+#[cfg(test)]
 use mendeleev::Element;
 use std::{num::NonZero, ops::Deref};
 
