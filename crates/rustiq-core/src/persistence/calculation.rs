@@ -1,4 +1,5 @@
 //! Explicit V1 wire records; domain structs are never serialized as the format.
+use mendeleev::Element;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -814,7 +815,7 @@ mod v1_contract_tests {
             .iter()
             .enumerate()
             .map(|(index, symbol)| {
-                let element = mendeleev::Element::iter()
+                let element = Element::iter()
                     .find(|element| element.symbol() == *symbol)
                     .unwrap();
                 Atom::new(

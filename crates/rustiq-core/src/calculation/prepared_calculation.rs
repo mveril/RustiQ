@@ -14,6 +14,7 @@ use crate::{
     molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units},
     persistence::{AoEriArtifact, EriCache, PortableError, RustiQData},
 };
+use mendeleev::Element;
 use std::{
     cell::RefCell,
     num::{NonZeroU8, NonZeroUsize},
@@ -48,7 +49,7 @@ impl PreparedCalculation {
         let atoms = context
             .atoms()
             .map(|(atomic_number, position)| {
-                let element = mendeleev::Element::list()
+                let element = Element::list()
                     .iter()
                     .find(|element| element.atomic_number() == atomic_number)
                     .expect("validated portable context uses a known element");

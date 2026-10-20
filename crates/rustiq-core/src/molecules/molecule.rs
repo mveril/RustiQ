@@ -1,3 +1,4 @@
+use mendeleev::Element;
 use std::{num::NonZero, ops::Deref};
 
 use thiserror::Error;
@@ -197,7 +198,7 @@ mod tests {
             .iter()
             .enumerate()
             .map(|(index, symbol)| {
-                let element = mendeleev::Element::iter()
+                let element = Element::iter()
                     .find(|element| element.symbol() == *symbol)
                     .unwrap();
                 Atom::new(element, point![0.0, 0.0, index as f64])

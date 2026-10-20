@@ -4,6 +4,7 @@
     reason = "Symbols follow established matrix and Gaussian integral notation"
 )]
 
+use mendeleev::Element;
 use nalgebra::{DMatrix, Point3, Vector3};
 use std::f64::consts::PI;
 
@@ -1156,7 +1157,7 @@ mod tests {
     #[test]
     fn test_basis_hydrogen_minimal() {
         let basis_file = test_utils::load_minimal_basis_file();
-        let element = mendeleev::Element::list()[0];
+        let element = Element::list()[0];
         let atom = Atom {
             element,
             position: Point3::origin(),
@@ -1214,7 +1215,7 @@ mod tests {
             tags: Vec::new(),
             version: "test".to_string(),
         };
-        let element = mendeleev::Element::list()[0];
+        let element = Element::list()[0];
         let atom = Atom {
             element,
             position: Point3::origin(),
@@ -1235,7 +1236,7 @@ mod tests {
         Geometry {
             comment: "Hydrogen Atom".to_string(),
             atoms: vec![Atom {
-                element: mendeleev::Element::list()[0],
+                element: Element::list()[0],
                 position: Point3::origin(),
             }],
         }

@@ -3,6 +3,7 @@ use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::pa
 use core::iter::Iterator;
 use delegate::delegate;
 use itertools::Itertools;
+use mendeleev::Element;
 use nalgebra::{distance, Isometry3, Matrix3, Point3, Rotation3, Translation3, Vector3};
 use rayon::iter::IntoParallelIterator;
 use std::ops::{Index, IndexMut, Range};
@@ -441,11 +442,8 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_geometry_display() {
         let point_angstrom = point!(0.0, 0.0, -0.370_000);
-        let atom1 = Atom::new(mendeleev::Element::H, point_angstrom);
-        let atom2 = Atom::new(
-            mendeleev::Element::H,
-            Point3::new(0.0, 0.0, -point_angstrom.z),
-        );
+        let atom1 = Atom::new(Element::H, point_angstrom);
+        let atom2 = Atom::new(Element::H, Point3::new(0.0, 0.0, -point_angstrom.z));
         let geometry = Geometry::new(
             "Hydrogen molecule (centered)".to_string(),
             vec![atom1, atom2],
@@ -470,8 +468,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Translate".to_string(),
             vec![
-                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
-                Atom::new(mendeleev::Element::He, point![1.0, 2.0, 3.0]),
+                Atom::new(Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(Element::He, point![1.0, 2.0, 3.0]),
             ],
         );
 
@@ -485,7 +483,7 @@ H  0.000000  0.000000   0.370000
     fn test_rotate_geometry() {
         let mut geometry = Geometry::new(
             "Rotate".to_string(),
-            vec![Atom::new(mendeleev::Element::H, point![1.0, 0.0, 0.0])],
+            vec![Atom::new(Element::H, point![1.0, 0.0, 0.0])],
         );
 
         geometry.rotate(Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2));
@@ -497,7 +495,7 @@ H  0.000000  0.000000   0.370000
     fn test_transform_geometry_with_isometry() {
         let mut geometry = Geometry::new(
             "Transform".to_string(),
-            vec![Atom::new(mendeleev::Element::H, point![1.0, 0.0, 0.0])],
+            vec![Atom::new(Element::H, point![1.0, 0.0, 0.0])],
         );
         let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2);
         let translation = Translation3::new(0.0, 1.0, 0.0);
@@ -513,8 +511,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Center".to_string(),
             vec![
-                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
-                Atom::new(mendeleev::Element::He, point![2.0, 0.0, 0.0]),
+                Atom::new(Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(Element::He, point![2.0, 0.0, 0.0]),
             ],
         );
 
@@ -539,8 +537,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Mass center".to_string(),
             vec![
-                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
-                Atom::new(mendeleev::Element::He, point![2.0, 0.0, 0.0]),
+                Atom::new(Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(Element::He, point![2.0, 0.0, 0.0]),
             ],
         );
 
@@ -554,8 +552,8 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Charge center".to_string(),
             vec![
-                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
-                Atom::new(mendeleev::Element::He, point![2.0, 0.0, 0.0]),
+                Atom::new(Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(Element::He, point![2.0, 0.0, 0.0]),
             ],
         );
 
@@ -571,11 +569,11 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new(
             "Inertia tensor".to_string(),
             vec![
-                Atom::new(mendeleev::Element::H, point![1.0, 2.0, 3.0]),
-                Atom::new(mendeleev::Element::H, point![-2.0, 0.5, 1.0]),
+                Atom::new(Element::H, point![1.0, 2.0, 3.0]),
+                Atom::new(Element::H, point![-2.0, 0.5, 1.0]),
             ],
         );
-        let mass = f64::from(mendeleev::Element::H.atomic_weight());
+        let mass = f64::from(Element::H.atomic_weight());
         let expected = mass
             * Matrix3::new(
                 13.0 + 1.25,
@@ -597,9 +595,9 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Orient".to_string(),
             vec![
-                Atom::new(mendeleev::Element::O, point![1.0, 2.0, 0.5]),
-                Atom::new(mendeleev::Element::H, point![2.2, 2.4, 1.7]),
-                Atom::new(mendeleev::Element::H, point![0.4, 3.1, 1.2]),
+                Atom::new(Element::O, point![1.0, 2.0, 0.5]),
+                Atom::new(Element::H, point![2.2, 2.4, 1.7]),
+                Atom::new(Element::H, point![0.4, 3.1, 1.2]),
             ],
         );
 
@@ -617,10 +615,10 @@ H  0.000000  0.000000   0.370000
         let mut geometry = Geometry::new(
             "Orient distances".to_string(),
             vec![
-                Atom::new(mendeleev::Element::C, point![1.0, -0.4, 0.2]),
-                Atom::new(mendeleev::Element::O, point![0.2, 1.3, -0.6]),
-                Atom::new(mendeleev::Element::H, point![-0.8, 0.1, 1.5]),
-                Atom::new(mendeleev::Element::H, point![1.9, 0.6, 1.1]),
+                Atom::new(Element::C, point![1.0, -0.4, 0.2]),
+                Atom::new(Element::O, point![0.2, 1.3, -0.6]),
+                Atom::new(Element::H, point![-0.8, 0.1, 1.5]),
+                Atom::new(Element::H, point![1.9, 0.6, 1.1]),
             ],
         );
         let original_distances = pairwise_distances(&geometry);
@@ -650,8 +648,8 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_nucl_repulsion_h2() {
         // Create a simple geometry for the H2 molecule
-        let atom1 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]);
-        let atom2 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 1.40]);
+        let atom1 = Atom::new(Element::H, point![0.0, 0.0, 0.0]);
+        let atom2 = Atom::new(Element::H, point![0.0, 0.0, 1.40]);
 
         let geometry = Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2]);
 
@@ -674,8 +672,8 @@ H  0.000000  0.000000   0.370000
         let geometry = Geometry::new(
             "Coincident atoms".to_string(),
             vec![
-                Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]),
-                Atom::new(mendeleev::Element::He, point![0.0, 0.0, 0.0]),
+                Atom::new(Element::H, point![0.0, 0.0, 0.0]),
+                Atom::new(Element::He, point![0.0, 0.0, 0.0]),
             ],
         );
 
@@ -688,9 +686,9 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_nucl_repulsion_h3() {
         // Create a geometry for a hypothetical linear H3 system
-        let atom1 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, -1.0]);
-        let atom2 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]);
-        let atom3 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 1.0]);
+        let atom1 = Atom::new(Element::H, point![0.0, 0.0, -1.0]);
+        let atom2 = Atom::new(Element::H, point![0.0, 0.0, 0.0]);
+        let atom3 = Atom::new(Element::H, point![0.0, 0.0, 1.0]);
 
         let geometry = Geometry::new(
             "Hydrogen molecule (H3)".to_string(),
@@ -713,9 +711,9 @@ H  0.000000  0.000000   0.370000
     #[test]
     fn test_nucl_repulsion_he_h2() {
         // Create a geometry for a system with one He atom and H2
-        let helium = Atom::new(mendeleev::Element::He, point![0.0, 0.0, -2.0]);
-        let atom_h1 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 0.0]);
-        let atom_h2 = Atom::new(mendeleev::Element::H, point![0.0, 0.0, 1.0]);
+        let helium = Atom::new(Element::He, point![0.0, 0.0, -2.0]);
+        let atom_h1 = Atom::new(Element::H, point![0.0, 0.0, 0.0]);
+        let atom_h2 = Atom::new(Element::H, point![0.0, 0.0, 1.0]);
 
         let geometry = Geometry::new(
             "Helium and Hydrogen molecule".to_string(),

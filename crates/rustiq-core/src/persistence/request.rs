@@ -1,4 +1,5 @@
 //! Explicit normalized-request V1 wire records, independent of frontend syntax.
+use mendeleev::Element;
 use std::num::{NonZeroU8, NonZeroUsize};
 
 use serde::{Deserialize, Serialize};
@@ -163,7 +164,7 @@ impl RequestSnapshot {
             .atoms
             .iter()
             .map(|atom| {
-                let element = mendeleev::Element::list()
+                let element = Element::list()
                     .iter()
                     .find(|e| e.atomic_number() == atom.atomic_number)
                     .copied()

@@ -1,3 +1,4 @@
+use mendeleev::Element;
 use std::{
     borrow::Cow,
     collections::BTreeMap,
@@ -76,17 +77,12 @@ const SCIENTIFIC_NOUNS: &[&str] = &[
 ];
 
 static NOUNS: LazyLock<String> = LazyLock::new(|| {
-    let mut nouns: Vec<String> = SCIENTIFIC_NOUNS
-        .iter()
-        .map(|word| (*word).to_owned())
-        .collect();
-    for element in mendeleev::Element::list() {
-        let name = element.name().to_ascii_lowercase();
-        if !nouns.contains(&name) {
-            nouns.push(name);
-        }
+    let mut nouns = SCIENTIFIC_NOUNS.join(" ");
+    for element in Element::list() {
+        nouns.push(' ');
+        nouns.push_str(&element.name().to_ascii_lowercase());
     }
-    nouns.join(" ")
+    nouns
 });
 
 static WORDS: LazyLock<petname::Petnames<'static>> = LazyLock::new(|| petname::Petnames {
@@ -270,8 +266,8 @@ mod tests {
         assert_eq!(nouns.len(), NOUNS.split_whitespace().count());
         assert!(nouns.contains("quanta"));
         assert!(!nouns.contains("quantum"));
-        assert_eq!(mendeleev::Element::list().len(), 118);
-        for element in mendeleev::Element::list() {
+        assert_eq!(Element::list().len(), 118);
+        for element in Element::list() {
             assert!(nouns.contains(element.name().to_ascii_lowercase().as_str()));
         }
         let mut rng = ChaCha8Rng::from_seed([0; 32]);

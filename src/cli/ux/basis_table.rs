@@ -1,3 +1,4 @@
+use mendeleev::Element;
 use rustiq_core::basis::{metadata::BasisSetDetail, BasisFile};
 use tabled::Tabled;
 
@@ -23,7 +24,7 @@ impl From<BasisSetDetail> for BasisTableItem {
         let elements = {
             value.get_latest_version().elements.iter().map(|el| {
                 if let Ok(el_num) = el.parse::<usize>() {
-                    mendeleev::Element::list()[el_num - 1].symbol()
+                    Element::list()[el_num - 1].symbol()
                 } else {
                     el.as_str()
                 }
@@ -58,11 +59,7 @@ impl From<BasisFile> for BasisTableItem {
             friendly_names,
             elements: value
                 .atomic_numbers()
-                .map(|index| {
-                    mendeleev::Element::list()[index as usize - 1]
-                        .symbol()
-                        .to_owned()
-                })
+                .map(|index| Element::list()[index as usize - 1].symbol().to_owned())
                 .collect(),
         }
     }
