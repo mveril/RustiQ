@@ -164,10 +164,9 @@ impl RequestSnapshot {
             .atoms
             .iter()
             .map(|atom| {
-                let element = Element::list()
-                    .iter()
-                    .find(|e| e.atomic_number() == atom.atomic_number)
-                    .copied()
+                let index = atom.atomic_number.checked_sub(1).ok_or_else(invalid)?;
+                let element = *Element::list()
+                    .get(usize::try_from(index).map_err(|_| invalid())?)
                     .ok_or_else(invalid)?;
                 if !atom.position.iter().all(|v| v.is_finite()) {
                     return Err(invalid());

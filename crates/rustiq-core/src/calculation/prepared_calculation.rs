@@ -49,10 +49,8 @@ impl PreparedCalculation {
         let atoms = context
             .atoms()
             .map(|(atomic_number, position)| {
-                let element = Element::list()
-                    .iter()
-                    .find(|element| element.atomic_number() == atomic_number)
-                    .expect("validated portable context uses a known element");
+                let element = &Element::list()[usize::try_from(atomic_number - 1)
+                    .expect("validated portable context uses a positive atomic number")];
                 Atom::new(
                     *element,
                     nalgebra::Point3::new(position[0], position[1], position[2]),
