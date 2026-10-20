@@ -4511,7 +4511,6 @@ dependencies = [
  "rusty-figlet",
  "serde",
  "serde_json",
- "sha2",
  "supports-hyperlinks",
  "tabled",
  "temp-env",
