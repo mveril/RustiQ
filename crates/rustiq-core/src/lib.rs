@@ -53,6 +53,14 @@
 //! [`calculation`] for the RHF/UHF equations, orthogonalization convention, and
 //! MP2 correction. MP2 is available only from converged, canonical HF orbitals.
 
+/// Periodic-table element types and properties used by the core API.
+///
+/// In particular, [`mendeleev::Element`] identifies atoms and provides
+/// properties such as atomic number and atomic weight. Re-exporting the crate
+/// lets users construct core values with the same `Element` type without
+/// declaring a separate direct dependency on `mendeleev`.
+pub use mendeleev;
+
 #[deny(clippy::doc_markdown)]
 pub mod basis;
 #[deny(clippy::doc_markdown)]

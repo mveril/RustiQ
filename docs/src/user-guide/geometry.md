@@ -91,7 +91,11 @@ central value, and elements without a standard weight use the mass number of
 the most stable isotope. Consequently, these transformations can produce
 slightly different coordinates than versions that used a different periodic
 table dataset. In the Rust core API, `Atom` stores `mendeleev::Element` by
-value; for example, construct hydrogen atoms with `mendeleev::Element::H`.
+value. The core crate re-exports `mendeleev` as `rustiq_core::mendeleev`, so a
+downstream crate can construct hydrogen atoms with
+`rustiq_core::mendeleev::Element::H` without declaring its own direct
+`mendeleev` dependency. The same element type supplies atomic numbers for
+electronic-structure calculations and atomic weights for geometry operations.
 The core methods for mass centering, inertia tensors, and principal-axis
 orientation return their values directly without an atomic-weight error.
 
