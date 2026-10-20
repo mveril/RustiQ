@@ -164,9 +164,8 @@ impl RequestSnapshot {
             .atoms
             .iter()
             .map(|atom| {
-                let index = atom.atomic_number.checked_sub(1).ok_or_else(invalid)?;
                 let element = *Element::list()
-                    .get(usize::try_from(index).map_err(|_| invalid())?)
+                    .get(usize::try_from(atom.atomic_number - 1).map_err(|_| invalid())?)
                     .ok_or_else(invalid)?;
                 if !atom.position.iter().all(|v| v.is_finite()) {
                     return Err(invalid());
@@ -271,6 +270,13 @@ mod tests {
             "../../tests/data/persistence/request-h2-v1.json"
         ))
         .unwrap()
+    }
+
+    #[test]
+    fn element_list_is_ordered_by_atomic_number() {
+        for (index, element) in Element::list().iter().enumerate() {
+            assert_eq!(element.atomic_number(), u32::try_from(index + 1).unwrap());
+        }
     }
 
     #[test]
