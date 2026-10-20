@@ -44,6 +44,28 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
     assert!(lines.contains(&"COMPILER"));
     assert!(lines.contains(&"CPU COMPATIBILITY"));
     assert!(lines.contains(&"BUILD CONFIGURATION"));
+    assert!(lines.contains(&"NUMERICAL BACKENDS"));
+
+    for (label, value) in [
+        ("Debug assertions", env!("RUSTIQ_DEBUG_ASSERTIONS_DECLARED")),
+        (
+            "Integer overflow checks",
+            env!("RUSTIQ_OVERFLOW_CHECKS_DECLARED"),
+        ),
+    ] {
+        let row = lines
+            .iter()
+            .find(|line| line.trim_start().starts_with(label));
+        let row = row.unwrap();
+        let expected = if !value.is_empty() {
+            format!("{value} (declared)")
+        } else if label == "Debug assertions" {
+            cfg!(debug_assertions).to_string()
+        } else {
+            "unknown".to_owned()
+        };
+        assert!(row.ends_with(&expected));
+    }
     assert!(!text.contains("PROFILING"));
     assert!(!text.contains("PLATFORM"));
     for label in [
@@ -101,6 +123,39 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
         text.contains("Rust commit"),
         env!("VERGEN_RUSTC_CHANNEL") == "nightly" && env!("VERGEN_RUSTC_COMMIT_HASH").len() == 40
     );
+}
+
+#[test]
+fn numerical_backends_show_versions_without_provenance_annotations() {
+    let output = version(&["--version", "--verbose"]);
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    let lines: Vec<_> = text.lines().collect();
+    for (label, name, version) in [
+        (
+            "Linear algebra",
+            "nalgebra",
+            env!("RUSTIQ_NALGEBRA_VERSION"),
+        ),
+        ("Parallelism", "rayon", env!("RUSTIQ_RAYON_VERSION")),
+        (
+            "Special functions",
+            "special",
+            env!("RUSTIQ_SPECIAL_VERSION"),
+        ),
+    ] {
+        let row = lines
+            .iter()
+            .find(|line| line.trim_start().starts_with(label))
+            .unwrap();
+        let value = if version.is_empty() {
+            format!("{name} (version unknown)")
+        } else {
+            format!("{name} {version}")
+        };
+        assert!(row.ends_with(&value));
+    }
+    assert!(!text.contains("(lockfile)"));
 }
 
 #[test]
@@ -170,6 +225,15 @@ fn forced_hyperlinks_do_not_force_ansi_styling() {
     assert!(output.status.success());
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.contains("\u{1b}]8;;"));
+    for (name, version) in [
+        ("nalgebra", env!("RUSTIQ_NALGEBRA_VERSION")),
+        ("rayon", env!("RUSTIQ_RAYON_VERSION")),
+        ("special", env!("RUSTIQ_SPECIAL_VERSION")),
+    ] {
+        if !version.is_empty() {
+            assert!(text.contains(&format!("https://crates.io/crates/{name}/{version}\x1b\\")));
+        }
+    }
     assert!(!text.contains("\u{1b}["));
 }
 

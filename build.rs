@@ -63,6 +63,7 @@ fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>>
     }
 
     emit_declared_profile_settings(manifest_dir)?;
+    emit_numerical_backends(manifest_dir)?;
 
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     println!("cargo:rustc-env=RUSTIQ_TARGET_ARCH={target_arch}");
@@ -134,4 +135,38 @@ fn inherited_profile_value(
 
 fn fs_err_read_to_string(path: &std::path::Path) -> Result<String, Box<dyn Error>> {
     Ok(std::fs::read_to_string(path)?)
+}
+
+// Source packages without a lockfile still identify each backend by name.
+fn emit_numerical_backends(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
+    let lock_path = manifest_dir.join("Cargo.lock");
+    println!("cargo:rerun-if-changed={}", lock_path.display());
+    let lock = match std::fs::read_to_string(&lock_path) {
+        Ok(contents) => Some(contents.parse::<toml_edit::DocumentMut>()?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+    for (name, variable) in [
+        ("nalgebra", "RUSTIQ_NALGEBRA_VERSION"),
+        ("rayon", "RUSTIQ_RAYON_VERSION"),
+        ("special", "RUSTIQ_SPECIAL_VERSION"),
+    ] {
+        let mut versions: Vec<_> = lock
+            .as_ref()
+            .and_then(|document| document.get("package"))
+            .and_then(toml_edit::Item::as_array_of_tables)
+            .into_iter()
+            .flatten()
+            .filter(|package| package.get("name").and_then(toml_edit::Item::as_str) == Some(name))
+            .filter_map(|package| package.get("version").and_then(toml_edit::Item::as_str))
+            .collect();
+        versions.sort_unstable();
+        versions.dedup();
+        let version = match versions.as_slice() {
+            [version] => *version,
+            _ => "",
+        };
+        println!("cargo:rustc-env={variable}={version}");
+    }
+    Ok(())
 }

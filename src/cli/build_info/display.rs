@@ -25,9 +25,54 @@ fn print_version_details(
 ) -> io::Result<()> {
     print_source(writer, &info.source, hyperlinks)?;
     print_compiler(writer, &info.compiler, hyperlinks)?;
-    print_cpu_compatibility(writer, &info.cpu)?;
+    print_cpu_compatibility(writer, &info.cpu, hyperlinks)?;
     print_build(writer, &info.build)?;
+    section(writer, "NUMERICAL BACKENDS")?;
+    print_backend(
+        writer,
+        "Linear algebra",
+        "nalgebra",
+        env!("RUSTIQ_NALGEBRA_VERSION"),
+        hyperlinks,
+    )?;
+    print_backend(
+        writer,
+        "Parallelism",
+        "rayon",
+        env!("RUSTIQ_RAYON_VERSION"),
+        hyperlinks,
+    )?;
+    print_backend(
+        writer,
+        "Special functions",
+        "special",
+        env!("RUSTIQ_SPECIAL_VERSION"),
+        hyperlinks,
+    )?;
     Ok(())
+}
+
+fn print_backend(
+    writer: &mut impl Write,
+    label: &str,
+    name: &str,
+    version: &str,
+    hyperlinks: bool,
+) -> io::Result<()> {
+    if version.is_empty() {
+        return row(writer, label, format!("{name} (version unknown)"));
+    }
+    let value = format!("{name} {version}");
+    let url = format!("https://crates.io/crates/{name}/{version}");
+    if hyperlinks {
+        row_hyperlink(
+            writer,
+            label,
+            format!("\x1b]8;;{url}\x1b\\{value}\x1b]8;;\x1b\\"),
+        )
+    } else {
+        row(writer, label, value)
+    }
 }
 
 fn print_source(
@@ -54,6 +99,7 @@ fn print_source(
 fn print_cpu_compatibility(
     writer: &mut impl Write,
     cpu: &super::metadata::CpuCompatibility,
+    hyperlinks: bool,
 ) -> io::Result<()> {
     if cpu.target_cpu.is_none() && cpu.target_features.is_empty() {
         return Ok(());
@@ -69,7 +115,18 @@ fn print_cpu_compatibility(
         }
     }
     if !cpu.target_features.is_empty() {
-        row(writer, "Target features", cpu.target_features.join(", "))?;
+        let features = cpu.target_features.join(", ");
+        if hyperlinks && !features.chars().any(char::is_control) {
+            row_hyperlink(
+                writer,
+                "Target features",
+                format!(
+                    "\x1b]8;;https://doc.rust-lang.org/reference/attributes/codegen.html#the-target_feature-attribute\x1b\\{features}\x1b]8;;\x1b\\"
+                ),
+            )?;
+        } else {
+            row(writer, "Target features", features)?;
+        }
     }
     Ok(())
 }
@@ -113,15 +170,6 @@ fn print_compiler(
 }
 
 fn print_build(writer: &mut impl Write, build: &super::metadata::Build) -> io::Result<()> {
-    let any = build.profile.is_some()
-        || build.cargo_optimization.is_some()
-        || build.debug_information_declared.is_some()
-        || build.lto_declared.is_some()
-        || build.codegen_units_declared.is_some()
-        || !build.cargo_features.is_empty();
-    if !any {
-        return Ok(());
-    }
     section(writer, "BUILD CONFIGURATION")?;
     if let Some(value) = build.profile {
         row(writer, "Profile", value)?;
@@ -137,6 +185,20 @@ fn print_build(writer: &mut impl Write, build: &super::metadata::Build) -> io::R
     }
     if let Some(value) = build.codegen_units_declared {
         row(writer, "Codegen units", format!("{value} (declared)"))?;
+    }
+    if let Some(value) = build.debug_assertions_declared {
+        row(writer, "Debug assertions", format!("{value} (declared)"))?;
+    } else {
+        row(writer, "Debug assertions", cfg!(debug_assertions))?;
+    }
+    if let Some(value) = build.overflow_checks_declared {
+        row(
+            writer,
+            "Integer overflow checks",
+            format!("{value} (declared)"),
+        )?;
+    } else {
+        row(writer, "Integer overflow checks", "unknown")?;
     }
     if !build.cargo_features.is_empty() {
         row(writer, "Cargo features", build.cargo_features.join(", "))?;
@@ -191,6 +253,39 @@ fn row_hyperlink(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cpu_features_link_only_when_hyperlinks_are_enabled() {
+        let mut cpu = BUILD_INFO.cpu.clone();
+        cpu.target_features = vec!["sse2", "avx2"];
+        for hyperlinks in [false, true] {
+            let mut output = Vec::new();
+            print_cpu_compatibility(&mut output, &cpu, hyperlinks).unwrap();
+            let output = String::from_utf8(output).unwrap();
+            assert!(output.contains("sse2, avx2"));
+            assert_eq!(
+                output.contains("\x1b]8;;https://doc.rust-lang.org/"),
+                hyperlinks
+            );
+        }
+    }
+
+    #[test]
+    fn declared_checks_report_both_enabled_and_disabled_values() {
+        let mut build = BUILD_INFO.build.clone();
+        build.debug_assertions_declared = Some("true");
+        build.overflow_checks_declared = Some("false");
+        let mut output = Vec::new();
+        print_build(&mut output, &build).unwrap();
+        let output = String::from_utf8(output).unwrap();
+        for (label, value) in [
+            ("Debug assertions", "true"),
+            ("Integer overflow checks", "false"),
+        ] {
+            let line = output.lines().find(|line| line.contains(label)).unwrap();
+            assert!(line.ends_with(&format!("{value} (declared)")));
+        }
+    }
 
     #[test]
     fn rust_commit_is_shown_only_for_nightly() {

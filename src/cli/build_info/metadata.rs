@@ -41,6 +41,8 @@ pub(crate) struct Build {
     pub debug_information_declared: Option<&'static str>,
     pub lto_declared: Option<&'static str>,
     pub codegen_units_declared: Option<&'static str>,
+    pub debug_assertions_declared: Option<&'static str>,
+    pub overflow_checks_declared: Option<&'static str>,
     pub cargo_features: Vec<String>,
 }
 
@@ -70,6 +72,8 @@ pub(crate) static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| {
             debug_information_declared: optional(env!("RUSTIQ_DEBUG_INFO_DECLARED")),
             lto_declared: optional(env!("RUSTIQ_LTO_DECLARED")),
             codegen_units_declared: optional(env!("RUSTIQ_CODEGEN_UNITS_DECLARED")),
+            debug_assertions_declared: optional(env!("RUSTIQ_DEBUG_ASSERTIONS_DECLARED")),
+            overflow_checks_declared: optional(env!("RUSTIQ_OVERFLOW_CHECKS_DECLARED")),
             cargo_features: cargo_feature_values(env!("VERGEN_CARGO_FEATURES")),
         },
     }

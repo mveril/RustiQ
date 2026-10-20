@@ -18,13 +18,17 @@ The detailed output groups source, compiler, CPU compatibility, and build
 configuration metadata.
 It includes the full Git commit and status, compilation
 target, Rust compiler and LLVM versions, Cargo optimization level, exact
-profile when supplied by the build, declared debug-information, LTO, and
-codegen-unit settings, target architecture and explicitly requested target CPU
+profile when supplied by the build, declared debug-information, LTO,
+codegen-unit, debug-assertion, and integer overflow-check settings, target
+architecture and explicitly requested target CPU
 when available, enabled target features, and enabled Cargo features. When no
 target CPU was explicitly requested, the CPU section shows only the enabled
 target features rather than suggesting a CPU model or ISA baseline.
 Cargo's synthetic `default` feature marker is omitted. Values that Cargo or
-the build system cannot establish are omitted from text output. Cargo's
+the build system cannot establish are generally omitted from text output.
+The integer overflow-check row explicitly shows `unknown` when unavailable;
+without a declared value, debug assertions are read from the CLI's compiled
+`cfg(debug_assertions)`. Cargo's
 `PROFILE` variable does not identify custom profiles reliably, so the profile
 is shown only when the build supplies its exact name. Release artifacts built
 by `cargo-dist` declare `dist` in their workflow; Nix package builds declare
@@ -33,8 +37,9 @@ by `cargo-dist` declare `dist` in their workflow; Nix package builds declare
 Configuration declared in the selected package profile in `Cargo.toml` is
 labeled as declared. Profile inheritance is followed. Cargo does not expose
 effective LTO, codegen-unit, overflow-check, debug-assertion, or
-debug-information settings to build scripts, so these are reported only when
-the selected profile declares them. Cargo's optimization value is supplied to
+debug-information settings to build scripts. Declared values are reported when
+the selected profile declares them; debug assertions otherwise use the
+compiled cfg value and integer overflow checks show `unknown`. Cargo's optimization value is supplied to
 build scripts; a separate compiler flag can override it. Target CPU is
 populated only from an explicit RustiQ build override or a recognized
 `target-cpu` option in Cargo's encoded rustflags or `RUSTFLAGS`. The target
@@ -82,8 +87,26 @@ BUILD CONFIGURATION
   Debug information   <profile value, if declared>
   LTO                 <profile value (declared)>
   Codegen units       <profile value (declared)>
+  Debug assertions    <profile value (declared), or compiled cfg value>
+  Integer overflow checks <profile value (declared), or unknown>
   Cargo features      <enabled features, excluding the default marker>
+
+NUMERICAL BACKENDS
+  Linear algebra      nalgebra <version>
+  Parallelism         rayon <version>
+  Special functions   special <version>
 ```
+
+The numerical backends section identifies nalgebra for linear algebra,
+Rayon for parallelism, and special for special functions used by the Boys
+function implementation. Their versions are read at build time from `Cargo.lock`
+when it contains a single distinct version of each crate; otherwise the
+corresponding version is shown as `version unknown`. When terminal hyperlinks
+are enabled, each backend name and version links to that exact version on
+crates.io. Unknown versions have no link. The parallelism row does not report
+the active thread count.
+Integer overflow checks concern integer arithmetic, not floating-point NaN,
+infinity, or SCF convergence.
 
 Text calculation banners show a 12-character commit abbreviation and its
 source state. When Git provenance is unknown, they show `Build: unknown`.
@@ -98,6 +121,8 @@ displays `clean`, `dirty`, or `unknown`; a missing commit is displayed as
 `unknown`, as can happen when compiling an unpacked source archive without Git
 metadata. When stdout is a terminal that supports hyperlinks, the Git commit
 hash links to that commit in the RustiQ repository.
+The target feature list links to the Rust Reference's explanation and tables
+of processor features.
 Redirected output stays plain text unless `FORCE_HYPERLINK` explicitly enables
 links.
 These fields describe build provenance, not a cryptographic identity of the
