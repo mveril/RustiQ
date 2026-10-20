@@ -164,23 +164,28 @@ fn numerical_backends_show_versions_without_provenance_annotations() {
 }
 
 #[test]
-fn chemical_data_reports_locked_periodic_table_and_codata_revision() {
+fn chemical_data_reports_locked_mendeleev_and_codata_revision() {
     let output = version(&["--version", "--verbose"]);
     assert!(output.status.success());
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(!text.contains("\x1b]8;;"));
 
-    let version = env!("RUSTIQ_PERIODIC_TABLE_VERSION");
-    let periodic_table = text
+    let version = env!("RUSTIQ_MENDELEEV_VERSION");
+    assert!(
+        !version.is_empty(),
+        "mendeleev must be resolved from Cargo.lock"
+    );
+    assert!(!text.contains("periodic_table"));
+    let mendeleev = text
         .lines()
         .find(|line| line.trim_start().starts_with("Periodic table"))
         .unwrap();
     let value = if version.is_empty() {
-        "periodic_table (version unknown)".to_owned()
+        "mendeleev (version unknown)".to_owned()
     } else {
-        format!("periodic_table {version}")
+        format!("mendeleev {version}")
     };
-    assert!(periodic_table.ends_with(&value));
+    assert!(mendeleev.ends_with(&value));
 
     let codata = text
         .lines()
@@ -260,7 +265,7 @@ fn forced_hyperlinks_do_not_force_ansi_styling() {
         ("nalgebra", env!("RUSTIQ_NALGEBRA_VERSION")),
         ("rayon", env!("RUSTIQ_RAYON_VERSION")),
         ("special", env!("RUSTIQ_SPECIAL_VERSION")),
-        ("periodic_table", env!("RUSTIQ_PERIODIC_TABLE_VERSION")),
+        ("mendeleev", env!("RUSTIQ_MENDELEEV_VERSION")),
     ] {
         if !version.is_empty() {
             assert!(text.contains(&format!("https://crates.io/crates/{name}/{version}\x1b\\")));

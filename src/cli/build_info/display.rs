@@ -54,8 +54,8 @@ fn print_version_details(
     print_backend(
         writer,
         "Periodic table",
-        "periodic_table",
-        env!("RUSTIQ_PERIODIC_TABLE_VERSION"),
+        "mendeleev",
+        env!("RUSTIQ_MENDELEEV_VERSION"),
         hyperlinks,
     )?;
     print_codata_revision(writer, hyperlinks)?;

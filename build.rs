@@ -150,7 +150,7 @@ fn emit_dependency_versions(manifest_dir: &std::path::Path) -> Result<(), Box<dy
         ("nalgebra", "RUSTIQ_NALGEBRA_VERSION"),
         ("rayon", "RUSTIQ_RAYON_VERSION"),
         ("special", "RUSTIQ_SPECIAL_VERSION"),
-        ("periodic_table", "RUSTIQ_PERIODIC_TABLE_VERSION"),
+        ("mendeleev", "RUSTIQ_MENDELEEV_VERSION"),
     ] {
         let mut versions: Vec<_> = lock
             .as_ref()

@@ -99,7 +99,7 @@ NUMERICAL LIBRARIES
   Special functions   special <version>
 
 CHEMICAL DATA
-  Periodic table      periodic_table <version>
+  Periodic table      mendeleev <version>
   Bohr radius         CODATA 2018
 ```
 
@@ -112,7 +112,7 @@ are enabled, each backend name and version links to that exact version on
 crates.io. Unknown versions have no link. The parallelism row does not report
 the active thread count.
 
-The chemical data section identifies the `periodic_table` crate used for
+The chemical data section identifies the `mendeleev` crate used for
 chemical element properties; its resolved version is read from `Cargo.lock`
 during the build, using the same fallback and crates.io hyperlink behavior
 as the numerical libraries. The Bohr-to-ångström conversion factor in the
