@@ -56,6 +56,9 @@ bytesize.workspace = true
 sysinfo.workspace = true
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
+[build-dependencies]
+mendeleev.workspace = true
+
 [dev-dependencies]
 approx.workspace = true
 nalgebra = { workspace = true, features = ["macros"] }

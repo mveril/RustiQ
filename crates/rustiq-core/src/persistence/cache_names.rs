@@ -1,3 +1,4 @@
+#[cfg(test)]
 use mendeleev::Element;
 use std::{
     borrow::Cow,
@@ -22,79 +23,7 @@ const ADJECTIVES: &[&str] = &[
     "serene", "sharp", "silent", "silver", "simple", "smooth", "steady", "still", "subtle",
     "sunny", "swift", "tender", "tidy", "tranquil", "vivid", "warm", "wise",
 ];
-// Resolve element names and lowercase them at compile time.
-macro_rules! cache_nouns {
-    ($($scientific:literal),*; $($element:ident),* $(,)?) => {
-        &[
-            $($scientific,)*
-            $(const_format::map_ascii_case!(
-                const_format::Case::Lower,
-                Element::$element.name()
-            ),)*
-        ]
-    };
-}
-
-const NOUNS: &[&str] = cache_nouns!(
-    "accelerator",
-    "amplitude",
-    "anion",
-    "asteroid",
-    "atom",
-    "baryon",
-    "beam",
-    "boson",
-    "catalyst",
-    "cation",
-    "comet",
-    "condensate",
-    "cosmos",
-    "crystal",
-    "detector",
-    "dipole",
-    "electron",
-    "fermion",
-    "field",
-    "flux",
-    "galaxy",
-    "hadron",
-    "ion",
-    "isotope",
-    "lattice",
-    "lepton",
-    "magneton",
-    "molecule",
-    "nebula",
-    "neutrino",
-    "neutron",
-    "nucleus",
-    "orbital",
-    "particle",
-    "phonon",
-    "photon",
-    "plasma",
-    "planet",
-    "pluto",
-    "positron",
-    "proton",
-    "pulsar",
-    "quanta",
-    "quark",
-    "reagent",
-    "resonance",
-    "spectrum",
-    "spin",
-    "vector",
-    "wave";
-    H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S,
-    Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge,
-    As, Se, Br, Kr, Rb, Sr, Y, Zr, Nb, Mo, Tc, Ru, Rh, Pd, Ag, Cd,
-    In, Sn, Sb, Te, I, Xe, Cs, Ba, La, Ce, Pr, Nd, Pm, Sm, Eu, Gd,
-    Tb, Dy, Ho, Er, Tm, Yb, Lu, Hf, Ta, W, Re, Os, Ir, Pt, Au, Hg,
-    Tl, Pb, Bi, Po, At, Rn, Fr, Ra, Ac, Th, Pa, U, Np, Pu, Am, Cm,
-    Bk, Cf, Es, Fm, Md, No, Lr, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, Cn,
-    Nh, Fl, Mc, Lv, Ts, Og,
-);
+include!(concat!(env!("OUT_DIR"), "/cache_nouns.rs"));
 
 const WORDS: petname::Petnames<'static> = petname::Petnames {
     adjectives: Cow::Borrowed(ADJECTIVES),

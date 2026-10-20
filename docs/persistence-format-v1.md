@@ -47,8 +47,9 @@ prints `No cache entries found.`
 
 Entries receive persistent English aliases such as `calm-xenon`, generated
 with `petname`. Nouns combine scientific terms with lowercase forms of all 118
-element names from `mendeleev`. The combined vocabulary and its lowercase
-conversion are computed at compile time. Existing names remain unchanged when
+element names from `mendeleev`. The core crate's `build.rs` generates the combined
+constant vocabulary using `Element::list()` and converts element names to
+lowercase during the build. Existing names remain unchanged when
 the vocabulary changes. Names are management metadata, not part of scientific
 identity, the manifest, or NPY:
 
