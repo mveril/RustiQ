@@ -227,7 +227,7 @@ mod tests {
             output.into(),
         ];
         args.extend(extra.iter().map(std::ffi::OsString::from));
-        let Commands::Init(command) = Cli::try_parse_from(args).unwrap().command else {
+        let Some(Commands::Init(command)) = Cli::try_parse_from(args).unwrap().command else {
             panic!("expected init")
         };
         command
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn clap_defaults_and_invalid_values() {
-        let Commands::Init(command) = Cli::try_parse_from(["rustiq", "init", "molecule.xyz"])
+        let Some(Commands::Init(command)) = Cli::try_parse_from(["rustiq", "init", "molecule.xyz"])
             .unwrap()
             .command
         else {

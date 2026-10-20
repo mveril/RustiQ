@@ -52,6 +52,7 @@ fn run_rustiq(args: &[&str]) -> Output {
 fn run_rustiq_with_data_home(args: &[&str], data_home: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(args)
+        .env("FORCE_HYPERLINK", "0")
         .env("RUSTIQ_DATA_HOME", data_home)
         .env("RUSTIQ_CACHE_HOME", data_home.join("cache"))
         .output()
@@ -245,6 +246,31 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert_success(&output);
 
     let stdout = strip_ansi(&String::from_utf8_lossy(&output.stdout));
+    let version_output = run_rustiq(&["--version", "--verbose"]);
+    assert_success(&version_output);
+    let version_text = String::from_utf8(version_output.stdout).unwrap();
+    let metadata_line = |label: &str| {
+        version_text
+            .lines()
+            .find(|line| line.trim_start().starts_with(label))
+            .unwrap()
+            .split_once(label)
+            .unwrap()
+            .1
+            .trim()
+    };
+    let commit = metadata_line("Git commit");
+    let status = metadata_line("Status");
+    let banner_lines: Vec<_> = stdout.lines().collect();
+    let version_index = banner_lines
+        .iter()
+        .position(|line| line.trim() == format!("v{}", env!("CARGO_PKG_VERSION")))
+        .unwrap();
+    let build_line = banner_lines[version_index + 1].trim();
+    assert!(build_line.contains(&format!("Build: {}", &commit[..12.min(commit.len())])));
+    if status != "clean" {
+        assert!(build_line.ends_with(&format!("({status})")));
+    }
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));

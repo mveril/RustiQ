@@ -1,9 +1,15 @@
 use super::units::Units;
 use std::ops::{Div, Mul};
 
-// Bohr radius in metres, from the NIST 2018 CODATA table:
-// https://physics.nist.gov/cuu/pdf/all_2018.pdf (page 1).
-// Keep the 2018 value and multiplication order to preserve existing conversions.
+/// CODATA revision used for RustiQ's Bohr-to-ångström conversion factor.
+///
+/// This does not imply that all of RustiQ's scientific data use this revision.
+pub const BOHR_RADIUS_CODATA_REVISION: &str = "CODATA 2018";
+
+/// NIST source for the Bohr radius used by RustiQ (page 1).
+pub const BOHR_RADIUS_CODATA_URL: &str = "https://physics.nist.gov/cuu/pdf/all_2018.pdf";
+
+// Keep the CODATA 2018 value and multiplication order to preserve existing conversions.
 const BOHR_RADIUS_METRES: f64 = 5.291_772_109_03e-11;
 const CONV_FACTOR: f64 = BOHR_RADIUS_METRES * 1e10;
 

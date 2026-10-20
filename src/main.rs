@@ -5,6 +5,7 @@ use std::{env, io::Write, process::ExitCode};
 
 use clap::{CommandFactory, FromArgMatches};
 use cli::{commands::Runnable, Cli};
+use miette::IntoDiagnostic;
 
 mod cli;
 mod config;
@@ -25,14 +26,35 @@ fn main() -> ExitCode {
 
 fn run() -> miette::Result<()> {
     let mode = cli::color::from_process_args(env::args_os().skip(1));
-    let command = Cli::command().color(mode);
-    let matches = command.get_matches();
+    let mut command = Cli::command().color(mode);
+    let matches = command.get_matches_mut();
     if let Err(error) = cli::commands::validate_run_arguments(&matches) {
         error.exit();
     }
     let app = Cli::from_arg_matches(&matches).expect("clap command matches Cli definition");
+    // Use Clap's resolved global option before returning for --version too.
     let mode = app.color.unwrap_or(mode);
     cli::color::configure(mode);
+    if app.version {
+        if app.command.is_some() {
+            command
+                .error(
+                    clap::error::ErrorKind::ArgumentConflict,
+                    "--version cannot be combined with a subcommand",
+                )
+                .exit();
+        }
+        return cli::build_info::print_version(&mut std::io::stdout().lock(), app.verbose)
+            .into_diagnostic();
+    }
+    let Some(subcommand) = app.command else {
+        command
+            .error(
+                clap::error::ErrorKind::MissingSubcommand,
+                "a subcommand is required",
+            )
+            .exit();
+    };
     let color_enabled = cli::color::enabled_for(cli::color::OutputStream::Stderr);
     miette::set_hook(Box::new(move |_| {
         Box::new(
@@ -42,5 +64,5 @@ fn run() -> miette::Result<()> {
         )
     }))
     .map_err(|error| miette::miette!("failed to install diagnostic hook: {error}"))?;
-    app.command.run()
+    subcommand.run()
 }

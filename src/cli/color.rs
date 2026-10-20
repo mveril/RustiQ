@@ -130,6 +130,15 @@ pub(crate) fn stdout() -> AutoStream<io::Stdout> {
     AutoStream::new(io::stdout(), stream_choice(OutputStream::Stdout))
 }
 
+pub(crate) fn stdout_with_hyperlinks() -> AutoStream<io::Stdout> {
+    let stdout = io::stdout();
+    if supports_hyperlinks::on(supports_hyperlinks::Stream::Stdout) {
+        AutoStream::always_ansi(stdout)
+    } else {
+        AutoStream::new(stdout, stream_choice(OutputStream::Stdout))
+    }
+}
+
 pub(crate) struct Styled<T> {
     value: T,
     style: Style,

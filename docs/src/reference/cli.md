@@ -6,6 +6,161 @@ binary. In a source checkout without an installed executable, replace the
 `rustiq --help` and `rustiq <command> --help` show the
 options supported by the installed build.
 
+## Binary version and build details
+
+`rustiq --version` (or `rustiq -V`) prints the package version on one line.
+Use `rustiq --version --verbose` (or `rustiq -V -v`) for grouped build details;
+the two flags can also appear in reverse order. These requests return exit code
+zero and write plain text to standard output. The top-level `--verbose` flag
+requires `--version`; `basis list --verbose` retains its existing meaning.
+
+The detailed output groups source, compiler, CPU target, and build
+configuration metadata.
+It includes the full Git commit and status, compilation
+target, Rust compiler and LLVM versions, Cargo optimization level, exact
+profile when supplied by the build, declared debug-information, LTO,
+codegen-unit, debug-assertion, and integer overflow-check settings, target
+architecture and explicitly requested target CPU
+when available, enabled target features, and enabled Cargo features. The
+architecture is displayed whenever Cargo provides it, independently of
+whether a target CPU was explicitly requested. No named ISA classification
+is inferred from the features.
+Cargo's synthetic `default` feature marker is omitted. Values that Cargo or
+the build system cannot establish are generally omitted from text output.
+The integer overflow-check row explicitly shows `unknown` when unavailable;
+without a declared value, debug assertions are read from the CLI's compiled
+`cfg(debug_assertions)`. Cargo's
+`PROFILE` variable does not identify custom profiles reliably, so the profile
+is shown only when the build supplies its exact name. Release artifacts built
+by `cargo-dist` declare `dist` in their workflow; Nix package builds declare
+`release`.
+
+Configuration declared in the selected package profile in `Cargo.toml` is
+labeled as declared. Profile inheritance is followed. Cargo does not expose
+effective LTO, codegen-unit, overflow-check, debug-assertion, or
+debug-information settings to build scripts. Declared values are reported when
+the selected profile declares them; debug assertions otherwise use the
+compiled cfg value and integer overflow checks show `unknown`. Cargo's optimization value is supplied to
+build scripts; a separate compiler flag can override it. Target CPU is
+populated only from an explicit RustiQ build override or a recognized
+`target-cpu` option in Cargo's encoded rustflags or `RUSTFLAGS`. The target
+feature list comes from Cargo's target cfg for the final target; it does not
+describe runtime CPU support. Observed rustflags are not a complete record of
+compiler arguments or Cargo configuration.
+
+LTO and codegen units are labeled as declared because Cargo does not expose
+their effective compiler values to build scripts. Target features describe
+compile-time target settings, not instructions supported by the machine at
+runtime. The architecture and globally enabled features come from Cargo's
+final compilation target, including during cross-compilation. The display
+does not hard-code CPU families, instruction sets, ISA levels, or reference
+feature lists. This allows the same code to report targets supported by
+different compiler toolchains without assuming their naming conventions.
+Rust's target cfg does not establish the minimum compatible processor for
+the entire linked executable, particularly if native dependencies or
+specialized kernels use additional instructions. RustiQ does not guess
+the concrete build-host CPU.
+
+For example, the grouped output has this shape (unknown optional fields are
+omitted and the values depend on the build):
+
+```text
+rustiq 0.1.0-alpha.1
+
+SOURCE
+  Git commit          <full commit hash>
+  Status              dirty
+
+COMPILER
+  Rust                <compiler version>
+  Channel             <stable, beta, nightly, or dev>
+  Rust commit         <full hash, only for nightly when available>
+  LLVM                <LLVM version>
+  Target              <target triple>
+
+CPU TARGET
+  Architecture        <target architecture, when available>
+  Target CPU          <explicit CPU request, when available>
+  Target features     <features enabled for the compilation target, when available>
+
+BUILD CONFIGURATION
+  Profile             <exact profile, if supplied>
+  Optimization        <Cargo value>
+  Debug information   <profile value, if declared>
+  LTO                 <profile value (declared)>
+  Codegen units       <profile value (declared)>
+  Debug assertions    <profile value (declared), or compiled cfg value>
+  Integer overflow checks <profile value (declared), or unknown>
+  Cargo features      <enabled features, excluding the default marker>
+
+NUMERICAL LIBRARIES
+  Linear algebra      nalgebra <version>
+  Parallelism         rayon <version>
+  Special functions   special <version>
+
+CHEMICAL DATA
+  Periodic table      mendeleev <version>
+  Bohr radius         CODATA 2018
+```
+
+The numerical libraries section identifies nalgebra for linear algebra,
+Rayon for parallelism, and special for special functions used by the Boys
+function implementation. Their versions are read at build time from `Cargo.lock`
+when it contains a single distinct version of each crate; otherwise the
+corresponding version is shown as `version unknown`. When terminal hyperlinks
+are enabled, each backend name and version links to that exact version on
+crates.io. Unknown versions have no link. The parallelism row does not report
+the active thread count.
+
+The chemical data section identifies the `mendeleev` crate used for
+chemical element properties; its resolved version is read from `Cargo.lock`
+during the build, using the same fallback and crates.io hyperlink behavior
+as the numerical libraries. The Bohr-to-ångström conversion factor in the
+core uses the **CODATA 2018** Bohr radius from NIST. Its revision and NIST
+reference URL are defined alongside the conversion constant in
+`rustiq-core`, not duplicated in the CLI. With terminal hyperlinks enabled,
+the revision links to the [NIST CODATA 2018 table](https://physics.nist.gov/cuu/pdf/all_2018.pdf).
+This does **not** claim that all chemical constants, atomic masses, or basis
+sets use CODATA 2018. Basis sets and their own revisions are specific to
+individual calculations and are not reported in this binary-version output.
+
+Integer overflow checks concern integer arithmetic, not floating-point NaN,
+infinity, or SCF convergence.
+
+Text calculation banners show a 12-character commit abbreviation and its
+source state. When Git provenance is unknown, they show `Build: unknown`.
+OSC 8 links, when enabled, target the complete commit hash. JSON calculation
+output remains free of banners and retains its existing schema.
+
+All fields are embedded during compilation and remain available when the
+executable is copied elsewhere, without Git or Rust installed. The source
+state is `clean` or `dirty` according to changes to tracked files at build
+time; untracked files do not affect this Git dirty flag. The `Status` row
+displays `clean`, `dirty`, or `unknown`; a missing commit is displayed as
+`unknown`, as can happen when compiling an unpacked source archive without Git
+metadata. When stdout is a terminal that supports hyperlinks, the Git commit
+hash links to that commit in the RustiQ repository.
+The target feature list links to the Rust Reference's explanation and tables
+of processor features.
+Redirected output stays plain text unless `FORCE_HYPERLINK` explicitly enables
+links.
+These fields describe build provenance, not a cryptographic identity of the
+executable or proof that two builds are identical. The compiler commit is shown
+only for nightly toolchains, when available; stable, beta, and dev builds still
+show their compiler channel.
+
+Packagers may set `RUSTIQ_BUILD_GIT_COMMIT` to a full Git hash (or `unknown`)
+and `RUSTIQ_BUILD_GIT_STATE` to `clean`, `dirty`, or `unknown` **at compilation
+time** to override Git discovery. An injected commit without an injected state
+uses state `unknown`. `RUSTIQ_BUILD_PROFILE`, `RUSTIQ_BUILD_SYSTEM`, and
+`RUSTIQ_BUILD_TARGET_CPU` can supply exact build-system metadata when known;
+the profile, system name, and CPU values are validated before embedding. Nix
+supplies its profile, build-system name, and flake revision, while the
+cargo-dist release workflow supplies its profile and build-system name. The
+Nix source revision is the Git revision passed by the flake, not a Nix store
+path. Setting these variables when running an already built binary has no
+effect.
+
 ## Commands
 
 | Command | Purpose |
