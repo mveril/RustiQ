@@ -27,7 +27,7 @@ fn print_version_details(
     print_compiler(writer, &info.compiler, hyperlinks)?;
     print_cpu_compatibility(writer, &info.cpu, hyperlinks)?;
     print_build(writer, &info.build)?;
-    section(writer, "NUMERICAL BACKENDS")?;
+    section(writer, "NUMERICAL LIBRARIES")?;
     print_backend(
         writer,
         "Linear algebra",
@@ -101,18 +101,15 @@ fn print_cpu_compatibility(
     cpu: &super::metadata::CpuCompatibility,
     hyperlinks: bool,
 ) -> io::Result<()> {
-    if cpu.target_cpu.is_none() && cpu.target_features.is_empty() {
+    if cpu.architecture.is_none() && cpu.target_cpu.is_none() && cpu.target_features.is_empty() {
         return Ok(());
     }
-    section(writer, "CPU COMPATIBILITY")?;
+    section(writer, "CPU TARGET")?;
+    if let Some(architecture) = cpu.architecture {
+        row(writer, "Architecture", architecture)?;
+    }
     if let Some(value) = cpu.target_cpu {
-        if let Some(architecture) = cpu.architecture {
-            row(writer, "Architecture", architecture)?;
-        }
         row(writer, "Target CPU", value)?;
-        if let Some(baseline) = cpu.isa_baseline {
-            row(writer, "ISA baseline", baseline)?;
-        }
     }
     if !cpu.target_features.is_empty() {
         let features = cpu.target_features.join(", ");
@@ -268,6 +265,23 @@ mod tests {
                 hyperlinks
             );
         }
+    }
+
+    #[test]
+    fn architecture_is_visible_without_explicit_cpu_or_features() {
+        let cpu = super::super::metadata::CpuCompatibility {
+            architecture: Some("aarch64"),
+            target_cpu: None,
+            target_features: Vec::new(),
+        };
+        let mut output = Vec::new();
+        print_cpu_compatibility(&mut output, &cpu, false).unwrap();
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.contains("CPU TARGET"));
+        assert!(output.contains("Architecture"));
+        assert!(output.contains("aarch64"));
+        assert!(!output.contains("Target CPU"));
+        assert!(!output.contains("Target features"));
     }
 
     #[test]

@@ -14,16 +14,17 @@ the two flags can also appear in reverse order. These requests return exit code
 zero and write plain text to standard output. The top-level `--verbose` flag
 requires `--version`; `basis list --verbose` retains its existing meaning.
 
-The detailed output groups source, compiler, CPU compatibility, and build
+The detailed output groups source, compiler, CPU target, and build
 configuration metadata.
 It includes the full Git commit and status, compilation
 target, Rust compiler and LLVM versions, Cargo optimization level, exact
 profile when supplied by the build, declared debug-information, LTO,
 codegen-unit, debug-assertion, and integer overflow-check settings, target
 architecture and explicitly requested target CPU
-when available, enabled target features, and enabled Cargo features. When no
-target CPU was explicitly requested, the CPU section shows only the enabled
-target features rather than suggesting a CPU model or ISA baseline.
+when available, enabled target features, and enabled Cargo features. The
+architecture is displayed whenever Cargo provides it, independently of
+whether a target CPU was explicitly requested. No named ISA classification
+is inferred from the features.
 Cargo's synthetic `default` feature marker is omitted. Values that Cargo or
 the build system cannot establish are generally omitted from text output.
 The integer overflow-check row explicitly shows `unknown` when unavailable;
@@ -51,12 +52,14 @@ LTO and codegen units are labeled as declared because Cargo does not expose
 their effective compiler values to build scripts. Target features describe
 compile-time target settings, not instructions supported by the machine at
 runtime. The architecture and globally enabled features come from Cargo's
-final compilation target, including during cross-compilation. If a CPU was
-explicitly requested, RustiQ identifies an ISA baseline only when the complete
-feature set exactly matches a standard x86-64 level. Otherwise, it omits the
-baseline. A CPU model or `native` may enable extra features outside a standard
-level, so no baseline is inferred in that case. RustiQ does not guess the
-concrete build-host CPU.
+final compilation target, including during cross-compilation. The display
+does not hard-code CPU families, instruction sets, ISA levels, or reference
+feature lists. This allows the same code to report targets supported by
+different compiler toolchains without assuming their naming conventions.
+Rust's target cfg does not establish the minimum compatible processor for
+the entire linked executable, particularly if native dependencies or
+specialized kernels use additional instructions. RustiQ does not guess
+the concrete build-host CPU.
 
 For example, the grouped output has this shape (unknown optional fields are
 omitted and the values depend on the build):
@@ -75,11 +78,10 @@ COMPILER
   LLVM                <LLVM version>
   Target              <target triple>
 
-CPU COMPATIBILITY
-  Architecture        <shown when a target CPU was explicitly requested>
-  Target CPU          <explicit CPU request>
-  ISA baseline        <recognized baseline, when available>
-  Target features     <features enabled for the compilation target>
+CPU TARGET
+  Architecture        <target architecture, when available>
+  Target CPU          <explicit CPU request, when available>
+  Target features     <features enabled for the compilation target, when available>
 
 BUILD CONFIGURATION
   Profile             <exact profile, if supplied>
@@ -91,13 +93,13 @@ BUILD CONFIGURATION
   Integer overflow checks <profile value (declared), or unknown>
   Cargo features      <enabled features, excluding the default marker>
 
-NUMERICAL BACKENDS
+NUMERICAL LIBRARIES
   Linear algebra      nalgebra <version>
   Parallelism         rayon <version>
   Special functions   special <version>
 ```
 
-The numerical backends section identifies nalgebra for linear algebra,
+The numerical libraries section identifies nalgebra for linear algebra,
 Rayon for parallelism, and special for special functions used by the Boys
 function implementation. Their versions are read at build time from `Cargo.lock`
 when it contains a single distinct version of each crate; otherwise the

@@ -42,9 +42,9 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
     let lines: Vec<_> = text.lines().collect();
     assert!(lines.contains(&"SOURCE"));
     assert!(lines.contains(&"COMPILER"));
-    assert!(lines.contains(&"CPU COMPATIBILITY"));
+    assert!(lines.contains(&"CPU TARGET"));
     assert!(lines.contains(&"BUILD CONFIGURATION"));
-    assert!(lines.contains(&"NUMERICAL BACKENDS"));
+    assert!(lines.contains(&"NUMERICAL LIBRARIES"));
 
     for (label, value) in [
         ("Debug assertions", env!("RUSTIQ_DEBUG_ASSERTIONS_DECLARED")),
@@ -75,29 +75,30 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
         "Channel",
         "LLVM",
         "Target",
-        "Target features",
         "Optimization",
     ] {
         assert!(lines
             .iter()
             .any(|line| line.trim_start().starts_with(label)));
     }
-    if env!("RUSTIQ_BUILD_TARGET_CPU").is_empty() {
-        assert!(!lines.iter().any(|line| {
-            ["Architecture", "Target CPU", "ISA baseline"]
-                .iter()
-                .any(|label| line.trim_start().starts_with(label))
-        }));
-    } else {
-        let architecture = lines
-            .iter()
-            .find(|line| line.starts_with("  Architecture"))
-            .unwrap();
-        assert!(architecture.contains(std::env::consts::ARCH));
-        assert!(lines
-            .iter()
-            .any(|line| line.trim_start().starts_with("Target CPU")));
+    let architecture = lines
+        .iter()
+        .find(|line| line.starts_with("  Architecture"));
+    assert_eq!(architecture.is_some(), !env!("RUSTIQ_TARGET_ARCH").is_empty());
+    if let Some(architecture) = architecture {
+        assert!(architecture.contains(env!("RUSTIQ_TARGET_ARCH")));
     }
+    assert_eq!(
+        lines.iter().any(|line| line.starts_with("  Target CPU")),
+        !env!("RUSTIQ_BUILD_TARGET_CPU").is_empty()
+    );
+    let has_target_features = env!("RUSTIQ_TARGET_FEATURES")
+        .split(',')
+        .any(|feature| !feature.is_empty() && feature != "crt-static");
+    assert_eq!(
+        lines.iter().any(|line| line.starts_with("  Target features")),
+        has_target_features
+    );
     let feature_line = lines
         .iter()
         .find(|line| line.starts_with("  Cargo features"));

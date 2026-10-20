@@ -30,7 +30,6 @@ pub(crate) struct Compiler {
 pub(crate) struct CpuCompatibility {
     pub architecture: Option<&'static str>,
     pub target_cpu: Option<&'static str>,
-    pub isa_baseline: Option<&'static str>,
     pub target_features: Vec<&'static str>,
 }
 
@@ -63,7 +62,6 @@ pub(crate) static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| {
         cpu: CpuCompatibility {
             architecture: optional(env!("RUSTIQ_TARGET_ARCH")),
             target_cpu: optional(env!("RUSTIQ_BUILD_TARGET_CPU")),
-            isa_baseline: isa_baseline(env!("RUSTIQ_TARGET_ARCH"), &target_features),
             target_features,
         },
         build: Build {
@@ -135,20 +133,6 @@ fn target_feature_values(value: &'static str) -> Vec<&'static str> {
         .collect()
 }
 
-fn isa_baseline(architecture: &str, target_features: &[&str]) -> Option<&'static str> {
-    if architecture != "x86_64" {
-        return None;
-    }
-    let features = target_features.join(",");
-    match features.as_str() {
-        "fxsr,sse,sse2" => Some("x86-64"),
-        "cmpxchg16b,fxsr,popcnt,sse,sse2,sse3,sse4.1,sse4.2,ssse3" => Some("x86-64-v2"),
-        "avx,avx2,bmi1,bmi2,cmpxchg16b,f16c,fma,fxsr,lzcnt,movbe,popcnt,sse,sse2,sse3,sse4.1,sse4.2,ssse3,xsave" => Some("x86-64-v3"),
-        "avx,avx2,avx512bw,avx512cd,avx512dq,avx512f,avx512vl,bmi1,bmi2,cmpxchg16b,f16c,fma,fxsr,lzcnt,movbe,popcnt,sse,sse2,sse3,sse4.1,sse4.2,ssse3,xsave" => Some("x86-64-v4"),
-        _ => None,
-    }
-}
-
 fn cargo_feature_values(value: &'static str) -> Vec<String> {
     let mut features: Vec<_> = feature_values(value)
         .into_iter()
@@ -180,7 +164,7 @@ pub(crate) fn hyperlink_commit_as(commit: &str, label: &str, repository: &str) -
 
 #[cfg(test)]
 mod tests {
-    use super::{cargo_feature_values, isa_baseline, target_feature_values};
+    use super::{cargo_feature_values, target_feature_values};
 
     #[test]
     fn cargo_feature_list_hides_the_default_marker_and_is_sorted() {
@@ -195,92 +179,5 @@ mod tests {
     fn target_features_omit_the_linking_mode_marker() {
         assert!(target_feature_values("avx2,crt-static").contains(&"avx2"));
         assert!(!target_feature_values("avx2,crt-static").contains(&"crt-static"));
-    }
-
-    #[test]
-    fn isa_baseline_matches_only_complete_standard_x86_feature_sets() {
-        assert_eq!(
-            isa_baseline("x86_64", &["fxsr", "sse", "sse2"]),
-            Some("x86-64")
-        );
-        assert_eq!(
-            isa_baseline(
-                "x86_64",
-                &[
-                    "avx",
-                    "avx2",
-                    "bmi1",
-                    "bmi2",
-                    "cmpxchg16b",
-                    "f16c",
-                    "fma",
-                    "fxsr",
-                    "lzcnt",
-                    "movbe",
-                    "popcnt",
-                    "sse",
-                    "sse2",
-                    "sse3",
-                    "sse4.1",
-                    "sse4.2",
-                    "ssse3",
-                    "xsave",
-                ]
-            ),
-            Some("x86-64-v3")
-        );
-        assert_eq!(
-            isa_baseline(
-                "x86_64",
-                &[
-                    "cmpxchg16b",
-                    "fxsr",
-                    "popcnt",
-                    "sse",
-                    "sse2",
-                    "sse3",
-                    "sse4.1",
-                    "sse4.2",
-                    "ssse3",
-                ]
-            ),
-            Some("x86-64-v2")
-        );
-        assert_eq!(
-            isa_baseline(
-                "x86_64",
-                &[
-                    "avx",
-                    "avx2",
-                    "avx512bw",
-                    "avx512cd",
-                    "avx512dq",
-                    "avx512f",
-                    "avx512vl",
-                    "bmi1",
-                    "bmi2",
-                    "cmpxchg16b",
-                    "f16c",
-                    "fma",
-                    "fxsr",
-                    "lzcnt",
-                    "movbe",
-                    "popcnt",
-                    "sse",
-                    "sse2",
-                    "sse3",
-                    "sse4.1",
-                    "sse4.2",
-                    "ssse3",
-                    "xsave",
-                ]
-            ),
-            Some("x86-64-v4")
-        );
-        assert_eq!(
-            isa_baseline("x86_64", &["fxsr", "sse", "sse2", "fma"]),
-            None
-        );
-        assert_eq!(isa_baseline("aarch64", &["neon"]), None);
     }
 }
