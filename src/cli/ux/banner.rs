@@ -12,13 +12,14 @@ pub(crate) fn print_startup_banner() -> io::Result<()> {
     let package_version = build_info::VERSION;
     let banner = render_branding_name(BRANDING_NAME);
     let style = rand::rng().random_range(0..BANNER_STYLE_COUNT);
+    let hyperlinks = supports_hyperlinks::on(supports_hyperlinks::Stream::Stdout);
     let mut stdout = color::stdout_with_hyperlinks().lock();
 
     match style {
-        0 => print_plain_banner(&mut stdout, &banner, package_version)?,
-        1 => print_framed_banner(&mut stdout, &banner, package_version)?,
-        2 => print_rule_banner(&mut stdout, &banner, package_version)?,
-        _ => print_compact_banner(&mut stdout, &banner, package_version)?,
+        0 => print_plain_banner(&mut stdout, &banner, package_version, hyperlinks)?,
+        1 => print_framed_banner(&mut stdout, &banner, package_version, hyperlinks)?,
+        2 => print_rule_banner(&mut stdout, &banner, package_version, hyperlinks)?,
+        _ => print_compact_banner(&mut stdout, &banner, package_version, hyperlinks)?,
     }
 
     writeln!(stdout)
@@ -36,16 +37,18 @@ fn print_plain_banner(
     writer: &mut impl Write,
     banner: &str,
     package_version: &str,
+    hyperlinks: bool,
 ) -> io::Result<()> {
     write!(writer, "{}", color::title(banner))?;
     writeln!(writer, "{}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "{}", color::value(build_info::terminal_git_line()))
+    writeln!(writer, "{}", color::value(build_info::banner_build_line(hyperlinks)))
 }
 
 fn print_framed_banner(
     writer: &mut impl Write,
     banner: &str,
     package_version: &str,
+    hyperlinks: bool,
 ) -> io::Result<()> {
     let commit = build_info::git_line();
     let width = banner_width(banner)
@@ -60,7 +63,7 @@ fn print_framed_banner(
         "{}",
         color::value(format!("{:^width$}", format!("v{package_version}")))
     )?;
-    let commit_display = build_info::terminal_git_line();
+    let commit_display = build_info::banner_build_line(hyperlinks);
     let padding = width.saturating_sub(commit.len());
     let left_padding = padding / 2;
     let right_padding = padding - left_padding;
@@ -78,6 +81,7 @@ fn print_rule_banner(
     writer: &mut impl Write,
     banner: &str,
     package_version: &str,
+    hyperlinks: bool,
 ) -> io::Result<()> {
     write!(writer, "{}", color::title(banner))?;
     writeln!(
@@ -90,13 +94,14 @@ fn print_rule_banner(
         )
     )?;
     writeln!(writer, "{}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "{}", color::value(build_info::terminal_git_line()))
+    writeln!(writer, "{}", color::value(build_info::banner_build_line(hyperlinks)))
 }
 
 fn print_compact_banner(
     writer: &mut impl Write,
     banner: &str,
     package_version: &str,
+    hyperlinks: bool,
 ) -> io::Result<()> {
     for line in banner.lines() {
         writeln!(writer, "  {}", color::title(line))?;
@@ -106,7 +111,7 @@ fn print_compact_banner(
     writeln!(
         writer,
         "  {}",
-        color::value(build_info::terminal_git_line())
+        color::value(build_info::banner_build_line(hyperlinks))
     )
 }
 
@@ -129,7 +134,7 @@ mod tests {
         ] {
             let mut output = Vec::new();
             color::with_test_color(clap::ColorChoice::Never, || {
-                style(&mut output, &banner, build_info::VERSION)
+                style(&mut output, &banner, build_info::VERSION, false)
             })
             .expect("writing a banner to a Vec succeeds");
             let text = String::from_utf8(output).expect("banner is UTF-8");
@@ -144,10 +149,23 @@ mod tests {
     }
 
     #[test]
+    fn requested_hyperlinks_link_to_the_full_commit() {
+        let mut output = Vec::new();
+        color::with_test_color(clap::ColorChoice::Never, || {
+            print_plain_banner(&mut output, "RustiQ\n", build_info::VERSION, true)
+        })
+        .expect("writing a banner to a Vec succeeds");
+        let text = String::from_utf8(output).expect("banner is UTF-8");
+        if let Some(commit) = build_info::git_commit() {
+            assert!(text.contains(&format!("/commit/{commit}")));
+        }
+    }
+
+    #[test]
     fn frame_fits_the_commit() {
         let mut output = Vec::new();
         color::with_test_color(clap::ColorChoice::Never, || {
-            print_framed_banner(&mut output, "RustiQ\n", build_info::VERSION)
+            print_framed_banner(&mut output, "RustiQ\n", build_info::VERSION, false)
         })
         .expect("writing a banner to a Vec succeeds");
         let text = String::from_utf8(output).expect("banner is UTF-8");

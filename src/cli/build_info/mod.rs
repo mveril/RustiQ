@@ -16,10 +16,6 @@ pub(crate) fn git_line() -> String {
     banner_build_line(false)
 }
 
-pub(crate) fn terminal_git_line() -> String {
-    banner_build_line(true)
-}
-
 fn format_banner_build_line(commit: Option<&str>, state: &str, link: bool) -> String {
     let Some(commit) = commit.filter(|commit| {
         matches!(commit.len(), 40 | 64) && commit.bytes().all(|byte| byte.is_ascii_hexdigit())

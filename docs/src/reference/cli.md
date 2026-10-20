@@ -16,7 +16,7 @@ requires `--version`; `basis list --verbose` retains its existing meaning.
 
 The detailed output groups source, compiler, CPU compatibility, and build
 configuration metadata.
-It includes the full Git commit and status, SHA-256 digests, compilation
+It includes the full Git commit and status, compilation
 target, Rust compiler and LLVM versions, Cargo optimization level, exact
 profile when supplied by the build, declared debug-information, LTO, and
 codegen-unit settings, target architecture and explicitly requested target CPU
@@ -62,11 +62,11 @@ rustiq 0.1.0-alpha.1
 SOURCE
   Git commit          <full commit hash>
   Status              dirty
-  Source SHA-256      <12-character digest prefix>…
-  Cargo.lock SHA-256  <12-character digest prefix>…
 
 COMPILER
   Rust                <compiler version>
+  Channel             <stable, beta, nightly, or dev>
+  Rust commit         <full hash, only for nightly when available>
   LLVM                <LLVM version>
   Target              <target triple>
 
@@ -85,9 +85,6 @@ BUILD CONFIGURATION
   Cargo features      <enabled features, excluding the default marker>
 ```
 
-The full fingerprints are embedded at build time. Text output abbreviates
-their display to keep the terminal view readable.
-
 Text calculation banners show a 12-character commit abbreviation and its
 source state. When Git provenance is unknown, they show `Build: unknown`.
 OSC 8 links, when enabled, target the complete commit hash. JSON calculation
@@ -103,24 +100,10 @@ metadata. When stdout is a terminal that supports hyperlinks, the Git commit
 hash links to that commit in the RustiQ repository.
 Redirected output stays plain text unless `FORCE_HYPERLINK` explicitly enables
 links.
-The source SHA-256 fingerprint uses SHA-256 over the bytes
-`rustiq-source-fingerprint-v1\0`, followed by each UTF-8 relative path and file
-content in lexicographically sorted, `/`-separated path order. Each path is
-encoded as an eight-byte big-endian byte length followed by its bytes; each
-content is encoded as an eight-byte big-endian byte length followed by the raw
-file bytes. It covers root and core Cargo manifests, `Cargo.lock`, both build
-scripts and build directories, both Rust source trees, `assets/`, and Cargo's
-`.cargo/config` or `.cargo/config.toml` when present. Untracked files in those
-paths affect the fingerprint; deleting a previously included file changes the
-digest. Git metadata, tests, samples, generated
-outputs, caches, timestamps, and files outside this explicit compile-input
-scope are excluded. The fingerprint identifies this scoped source snapshot;
-it is not a hash of the executable or a claim that external/generated inputs
-are represented. `Cargo.lock` also has its own raw-file SHA-256 digest and is
-reported as unavailable when the lockfile is absent.
-
 These fields describe build provenance, not a cryptographic identity of the
-executable or proof that two builds are identical.
+executable or proof that two builds are identical. The compiler commit is shown
+only for nightly toolchains, when available; stable, beta, and dev builds still
+show their compiler channel.
 
 Packagers may set `RUSTIQ_BUILD_GIT_COMMIT` to a full Git hash (or `unknown`)
 and `RUSTIQ_BUILD_GIT_STATE` to `clean`, `dirty`, or `unknown` **at compilation

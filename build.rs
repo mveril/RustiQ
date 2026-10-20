@@ -36,15 +36,18 @@ fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>>
         .opt_level(true)
         .target_triple(true)
         .build();
-    let rustc = Rustc::builder().semver(true).llvm_version(true).build();
+    let rustc = Rustc::builder()
+        .semver(true)
+        .channel(true)
+        .commit_hash(true)
+        .llvm_version(true)
+        .build();
     Emitter::default()
         .add_instructions(&cargo)?
         .add_instructions(&rustc)?
         .emit()?;
 
     provenance::git_instructions(manifest_dir)?.emit()?;
-
-    provenance::emit_fingerprints(manifest_dir)?;
 
     for name in [
         "RUSTIQ_BUILD_GIT_COMMIT",

@@ -15,13 +15,13 @@ pub(crate) struct BuildInfo {
 pub(crate) struct Source {
     pub commit: Option<&'static str>,
     pub state: &'static str,
-    pub digest: Option<&'static str>,
-    pub cargo_lock_digest: Option<&'static str>,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Compiler {
     pub rustc: Option<&'static str>,
+    pub channel: Option<&'static str>,
+    pub commit: Option<&'static str>,
     pub llvm: Option<&'static str>,
     pub target: Option<&'static str>,
 }
@@ -50,11 +50,11 @@ pub(crate) static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| {
         source: Source {
             commit: optional_git(env!("RUSTIQ_BUILD_GIT_COMMIT"), env!("VERGEN_GIT_SHA")),
             state: git_state(),
-            digest: optional(env!("RUSTIQ_SOURCE_SHA256")),
-            cargo_lock_digest: optional(env!("RUSTIQ_CARGO_LOCK_SHA256")),
         },
         compiler: Compiler {
             rustc: optional(env!("VERGEN_RUSTC_SEMVER")),
+            channel: optional(env!("VERGEN_RUSTC_CHANNEL")),
+            commit: optional_git("", env!("VERGEN_RUSTC_COMMIT_HASH")),
             llvm: optional(env!("VERGEN_RUSTC_LLVM_VERSION")),
             target: optional(env!("VERGEN_CARGO_TARGET_TRIPLE")),
         },

@@ -116,4 +116,8 @@ fn injected_provenance_must_be_a_full_hash_and_known_state() {
         assert!(provenance::validate_override("RUSTIQ_BUILD_GIT_STATE", value).is_ok());
     }
     assert!(provenance::validate_override("RUSTIQ_BUILD_GIT_STATE", "false").is_err());
+    assert!(
+        provenance::validate_vergen_git_override("VERGEN_GIT_SHA", &"a".repeat(40)).is_ok()
+    );
+    assert!(provenance::validate_vergen_git_override("VERGEN_GIT_SHA", "bad").is_err());
 }

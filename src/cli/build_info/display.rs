@@ -24,7 +24,7 @@ fn print_version_details(
     hyperlinks: bool,
 ) -> io::Result<()> {
     print_source(writer, &info.source, hyperlinks)?;
-    print_compiler(writer, &info.compiler)?;
+    print_compiler(writer, &info.compiler, hyperlinks)?;
     print_cpu_compatibility(writer, &info.cpu)?;
     print_build(writer, &info.build)?;
     Ok(())
@@ -35,9 +35,6 @@ fn print_source(
     source: &super::metadata::Source,
     hyperlinks: bool,
 ) -> io::Result<()> {
-    if source.commit.is_none() && source.digest.is_none() && source.cargo_lock_digest.is_none() {
-        return Ok(());
-    }
     section(writer, "SOURCE")?;
     if let Some(commit) = source.commit {
         let linked = hyperlinks && is_commit_hash(commit);
@@ -51,12 +48,6 @@ fn print_source(
         row(writer, "Git commit", "unknown")?;
     }
     row(writer, "Status", source.state)?;
-    if let Some(value) = source.digest {
-        row(writer, "Source SHA-256", short_digest(value))?;
-    }
-    if let Some(value) = source.cargo_lock_digest {
-        row(writer, "Cargo.lock SHA-256", short_digest(value))?;
-    }
     Ok(())
 }
 
@@ -83,13 +74,34 @@ fn print_cpu_compatibility(
     Ok(())
 }
 
-fn print_compiler(writer: &mut impl Write, compiler: &super::metadata::Compiler) -> io::Result<()> {
-    if compiler.rustc.is_none() && compiler.llvm.is_none() && compiler.target.is_none() {
+fn print_compiler(
+    writer: &mut impl Write,
+    compiler: &super::metadata::Compiler,
+    hyperlinks: bool,
+) -> io::Result<()> {
+    if compiler.rustc.is_none()
+        && compiler.channel.is_none()
+        && compiler.llvm.is_none()
+        && compiler.target.is_none()
+    {
         return Ok(());
     }
     section(writer, "COMPILER")?;
     if let Some(value) = compiler.rustc {
         row(writer, "Rust", value)?;
+    }
+    if let Some(channel) = compiler.channel {
+        row(writer, "Channel", channel)?;
+        if channel == "nightly" {
+            if let Some(commit) = compiler.commit {
+                let value = if hyperlinks {
+                    hyperlink_commit(commit, "https://github.com/rust-lang/rust")
+                } else {
+                    commit.to_owned()
+                };
+                row_maybe_hyperlink(writer, "Rust commit", value, hyperlinks)?;
+            }
+        }
     }
     if let Some(value) = compiler.llvm {
         row(writer, "LLVM", value)?;
@@ -136,14 +148,6 @@ fn section(writer: &mut impl Write, name: &str) -> io::Result<()> {
     writeln!(writer, "\n{}", color::title(name))
 }
 
-fn short_digest(value: &str) -> String {
-    if value.len() > 12 {
-        format!("{}…", value.get(..12).unwrap_or(value))
-    } else {
-        value.to_owned()
-    }
-}
-
 fn is_commit_hash(value: &str) -> bool {
     matches!(value.len(), 40 | 64) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
@@ -182,4 +186,34 @@ fn row_hyperlink(
     value: impl std::fmt::Display,
 ) -> io::Result<()> {
     writeln!(writer, "  {label:<26}{value}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rust_commit_is_shown_only_for_nightly() {
+        let commit = "58cf8f9c35b355199727627d07ae34a4e2846d67";
+        for (channel, visible) in [
+            ("stable", false),
+            ("beta", false),
+            ("nightly", true),
+            ("dev", false),
+        ] {
+            let compiler = super::super::metadata::Compiler {
+                rustc: Some("1.99.1"),
+                channel: Some(channel),
+                commit: Some(commit),
+                llvm: Some("23.1.1"),
+                target: Some("x86_64-unknown-linux-gnu"),
+            };
+            let mut output = Vec::new();
+            print_compiler(&mut output, &compiler, false).unwrap();
+            let output = String::from_utf8(output).unwrap();
+            assert!(output.contains("Channel"));
+            assert_eq!(output.contains(commit), visible, "{channel}");
+            assert_eq!(output.contains("Rust commit"), visible, "{channel}");
+        }
+    }
 }
