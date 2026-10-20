@@ -138,7 +138,7 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
             version_output = command_runner(binary, ["--version", "--verbose"], work, env, log_dir / "version.log")
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             raise RuntimeError(f"EXECUTABLE_STARTUP_FAILURE: {error}") from error
-        if not re.search(r"^Git commit: (?:[0-9a-f]{40}|[0-9a-f]{64})(?: \(dirty\))?$", version_output, re.MULTILINE):
+        if not re.search(r"^  Git commit\s+(?:[0-9a-f]{40}|[0-9a-f]{64})(?: \(dirty\))?$", version_output, re.MULTILINE):
             raise ValueError("EXECUTABLE_STARTUP_FAILURE: packaged executable lacks Git provenance")
         try:
             command_runner(binary, ["basis", "import", str(fixture)], work, env, log_dir / "basis-import.log")

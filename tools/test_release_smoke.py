@@ -36,7 +36,7 @@ class ReleaseSmokeTests(unittest.TestCase):
             if args == ["--help"]:
                 return "usage: rustiq"
             if args == ["--version", "--verbose"]:
-                return "rustiq 0.1.0-alpha.1\nGit commit: " + "a" * 40 + "\n"
+                return "rustiq 0.1.0-alpha.1\n  Git commit                " + "a" * 40 + "\n"
             if args[0] == "run":
                 if isinstance(json_output, Exception):
                     raise json_output
@@ -57,7 +57,7 @@ class ReleaseSmokeTests(unittest.TestCase):
 
         def execute(binary, args, cwd, env, log):
             if args == ["--version", "--verbose"]:
-                return "rustiq 0.1.0-alpha.1\nGit commit: unknown\n"
+                return "rustiq 0.1.0-alpha.1\n  Git commit                unknown\n"
             return original(binary, args, cwd, env, log)
 
         with self.assertRaisesRegex(ValueError, "lacks Git provenance"):
