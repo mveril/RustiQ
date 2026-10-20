@@ -32,6 +32,9 @@ fn run() -> miette::Result<()> {
         error.exit();
     }
     let app = Cli::from_arg_matches(&matches).expect("clap command matches Cli definition");
+    // Use Clap's resolved global option before returning for --version too.
+    let mode = app.color.unwrap_or(mode);
+    cli::color::configure(mode);
     if app.version {
         if app.command.is_some() {
             command
@@ -52,8 +55,6 @@ fn run() -> miette::Result<()> {
             )
             .exit();
     };
-    let mode = app.color.unwrap_or(mode);
-    cli::color::configure(mode);
     let color_enabled = cli::color::enabled_for(cli::color::OutputStream::Stderr);
     miette::set_hook(Box::new(move |_| {
         Box::new(
