@@ -41,7 +41,11 @@ fn print_plain_banner(
 ) -> io::Result<()> {
     write!(writer, "{}", color::title(banner))?;
     writeln!(writer, "{}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "{}", color::value(build_info::banner_build_line(hyperlinks)))
+    writeln!(
+        writer,
+        "{}",
+        color::value(build_info::banner_build_line(hyperlinks))
+    )
 }
 
 fn print_framed_banner(
@@ -94,7 +98,11 @@ fn print_rule_banner(
         )
     )?;
     writeln!(writer, "{}", color::value(format!("v{package_version}")))?;
-    writeln!(writer, "{}", color::value(build_info::banner_build_line(hyperlinks)))
+    writeln!(
+        writer,
+        "{}",
+        color::value(build_info::banner_build_line(hyperlinks))
+    )
 }
 
 fn print_compact_banner(

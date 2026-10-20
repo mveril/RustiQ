@@ -99,8 +99,7 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
     assert!(!text.contains("Frame pointers"));
     assert_eq!(
         text.contains("Rust commit"),
-        env!("VERGEN_RUSTC_CHANNEL") == "nightly"
-            && env!("VERGEN_RUSTC_COMMIT_HASH").len() == 40
+        env!("VERGEN_RUSTC_CHANNEL") == "nightly" && env!("VERGEN_RUSTC_COMMIT_HASH").len() == 40
     );
 }
 
