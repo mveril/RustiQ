@@ -82,10 +82,11 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
             .iter()
             .any(|line| line.trim_start().starts_with(label)));
     }
-    let architecture = lines
-        .iter()
-        .find(|line| line.starts_with("  Architecture"));
-    assert_eq!(architecture.is_some(), !env!("RUSTIQ_TARGET_ARCH").is_empty());
+    let architecture = lines.iter().find(|line| line.starts_with("  Architecture"));
+    assert_eq!(
+        architecture.is_some(),
+        !env!("RUSTIQ_TARGET_ARCH").is_empty()
+    );
     if let Some(architecture) = architecture {
         assert!(architecture.contains(env!("RUSTIQ_TARGET_ARCH")));
     }
@@ -97,7 +98,9 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
         .split(',')
         .any(|feature| !feature.is_empty() && feature != "crt-static");
     assert_eq!(
-        lines.iter().any(|line| line.starts_with("  Target features")),
+        lines
+            .iter()
+            .any(|line| line.starts_with("  Target features")),
         has_target_features
     );
     let feature_line = lines
