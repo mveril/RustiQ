@@ -45,6 +45,7 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
     assert!(lines.contains(&"CPU TARGET"));
     assert!(lines.contains(&"BUILD CONFIGURATION"));
     assert!(lines.contains(&"NUMERICAL LIBRARIES"));
+    assert!(lines.contains(&"CHEMICAL DATA"));
 
     for (label, value) in [
         ("Debug assertions", env!("RUSTIQ_DEBUG_ASSERTIONS_DECLARED")),
@@ -160,6 +161,32 @@ fn numerical_backends_show_versions_without_provenance_annotations() {
 }
 
 #[test]
+fn chemical_data_reports_locked_periodic_table_and_codata_revision() {
+    let output = version(&["--version", "--verbose"]);
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(!text.contains("\x1b]8;;"));
+
+    let version = env!("RUSTIQ_PERIODIC_TABLE_VERSION");
+    let periodic_table = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("Periodic table"))
+        .unwrap();
+    let value = if version.is_empty() {
+        "periodic_table (version unknown)".to_owned()
+    } else {
+        format!("periodic_table {version}")
+    };
+    assert!(periodic_table.ends_with(&value));
+
+    let codata = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("Bohr radius"))
+        .unwrap();
+    assert!(codata.ends_with(rustiq_core::molecules::BOHR_RADIUS_CODATA_REVISION));
+}
+
+#[test]
 fn invalid_version_combinations_fail() {
     for args in [
         vec!["--verbose"],
@@ -230,6 +257,7 @@ fn forced_hyperlinks_do_not_force_ansi_styling() {
         ("nalgebra", env!("RUSTIQ_NALGEBRA_VERSION")),
         ("rayon", env!("RUSTIQ_RAYON_VERSION")),
         ("special", env!("RUSTIQ_SPECIAL_VERSION")),
+        ("periodic_table", env!("RUSTIQ_PERIODIC_TABLE_VERSION")),
     ] {
         if !version.is_empty() {
             assert!(text.contains(&format!("https://crates.io/crates/{name}/{version}\x1b\\")));

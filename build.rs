@@ -63,7 +63,7 @@ fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>>
     }
 
     emit_declared_profile_settings(manifest_dir)?;
-    emit_numerical_backends(manifest_dir)?;
+    emit_dependency_versions(manifest_dir)?;
 
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     println!("cargo:rustc-env=RUSTIQ_TARGET_ARCH={target_arch}");
@@ -138,7 +138,7 @@ fn fs_err_read_to_string(path: &std::path::Path) -> Result<String, Box<dyn Error
 }
 
 // Source packages without a lockfile still identify each backend by name.
-fn emit_numerical_backends(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
+fn emit_dependency_versions(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
     let lock_path = manifest_dir.join("Cargo.lock");
     println!("cargo:rerun-if-changed={}", lock_path.display());
     let lock = match std::fs::read_to_string(&lock_path) {
@@ -150,6 +150,7 @@ fn emit_numerical_backends(manifest_dir: &std::path::Path) -> Result<(), Box<dyn
         ("nalgebra", "RUSTIQ_NALGEBRA_VERSION"),
         ("rayon", "RUSTIQ_RAYON_VERSION"),
         ("special", "RUSTIQ_SPECIAL_VERSION"),
+        ("periodic_table", "RUSTIQ_PERIODIC_TABLE_VERSION"),
     ] {
         let mut versions: Vec<_> = lock
             .as_ref()

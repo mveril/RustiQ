@@ -49,7 +49,33 @@ fn print_version_details(
         env!("RUSTIQ_SPECIAL_VERSION"),
         hyperlinks,
     )?;
+
+    section(writer, "CHEMICAL DATA")?;
+    print_backend(
+        writer,
+        "Periodic table",
+        "periodic_table",
+        env!("RUSTIQ_PERIODIC_TABLE_VERSION"),
+        hyperlinks,
+    )?;
+    print_codata_revision(writer, hyperlinks)?;
     Ok(())
+}
+
+/// Report the source of the conversion constant, not a blanket statement
+/// about all of RustiQ's scientific data.
+fn print_codata_revision(writer: &mut impl Write, hyperlinks: bool) -> io::Result<()> {
+    let value = rustiq_core::molecules::BOHR_RADIUS_CODATA_REVISION;
+    if hyperlinks {
+        let url = rustiq_core::molecules::BOHR_RADIUS_CODATA_URL;
+        row_hyperlink(
+            writer,
+            "Bohr radius",
+            format!("\x1b]8;;{url}\x1b\\{value}\x1b]8;;\x1b\\"),
+        )
+    } else {
+        row(writer, "Bohr radius", value)
+    }
 }
 
 fn print_backend(
@@ -282,6 +308,21 @@ mod tests {
         assert!(output.contains("aarch64"));
         assert!(!output.contains("Target CPU"));
         assert!(!output.contains("Target features"));
+    }
+
+    #[test]
+    fn chemical_data_respects_hyperlink_settings_and_core_metadata() {
+        let revision = rustiq_core::molecules::BOHR_RADIUS_CODATA_REVISION;
+        let source = rustiq_core::molecules::BOHR_RADIUS_CODATA_URL;
+        for hyperlinks in [false, true] {
+            let mut output = Vec::new();
+            print_codata_revision(&mut output, hyperlinks).unwrap();
+            let output = String::from_utf8(output).unwrap();
+            assert!(output.contains("Bohr radius"));
+            assert!(output.contains(revision));
+            assert_eq!(output.contains(source), hyperlinks);
+            assert_eq!(output.contains("\x1b]8;;"), hyperlinks);
+        }
     }
 
     #[test]

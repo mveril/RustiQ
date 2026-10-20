@@ -97,6 +97,10 @@ NUMERICAL LIBRARIES
   Linear algebra      nalgebra <version>
   Parallelism         rayon <version>
   Special functions   special <version>
+
+CHEMICAL DATA
+  Periodic table      periodic_table <version>
+  Bohr radius         CODATA 2018
 ```
 
 The numerical libraries section identifies nalgebra for linear algebra,
@@ -107,6 +111,19 @@ corresponding version is shown as `version unknown`. When terminal hyperlinks
 are enabled, each backend name and version links to that exact version on
 crates.io. Unknown versions have no link. The parallelism row does not report
 the active thread count.
+
+The chemical data section identifies the `periodic_table` crate used for
+chemical element properties; its resolved version is read from `Cargo.lock`
+during the build, using the same fallback and crates.io hyperlink behavior
+as the numerical libraries. The Bohr-to-ångström conversion factor in the
+core uses the **CODATA 2018** Bohr radius from NIST. Its revision and NIST
+reference URL are defined alongside the conversion constant in
+`rustiq-core`, not duplicated in the CLI. With terminal hyperlinks enabled,
+the revision links to the [NIST CODATA 2018 table](https://physics.nist.gov/cuu/pdf/all_2018.pdf).
+This does **not** claim that all chemical constants, atomic masses, or basis
+sets use CODATA 2018. Basis sets and their own revisions are specific to
+individual calculations and are not reported in this binary-version output.
+
 Integer overflow checks concern integer arithmetic, not floating-point NaN,
 infinity, or SCF convergence.
 

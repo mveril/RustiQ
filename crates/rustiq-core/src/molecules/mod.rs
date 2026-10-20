@@ -7,3 +7,5 @@ pub mod molecule;
 pub mod nuclear_repulsion_error;
 pub mod units;
 pub(crate) mod xyz_parser;
+
+pub use convert_length::{BOHR_RADIUS_CODATA_REVISION, BOHR_RADIUS_CODATA_URL};
