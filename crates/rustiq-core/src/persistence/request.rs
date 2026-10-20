@@ -1,4 +1,5 @@
 //! Explicit normalized-request V1 wire records, independent of frontend syntax.
+use mendeleev::Element;
 use std::num::{NonZeroU8, NonZeroUsize};
 
 use serde::{Deserialize, Serialize};
@@ -99,7 +100,7 @@ impl RequestSnapshot {
                 .atoms
                 .iter()
                 .map(|atom| RequestAtom {
-                    atomic_number: atom.element.atomic_number,
+                    atomic_number: atom.element.atomic_number(),
                     position: atom.position.into(),
                 })
                 .collect(),
@@ -163,10 +164,8 @@ impl RequestSnapshot {
             .atoms
             .iter()
             .map(|atom| {
-                let element = periodic_table::periodic_table()
-                    .iter()
-                    .find(|e| e.atomic_number == atom.atomic_number)
-                    .copied()
+                let element = *Element::list()
+                    .get(usize::try_from(atom.atomic_number - 1).map_err(|_| invalid())?)
                     .ok_or_else(invalid)?;
                 if !atom.position.iter().all(|v| v.is_finite()) {
                     return Err(invalid());
@@ -271,6 +270,13 @@ mod tests {
             "../../tests/data/persistence/request-h2-v1.json"
         ))
         .unwrap()
+    }
+
+    #[test]
+    fn element_list_is_ordered_by_atomic_number() {
+        for (index, element) in Element::list().iter().enumerate() {
+            assert_eq!(element.atomic_number(), u32::try_from(index + 1).unwrap());
+        }
     }
 
     #[test]

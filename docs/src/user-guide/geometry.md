@@ -84,6 +84,21 @@ Transformations change coordinate values, and written XYZ coordinates are
 rounded to six decimal places. Use the runfile's `units` setting to tell a
 calculation how to interpret its coordinates.
 
+Mass centering and principal-axis orientation use atomic weights from
+[`mendeleev`](https://docs.rs/mendeleev/0.8.4/mendeleev/enum.Element.html#method.atomic_weight):
+interval-valued weights use the conventional value, uncertain weights use the
+central value, and elements without a standard weight use the mass number of
+the most stable isotope. Consequently, these transformations can produce
+slightly different coordinates than versions that used a different periodic
+table dataset. In the Rust core API, `Atom` stores `mendeleev::Element` by
+value. The core crate re-exports `mendeleev` as `rustiq_core::mendeleev`, so a
+downstream crate can construct hydrogen atoms with
+`rustiq_core::mendeleev::Element::H` without declaring its own direct
+`mendeleev` dependency. The same element type supplies atomic numbers for
+electronic-structure calculations and atomic weights for geometry operations.
+The core methods for mass centering, inertia tensors, and principal-axis
+orientation return their values directly without an atomic-weight error.
+
 For a TOML calculation, the geometry path is relative to the TOML file's
 directory. `init` can create a TOML file that refers to an XYZ file without
 copying it:

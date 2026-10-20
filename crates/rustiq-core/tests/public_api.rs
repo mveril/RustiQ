@@ -4,6 +4,7 @@
 )]
 
 //! These tests also run with no default features: no runfile parser or runtime.
+use mendeleev::Element;
 use std::num::{NonZeroU8, NonZeroUsize};
 
 use approx::assert_abs_diff_eq;
@@ -28,7 +29,7 @@ use rustiq_core::{
 };
 
 fn geometry() -> Geometry {
-    let hydrogen = &periodic_table::periodic_table()[0];
+    let hydrogen = Element::H;
     Geometry::new(
         "H2".into(),
         vec![

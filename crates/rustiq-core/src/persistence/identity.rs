@@ -39,7 +39,7 @@ fn ao_eri_identity_with_computation_version(
 
     bytes.len(geometry.atoms.len());
     for atom in &geometry.atoms {
-        bytes.u32(atom.element.atomic_number);
+        bytes.u32(atom.element.atomic_number());
         bytes.f64(atom.position.x);
         bytes.f64(atom.position.y);
         bytes.f64(atom.position.z);

@@ -1,10 +1,11 @@
+#[cfg(test)]
+use mendeleev::Element;
 use std::{
     borrow::Cow,
     collections::BTreeMap,
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    sync::LazyLock,
 };
 
 use rand::SeedableRng;
@@ -22,78 +23,13 @@ const ADJECTIVES: &[&str] = &[
     "serene", "sharp", "silent", "silver", "simple", "smooth", "steady", "still", "subtle",
     "sunny", "swift", "tender", "tidy", "tranquil", "vivid", "warm", "wise",
 ];
-const SCIENTIFIC_NOUNS: &[&str] = &[
-    "accelerator",
-    "amplitude",
-    "anion",
-    "asteroid",
-    "atom",
-    "baryon",
-    "beam",
-    "boson",
-    "catalyst",
-    "cation",
-    "comet",
-    "condensate",
-    "cosmos",
-    "crystal",
-    "detector",
-    "dipole",
-    "electron",
-    "fermion",
-    "field",
-    "flux",
-    "galaxy",
-    "hadron",
-    "ion",
-    "isotope",
-    "lattice",
-    "lepton",
-    "magneton",
-    "molecule",
-    "nebula",
-    "neutrino",
-    "neutron",
-    "nucleus",
-    "orbital",
-    "particle",
-    "phonon",
-    "photon",
-    "plasma",
-    "planet",
-    "pluto",
-    "positron",
-    "proton",
-    "pulsar",
-    "quanta",
-    "quark",
-    "reagent",
-    "resonance",
-    "spectrum",
-    "spin",
-    "vector",
-    "wave",
-];
+include!(concat!(env!("OUT_DIR"), "/cache_nouns.rs"));
 
-static NOUNS: LazyLock<String> = LazyLock::new(|| {
-    let mut nouns: Vec<String> = SCIENTIFIC_NOUNS
-        .iter()
-        .map(|word| (*word).to_owned())
-        .collect();
-    for element in periodic_table::periodic_table() {
-        let name = element.name.to_ascii_lowercase();
-        if !nouns.contains(&name) {
-            nouns.push(name);
-        }
-    }
-    nouns.join(" ")
-});
-
-static WORDS: LazyLock<petname::Petnames<'static>> = LazyLock::new(|| petname::Petnames {
+const WORDS: petname::Petnames<'static> = petname::Petnames {
     adjectives: Cow::Borrowed(ADJECTIVES),
     adverbs: Cow::Borrowed(&[]),
-    nouns: Cow::Owned(NOUNS.split_whitespace().collect()),
-});
+    nouns: Cow::Borrowed(NOUNS),
+};
 
 pub(super) fn regular_directory(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
@@ -266,13 +202,11 @@ mod tests {
 
     #[test]
     fn vocabulary_contains_every_element_and_only_unique_nouns() {
-        let nouns: std::collections::BTreeSet<_> = NOUNS.split_whitespace().collect();
-        assert_eq!(nouns.len(), NOUNS.split_whitespace().count());
-        assert!(nouns.contains("quanta"));
-        assert!(!nouns.contains("quantum"));
-        assert_eq!(periodic_table::periodic_table().len(), 118);
-        for element in periodic_table::periodic_table() {
-            assert!(nouns.contains(element.name.to_ascii_lowercase().as_str()));
+        let nouns: std::collections::BTreeSet<_> = NOUNS.iter().copied().collect();
+        assert_eq!(nouns.len(), NOUNS.len());
+        assert_eq!(Element::list().len(), 118);
+        for element in Element::list() {
+            assert!(nouns.contains(element.name().to_ascii_lowercase().as_str()));
         }
         let mut rng = ChaCha8Rng::from_seed([0; 32]);
         for name in WORDS.namer(2, "-").iter(&mut rng).take(512) {

@@ -1,4 +1,6 @@
 //! Explicit V1 wire records; domain structs are never serialized as the format.
+#[cfg(test)]
+use mendeleev::Element;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -260,7 +262,7 @@ impl Snapshot {
                 .atoms
                 .iter()
                 .map(|atom| Atom {
-                    atomic_number: atom.element.atomic_number,
+                    atomic_number: atom.element.atomic_number(),
                     position: atom.position.into(),
                 })
                 .collect(),
@@ -417,7 +419,7 @@ impl Snapshot {
             || molecule.multiplicity().get() != self.multiplicity
             || molecule.atoms.len() != self.atoms.len()
             || molecule.atoms.iter().zip(&self.atoms).any(|(a, b)| {
-                a.element.atomic_number != b.atomic_number
+                a.element.atomic_number() != b.atomic_number
                     || !<[f64; 3]>::from(a.position)
                         .into_iter()
                         .zip(b.position)
@@ -810,14 +812,12 @@ mod v1_contract_tests {
     use std::num::NonZeroU8;
 
     fn molecule(symbols: &[&str], multiplicity: u8) -> Molecule {
-        let elements = periodic_table::periodic_table();
         let atoms = symbols
             .iter()
             .enumerate()
             .map(|(index, symbol)| {
-                let element = elements
-                    .iter()
-                    .find(|element| element.symbol == *symbol)
+                let element = Element::iter()
+                    .find(|element| element.symbol() == *symbol)
                     .unwrap();
                 Atom::new(
                     element,

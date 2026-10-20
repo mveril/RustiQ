@@ -239,7 +239,10 @@ fn geometry_xyz(geometry: &Geometry, comment: &str) -> String {
         writeln!(
             output,
             "{} {} {} {}",
-            atom.element.symbol, atom.position.x, atom.position.y, atom.position.z,
+            atom.element.symbol(),
+            atom.position.x,
+            atom.position.y,
+            atom.position.z,
         )
         .expect("writing to a String cannot fail");
     }

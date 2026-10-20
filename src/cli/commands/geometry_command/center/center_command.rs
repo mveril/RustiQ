@@ -1,5 +1,4 @@
 use clap::Args;
-use miette::IntoDiagnostic;
 
 use crate::cli::commands::{
     geometry_command::{center::CenterType, TransformArgs},
@@ -20,7 +19,7 @@ impl Runnable for CenterCommand {
         self.transform_args.apply_transform(|geometry| {
             match self.center_type {
                 CenterType::Geometry => geometry.centering(),
-                CenterType::Mass => geometry.mass_centering().into_diagnostic()?,
+                CenterType::Mass => geometry.mass_centering(),
                 CenterType::Charge => geometry.charge_centering(),
             }
             Ok(())

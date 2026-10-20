@@ -3,6 +3,8 @@ use super::{
 };
 use crate::basis::gaussian::basis::Basis;
 use crate::config::hf::GuessPerturbationConfig;
+#[cfg(test)]
+use mendeleev::Element;
 use nalgebra::DMatrix;
 
 /// Structure representing an initial density estimate based on one electron.
@@ -67,8 +69,7 @@ mod tests {
 
     /// Helper function to create an H2 geometry.
     fn create_h2_geometry() -> Geometry {
-        let elements = periodic_table::periodic_table();
-        let h = &elements[0]; // Hydrogen
+        let h = Element::H; // Hydrogen
         let atom1 = Atom::new(h, point![0.0, 0.0, -1.4]); // 0.74 Å ≈ 1.40 Bohr
         let atom2 = Atom::new(h, point![0.0, 0.0, 1.4]);
         Geometry::new("Hydrogen molecule (H2)".to_string(), vec![atom1, atom2])

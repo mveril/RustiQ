@@ -31,7 +31,13 @@ bat = { version = "0.26", default-features = false, features = ["regex-onig"] }
 delegate = "0.13"
 miette = { version = "7", default-features = false, features = ["derive"] }
 nalgebra = { version = "0.35", default-features = false, features = ["std"] }
-periodic_table = "0.5"
+mendeleev = { version = "0.8.4", default-features = false, features = [
+  "atomic_number",
+  "atomic_weight",
+  "element_list",
+  "name",
+  "symbol",
+] }
 proptest = "1"
 rand = "0.10"
 rayon = "1"
@@ -76,7 +82,7 @@ anstream = "1"
 anstyle = "1"
 indicatif = { version = "0.18", optional = true }
 nalgebra.workspace = true
-periodic_table.workspace = true
+mendeleev.workspace = true
 rayon.workspace = true
 tokio = { workspace = true, features = ["rt"], optional = true }
 serde_json.workspace = true

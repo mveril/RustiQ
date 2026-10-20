@@ -1,3 +1,5 @@
+#[cfg(test)]
+use mendeleev::Element;
 use std::{num::NonZero, ops::Deref};
 
 use thiserror::Error;
@@ -151,7 +153,7 @@ impl Molecule {
         i32::try_from(
             self.atoms
                 .iter()
-                .map(|a| a.element.atomic_number)
+                .map(|a| a.element.atomic_number())
                 .sum::<u32>(),
         )
         .expect("total nuclear charge fits in the molecular charge representation")
@@ -193,14 +195,12 @@ mod tests {
         reason = "Fixture dimensions and quadrature orders are small enough to be represented exactly in f64"
     )]
     fn atoms(symbols: &[&str]) -> Vec<Atom> {
-        let elements = periodic_table::periodic_table();
         symbols
             .iter()
             .enumerate()
             .map(|(index, symbol)| {
-                let element = elements
-                    .iter()
-                    .find(|element| element.symbol == *symbol)
+                let element = Element::iter()
+                    .find(|element| element.symbol() == *symbol)
                     .unwrap();
                 Atom::new(element, point![0.0, 0.0, index as f64])
             })

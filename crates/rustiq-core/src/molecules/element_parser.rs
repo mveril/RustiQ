@@ -1,15 +1,14 @@
-use periodic_table::{periodic_table, Element};
+use mendeleev::Element;
 
-pub fn parse_element(e: &str) -> Result<&'static Element, ParseElementError> {
+pub fn parse_element(e: &str) -> Result<Element, ParseElementError> {
     if let Ok(z0) = e.parse::<usize>() {
-        let zel = periodic_table()
+        Element::list()
             .get(z0 - 1)
+            .copied()
             .ok_or(ParseElementError::ZNotFound(z0))
-            .copied();
-        zel
     } else {
-        let sel = periodic_table().iter().find(|x| x.symbol == e);
-        sel.copied()
+        Element::iter()
+            .find(|element| element.symbol() == e)
             .ok_or(ParseElementError::SymbolNotFound(e.to_string()))
     }
 }

@@ -1073,9 +1073,9 @@ fn test_geometry_oriente_matches_cached_reference_output() {
     const CACHED_H2O_ORIENTED_OUTPUT: &str = "\
 3 
  
-O       0.00000000       0.00000000      -0.06568579 
-H       0.00000000      -0.75700000       0.52131421 
-H       0.00000000       0.75700000       0.52131421 
+O       0.00000000       0.00000000      -0.06568926
+H       0.00000000      -0.75700000       0.52131074
+H       0.00000000       0.75700000       0.52131074
 ";
 
     let output = run_rustiq(&["geometry", "oriente", "samples/h2o/h2o.xyz"]);
@@ -1183,7 +1183,7 @@ fn inertia_tensor(atoms: &[(String, [f64; 3])]) -> [[f64; 3]; 3] {
 )]
 fn atomic_mass(symbol: &str) -> f64 {
     match symbol {
-        "H" => 1.00794,
+        "H" => 1.008,
         "O" => 15.999,
         _ => panic!("unexpected test atom symbol: {symbol}"),
     }
