@@ -23,72 +23,17 @@ const ADJECTIVES: &[&str] = &[
     "serene", "sharp", "silent", "silver", "simple", "smooth", "steady", "still", "subtle",
     "sunny", "swift", "tender", "tidy", "tranquil", "vivid", "warm", "wise",
 ];
-const SCIENTIFIC_NOUNS: &[&str] = &[
-    "accelerator",
-    "amplitude",
-    "anion",
-    "asteroid",
-    "atom",
-    "baryon",
-    "beam",
-    "boson",
-    "catalyst",
-    "cation",
-    "comet",
-    "condensate",
-    "cosmos",
-    "crystal",
-    "detector",
-    "dipole",
-    "electron",
-    "fermion",
-    "field",
-    "flux",
-    "galaxy",
-    "hadron",
-    "ion",
-    "isotope",
-    "lattice",
-    "lepton",
-    "magneton",
-    "molecule",
-    "nebula",
-    "neutrino",
-    "neutron",
-    "nucleus",
-    "orbital",
-    "particle",
-    "phonon",
-    "photon",
-    "plasma",
-    "planet",
-    "pluto",
-    "positron",
-    "proton",
-    "pulsar",
-    "quanta",
-    "quark",
-    "reagent",
-    "resonance",
-    "spectrum",
-    "spin",
-    "vector",
-    "wave",
-];
-
-static NOUNS: LazyLock<String> = LazyLock::new(|| {
-    let mut nouns = SCIENTIFIC_NOUNS.join(" ");
-    for element in Element::list() {
-        nouns.push(' ');
-        nouns.push_str(&element.name().to_ascii_lowercase());
-    }
-    nouns
+static NOUNS: LazyLock<Vec<String>> = LazyLock::new(|| {
+    Element::list()
+        .iter()
+        .map(|element| element.name().to_ascii_lowercase())
+        .collect()
 });
 
 static WORDS: LazyLock<petname::Petnames<'static>> = LazyLock::new(|| petname::Petnames {
     adjectives: Cow::Borrowed(ADJECTIVES),
     adverbs: Cow::Borrowed(&[]),
-    nouns: Cow::Owned(NOUNS.split_whitespace().collect()),
+    nouns: Cow::Owned(NOUNS.iter().map(String::as_str).collect()),
 });
 
 pub(super) fn regular_directory(path: &Path) -> io::Result<()> {
@@ -262,10 +207,8 @@ mod tests {
 
     #[test]
     fn vocabulary_contains_every_element_and_only_unique_nouns() {
-        let nouns: std::collections::BTreeSet<_> = NOUNS.split_whitespace().collect();
-        assert_eq!(nouns.len(), NOUNS.split_whitespace().count());
-        assert!(nouns.contains("quanta"));
-        assert!(!nouns.contains("quantum"));
+        let nouns: std::collections::BTreeSet<_> = NOUNS.iter().map(String::as_str).collect();
+        assert_eq!(nouns.len(), NOUNS.len());
         assert_eq!(Element::list().len(), 118);
         for element in Element::list() {
             assert!(nouns.contains(element.name().to_ascii_lowercase().as_str()));
