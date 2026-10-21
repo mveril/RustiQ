@@ -134,17 +134,6 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@e847f25223456b3058e12f7fc9d777b6a6f25060 # v3
 
-      - name: Update uv2nix lock for compatibility verification
-        if: matrix.system == 'x86_64-linux'
-        run: nix flake lock --update-input uv2nix
-
-      - name: Preserve regenerated Nix lock
-        if: matrix.system == 'x86_64-linux'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: regenerated-flake-lock
-          path: flake.lock
-
       - name: Restore bounded Nix cache
         uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:
