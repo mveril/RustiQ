@@ -154,3 +154,14 @@ def test_molecular_formula_uses_geometry_atoms() -> None:
     assert report.molecular_formula(case.xyz) == "H2O"
     h2_case = compare_pyscf.CASES[0]
     assert report.molecular_formula(h2_case.xyz) == "H2"
+
+
+def test_integral_section_includes_failures_and_metrics():
+    row = {"case_id": "h2-sto-3g", "representation": "spherical", "nao": 2,
+           "family": "ERI", "count": 6, "max_absolute_error": 1e-5,
+           "rms_absolute_error": 1e-6, "absolute_tolerance": 1e-10, "status": "FAIL"}
+    rendered = report.render_markdown({"cases": [], "metadata": {},
+        "integrals": {"passed": False, "cases": [row], "cargo_error": "fixture mismatch"}})
+    assert "Independent AO integrals: FAIL" in rendered
+    assert "fixture mismatch" in rendered
+    assert "1.0000000000e-05" in rendered

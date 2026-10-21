@@ -1,8 +1,9 @@
 # Reference Comparisons
 
-This directory contains optional development tooling for comparing RustiQ sample
-energies against PySCF. These checks are intentionally separate from `cargo test`
-so the Rust test suite does not depend on Python or PySCF.
+This directory contains optional live PySCF comparisons of sample energies and
+AO integrals, plus independent integral reference generation. Ordinary Cargo
+unit tests compare production integrals with committed NumPy fixtures without
+requiring Python or PySCF.
 
 The Nix development shell provides the PySCF version locked in `uv.lock` on all
 platforms declared by the flake. Inside the Dev Container, the same tools are
@@ -136,3 +137,18 @@ reporting. This keeps reference validation independent of terminal report wordin
 and decimal formatting. `compare_pyscf.py` owns the reference case definitions
 and shared comparison functions. Its command-line entry point forwards arguments
 to pytest for compatibility; use the commands above for new workflows.
+
+Independent AO integral tests are in `test_integrals.py`; the corresponding
+Cargo unit test runs without Python against versioned NumPy fixtures under
+`crates/rustiq-core/tests/data/integrals/`. NumPy generates the arrays and Rust
+loads them using `npyz`. Regenerate with:
+
+```sh
+uv run --locked python tools/reference/integrals.py --regenerate
+```
+
+The generator uses only PySCF and raw BSE source data. Pytest verifies the
+stored arrays and compares live production Rust integrals against PySCF.
+See the manual’s [Independent AO integral validation](../../docs/src/development/contributing.md#independent-ao-integral-validation) section for AO mapping,
+normalization factors, tolerances, coverage, and limitations. The existing
+scientific report includes the integral metrics.
