@@ -158,6 +158,10 @@ jobs:
       - name: Check the minimal PySCF shell
         run: nix develop .#mini-pyscf --command python -c "import pyscf; print('PySCF', pyscf.__version__)"
 
+      - name: Check the pyscf-check application
+        if: matrix.system == 'x86_64-linux'
+        run: nix run .#pyscf-check -- -k "h2-sto-3g-rhf and not mp2"
+
       - name: Check reference energies against PySCF
         run: nix develop .#mini-pyscf --command pytest tools/reference
 
