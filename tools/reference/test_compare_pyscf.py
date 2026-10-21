@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 import tomllib
 from collections.abc import Iterator
 from pathlib import Path
@@ -14,8 +13,7 @@ import pytest
 
 @pytest.fixture(scope="session")
 def rustiq_env() -> Iterator[dict[str, str]]:
-    if sys.platform == "win32":
-        pytest.importorskip("pyscf", reason="PySCF has no supported Windows wheel")
+    pytest.importorskip("pyscf", reason="PySCF is not installed in this environment")
     env = compare_pyscf.prepare_rustiq_env()
     yield env
     shutil.rmtree(Path(env["RUSTIQ_DATA_HOME"]), ignore_errors=True)
@@ -134,7 +132,7 @@ def test_frozen_core_runfile_preserves_windows_geometry_path(tmp_path: Path) -> 
     from dataclasses import replace
 
     case = next(case for case in compare_pyscf.CASES if case.frozen_core_reference)
-    case = replace(case, xyz=Path(r"C:\Users\chemist\water.xyz"))
+    case = replace(case, xyz=Path(r"C:\Users\chemist name\water.xyz"))
     generated = compare_pyscf.frozen_core_case(case, "32 KiB", tmp_path)
     config = tomllib.loads(generated.runfile.read_text(encoding="utf-8"))
     assert config["molecule"]["geometry"] == str(case.xyz)
