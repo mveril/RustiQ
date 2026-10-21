@@ -30,7 +30,7 @@ fn sha256(bytes: &[u8]) -> String {
 #[allow(
     clippy::too_many_lines,
     clippy::many_single_char_names,
-    reason = "Keep the five-case scientific fixture comparison and standard integral indices together"
+    reason = "Keep the parameterized scientific fixture comparison and standard integral indices together"
 )]
 fn export_integral_validation(
     #[case] name: &str,
