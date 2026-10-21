@@ -17,13 +17,17 @@ CASES = [("h2-sto-3g", "samples/h2/molecule.xyz", "sto-3g", False, 2),
          ("h2o-sto-3g", "samples/h2o/h2o.xyz", "sto-3g", False, 7),
          ("h2o-6-31g", "samples/h2o/h2o.xyz", "6-31g", False, 13),
          ("h2o-cc-pvdz", "samples/h2o/h2o.xyz", "cc-pvdz", False, 24),
-         ("h2o-cc-pvdz-cart", "samples/h2o/h2o.xyz", "cc-pvdz", True, 25)]
+         ("h2o-cc-pvdz-cart", "samples/h2o/h2o.xyz", "cc-pvdz", True, 25),
+         ("h2o-cc-pvdz-cart-rotated", "samples/h2o/h2o.xyz", "cc-pvdz", True, 25)]
+ROTATED_CASE = "h2o-cc-pvdz-cart-rotated"
+ROTATION_AXIS = np.array([1., 2., 3.]) / np.sqrt(14.)
+ROTATION_ANGLE = 0.37
 # Absolute acceptance avoids relative error amplification at symmetry zeros.
 ATOL = 1e-10
 RELATIVE_FLOOR = 1e-8
 
 
-def reference(xyz, basis_name, cart):
+def reference(xyz, basis_name, cart, rotated=False):
     source = json.loads((BASIS_ROOT / f"{basis_name}.json").read_text())
     basis = {}
     for z in (1, 8):
@@ -44,7 +48,15 @@ def reference(xyz, basis_name, cart):
     atoms = []
     for line in load_xyz_body(REPO_ROOT / xyz).splitlines():
         symbol, *coords = line.split()
-        atoms.append((symbol, [float(x) / 0.529177210903 for x in coords]))
+        position = np.array([float(x) / 0.529177210903 for x in coords])
+        if rotated:
+            x, y, z = ROTATION_AXIS
+            skew = np.array([[0., -z, y], [z, 0., -x], [-y, x, 0.]])
+            rotation = (np.eye(3) * np.cos(ROTATION_ANGLE)
+                        + (1 - np.cos(ROTATION_ANGLE)) * np.outer(ROTATION_AXIS, ROTATION_AXIS)
+                        + np.sin(ROTATION_ANGLE) * skew)
+            position = rotation @ position
+        atoms.append((symbol, position.tolist()))
     mol = gto.M(atom=atoms, unit="Bohr", basis=basis, cart=cart, verbose=0)
     mapping, scales = [], []
     # PySCF stably sorts shells by l; RustiQ retains BSE shell/contraction order.
@@ -128,7 +140,8 @@ def validate():
         rust = [json.loads((output / f"{name}.json").read_text()) for name, *_ in CASES]
     rows = []
     for actual, (name, xyz, basis, cart, dimension) in zip(rust, CASES, strict=True):
-        mol, mapping, expected, eri_indices = reference(xyz, basis, cart)
+        mol, mapping, expected, eri_indices = reference(
+            xyz, basis, cart, rotated=name == ROTATED_CASE)
         assert actual["case_id"] == name
         assert actual["nao"] == mol.nao == dimension
         for family, values in expected.items():
@@ -150,10 +163,12 @@ FIXTURE = REPO_ROOT / "crates/rustiq-core/tests/data/integrals/pyscf-v1.json"
 def generate_fixture():
     cases, arrays = [], {}
     for name, xyz, basis, cart, dimension in CASES:
-        mol, mapping, expected, _ = reference(xyz, basis, cart)
+        mol, mapping, expected, _ = reference(xyz, basis, cart, rotated=name == ROTATED_CASE)
         assert mol.nao == dimension
         cases.append({"case_id": name, "geometry": xyz, "basis": basis,
                       "cartesian": cart, "nao": dimension, "ao_mapping": mapping,
+                      "rotation": {"axis": ROTATION_AXIS.tolist(), "angle_radians": ROTATION_ANGLE}
+                      if name == ROTATED_CASE else None,
                       "basis_sha256": hashlib.sha256((BASIS_ROOT / f"{basis}.json").read_bytes()).hexdigest(),
                       "geometry_sha256": hashlib.sha256((REPO_ROOT / xyz).read_bytes()).hexdigest(),
                       "arrays": {family: f"{name}/{family}" for family in expected}})

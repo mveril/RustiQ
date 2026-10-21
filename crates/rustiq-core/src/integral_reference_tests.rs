@@ -5,6 +5,7 @@ use crate::{
     hf::core::nucl_attraction_ints,
     molecules::{geometry::Geometry, molecule::Molecule, units::Units},
 };
+use nalgebra::{Rotation3, Vector3};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
@@ -25,6 +26,7 @@ fn sha256(bytes: &[u8]) -> String {
 #[case("h2o-6-31g", "samples/h2o/h2o.xyz", "6-31g", false, 13)]
 #[case("h2o-cc-pvdz", "samples/h2o/h2o.xyz", "cc-pvdz", false, 24)]
 #[case("h2o-cc-pvdz-cart", "samples/h2o/h2o.xyz", "cc-pvdz", true, 25)]
+#[case("h2o-cc-pvdz-cart-rotated", "samples/h2o/h2o.xyz", "cc-pvdz", true, 25)]
 #[allow(
     clippy::too_many_lines,
     clippy::many_single_char_names,
@@ -45,13 +47,14 @@ fn export_integral_validation(
     assert_eq!(fixture["schema_version"], 1);
     assert_eq!(fixture["absolute_tolerance"], 1e-10);
     let mut failures = Vec::new();
-    let mut molecule = Molecule::try_new(
-        Geometry::from_file(File::open(root.join(geometry)).unwrap()).unwrap(),
-        Units::Angstrom,
-        0,
-        NonZeroU8::MIN,
-    )
-    .unwrap();
+    let mut molecule_geometry =
+        Geometry::from_file(File::open(root.join(geometry)).unwrap()).unwrap();
+    if name == "h2o-cc-pvdz-cart-rotated" {
+        let axis = nalgebra::Unit::new_normalize(Vector3::new(1.0, 2.0, 3.0));
+        molecule_geometry.rotate(Rotation3::from_axis_angle(&axis, 0.37));
+    }
+    let mut molecule =
+        Molecule::try_new(molecule_geometry, Units::Angstrom, 0, NonZeroU8::MIN).unwrap();
     molecule.convert_to(Units::Bohr);
     let reference = fixture["cases"]
         .as_array()

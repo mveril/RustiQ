@@ -323,7 +323,11 @@ Hcore = T + V matrices with versioned PySCF 2.14.0 fixtures. It compares every
 matrix entry and every unique unscreened electron-repulsion integral (ERI),
 in chemists' notation. No Python installation is needed for Cargo tests.
 The cases are H2/STO-3G (2 AOs), H2O/STO-3G (7), H2O/6-31G (13), and
-H2O/cc-pVDZ with spherical 5D (24) and Cartesian 6D (25) functions.
+H2O/cc-pVDZ with spherical 5D (24) and Cartesian 6D (25) functions. The
+Cartesian cc-pVDZ water case is also rotated by 0.37 radians around the
+normalized (1, 2, 3) axis with RustiQ's `Geometry::rotate`; its independently
+generated PySCF reference uses the same Rodrigues rotation. This checks the
+Cartesian integrals with coordinates spanning all three Cartesian axes.
 
 All families use an absolute tolerance of 1e-10 in each family’s units, with no relative
 acceptance criterion. Measured maxima on these cases are below 9e-14; the

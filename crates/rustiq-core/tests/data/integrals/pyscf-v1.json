@@ -28,6 +28,7 @@
         0,
         1
       ],
+      "rotation": null,
       "basis_sha256": "6e9edeb7ae5ee1c4155dbc84b8bad9b74f07077f8136c7531f86d7f0d358b638",
       "geometry_sha256": "7d00f0a54ca909dd51534e6ec97c532b4a5070382a6a10d2c6613f692a62c08e",
       "arrays": {
@@ -53,6 +54,7 @@
         5,
         6
       ],
+      "rotation": null,
       "basis_sha256": "6e9edeb7ae5ee1c4155dbc84b8bad9b74f07077f8136c7531f86d7f0d358b638",
       "geometry_sha256": "dd6f8820c7661c146aeb71eab75ef0b668585ba7c6d8844a6539d4e5fbaa04b0",
       "arrays": {
@@ -84,6 +86,7 @@
         11,
         12
       ],
+      "rotation": null,
       "basis_sha256": "8e4749c35ca02ea84bd798b87c6c14cd68f43fcefe56f60b4e1b22d3c9dfacda",
       "geometry_sha256": "dd6f8820c7661c146aeb71eab75ef0b668585ba7c6d8844a6539d4e5fbaa04b0",
       "arrays": {
@@ -126,6 +129,7 @@
         22,
         21
       ],
+      "rotation": null,
       "basis_sha256": "43f9f29ae3e2a129cdc2917507b738931bd2c86e8bf11e25d456cc3ad1f8c315",
       "geometry_sha256": "dd6f8820c7661c146aeb71eab75ef0b668585ba7c6d8844a6539d4e5fbaa04b0",
       "arrays": {
@@ -169,6 +173,7 @@
         23,
         22
       ],
+      "rotation": null,
       "basis_sha256": "43f9f29ae3e2a129cdc2917507b738931bd2c86e8bf11e25d456cc3ad1f8c315",
       "geometry_sha256": "dd6f8820c7661c146aeb71eab75ef0b668585ba7c6d8844a6539d4e5fbaa04b0",
       "arrays": {
@@ -177,6 +182,57 @@
         "V": "h2o-cc-pvdz-cart/V",
         "Hcore": "h2o-cc-pvdz-cart/Hcore",
         "ERI": "h2o-cc-pvdz-cart/ERI"
+      }
+    },
+    {
+      "case_id": "h2o-cc-pvdz-cart-rotated",
+      "geometry": "samples/h2o/h2o.xyz",
+      "basis": "cc-pvdz",
+      "cartesian": true,
+      "nao": 25,
+      "ao_mapping": [
+        0,
+        1,
+        2,
+        5,
+        4,
+        3,
+        8,
+        7,
+        6,
+        14,
+        13,
+        12,
+        11,
+        10,
+        9,
+        15,
+        16,
+        19,
+        18,
+        17,
+        20,
+        21,
+        24,
+        23,
+        22
+      ],
+      "rotation": {
+        "axis": [
+          0.2672612419124244,
+          0.5345224838248488,
+          0.8017837257372732
+        ],
+        "angle_radians": 0.37
+      },
+      "basis_sha256": "43f9f29ae3e2a129cdc2917507b738931bd2c86e8bf11e25d456cc3ad1f8c315",
+      "geometry_sha256": "dd6f8820c7661c146aeb71eab75ef0b668585ba7c6d8844a6539d4e5fbaa04b0",
+      "arrays": {
+        "S": "h2o-cc-pvdz-cart-rotated/S",
+        "T": "h2o-cc-pvdz-cart-rotated/T",
+        "V": "h2o-cc-pvdz-cart-rotated/V",
+        "Hcore": "h2o-cc-pvdz-cart-rotated/Hcore",
+        "ERI": "h2o-cc-pvdz-cart-rotated/ERI"
       }
     }
   ],
@@ -205,6 +261,11 @@
     "h2o-cc-pvdz-cart/T": "ac7c32a68d19689d3da120c8ba8965b8ad17c402dfa6221d1c7a91008c9403be",
     "h2o-cc-pvdz-cart/V": "e932ed2e21ac0b7a476a5898d913eaaa60e3a49e6ca1fa24405746046d398311",
     "h2o-cc-pvdz-cart/Hcore": "6a8237554452c88da08c5b5e8fce82f2fc01fe10269b159a26de8e0ad75b0c58",
-    "h2o-cc-pvdz-cart/ERI": "12a374aff3b4ccdce78f816cdc17ec0ccfea83ea2c02fe5f791a08cdf9fff140"
+    "h2o-cc-pvdz-cart/ERI": "12a374aff3b4ccdce78f816cdc17ec0ccfea83ea2c02fe5f791a08cdf9fff140",
+    "h2o-cc-pvdz-cart-rotated/S": "276430d96e64b80b953f7403e0562fc1986d9daf77fc4bd866d6237d94c2c09d",
+    "h2o-cc-pvdz-cart-rotated/T": "3fbf6c9efe812e3ee705eee7712c60ccfb6e9c8e6713c42c9c3ceeee0729542d",
+    "h2o-cc-pvdz-cart-rotated/V": "f13859a4585ceb0d9a40f1411172efe3b1aa372fb116c6f023a951593adffd39",
+    "h2o-cc-pvdz-cart-rotated/Hcore": "b94f9d5fa8d4ad31ed6908bea239e12611cb613ce8b736dd754c0c54e2a93872",
+    "h2o-cc-pvdz-cart-rotated/ERI": "3f5a4f0c4fd1faa44997ed21b4376345eed51587d32fa2536f20780d138daf7b"
   }
 }
