@@ -64,3 +64,4 @@ approx.workspace = true
 nalgebra = { workspace = true, features = ["macros"] }
 ndarray = "0.17"
 proptest.workspace = true
+rstest.workspace = true

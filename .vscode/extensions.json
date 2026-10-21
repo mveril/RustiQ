@@ -10,6 +10,7 @@
     "ms-python.python",
     "ms-toolsai.jupyter",
     "charliermarsh.ruff",
-    "Tweag.vscode-nickel"
+    "Tweag.vscode-nickel",
+    "subh-tools.npy-viewer"
   ]
 }

@@ -222,3 +222,6 @@ pub mod bench_support {
         }
     }
 }
+
+#[cfg(test)]
+mod integral_reference_tests;

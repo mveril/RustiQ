@@ -91,6 +91,7 @@ Nix shell. The Dev Container also installs these VS Code extensions:
 - [Nix IDE](https://marketplace.visualstudio.com/items?itemName=jnoortheen.nix-ide) and [Nickel](https://marketplace.visualstudio.com/items?itemName=Tweag.vscode-nickel) provide Nix and Nickel language support.
 - [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml) supports TOML, while [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) formats JSON, YAML, and Markdown.
 - [Dependi](https://marketplace.visualstudio.com/items?itemName=fill-labs.dependi) helps inspect dependencies; [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python), [Jupyter](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter), and [Ruff](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) support the Python reference tools.
+- [NPY Viewer](https://marketplace.visualstudio.com/items?itemName=subh-tools.npy-viewer) provides tables, heatmaps, and statistics for `.npy` files, including the integral fixtures in `crates/rustiq-core/tests/data/integrals/`. Python is optional. Use the reference tools for numerical verification.
 
 The first activation can take several minutes; later starts reuse the persistent Nix store.
 Because `.envrc` execution requires explicit trust, run `direnv allow` once in

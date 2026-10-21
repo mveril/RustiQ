@@ -210,8 +210,20 @@ def render_markdown(report: dict[str, Any]) -> str:
     for r in rows:
         if "spin_pass" in r:
             lines.append(f"| {r['case_id']} | {fmt(r['rustiq_s_squared'])} | {fmt(r['pyscf_s_squared'])} | {fmt(r['s_squared_absolute_difference'])} | {fmt(r['spin_tolerance'])} | {'PASS' if r['spin_pass'] else 'FAIL'} |")
+    integral_report = report.get("integrals")
+    if integral_report:
+        lines += ["", "## Independent AO integral validation", "",
+                  "Complete one-electron matrices and unscreened compact ERIs; atomic units. Internal eightfold reconstruction is checked separately by Cargo.", "",
+                  "| Case | AO representation | AOs | Family | Values | Max absolute error | RMS error | Absolute tolerance | Status |",
+                  "|---|---|---:|---|---:|---:|---:|---:|---|"]
+        for r in integral_report.get("cases", []):
+            lines.append(f"| {r['case_id']} | {r['representation']} | {r['nao']} | {r['family']} | {r['count']} | {fmt(r['max_absolute_error'])} | {fmt(r['rms_absolute_error'])} | {fmt(r['absolute_tolerance'])} | {r['status']} |")
+        if integral_report.get("error") or integral_report.get("cargo_error"):
+            lines.append(f"Integral validation failed: {integral_report.get('error') or integral_report['cargo_error']}")
     failed = [r for r in rows if r["status"] != "PASS"]
     lines += ["", "## Summary", "", f"{len(rows) - len(failed)}/{len(rows)} cases passed; {len(failed)} failed."]
+    if integral_report:
+        lines.append(f"Independent AO integrals: {'PASS' if integral_report['passed'] else 'FAIL'}.")
     if failed:
         lines += ["", "Failures:"]
         for r in failed:
@@ -254,6 +266,12 @@ def generate(output_dir: Path) -> dict[str, Any]:
         shutil.rmtree(Path(env["RUSTIQ_DATA_HOME"]), ignore_errors=True)
         shutil.rmtree(work, ignore_errors=True)
     report = {"schema_version": 1, "metadata": metadata(), "tolerances": {c.name: {"hf_hartree": c.tolerance, "mp2_hartree": c.mp2_tolerance, "spin_s_squared": c.spin_tolerance if c.method == "uhf" else None} for c in cases}, "reference_case_ids": [c.name for c in cases], "cases": results, "passed": all(r["status"] == "PASS" for r in results)}
+    import integrals
+    try:
+        report["integrals"] = integrals.validate()
+    except Exception as error:  # Preserve harness failures in the qualification report.
+        report["integrals"] = {"passed": False, "error": str(error), "cases": []}
+    report["passed"] = report["passed"] and report["integrals"]["passed"]
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "validation.json").write_text(json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     (output_dir / "validation.md").write_text(render_markdown(report), encoding="utf-8")
@@ -265,7 +283,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("target/scientific-report"))
     args = parser.parse_args()
     report = generate(args.output_dir)
-    print(f"Scientific validation: {sum(r['status'] == 'PASS' for r in report['cases'])}/{len(report['cases'])} passed")
+    print(f"Scientific validation: {sum(r['status'] == 'PASS' for r in report['cases'])}/{len(report['cases'])} energy cases passed; AO integrals {'PASS' if report['integrals']['passed'] else 'FAIL'}")
     return 0 if report["passed"] else 1
 
 

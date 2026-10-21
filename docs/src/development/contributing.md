@@ -313,3 +313,90 @@ These reports provide numerical regression checks for selected cases. They do
 not establish general chemical accuracy; see the [scientific scope](../scientific-scope.md)
 for the limits of HF, MP2, and numerical agreement. Equal numeric convergence
 thresholds do not mean that RustiQ and PySCF use identical convergence tests.
+
+### Independent AO integral validation
+
+The parameterized Cargo tests
+`integral_reference_tests::export_integral_validation::case_N` compare
+production overlap (S), kinetic (T), nuclear attraction (V), and
+Hcore = T + V matrices with versioned PySCF 2.14.0 fixtures. It compares every
+matrix entry and every unique unscreened electron-repulsion integral (ERI),
+in chemists' notation. No Python installation is needed for Cargo tests.
+The cases are H2/STO-3G (2 AOs), H2O/STO-3G (7), H2O/6-31G (13), and
+H2O/cc-pVDZ with spherical 5D (24) and Cartesian 6D (25) functions. The
+Cartesian cc-pVDZ water case is also rotated by 0.37 radians around the
+normalized (1, 2, 3) axis with RustiQ's `Geometry::rotate`; its independently
+generated PySCF reference uses the same Rodrigues rotation. This checks the
+Cartesian integrals with coordinates spanning all three Cartesian axes.
+
+All families use an absolute tolerance of 1e-10 in each family’s units, with no relative
+acceptance criterion. Measured maxima on these cases are below 9e-14; the
+threshold leaves margin for floating-point accumulation and platform differences
+in contracted Hermite/Boys evaluation while remaining below the 1e-8 scale that
+would require investigation. Relative errors are diagnostic only and are reported
+for reference magnitudes at least 1e-8. Reports include dimensions, counts, RMS
+and maximum absolute error, exceedance counts, and the five largest discrepancies
+with zero-based AO indices and full precision values. For S the units are
+dimensionless; T, V, Hcore, and ERIs are in atomic units of energy.
+
+The fixtures are generated independently by PySCF/libcint from the same raw
+checked-in Basis Set Exchange (BSE) JSON exponents and contraction coefficients,
+not from RustiQ's normalized primitives. PySCF interprets and normalizes those
+coefficients independently. This avoids differences in rounded packaged basis
+sets. Geometry is converted from the checked-in Angstrom XYZ files to Bohr using
+0.529177210903 Angstrom/Bohr (CODATA 2018), then supplied explicitly in Bohr.
+The JSON metadata records source hashes, PySCF version, AO permutation, units,
+layout, and each numerical array hash. Cargo rejects changed source inputs or
+array contents; pytest also regenerates every reference array and checks it
+within 1e-13 absolute units. Regeneration never reads RustiQ integral values.
+
+RustiQ retains atom, BSE shell, and contraction order; PySCF stably sorts shells
+by angular momentum. Within each p shell RustiQ uses z,y,x versus PySCF x,y,z.
+The real spherical d order and phases agree: xy, yz, (2zz−xx−yy), xz, (xx−yy),
+with normalized polynomial combinations. Cartesian order is reversed:
+RustiQ zz,yz,yy,xz,xy,xx versus PySCF xx,xy,xz,yy,yz,zz. The mapping is constructed
+from these conventions, never fitted to integral values. PySCF's Cartesian d
+functions have radial normalization: multiply its xx,yy,zz functions by
+sqrt(5/(4π)) and xy,xz,yz by sqrt(15/(4π)) to obtain unit-normalized monomials.
+These factors follow from angular integrals of squared monomials, 4π/5 and
+4π/15, respectively. The reference generator checks the resulting unit overlap
+diagonals. A separate analytic coefficient test compares the spherical d
+polynomials with PySCF’s Cartesian-to-spherical transformation, checking phases
+that the planar water geometry alone cannot distinguish. This positive diagonal scaling has condition number sqrt(3); there
+is no fitted rotation or phase adjustment. The Cartesian extension changes only
+the in-memory shell representation, preserving every source exponent and
+coefficient and leaving fixtures and production defaults unchanged.
+See the authoritative [PySCF basis construction source](https://pyscf.org/_modules/pyscf/gto/mole.html)
+and [integral interface](https://pyscf.org/_modules/pyscf/gto/moleintor.html).
+
+Reproduce the independent comparisons and verify the fixtures:
+
+```sh
+cargo test -p rustiq-chem-core --lib integral_reference_tests
+nix develop .#mini-pyscf --command pytest tools/reference
+# Equivalent non-Nix workflow:
+uv run --locked pytest tools/reference
+# Intentionally regenerate versioned NumPy arrays and provenance:
+uv run --locked python tools/reference/integrals.py --regenerate
+# Write the detailed integral-only machine-readable report:
+uv run --locked python tools/reference/integrals.py --report target/integrals.json
+```
+
+NumPy writes individual `.npy` fixtures; Rust reads them directly
+through the existing persistence readers backed by `npyz`. Matrices have
+two-dimensional shapes and Fortran (column-major) storage. ERIs use lower triangular AO pairs i≥j, followed by lower
+triangular pairs of pairs p≥q, with pair index i(i+1)/2+j. No full four-index
+tensor is allocated. The scientific report above includes an independent AO
+integral section and full precision JSON diagnostics. Harness failures are
+reported as failures, not omitted.
+
+Three forms of evidence remain distinct: independent integral comparisons
+check agreement with libcint; internal eightfold compact reconstruction checks
+validate storage symmetry; end-to-end HF/MP2 comparisons validate selected
+calculations. The compact reconstruction check is algebraic and does not
+independently recompute eight permutations. Existing Schwarz screening tests
+remain separate; this accuracy test passes `None` to the production threshold
+interface and does not change default screening. Successful checks establish
+agreement only for these geometries, contractions, s/p functions, and spherical
+and Cartesian d functions. They do not establish correctness for higher angular
+momenta, extreme exponents, arbitrary geometries, or basis completeness.
