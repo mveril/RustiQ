@@ -235,7 +235,9 @@ fn moved_binary_reports_embedded_metadata_without_build_tools_or_git() {
     let binary = directory
         .path()
         .join(format!("rustiq{}", std::env::consts::EXE_SUFFIX));
-    fs::copy(env!("CARGO_BIN_EXE_rustiq"), &binary).unwrap();
+    let source = env!("CARGO_BIN_EXE_rustiq");
+    fs::write(&binary, fs::read(source).unwrap()).unwrap();
+    fs::set_permissions(&binary, fs::metadata(source).unwrap().permissions()).unwrap();
     let output = Command::new(binary)
         .args(["--version", "--verbose"])
         .current_dir(directory.path())
