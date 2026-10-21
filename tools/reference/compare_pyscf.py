@@ -368,7 +368,7 @@ def frozen_core_case(
     source = case.runfile.read_text(encoding="utf-8")
     source = re.sub(
         r"^geometry = .*$",
-        f"geometry = {json.dumps(str(case.xyz))}",
+        lambda _: f"geometry = {json.dumps(str(case.xyz))}",
         source,
         flags=re.MULTILINE,
     )

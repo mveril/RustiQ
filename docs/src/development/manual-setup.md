@@ -41,13 +41,26 @@ requested stable toolchain and components if necessary. This route is enough to
 build and run RustiQ, but the extra tools and the PySCF reference environment
 from the Nix development shell must be installed separately if you need them.
 The repository uses [`uv`](https://docs.astral.sh/uv/) for that environment on
-Linux, macOS, and WSL2:
+Linux, macOS, WSL2, and native Windows:
+
+```sh
+uv sync --locked
+uv run --locked ruff --version
+uv run --locked pytest tools/test_book_links.py tools/test_release_smoke.py tools/benchmarks
+```
+
+The default groups install JupyterLab, ipykernel, Matplotlib, SciPy, NumPy,
+pytest, and Ruff. Only PySCF is excluded on native Windows because it has no
+supported Windows wheel. Binary wheels are required; source builds remain
+disabled. Run the reference suite with:
 
 ```sh
 uv run --locked pytest tools/reference
 ```
 
-PySCF does not support native Windows; use WSL2 for this optional comparison.
+On native Windows, only tests requiring PySCF are skipped; report validation
+and NumPy persistence tests remain available. Use WSL2 for PySCF comparisons
+and the scientific report generator (`tools/reference/report.py`).
 
 ## Build for calculations and install the executable
 
