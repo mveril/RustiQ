@@ -49,7 +49,10 @@ uv run --locked pytest tools/reference
 
 This uses the cross-platform lock and requires compatible binary wheels; it
 does not build Python packages from source. PySCF supports Linux, macOS, and
-WSL2, but not native Windows. Cargo must remain on `PATH` when using the
+WSL2, but not native Windows. On native Windows, uv installs the other Python
+tools and only tests requiring PySCF are skipped. NumPy persistence and report
+validation tests still run; use WSL2 for PySCF comparisons and scientific report
+generation. Cargo must remain on `PATH` when using the
 default `cargo run` invocation.
 Set `RUSTIQ_BIN` to an absolute executable path to compare a specific build
 instead; `nix run .#pyscf-check` supplies its Nix-built executable this way.

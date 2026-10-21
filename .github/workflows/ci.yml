@@ -76,8 +76,11 @@ jobs:
           cargo test -p rustiq-chem-core --no-default-features
 
   uv:
-    name: Python tooling with uv
-    runs-on: ubuntu-latest
+    name: Python tooling with uv (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - name: Checkout
@@ -91,6 +94,7 @@ jobs:
           uv sync --locked
           uv run ruff --version
           uv run pytest --version
+          uv run --locked pytest tools/test_book_links.py tools/test_release_smoke.py tools/benchmarks tools/reference -k "not reads_rust"
 
   nix:
     name: Nix flake (${{ matrix.system }})
