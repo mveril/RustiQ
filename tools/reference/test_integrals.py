@@ -1,6 +1,11 @@
 """Complete independent AO comparisons; production data are computed once."""
 import numpy as np
 import pytest
+
+# PySCF is intentionally unavailable on Windows for the pinned reference suite.
+# Skip this module before importing integrals, which imports PySCF at module scope.
+pytest.importorskip("pyscf", reason="AO integral references require PySCF")
+
 from integrals import validate, metrics, generate_fixture, FIXTURE
 import json
 import hashlib
