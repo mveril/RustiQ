@@ -4536,6 +4536,7 @@ dependencies = [
  "rayon",
  "relative-path 2.0.1",
  "reqwest",
+ "rstest",
  "serde",
  "serde_json",
  "sha2",

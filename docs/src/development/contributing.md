@@ -316,8 +316,9 @@ thresholds do not mean that RustiQ and PySCF use identical convergence tests.
 
 ### Independent AO integral validation
 
-The Cargo unit test `integral_reference_tests::export_integral_validation`
-compares production overlap (S), kinetic (T), nuclear attraction (V), and
+The parameterized Cargo tests
+`integral_reference_tests::export_integral_validation::case_N` compare
+production overlap (S), kinetic (T), nuclear attraction (V), and
 Hcore = T + V matrices with versioned PySCF 2.14.0 fixtures. It compares every
 matrix entry and every unique unscreened electron-repulsion integral (ERI),
 in chemists' notation. No Python installation is needed for Cargo tests.

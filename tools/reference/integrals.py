@@ -115,17 +115,17 @@ def metrics(actual, expected, indices):
 
 def validate():
     with tempfile.TemporaryDirectory(prefix="rustiq-integrals-") as temp:
-        output = Path(temp) / "integrals.json"
+        output = Path(temp)
         env = dict(os.environ, RUSTIQ_INTEGRAL_OUTPUT=str(output))
         cargo_error = None
         try:
             run_command(["cargo", "test", "-p", "rustiq-chem-core", "--lib",
-                         "integral_reference_tests::export_integral_validation", "--", "--exact"], env=env)
+                         "integral_reference_tests::export_integral_validation"], env=env)
         except RuntimeError as error:
-            if not output.exists():
+            if not list(output.glob("*.json")):
                 raise
             cargo_error = str(error)
-        rust = json.loads(output.read_text())
+        rust = [json.loads((output / f"{name}.json").read_text()) for name, *_ in CASES]
     rows = []
     for actual, (name, xyz, basis, cart, dimension) in zip(rust, CASES, strict=True):
         mol, mapping, expected, eri_indices = reference(xyz, basis, cart)
