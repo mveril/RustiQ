@@ -22,7 +22,8 @@
         "Tweag.vscode-nickel",
         "ms-python.python",
         "ms-toolsai.jupyter",
-        "charliermarsh.ruff"
+        "charliermarsh.ruff",
+        "subh-tools.npy-viewer"
       ],
       "settings": {
         "rust-analyzer.linkedProjects": ["./Cargo.toml"],
