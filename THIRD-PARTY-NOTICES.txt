@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: f0fa7d30cca87809c796652df49305c67455a6dcf1b4aa2edb3604c958cc4e33
-Notice inputs SHA-256: 4b1cfc414c0a2693b49ac82e8bdf3d92825b1676ff92650e32bc77ec790a61ca
+Cargo.lock SHA-256: 724185bd360ecaee31f15d77d5f1039f5462c692544620c8a8c0a227c414a7be
+Notice inputs SHA-256: dd6eca73559e46ac6da8335708bddf9337b0a661b16459b6f64302f5c99b6576
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -9223,7 +9223,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Community Data License Agreement Permissive 2.0 (CDLA-Permissive-2.0)
 
 Used by:
-  webpki-root-certs 1.0.9 — https://github.com/rustls/webpki-roots
+  webpki-root-certs 1.0.10 — https://github.com/rustls/webpki-roots
 
 # Community Data License Agreement - Permissive - Version 2.0
 
@@ -9313,7 +9313,7 @@ Used by:
 ISC License (ISC)
 
 Used by:
-  rustls-webpki 0.103.15 — https://github.com/rustls/webpki
+  rustls-webpki 0.103.16 — https://github.com/rustls/webpki
 
 Except as otherwise noted, this project is licensed under the following
 (ISC-style) terms:
@@ -41091,7 +41091,7 @@ Declared license: MIT OR Apache-2.0
 Repository: https://github.com/rustls/rustls-platform-verifier
 Authors: (not declared)
 
-PACKAGE: rustls-webpki 0.103.15
+PACKAGE: rustls-webpki 0.103.16
 Declared license: ISC
 Repository: https://github.com/rustls/webpki
 Authors: (not declared)
@@ -45732,7 +45732,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-PACKAGE: webpki-root-certs 1.0.9
+PACKAGE: webpki-root-certs 1.0.10
 Declared license: CDLA-Permissive-2.0
 Repository: https://github.com/rustls/webpki-roots
 Authors: (not declared)

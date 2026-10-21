@@ -77,7 +77,7 @@ allow = ["MPL-2.0"]
 
 [[licenses.exceptions]]
 name = "webpki-root-certs"
-version = "=1.0.9"
+version = "=1.0.10"
 allow = ["CDLA-Permissive-2.0"]
 
 # Select the BSD alternative from the actual upstream license text.
