@@ -2,7 +2,6 @@
 use std::{
     f64::consts::{FRAC_PI_2, PI},
     num::NonZeroU8,
-    sync::LazyLock,
 };
 
 use nalgebra::{Rotation3, Vector3};
@@ -10,6 +9,7 @@ use proptest::{
     prelude::*,
     test_runner::{TestCaseResult, TestRunner},
 };
+use rstest::{fixture, rstest};
 use rustiq_core::{
     basis::BasisFile,
     calculation::{CalculationBuilder, CalculationExecution, CalculationResult, HfOutcome},
@@ -23,17 +23,34 @@ const ABSOLUTE_TOLERANCE: f64 = 1e-12;
 // Use a tighter residual threshold to reduce density-dependent variation.
 const SCF_CONVERGENCE_THRESHOLD: f64 = 1e-12;
 
-static BASIS: LazyLock<BasisFile> = LazyLock::new(|| {
+#[fixture]
+#[once]
+fn basis() -> BasisFile {
     BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..])
         .expect("STO-3G fixture must be valid")
-});
+}
+
+#[fixture]
+#[once]
+fn h2o_geometry() -> Geometry {
+    Geometry::from_reader(&include_bytes!("data/samples/h2o/h2o.xyz")[..])
+        .expect("H2O geometry fixture must be valid")
+}
+
+#[fixture]
+#[once]
+fn oh_geometry() -> Geometry {
+    Geometry::from_reader(&include_bytes!("data/samples/oh/oh.xyz")[..])
+        .expect("OH geometry fixture must be valid")
+}
 
 fn calculate(
     geometry: &Geometry,
+    basis: &BasisFile,
     method: HfMethod,
     multiplicity: u8,
 ) -> Result<CalculationResult, TestCaseError> {
-    let result = CalculationBuilder::new(geometry, &BASIS)
+    let result = CalculationBuilder::new(geometry, basis)
         .with_molecule_config(MoleculeConfig {
             units: Units::Angstrom,
             multiplicity: NonZeroU8::new(multiplicity)
@@ -105,57 +122,41 @@ fn observables(result: &CalculationResult) -> Vec<(&'static str, f64)> {
 
 struct ReferenceCase {
     name: &'static str,
-    geometry: Geometry,
+    geometry: &'static Geometry,
     method: HfMethod,
     multiplicity: u8,
-    observables: Vec<(&'static str, f64)>,
-    scf_iterations: usize,
-    scf_residual_norm: f64,
+    result: CalculationResult,
 }
 
-impl ReferenceCase {
-    fn new(name: &'static str, xyz: &[u8], method: HfMethod, multiplicity: u8) -> Self {
-        let geometry = Geometry::from_reader(xyz).expect("geometry fixture must be valid");
-        let result = calculate(&geometry, method, multiplicity)
-            .expect("reference calculation must converge");
-        let observables = observables(&result);
-        let scf = &result.hf.summary().scf;
-        Self {
-            name,
-            geometry,
-            method,
-            multiplicity,
-            observables,
-            scf_iterations: scf.iterations,
-            scf_residual_norm: scf.residual_norm,
-        }
-    }
-}
-
-// Cache only immutable fixture data and scalar references. Every generated case
-// builds a fresh calculation, independently of execution and shrinking order.
-static REFERENCES: LazyLock<[ReferenceCase; 2]> = LazyLock::new(|| {
+// Only fixtures are shared. Each generated geometry gets a fresh calculation.
+#[fixture]
+#[once]
+fn references(
+    basis: &BasisFile,
+    h2o_geometry: &'static Geometry,
+    oh_geometry: &'static Geometry,
+) -> [ReferenceCase; 2] {
     [
-        ReferenceCase::new(
-            "H2O/RHF",
-            include_bytes!("data/samples/h2o/h2o.xyz"),
-            HfMethod::Rhf,
-            1,
-        ),
-        ReferenceCase::new(
-            "OH/UHF",
-            include_bytes!("data/samples/oh/oh.xyz"),
-            HfMethod::Uhf,
-            2,
-        ),
+        ("H2O/RHF", h2o_geometry, HfMethod::Rhf, 1),
+        ("OH/UHF", oh_geometry, HfMethod::Uhf, 2),
     ]
-});
+    .map(|(name, geometry, method, multiplicity)| ReferenceCase {
+        name,
+        geometry,
+        method,
+        multiplicity,
+        result: calculate(geometry, basis, method, multiplicity)
+            .expect("reference calculation must converge"),
+    })
+}
 
+#[fixture]
 fn translations() -> impl Strategy<Value = Vector3<f64>> {
     // Moderate displacements in Angstrom avoid loss of coordinate precision.
     prop::array::uniform3(-5.0_f64..5.0).prop_map(Vector3::from)
 }
 
+#[fixture]
 fn rotations() -> impl Strategy<Value = Rotation3<f64>> {
     // Euler angles cover general proper rotations. Shrinking toward zero keeps
     // rotations valid and tends toward the identity; Haar sampling is not needed.
@@ -163,25 +164,31 @@ fn rotations() -> impl Strategy<Value = Rotation3<f64>> {
         .prop_map(|angles| Rotation3::from_euler_angles(angles[0], angles[1], angles[2]))
 }
 
-fn check_rigid_motion(translation: Vector3<f64>, rotation: Rotation3<f64>) -> TestCaseResult {
+fn check_rigid_motion(
+    references: &[ReferenceCase; 2],
+    basis: &BasisFile,
+    translation: Vector3<f64>,
+    rotation: Rotation3<f64>,
+) -> TestCaseResult {
     // Exercise both molecular references for every generated transformation.
-    for reference in REFERENCES.iter() {
+    for reference in references {
         let mut geometry = reference.geometry.clone();
         for atom in &mut geometry.atoms {
             atom.position = rotation * atom.position + translation;
         }
-        let result =
-            calculate(&geometry, reference.method, reference.multiplicity).map_err(|error| {
+        let result = calculate(&geometry, basis, reference.method, reference.multiplicity)
+            .map_err(|error| {
                 TestCaseError::fail(format!(
                     "{}: {error}; translation={translation:?}, rotation={rotation:?}",
                     reference.name
                 ))
             })?;
         let scf = &result.hf.summary().scf;
+        let expected_scf = &reference.result.hf.summary().scf;
         let actual = observables(&result);
-        prop_assert_eq!(actual.len(), reference.observables.len());
-        for ((name, actual), (expected_name, expected)) in actual.iter().zip(&reference.observables)
-        {
+        let expected = observables(&reference.result);
+        prop_assert_eq!(actual.len(), expected.len());
+        for ((name, actual), (expected_name, expected)) in actual.iter().zip(&expected) {
             prop_assert_eq!(name, expected_name);
             let difference = (actual - expected).abs();
             prop_assert!(
@@ -193,14 +200,15 @@ fn check_rigid_motion(translation: Vector3<f64>, rotation: Rotation3<f64>) -> Te
                 reference.name,
                 scf.iterations,
                 scf.residual_norm,
-                reference.scf_iterations,
-                reference.scf_residual_norm
+                expected_scf.iterations,
+                expected_scf.residual_norm
             );
         }
     }
     Ok(())
 }
 
+#[fixture]
 fn property_config() -> ProptestConfig {
     let mut config = ProptestConfig::default();
     // Each case runs RHF/MP2 and UHF/MP2. Keep ordinary runs small, while allowing
@@ -211,33 +219,26 @@ fn property_config() -> ProptestConfig {
     config
 }
 
-proptest! {
-    #![proptest_config(property_config())]
-
-    #[test]
-    fn scalar_observables_are_translation_invariant(translation in translations()) {
-        check_rigid_motion(translation, Rotation3::identity())?;
-    }
-
-    #[test]
-    fn scalar_observables_are_rotation_invariant(rotation in rotations()) {
-        check_rigid_motion(Vector3::zeros(), rotation)?;
-    }
-
-    #[test]
-    fn scalar_observables_are_rigid_motion_invariant(
-        translation in translations(),
-        rotation in rotations(),
-    ) {
-        check_rigid_motion(translation, rotation)?;
-    }
+#[rstest]
+#[case::translation(translations::default(), Just(Rotation3::identity()))]
+#[case::rotation(Just(Vector3::zeros()), rotations::default())]
+#[case::combined(translations::default(), rotations::default())]
+fn scalar_observables_are_rigid_motion_invariant(
+    basis: &BasisFile,
+    references: &[ReferenceCase; 2],
+    property_config: ProptestConfig,
+    #[case] translations: impl Strategy<Value = Vector3<f64>>,
+    #[case] rotations: impl Strategy<Value = Rotation3<f64>>,
+) {
+    proptest!(property_config, |(translation in translations, rotation in rotations)| {
+        check_rigid_motion(references, basis, translation, rotation)?;
+    });
 }
 
-// A fixed batch guarantees every cardinal orientation is exercised. Configure
-// the runner directly so PROPTEST_CASES cannot multiply this constant batch.
-#[test]
-fn scalar_observables_are_cardinal_rotation_invariant() {
-    let angles = Just([
+// A fixed batch guarantees every cardinal orientation is exercised.
+#[fixture]
+fn cardinal_rotations() -> Just<[[f64; 3]; 7]> {
+    Just([
         [0.0, 0.0, 0.0],
         [FRAC_PI_2, 0.0, 0.0],
         [0.0, FRAC_PI_2, 0.0],
@@ -245,8 +246,14 @@ fn scalar_observables_are_cardinal_rotation_invariant() {
         [PI, 0.0, 0.0],
         [0.0, PI, 0.0],
         [0.0, 0.0, PI],
-    ]);
-    let mut runner = TestRunner::new(ProptestConfig {
+    ])
+}
+
+#[fixture]
+fn cardinal_runner() -> TestRunner {
+    // Set cases after reading the environment so PROPTEST_CASES cannot repeat
+    // the fixed batch. Retain source/test metadata for persistence and forking.
+    TestRunner::new(ProptestConfig {
         cases: 1,
         source_file: Some(file!()),
         test_name: Some(concat!(
@@ -254,12 +261,23 @@ fn scalar_observables_are_cardinal_rotation_invariant() {
             "::scalar_observables_are_cardinal_rotation_invariant"
         )),
         ..ProptestConfig::default()
-    });
-    runner
-        .run(&angles, |angles| {
+    })
+}
+
+#[rstest]
+fn scalar_observables_are_cardinal_rotation_invariant(
+    basis: &BasisFile,
+    references: &[ReferenceCase; 2],
+    cardinal_rotations: Just<[[f64; 3]; 7]>,
+    mut cardinal_runner: TestRunner,
+) {
+    cardinal_runner
+        .run(&cardinal_rotations, |angles| {
             // Axis permutations and sign changes exercise Cartesian p orbitals.
             for [roll, pitch, yaw] in angles {
                 check_rigid_motion(
+                    references,
+                    basis,
                     Vector3::zeros(),
                     Rotation3::from_euler_angles(roll, pitch, yaw),
                 )?;
