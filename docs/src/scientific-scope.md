@@ -47,7 +47,19 @@ linked below. The release binary user can inspect these checked-in comparisons
 and their tolerances, but reproducing them requires a source checkout plus the
 Nix development shell or the documented `uv`/PySCF setup. They cover
 H₂ and water in STO-3G, 6-31G, and cc-pVDZ, open-shell H₂⁺ and OH, and selected
-RHF/UHF MP2 cases. Additional cases exercise frozen occupied orbitals and
+RHF/UHF MP2 cases. The expanded independent energy matrix adds LiH/6-31G
+RHF, CO/STO-3G RHF and RHF-MP2, H₂O/cc-pVDZ RHF-MP2 with spherical d
+functions, and OH/6-31G UHF and UHF-MP2. Geometry provenance and reuse notes
+are in [Molecular and basis-set data sources](reference/data-sources.md).
+The new cases independently interpret the checked-in raw BSE coefficients;
+primary MP2 references correlate all occupied orbitals. New HF tolerances are
+`1e-11`–`2e-11` Hartree and MP2 correlation tolerances `1e-11`–`2e-11` Hartree,
+with measured errors and per-case justifications in the reference instructions.
+OH/6-31G uses an explicit seeded random guess to reach the lower-energy pi-hole
+solution: a core-Hamiltonian guess can converge to a distinct sigma-hole state.
+The comparisons check HF spin diagnostics as well as energy, without claiming
+global HF stability. The report records available SCF iteration counts,
+provenance hashes, and derived total MP2 energies. Additional cases exercise frozen occupied orbitals and
 small versus larger MP2 workspace budgets. For OH/STO-3G, the UHF-only sample
 uses a numerical SCF threshold of `1e-5` in both RustiQ and PySCF, while the
 UHF-MP2 sample uses `1e-10` in both. Matching the numerical thresholds does

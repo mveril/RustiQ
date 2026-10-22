@@ -13,6 +13,8 @@ reference data.
 | Hydrogen, H₂ | `samples/h2/molecule.xyz`; `crates/rustiq-core/tests/data/samples/h2/molecule.xyz` | Project sample/test geometry, with atoms 0.74 Å apart. No external geometry source is recorded. The core fixture duplicates the sample. |
 | Water, H₂O | `samples/h2o/h2o.xyz`; `crates/rustiq-core/tests/data/samples/h2o/h2o.xyz` | Project sample/test geometry. No external geometry source is recorded. The core fixture duplicates the sample. |
 | Hydroxyl radical, OH | `samples/oh/oh.xyz`; `crates/rustiq-core/tests/data/samples/oh/oh.xyz` | Project sample/test geometry, with an O–H distance of 0.970 Å. No external geometry source is recorded. The core fixture duplicates the sample. |
+| Lithium hydride, LiH | `samples/lih/lih.xyz` | Project-authored, fixed test geometry: Li at the origin and H at z = 1.60 Å. Chosen as a rounded equilibrium-like distance, consistent with the 1.5957 Å spectroscopic distance discussed in [Gottlieb and Weishäupl, *Comput. Theor. Chem.* 1007, 82–89 (2013)](https://doi.org/10.1016/j.comptc.2012.11.024), [author manuscript](https://pmc.ncbi.nlm.nih.gov/articles/PMC3564454/). It is not an experimental coordinate file or an optimization result. Neutral singlet; reused by the 6-31G RHF reference. |
+| Carbon monoxide, CO | `samples/co/co.xyz` | Project-authored, fixed test geometry: C at the origin and O at z = 1.13 Å. A deliberately rounded equilibrium-like test distance; not an experimental coordinate file or an optimization result. Neutral singlet; the STO-3G RHF and RHF-MP2 references use this identical file. |
 | Ethanol | `samples/ethanol/ethanol.xyz` | The file describes this as an approximate gas-phase geometry. No external source or calculation provenance is recorded; treat it as an illustrative project geometry, not as a sourced equilibrium structure. |
 | Benzene | `samples/benzene/benzene.xyz` | 3D conformer identified by the file as PubChem CID 241 and retrieved through PubChem PUG REST. [PubChem record](https://pubchem.ncbi.nlm.nih.gov/compound/241); [PUG REST documentation](https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest). PubChem's policy states that PubChem-generated information and participant-provided information are made available without cost and restriction, while warning that some contributed information may be copyrighted. The record labels this as a PubChem 3D conformer. |
 | Cholesterol | `samples/cholesterol/cholesterol.xyz` | 3D conformer identified by the file as PubChem CID 5997. [PubChem record](https://pubchem.ncbi.nlm.nih.gov/compound/5997). PubChem's policy states that PubChem-generated information and participant-provided information are made available without cost and restriction, while warning that some contributed information may be copyrighted. The record labels this as a PubChem 3D conformer. |
@@ -23,6 +25,28 @@ also places responsibility on users to respect restrictions that apply to
 third-party contributed content. The PubChem attribution here describes the
 geometry provenance recorded by the files; it is not a blanket clearance for
 every item associated with a PubChem record.
+
+## Geometry reuse review for the HF/MP2 extension
+
+Reviewed on 2026-10-21. The new XYZ files are constructed by the project;
+no third-party coordinate file, database table, spectrum, image, or article text
+is redistributed. LiH uses a rounded test distance with literature attribution;
+CO uses a project-selected rounded test distance. Existing water and OH
+geometries are reused byte-for-byte, with their original unsourced status
+preserved above. A new reference calculation does not establish external
+provenance for an old geometry.
+
+The [U.S. Copyright Office](https://www.copyright.gov/help/faq/faq-protect.html)
+distinguishes facts from protected expression. This is not a blanket license
+for database compilations or a determination of rights in every jurisdiction.
+In particular, the [NIST SRD policy](https://www.nist.gov/open/license)
+reserves compilation copyright under the Standard Reference Data Act, and the
+[NIST Chemistry WebBook](https://webbook.nist.gov/chemistry/guide/) is SRD 69.
+Its government origin must not be treated as automatic public-domain status.
+The WebBook was consulted to check physical plausibility; its coordinate
+exports and tables are not imported. The test geometries above intentionally
+use project-selected rounded distances instead of copied database records.
+No NIST license is claimed or granted by this repository.
 
 ## Locally stored basis sets
 
@@ -48,6 +72,16 @@ that statement alone does not establish a license for all contributed basis
 data. The local JSON records do not state a separate data license. Retain their
 attribution and review the applicable source terms before republishing these
 datasets beyond the repository.
+
+The HF/MP2 extension reuses the existing 6-31G lithium (`elements["3"]`)
+and STO-3G carbon (`elements["6"]`) records. No BSE data was added,
+modified, or downloaded for this extension. The reference environment copies
+the existing versioned files into an isolated store. PySCF independently
+normalizes their raw coefficients for the new cases. The upstream
+[BSE software license](https://github.com/MolSSI-BSE/basis_set_exchange/blob/master/LICENSE)
+was checked on 2026-10-21; its BSD redistribution conditions concern software
+and do not resolve separate contributed-data rights. The attribution and
+existing data-license limitation above continue to apply.
 
 The repository also contains byte-identical copies of STO-3G at
 `tests/data/sto-3g.json` and `crates/rustiq-core/tests/data/sto-3g.json`. Their

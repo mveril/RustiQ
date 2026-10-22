@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).parents[2]
 FIXTURE_DIR = ROOT / "crates/rustiq-core/tests/data/persistence"
@@ -25,6 +26,7 @@ def test_python_numpy_ao_eri_fixture() -> None:
     _assert_ao_eri_values(values)
 
 
+@pytest.mark.requires_rust
 def test_numpy_reads_rust_produced_ao_eri(tmp_path: Path) -> None:
     output = tmp_path / "ao-eri-rust.npy"
     environment = os.environ.copy()
@@ -58,6 +60,7 @@ def test_python_numpy_big_endian_ao_eri_fixture() -> None:
     np.testing.assert_array_equal(values, [0.5, 1.5, 2.5, 3.5, 4.5, 5.5])
 
 
+@pytest.mark.requires_rust
 def test_numpy_reads_rust_portable_archive(tmp_path: Path) -> None:
     import json
     import zipfile

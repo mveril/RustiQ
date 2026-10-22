@@ -3,7 +3,29 @@
     reason = "Tests fail on unexpected process or UTF-8 errors"
 )]
 
-use std::{fs, process::Command};
+use std::{fs, io, process::Command, time::Duration};
+
+fn output_with_etxtbsy_retry(command: &mut Command) -> io::Result<std::process::Output> {
+    const MAX_RETRIES: usize = 10;
+    const RETRY_DELAY: Duration = Duration::from_millis(10);
+
+    for attempt in 0..=MAX_RETRIES {
+        match command.output() {
+            Err(error)
+                if cfg!(target_os = "linux")
+                    && error.raw_os_error() == Some(26)
+                    && attempt < MAX_RETRIES =>
+            {
+                // Another parallel Command::spawn may briefly inherit the writable
+                // descriptor used by fs::copy, making this exec return ETXTBSY.
+                std::thread::sleep(RETRY_DELAY);
+            }
+            result => return result,
+        }
+    }
+
+    unreachable!("the final retry returns instead of continuing")
+}
 
 fn version(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_rustiq"))
@@ -236,17 +258,18 @@ fn moved_binary_reports_embedded_metadata_without_build_tools_or_git() {
         .path()
         .join(format!("rustiq{}", std::env::consts::EXE_SUFFIX));
     fs::copy(env!("CARGO_BIN_EXE_rustiq"), &binary).unwrap();
-    let output = Command::new(binary)
-        .args(["--version", "--verbose"])
-        .current_dir(directory.path())
-        .env("PATH", "")
-        .env_remove("FORCE_HYPERLINK")
-        .env(
-            "RUSTIQ_BUILD_GIT_COMMIT",
-            "runtime values must not affect provenance",
-        )
-        .output()
-        .unwrap();
+    let output = output_with_etxtbsy_retry(
+        Command::new(binary)
+            .args(["--version", "--verbose"])
+            .current_dir(directory.path())
+            .env("PATH", "")
+            .env_remove("FORCE_HYPERLINK")
+            .env(
+                "RUSTIQ_BUILD_GIT_COMMIT",
+                "runtime values must not affect provenance",
+            ),
+    )
+    .unwrap();
     assert!(output.status.success());
     assert_eq!(output.stdout, version(&["--version", "--verbose"]).stdout);
 }

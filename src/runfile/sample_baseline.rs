@@ -61,6 +61,7 @@ struct DiisExpectation {
 enum GuessExpectation {
     CoreHamiltonian,
     OneElectron,
+    SeededRandom,
 }
 
 #[derive(Clone, Copy)]
@@ -416,6 +417,117 @@ const SAMPLE_EXPECTATIONS: &[SampleExpectation] = &[
         }),
         cache_enabled: false,
     },
+    SampleExpectation {
+        path: "lih/6-31g/calculation.toml",
+        geometry: "../lih.xyz",
+        basis: "6-31g",
+        hf_method: HfMethod::Rhf,
+        charge: 0,
+        multiplicity: 1,
+        max_iterations: 100,
+        convergence_threshold: 1e-12,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 8,
+        },
+        guess: GuessExpectation::CoreHamiltonian,
+        mp2: None,
+        cache_enabled: false,
+    },
+    SampleExpectation {
+        path: "co/sto-3g/calculation.toml",
+        geometry: "../co.xyz",
+        basis: "sto-3g",
+        hf_method: HfMethod::Rhf,
+        charge: 0,
+        multiplicity: 1,
+        max_iterations: 100,
+        convergence_threshold: 1e-12,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 8,
+        },
+        guess: GuessExpectation::CoreHamiltonian,
+        mp2: None,
+        cache_enabled: false,
+    },
+    SampleExpectation {
+        path: "co/sto-3g/mp2_calculation.toml",
+        geometry: "../co.xyz",
+        basis: "sto-3g",
+        hf_method: HfMethod::Rhf,
+        charge: 0,
+        multiplicity: 1,
+        max_iterations: 100,
+        convergence_threshold: 1e-12,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 8,
+        },
+        guess: GuessExpectation::CoreHamiltonian,
+        mp2: Some(Mp2Expectation {
+            frozen_orbitals: 0,
+            memory_limit: MemoryLimitExpectation::Auto,
+        }),
+        cache_enabled: false,
+    },
+    SampleExpectation {
+        path: "h2o/cc-pvdz/mp2_calculation.toml",
+        geometry: "../h2o.xyz",
+        basis: "cc-pvdz",
+        hf_method: HfMethod::Rhf,
+        charge: 0,
+        multiplicity: 1,
+        max_iterations: 80,
+        convergence_threshold: 1e-12,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 6,
+        },
+        guess: GuessExpectation::CoreHamiltonian,
+        mp2: Some(Mp2Expectation {
+            frozen_orbitals: 0,
+            memory_limit: MemoryLimitExpectation::Auto,
+        }),
+        cache_enabled: false,
+    },
+    SampleExpectation {
+        path: "oh/6-31g/calculation.toml",
+        geometry: "../oh.xyz",
+        basis: "6-31g",
+        hf_method: HfMethod::Uhf,
+        charge: 0,
+        multiplicity: 2,
+        max_iterations: 100,
+        convergence_threshold: 1e-12,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 8,
+        },
+        guess: GuessExpectation::SeededRandom,
+        mp2: None,
+        cache_enabled: false,
+    },
+    SampleExpectation {
+        path: "oh/6-31g/mp2_calculation.toml",
+        geometry: "../oh.xyz",
+        basis: "6-31g",
+        hf_method: HfMethod::Uhf,
+        charge: 0,
+        multiplicity: 2,
+        max_iterations: 100,
+        convergence_threshold: 1e-12,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 8,
+        },
+        guess: GuessExpectation::SeededRandom,
+        mp2: Some(Mp2Expectation {
+            frozen_orbitals: 0,
+            memory_limit: MemoryLimitExpectation::Auto,
+        }),
+        cache_enabled: false,
+    },
 ];
 
 #[rstest::rstest]
@@ -438,6 +550,12 @@ const SAMPLE_EXPECTATIONS: &[SampleExpectation] = &[
 #[case::h2o_sto_3g(16)]
 #[case::oh_sto_3g(17)]
 #[case::oh_sto_3g_mp2(18)]
+#[case::new_reference_0(19)]
+#[case::new_reference_1(20)]
+#[case::new_reference_2(21)]
+#[case::new_reference_3(22)]
+#[case::new_reference_4(23)]
+#[case::new_reference_5(24)]
 fn every_valid_sample_has_expected_scientific_configuration(#[case] case: usize) {
     let expected = SAMPLE_EXPECTATIONS[case];
     let file = expected.path;
@@ -484,6 +602,9 @@ fn every_valid_sample_has_expected_scientific_configuration(#[case] case: usize)
             GuessExpectation::CoreHamiltonian,
             DensityGuessConfig::CoreHamiltonian { perturbation: None },
         ) => {}
+        (GuessExpectation::SeededRandom, DensityGuessConfig::Random { config }) => {
+            assert_eq!(config.random.seed, Some(42));
+        }
         (_, guess) => panic!("Unexpected density guess: {guess:?}"),
     }
     match (expected.mp2, &parsed.mp2_config) {

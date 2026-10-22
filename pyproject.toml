@@ -17,3 +17,6 @@ package = false
 environments = ["sys_platform == 'darwin'", "sys_platform == 'linux'", "sys_platform == 'win32'"]
 no-build = true
 default-groups = ["dev", "test", "linting"]
+
+[tool.pytest.ini_options]
+markers = ["requires_rust: test invokes Cargo or the RustiQ executable"]
