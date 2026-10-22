@@ -572,6 +572,7 @@ def validate_resolved(case: ReferenceCase, resolved: dict) -> None:
 def pyscf_result(
     case: ReferenceCase, diagnostics: dict | None = None
 ) -> tuple[float, float | None, float | None]:
+    """Run PySCF with imports deferred until a reference calculation is requested."""
     from pyscf import gto, mp, scf
 
     atoms = load_xyz_body(case.xyz)

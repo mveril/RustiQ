@@ -11,9 +11,6 @@ import pytest
 pytestmark = pytest.mark.requires_rust
 
 
-pytest.importorskip("pyscf", reason="PySCF is not installed in this environment")
-
-
 @pytest.fixture(scope="session")
 def rustiq_env() -> Iterator[dict[str, str]]:
     pytest.importorskip("pyscf", reason="scientific comparisons require PySCF")
