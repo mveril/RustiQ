@@ -49,21 +49,12 @@ uv run --locked pytest tools/reference
 ```
 
 This uses the cross-platform lock for Python 3.12 through 3.14 and requires
-compatible binary wheels; it does not build Python packages from source. The
-locked PySCF 2.14.0 release has no Windows wheel, so uv excludes PySCF on native
-Windows. Only the PySCF comparison tests are skipped with an explicit reason;
-tests for runfile thresholds, JSON validation, and frozen-core runfile generation
-still run natively. Use WSL2 for PySCF comparisons and scientific report generation.
-
-`test_compare_pyscf.py` and `test_integrals.py` contain only tests that execute
-PySCF and are skipped when PySCF is unavailable.
-`test_compare_pyscf_helpers.py` and `test_report.py`
-exercise the helpers and report validation without executing PySCF. The import
-inside `pyscf_result` is deferred until a reference calculation is requested.
-
-These Python tools support development and validation; the RustiQ executable
-is built separately with Cargo. Cargo must remain on `PATH` when using the
-default `cargo run` invocation.
+compatible binary wheels; it does not build Python packages from source. PySCF
+supports Linux, macOS, and WSL2, but the pinned release has no native Windows
+wheel. The lock excludes PySCF on native Windows. Windows uv jobs still run the
+PySCF-independent report and helper tests; the PySCF comparison and AO
+integral suites run in the Nix PySCF environment or WSL2. Cargo must remain on
+`PATH` when using the default `cargo run` invocation.
 Set `RUSTIQ_BIN` to an absolute executable path to compare a specific build
 instead; `nix run .#pyscf-check` supplies its Nix-built executable this way.
 The full directory suite also invokes Cargo for Rust/NumPy persistence
@@ -137,7 +128,9 @@ uv run --locked python tools/reference/report.py --output-dir target/scientific-
 The command writes `validation.json` and `validation.md`. It includes the
 canonical cases plus the four frozen-core MP2 cases at each memory budget used
 by pytest. A failed or non-finite calculation remains visible in the report and
-causes a nonzero exit status. The JSON contains machine-readable values;
+causes a nonzero exit status. Non-finite diagnostic energies are recorded as
+JSON `null`, with their NaN or infinity state retained as a diagnostic string.
+The JSON contains machine-readable values;
 Markdown formats energies for reading. The comparison only validates selected
 numerical cases against PySCF. It does not establish general chemical accuracy
 or make HF/MP2 reliable for every system. Matching thresholds also do not imply
@@ -149,6 +142,13 @@ reporting. This keeps reference validation independent of terminal report wordin
 and decimal formatting. `compare_pyscf.py` owns the reference case definitions
 and shared comparison functions. Its command-line entry point forwards arguments
 to pytest for compatibility; use the commands above for new workflows.
+
+PySCF-independent helper and report tests live in `test_compare_pyscf_helpers.py`
+and `test_report.py`. The scientific comparison and AO integral tests require
+PySCF and a RustiQ executable. The restricted workspace-budget test and
+Rust-backed persistence checks are marked `requires_rust`; Python-only CI can
+exclude them with `pytest -m 'not requires_rust'` and run the Rust-backed tests
+in an environment that installs the toolchain.
 
 Independent AO integral tests are in `test_integrals.py`; the corresponding
 Cargo unit test runs without Python against versioned NumPy fixtures under

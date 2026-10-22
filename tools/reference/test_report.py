@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import compare_pyscf
 import pytest
@@ -358,3 +360,124 @@ def test_generation_preserves_missing_dependency_failures(
     assert generated["cases"][0]["status"] == "FAIL"
     assert not generated["integrals"]["passed"]
     assert "PySCF unavailable" in (tmp_path / "output/validation.md").read_text()
+
+
+@pytest.mark.parametrize(
+    ("energy", "diagnostic"),
+    [
+        (float("nan"), "NaN"),
+        (float("inf"), "+Infinity"),
+        (float("-inf"), "-Infinity"),
+    ],
+)
+def test_non_finite_pyscf_scf_diagnostics_generate_failure_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    energy: float,
+    diagnostic: str,
+) -> None:
+    case = compare_pyscf.CASES[0]
+
+    class Molecule:
+        nelec = (1, 1)
+
+        @staticmethod
+        def nao_nr() -> int:
+            return 2
+
+    class MeanField:
+        cycles = 7
+        converged = False
+
+        @staticmethod
+        def kernel() -> float:
+            return energy
+
+    pyscf = ModuleType("pyscf")
+    pyscf.gto = SimpleNamespace(M=lambda **_: Molecule())
+    pyscf.scf = SimpleNamespace(RHF=lambda _: MeanField())
+    pyscf.mp = SimpleNamespace()
+    monkeypatch.setitem(sys.modules, "pyscf", pyscf)
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(compare_pyscf, "CASES", [case])
+    monkeypatch.setattr(
+        compare_pyscf, "prepare_rustiq_env", lambda: {"RUSTIQ_DATA_HOME": str(store)}
+    )
+    monkeypatch.setattr(compare_pyscf, "rustiq_result", lambda *_: valid_rustiq(case))
+    monkeypatch.setattr(report, "metadata", dict)
+    monkeypatch.setitem(sys.modules, "integrals", None)
+
+    output = tmp_path / "output"
+    generated = report.generate(output)
+    json_report = json.loads((output / "validation.json").read_text(encoding="utf-8"))
+    row = json_report["cases"][0]
+    assert generated["passed"] is False
+    assert row["status"] == "FAIL"
+    assert row["pyscf_hf_converged"] is False
+    assert row["pyscf_diagnostics"]["last_hf_total_energy_hartree"] is None
+    assert row["pyscf_diagnostics"]["last_hf_total_energy_status"] == diagnostic
+    assert row["pyscf_diagnostics"]["iterations"] == 7
+    assert type(row["pyscf_diagnostics"]["iterations"]) is int
+    markdown = (output / "validation.md").read_text(encoding="utf-8")
+    assert "PySCF HF did not converge" in markdown
+    assert diagnostic in markdown
+
+    monkeypatch.setattr(sys, "argv", ["report.py", "--output-dir", str(output)])
+    assert report.main() == 1
+
+
+def test_incomplete_pyscf_diagnostics_are_serializable() -> None:
+    case = compare_pyscf.CASES[0]
+    row = report.validate_case(
+        case,
+        None,
+        None,
+        ["PySCF calculation failed: diagnostics unavailable"],
+        pyscf_diagnostics={
+            "iterations": None,
+            "extra": float("nan"),
+            "last_hf_total_energy_status": [],
+        },
+    )
+    serialized = json.dumps(row, allow_nan=False)
+    recovered = json.loads(serialized)
+    assert recovered["pyscf_diagnostics"] == {
+        "iterations": None,
+        "extra": None,
+        "last_hf_total_energy_status": [],
+    }
+    assert recovered["status"] == "FAIL"
+    assert "diagnostics unavailable" in recovered["errors"][0]
+
+
+def test_successful_generation_retains_full_energy_precision(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    case = compare_pyscf.CASES[0]
+    energy = -1.2345678901234567
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(compare_pyscf, "CASES", [case])
+    monkeypatch.setattr(
+        compare_pyscf, "prepare_rustiq_env", lambda: {"RUSTIQ_DATA_HOME": str(store)}
+    )
+    monkeypatch.setattr(
+        compare_pyscf, "rustiq_result", lambda *_: valid_rustiq(case, energy=energy)
+    )
+    monkeypatch.setattr(compare_pyscf, "pyscf_result", lambda *_: (energy, None, None))
+    monkeypatch.setattr(report, "metadata", dict)
+    monkeypatch.setitem(
+        sys.modules,
+        "integrals",
+        SimpleNamespace(validate=lambda: {"passed": True, "cases": []}),
+    )
+
+    output = tmp_path / "output"
+    generated = report.generate(output)
+    row = json.loads((output / "validation.json").read_text(encoding="utf-8"))["cases"][
+        0
+    ]
+    assert generated["passed"] is True
+    assert row["pyscf_hf_total_energy_hartree"] == energy
+    assert row["rustiq_hf_total_energy_hartree"] == energy

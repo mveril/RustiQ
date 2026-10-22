@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import numbers
 import platform
 import shutil
 import subprocess
@@ -36,6 +37,19 @@ def number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return result if math.isfinite(result) else None
+
+
+def json_safe_diagnostics(value: Any) -> Any:
+    """Keep diagnostic structure while replacing unavailable numbers with null."""
+    if isinstance(value, dict):
+        return {key: json_safe_diagnostics(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe_diagnostics(item) for item in value]
+    if isinstance(value, numbers.Integral) and not isinstance(value, bool):
+        return int(value)
+    if isinstance(value, numbers.Real) and not isinstance(value, bool):
+        return number(value)
+    return value
 
 
 def difference(left: Any, right: Any) -> float | None:
@@ -124,6 +138,17 @@ def validate_case(
         errors.append(
             "PySCF HF calculation did not return a finite energy; convergence could not be established"
         )
+    diagnostic_energy_status = (
+        pyscf_diagnostics.get("last_hf_total_energy_status")
+        if isinstance(pyscf_diagnostics, dict)
+        else None
+    )
+    if isinstance(diagnostic_energy_status, str) and diagnostic_energy_status in {
+        "NaN",
+        "+Infinity",
+        "-Infinity",
+    }:
+        errors.append(f"PySCF last HF total energy was {diagnostic_energy_status}")
     if error_hf is None or (error_hf is not None and error_hf > case.tolerance):
         errors.append("HF energy comparison failed")
     result: dict[str, Any] = {
@@ -157,7 +182,7 @@ def validate_case(
         "input_derived_n_beta": compare_pyscf.electron_counts(case)[1],
         "electron_count_source": "geometry nuclear charges, resolved charge and multiplicity checked for BSE cases",
         "rustiq_scf_iterations": hf.get("iterations"),
-        "pyscf_diagnostics": pyscf_diagnostics,
+        "pyscf_diagnostics": json_safe_diagnostics(pyscf_diagnostics),
         "rustiq_resolved": rustiq.get("reference_resolved") if rustiq else None,
         "charge": case.charge,
         "spin_n_alpha_minus_n_beta": case.spin,

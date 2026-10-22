@@ -8,6 +8,7 @@ It prepares an isolated store from basis files fetched through RustiQ from BSE.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -56,6 +57,19 @@ class PyscfMp2Error(RuntimeError):
 
 class PyscfScfConvergenceError(RuntimeError):
     """PySCF reached its cycle limit without converging HF."""
+
+
+def finite_diagnostic(value: object) -> tuple[float | None, str | None]:
+    """Return a JSON-safe diagnostic number and describe non-finite values."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None, "unavailable"
+    if math.isfinite(result):
+        return result, None
+    if math.isnan(result):
+        return None, "NaN"
+    return None, "+Infinity" if result > 0 else "-Infinity"
 
 
 CASES = [
@@ -592,8 +606,9 @@ def pyscf_result(
     mf.max_cycle = case.max_cycle
     energy = mf.kernel()
     if diagnostics is not None:
+        reported_energy, energy_state = finite_diagnostic(energy)
         diagnostics.update(
-            last_hf_total_energy_hartree=float(energy),
+            last_hf_total_energy_hartree=reported_energy,
             iterations=mf.cycles,
             converged=bool(mf.converged),
             n_alpha=mol.nelec[0],
@@ -601,6 +616,8 @@ def pyscf_result(
             virtual_alpha=mol.nao_nr() - mol.nelec[0],
             virtual_beta=mol.nao_nr() - mol.nelec[1],
         )
+        if energy_state is not None:
+            diagnostics["last_hf_total_energy_status"] = energy_state
     if not mf.converged:
         raise PyscfScfConvergenceError(f"PySCF did not converge for {case.name}.")
     s_squared = float(mf.spin_square()[0]) if case.method == "uhf" else None

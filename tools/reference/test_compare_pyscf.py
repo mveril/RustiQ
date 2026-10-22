@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import math
 import shutil
 from collections.abc import Iterator
@@ -9,12 +8,22 @@ from pathlib import Path
 import compare_pyscf
 import pytest
 
+pytestmark = pytest.mark.requires_rust
+
 
 pytest.importorskip("pyscf", reason="PySCF is not installed in this environment")
 
 
 @pytest.fixture(scope="session")
 def rustiq_env() -> Iterator[dict[str, str]]:
+    pytest.importorskip("pyscf", reason="scientific comparisons require PySCF")
+    env = compare_pyscf.prepare_rustiq_env()
+    yield env
+    shutil.rmtree(Path(env["RUSTIQ_DATA_HOME"]), ignore_errors=True)
+
+
+@pytest.fixture
+def rustiq_env_without_pyscf() -> Iterator[dict[str, str]]:
     env = compare_pyscf.prepare_rustiq_env()
     yield env
     shutil.rmtree(Path(env["RUSTIQ_DATA_HOME"]), ignore_errors=True)
@@ -95,50 +104,6 @@ def test_rustiq_matches_pyscf(
         )
 
 
-@pytest.mark.parametrize("name", ["oh-sto-3g-uhf", "oh-sto-3g-uhf-mp2"])
-def test_oh_sample_scf_threshold_matches_pyscf_reference(name: str) -> None:
-    """Guard the explicitly aligned numerical thresholds of the OH reference inputs."""
-    case = next(case for case in compare_pyscf.CASES if case.name == name)
-    config = tomllib.loads(case.runfile.read_text(encoding="utf-8"))
-
-    # Identical numbers do not imply identical SCF stopping criteria.
-    assert config["method"]["hf"]["convergence_threshold"] == case.conv_tol
-
-
-def test_rustiq_result_rejects_malformed_json(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def malformed_output(*args: Any, **kwargs: Any) -> str:
-        return "not JSON"
-
-    monkeypatch.setattr(compare_pyscf, "run_command", malformed_output)
-
-    with pytest.raises(RuntimeError, match="Could not parse RustiQ JSON output"):
-        compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {"calculation": {"hf": {}}},
-        {"schema_version": 2, "calculation": {"hf": {}}},
-        {"schema_version": 1},
-        {"schema_version": 1, "calculation": []},
-    ],
-)
-def test_rustiq_result_rejects_incompatible_json_contract(
-    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
-) -> None:
-    monkeypatch.setattr(
-        compare_pyscf, "run_command", lambda *args, **kwargs: json.dumps(payload)
-    )
-
-    with pytest.raises(
-        (TypeError, ValueError), match="RustiQ JSON output|schema_version"
-    ):
-        compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
-
-
 @pytest.mark.parametrize(
     "name", [case.name for case in compare_pyscf.CASES if case.frozen_core_reference]
 )
@@ -154,38 +119,18 @@ def test_frozen_core_mp2_matches_pyscf(
     test_rustiq_matches_pyscf(case, rustiq_env)
 
 
-@pytest.mark.parametrize(
-    ("name", "counts"),
-    [
-        ("lih-6-31g-rhf", (2, 2)),
-        ("co-sto-3g-rhf-mp2", (7, 7)),
-        ("h2o-cc-pvdz-rhf-mp2", (5, 5)),
-        ("oh-6-31g-uhf-mp2", (5, 4)),
-    ],
-)
-def test_new_case_scientific_metadata(name: str, counts: tuple[int, int]) -> None:
-    case = next(case for case in compare_pyscf.CASES if case.name == name)
-    config = tomllib.loads(case.runfile.read_text())
-    assert compare_pyscf.electron_counts(case) == counts
-    assert case.bse_reference
-    assert case.frozen_orbitals == 0
-    assert min(counts) > 0 and max(counts) < case.ao_dimension
-    assert config["method"]["hf"]["convergence_threshold"] == case.conv_tol
-    assert config["method"]["hf"]["max_iterations"] == case.max_cycle
-    if case.mp2:
-        assert config["method"]["mp2"]["frozen_orbitals"] == 0
-
-
 @pytest.mark.parametrize("name", ["co-sto-3g-rhf-mp2", "oh-6-31g-uhf-mp2"])
+@pytest.mark.requires_rust
 def test_workspace_budgets_select_different_blocks(
     name: str,
     tmp_path: Path,
-    rustiq_env: dict[str, str],
+    rustiq_env_without_pyscf: dict[str, str],
 ) -> None:
     import os
     import re
 
     original = next(case for case in compare_pyscf.CASES if case.name == name)
+    rustiq_env = rustiq_env_without_pyscf
     results = []
     for budget in compare_pyscf.FROZEN_CORE_MEMORY_BUDGETS:
         case = compare_pyscf.frozen_core_case(original, budget, tmp_path)
