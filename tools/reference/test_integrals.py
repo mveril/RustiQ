@@ -3,10 +3,10 @@ import numpy as np
 import pytest
 
 # PySCF is intentionally unavailable on Windows for the pinned reference suite.
-# Skip this module before importing integrals, which imports PySCF at module scope.
+# This module contains only tests that execute PySCF.
 pytest.importorskip("pyscf", reason="AO integral references require PySCF")
 
-from integrals import validate, metrics, generate_fixture, FIXTURE
+from integrals import validate, generate_fixture, FIXTURE
 import json
 import hashlib
 
@@ -15,12 +15,6 @@ def test_ao_integrals():
     report = validate()
     failures = [row for row in report["cases"] if row["status"] != "PASS"]
     assert report["passed"], (failures, report.get("cargo_error"))
-
-
-def test_metrics_detect_failure_and_nonfinite():
-    assert metrics([0., 1.], [0., 1.01], [(0,), (1,)])["exceedances"] == 1
-    with pytest.raises(ValueError, match="non-finite"):
-        metrics([np.nan], [0.], [(0,)])
 
 
 def test_checked_in_pyscf_references():

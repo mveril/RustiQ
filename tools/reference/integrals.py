@@ -8,7 +8,6 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-from pyscf import gto, __version__
 
 from compare_pyscf import REPO_ROOT, load_xyz_body, run_command
 
@@ -28,6 +27,8 @@ RELATIVE_FLOOR = 1e-8
 
 
 def reference(xyz, basis_name, cart, rotated=False):
+    from pyscf import gto
+
     source = json.loads((BASIS_ROOT / f"{basis_name}.json").read_text())
     basis = {}
     for z in (1, 8):
@@ -126,6 +127,8 @@ def metrics(actual, expected, indices):
 
 
 def validate():
+    from pyscf import __version__
+
     with tempfile.TemporaryDirectory(prefix="rustiq-integrals-") as temp:
         output = Path(temp)
         env = dict(os.environ, RUSTIQ_INTEGRAL_OUTPUT=str(output))
@@ -161,6 +164,8 @@ FIXTURE = REPO_ROOT / "crates/rustiq-core/tests/data/integrals/pyscf-v1.json"
 
 
 def generate_fixture():
+    from pyscf import __version__
+
     cases, arrays = [], {}
     for name, xyz, basis, cart, dimension in CASES:
         mol, mapping, expected, _ = reference(xyz, basis, cart, rotated=name == ROTATED_CASE)

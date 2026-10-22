@@ -55,8 +55,9 @@ Windows. Only the PySCF comparison tests are skipped with an explicit reason;
 tests for runfile thresholds, JSON validation, and frozen-core runfile generation
 still run natively. Use WSL2 for PySCF comparisons and scientific report generation.
 
-`test_compare_pyscf.py` contains only tests that execute PySCF and is skipped
-when PySCF is unavailable. `test_compare_pyscf_helpers.py` and `test_report.py`
+`test_compare_pyscf.py` and `test_integrals.py` contain only tests that execute
+PySCF and are skipped when PySCF is unavailable.
+`test_compare_pyscf_helpers.py` and `test_report.py`
 exercise the helpers and report validation without executing PySCF. The import
 inside `pyscf_result` is deferred until a reference calculation is requested.
 

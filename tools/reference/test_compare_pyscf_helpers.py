@@ -58,3 +58,12 @@ def test_frozen_core_runfile_preserves_windows_geometry_path(tmp_path: Path) -> 
     generated = compare_pyscf.frozen_core_case(case, "32 KiB", tmp_path)
     config = tomllib.loads(generated.runfile.read_text(encoding="utf-8"))
     assert config["molecule"]["geometry"] == str(case.xyz)
+
+
+def test_integral_metrics_detect_failure_and_nonfinite() -> None:
+    import numpy as np
+    from integrals import metrics
+
+    assert metrics([0., 1.], [0., 1.01], [(0,), (1,)])["exceedances"] == 1
+    with pytest.raises(ValueError, match="non-finite"):
+        metrics([np.nan], [0.], [(0,)])

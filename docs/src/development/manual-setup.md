@@ -61,7 +61,8 @@ uv run --locked pytest tools/reference
 ```
 
 On native Windows, only the PySCF calculation tests in
-`tools/reference/test_compare_pyscf.py` are skipped. Helper tests in
+`tools/reference/test_compare_pyscf.py` and `tools/reference/test_integrals.py`
+are skipped. Helper tests in
 `test_compare_pyscf_helpers.py`, report validation, and NumPy persistence tests,
 including Rust-generated persistence artifacts, remain available. Use WSL2
 for PySCF comparisons and the scientific report

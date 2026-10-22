@@ -61,7 +61,7 @@ provides ongoing evidence for this support:
   and PySCF comparisons. Separate Windows and macOS host integrations are not
   exercised by these checks.
 - The standalone `uv` environment is checked on Linux and Windows x86_64 with
-  Python 3.12 and 3.14. Windows skips the PySCF comparison module and also checks
+  Python 3.12 and 3.14. Windows skips the PySCF comparison modules and also checks
   Rust/NumPy persistence interoperability with Python 3.12.
 
 The [scheduled full Nix workflow](https://github.com/mveril/RustiQ/actions/workflows/nix-full.yml)
