@@ -51,9 +51,15 @@ uv run --locked pytest tools/reference
 This uses the cross-platform lock for Python 3.12 through 3.14 and requires
 compatible binary wheels; it does not build Python packages from source. The
 locked PySCF 2.14.0 release has no Windows wheel, so uv excludes PySCF on native
-Windows. Tests that require PySCF are skipped with an explicit reason; NumPy
-persistence, Rust/NumPy interoperability, and report validation tests still
-run natively. Use WSL2 for PySCF comparisons and scientific report generation.
+Windows. Only the PySCF comparison tests are skipped with an explicit reason;
+tests for runfile thresholds, JSON validation, and frozen-core runfile generation
+still run natively. Use WSL2 for PySCF comparisons and scientific report generation.
+
+`test_compare_pyscf.py` contains only tests that execute PySCF and is skipped
+when PySCF is unavailable. `test_compare_pyscf_helpers.py` and `test_report.py`
+exercise the helpers and report validation without executing PySCF. The import
+inside `pyscf_result` is deferred until a reference calculation is requested.
+
 These Python tools support development and validation; the RustiQ executable
 is built separately with Cargo. Cargo must remain on `PATH` when using the
 default `cargo run` invocation.

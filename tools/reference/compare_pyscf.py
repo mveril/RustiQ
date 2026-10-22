@@ -323,6 +323,7 @@ def rustiq_result(case: ReferenceCase, env: dict[str, str]) -> dict[str, object]
 
 
 def pyscf_result(case: ReferenceCase) -> tuple[float, float | None, float | None]:
+    """Run a real PySCF calculation; importing the helpers does not require PySCF."""
     from pyscf import gto, mp, scf
 
     mol = gto.M(
@@ -396,8 +397,11 @@ def main(pytest_args: list[str] | None = None) -> int:
     """Run the canonical pytest reference suite, forwarding any arguments."""
     import pytest
 
-    test_path = Path(__file__).with_name("test_compare_pyscf.py")
-    return pytest.main([str(test_path), *(pytest_args or [])])
+    test_paths = [
+        Path(__file__).with_name("test_compare_pyscf.py"),
+        Path(__file__).with_name("test_compare_pyscf_helpers.py"),
+    ]
+    return pytest.main([*(str(path) for path in test_paths), *(pytest_args or [])])
 
 
 if __name__ == "__main__":
