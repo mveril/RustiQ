@@ -60,9 +60,11 @@ source builds remain disabled. Run the reference suite with:
 uv run --locked pytest tools/reference
 ```
 
-On native Windows, only tests requiring PySCF are skipped; report validation
-and NumPy persistence tests, including Rust-generated persistence artifacts,
-remain available. Use WSL2 for PySCF comparisons and the scientific report
+On native Windows, only the PySCF calculation tests in
+`tools/reference/test_compare_pyscf.py` are skipped. Helper tests in
+`test_compare_pyscf_helpers.py`, report validation, and NumPy persistence tests,
+including Rust-generated persistence artifacts, remain available. Use WSL2
+for PySCF comparisons and the scientific report
 generator (`tools/reference/report.py`). These Python tools support
 development and validation; building the RustiQ executable still requires the
 Rust toolchain and the Cargo commands above.

@@ -41,9 +41,10 @@ the container architecture, even when the host runs Windows or macOS. See
 Windows troubleshooting, and the configured VS Code extensions.
 
 The optional scientific Python tools have their own platform requirements.
-The project configures `uv` for Linux and macOS, and the Nix environment
-provides PySCF on every declared Nix system. For PySCF comparisons on Windows,
-use WSL2 or the Linux Dev Container.
+The project configures `uv` for Linux, macOS, and native Windows. The locked
+PySCF release is excluded on native Windows; the remaining Python tools and
+tests run there. The Nix environment provides PySCF on every declared Nix
+system. For PySCF comparisons on Windows, use WSL2 or the Linux Dev Container.
 
 ## How compatibility is checked
 
@@ -59,7 +60,9 @@ provides ongoing evidence for this support:
 - The Dev Container is built and tested on Linux x86_64, including Cargo tests
   and PySCF comparisons. Separate Windows and macOS host integrations are not
   exercised by these checks.
-- The standalone `uv` environment is checked on Linux x86_64.
+- The standalone `uv` environment is checked on Linux and Windows x86_64 with
+  Python 3.12 and 3.14. Windows skips the PySCF comparison module and also checks
+  Rust/NumPy persistence interoperability with Python 3.12.
 
 The [scheduled full Nix workflow](https://github.com/mveril/RustiQ/actions/workflows/nix-full.yml)
 also runs all native flake checks on the three declared Nix systems. These
