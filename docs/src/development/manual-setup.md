@@ -10,7 +10,8 @@
   dependencies through `Cargo.lock`, but does not pin the entire host environment.
 - **Platforms:** native Cargo supports the platforms in the
   [compatibility table](platforms.md), including Windows and Intel macOS.
-  Optional PySCF comparisons require Linux, macOS, or WSL2.
+  Python development tools run natively on Windows; PySCF comparisons currently
+  require Linux, macOS, or WSL2.
 - **HPC use:** this route can use the site's existing compiler environment
   without Docker or Nix. Build and run according to cluster policy, using the
   scheduler's assigned resources. A locally built binary still needs a
@@ -41,13 +42,33 @@ requested stable toolchain and components if necessary. This route is enough to
 build and run RustiQ, but the extra tools and the PySCF reference environment
 from the Nix development shell must be installed separately if you need them.
 The repository uses [`uv`](https://docs.astral.sh/uv/) for that environment on
-Linux, macOS, and WSL2:
+Linux, macOS, WSL2, and native Windows:
+
+```sh
+uv sync --locked
+uv run --locked ruff --version
+uv run --locked pytest tools/test_book_links.py tools/test_release_smoke.py tools/benchmarks
+```
+
+The project supports Python 3.12 through 3.14. The default groups install
+JupyterLab, ipykernel, Matplotlib, SciPy, NumPy, pytest, and Ruff. The lock
+also includes PySCF 2.14.0 on Linux and macOS, but that pinned release has no
+Windows wheel, so uv excludes it on native Windows. Binary wheels are required;
+source builds remain disabled. Run the reference suite with:
 
 ```sh
 uv run --locked pytest tools/reference
 ```
 
-PySCF does not support native Windows; use WSL2 for this optional comparison.
+On native Windows, only the PySCF calculation tests in
+`tools/reference/test_compare_pyscf.py` and `tools/reference/test_integrals.py`
+are skipped. Helper tests in
+`test_compare_pyscf_helpers.py`, report validation, and NumPy persistence tests,
+including Rust-generated persistence artifacts, remain available. Use WSL2
+for PySCF comparisons and the scientific report
+generator (`tools/reference/report.py`). These Python tools support
+development and validation; building the RustiQ executable still requires the
+Rust toolchain and the Cargo commands above.
 
 ## Build for calculations and install the executable
 

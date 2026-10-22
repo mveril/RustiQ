@@ -48,9 +48,21 @@ Without Nix, install the Rust toolchain described in the root `README.md` and
 uv run --locked pytest tools/reference
 ```
 
-This uses the cross-platform lock and requires compatible binary wheels; it
-does not build Python packages from source. PySCF supports Linux, macOS, and
-WSL2, but not native Windows. Cargo must remain on `PATH` when using the
+This uses the cross-platform lock for Python 3.12 through 3.14 and requires
+compatible binary wheels; it does not build Python packages from source. The
+locked PySCF 2.14.0 release has no Windows wheel, so uv excludes PySCF on native
+Windows. Only the PySCF comparison tests are skipped with an explicit reason;
+tests for runfile thresholds, JSON validation, and frozen-core runfile generation
+still run natively. Use WSL2 for PySCF comparisons and scientific report generation.
+
+`test_compare_pyscf.py` and `test_integrals.py` contain only tests that execute
+PySCF and are skipped when PySCF is unavailable.
+`test_compare_pyscf_helpers.py` and `test_report.py`
+exercise the helpers and report validation without executing PySCF. The import
+inside `pyscf_result` is deferred until a reference calculation is requested.
+
+These Python tools support development and validation; the RustiQ executable
+is built separately with Cargo. Cargo must remain on `PATH` when using the
 default `cargo run` invocation.
 Set `RUSTIQ_BIN` to an absolute executable path to compare a specific build
 instead; `nix run .#pyscf-check` supplies its Nix-built executable this way.

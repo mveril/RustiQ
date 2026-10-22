@@ -76,8 +76,13 @@ jobs:
           cargo test -p rustiq-chem-core --no-default-features
 
   uv:
-    name: Python tooling with uv
-    runs-on: ubuntu-latest
+    name: Python tooling with uv (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.12", "3.14"]
 
     steps:
       - name: Checkout
@@ -85,12 +90,28 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Rust stable for persistence interoperability
+        if: matrix.os == 'windows-latest' && matrix.python-version == '3.12'
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Cache cargo for persistence interoperability
+        if: matrix.os == 'windows-latest' && matrix.python-version == '3.12'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Check Python tooling
         run: |
-          uv sync --locked
-          uv run ruff --version
-          uv run pytest --version
+          uv sync --locked --python ${{ matrix.python-version }}
+          uv run --locked --python ${{ matrix.python-version }} python --version
+          uv run --locked --python ${{ matrix.python-version }} ruff --version
+          uv run --locked --python ${{ matrix.python-version }} pytest --version
+          uv run --locked --python ${{ matrix.python-version }} pytest tools/test_book_links.py tools/test_release_smoke.py tools/benchmarks tools/reference -k "not reads_rust"
+
+      - name: Test Rust and NumPy persistence interoperability on Windows
+        if: matrix.os == 'windows-latest' && matrix.python-version == '3.12'
+        run: uv run --locked --python ${{ matrix.python-version }} pytest tools/reference/test_persistence_interop.py -k reads_rust
 
   nix:
     name: Nix flake (${{ matrix.system }})
@@ -136,6 +157,10 @@ jobs:
 
       - name: Check the minimal PySCF shell
         run: nix develop .#mini-pyscf --command python -c "import pyscf; print('PySCF', pyscf.__version__)"
+
+      - name: Check the pyscf-check application
+        if: matrix.system == 'x86_64-linux'
+        run: nix run .#pyscf-check -- -k "h2-sto-3g-rhf and not mp2"
 
       - name: Check reference energies against PySCF
         run: nix develop .#mini-pyscf --command pytest tools/reference

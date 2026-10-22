@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import json
 import shutil
-import tomllib
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 import compare_pyscf
 import pytest
+
+
+pytest.importorskip("pyscf", reason="PySCF is not installed in this environment")
 
 
 @pytest.fixture(scope="session")
@@ -67,49 +67,6 @@ def test_rustiq_matches_pyscf(
         assert float(mp2["correlation_energy"]) == pytest.approx(
             pyscf_mp2_energy, abs=case.mp2_tolerance, rel=0.0
         )
-
-
-
-@pytest.mark.parametrize("name", ["oh-sto-3g-uhf", "oh-sto-3g-uhf-mp2"])
-def test_oh_sample_scf_threshold_matches_pyscf_reference(name: str) -> None:
-    """Guard the explicitly aligned numerical thresholds of the OH reference inputs."""
-    case = next(case for case in compare_pyscf.CASES if case.name == name)
-    config = tomllib.loads(case.runfile.read_text(encoding="utf-8"))
-
-    # Identical numbers do not imply identical SCF stopping criteria.
-    assert config["method"]["hf"]["convergence_threshold"] == case.conv_tol
-
-
-def test_rustiq_result_rejects_malformed_json(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def malformed_output(*args: Any, **kwargs: Any) -> str:
-        return "not JSON"
-
-    monkeypatch.setattr(compare_pyscf, "run_command", malformed_output)
-
-    with pytest.raises(RuntimeError, match="Could not parse RustiQ JSON output"):
-        compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {"calculation": {"hf": {}}},
-        {"schema_version": 2, "calculation": {"hf": {}}},
-        {"schema_version": 1},
-        {"schema_version": 1, "calculation": []},
-    ],
-)
-def test_rustiq_result_rejects_incompatible_json_contract(
-    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
-) -> None:
-    monkeypatch.setattr(
-        compare_pyscf, "run_command", lambda *args, **kwargs: json.dumps(payload)
-    )
-
-    with pytest.raises((TypeError, ValueError), match="RustiQ JSON output|schema_version"):
-        compare_pyscf.rustiq_result(compare_pyscf.CASES[0], {})
 
 
 @pytest.mark.parametrize(
