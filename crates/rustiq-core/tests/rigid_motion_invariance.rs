@@ -4,7 +4,7 @@ use std::{
     num::NonZeroU8,
 };
 
-use nalgebra::{Rotation3, Vector3};
+use nalgebra::{Isometry3, Rotation3, Translation3, Vector3};
 use proptest::{prelude::*, test_runner::TestCaseResult};
 use rstest::{fixture, rstest};
 use rustiq_core::{
@@ -138,9 +138,9 @@ fn check_rigid_motion(
     // Exercise both molecular references for every generated transformation.
     for reference in references {
         let mut geometry = reference.geometry.clone();
-        for atom in &mut geometry.atoms {
-            atom.position = rotation * atom.position + translation;
-        }
+        let transformation =
+            Isometry3::from_parts(Translation3::from(translation), rotation.into());
+        geometry.transform(&transformation);
         let result = calculate(&geometry, basis, reference.method, reference.multiplicity)
             .map_err(|error| {
                 TestCaseError::fail(format!(
