@@ -2,18 +2,18 @@ use crate::config::ResolvedHfMethod;
 
 use super::uhf::Spin;
 
-/// A shared restricted component or separate unrestricted spin components.
+/// Shared restricted data or separate unrestricted alpha and beta components.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum HfComponent<T> {
-    Rhf(T),
-    Uhf(Spin<T>),
+    Restricted(T),
+    Unrestricted(Spin<T>),
 }
 
 impl<T> HfComponent<T> {
     pub(crate) fn method(&self) -> ResolvedHfMethod {
         match self {
-            Self::Rhf(_) => ResolvedHfMethod::Rhf,
-            Self::Uhf(_) => ResolvedHfMethod::Uhf,
+            Self::Restricted(_) => ResolvedHfMethod::Rhf,
+            Self::Unrestricted(_) => ResolvedHfMethod::Uhf,
         }
     }
 }

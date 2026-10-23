@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use crate::basis::basis_file::BasisFile;
 use crate::basis::function_type::FunctionType;
-use crate::molecules::geometry::Geometry;
+use crate::molecules::Geometry;
 
 /// Structure representing a contracted Cartesian Gaussian basis set.
 ///
@@ -886,7 +886,7 @@ fn coulomb_auxiliary_at(t: u8, u: u8, v: u8, n: u8, p: f64, pc: &Vector3<f64>) -
 mod tests {
     use super::*;
     use crate::basis::basis_file::{Auxiliaries, BasisFile, MolssiBseSchema, Role, SchemaType};
-    use crate::{molecules::atom::Atom, test_utils};
+    use crate::{molecules::Atom, test_utils};
     use approx::assert_abs_diff_eq;
     use nalgebra::*;
     use proptest::prelude::*;

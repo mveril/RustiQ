@@ -18,7 +18,10 @@
 
 //! Reusable domain and scientific implementation used by the CLI and benchmarks.
 //!
-//! Use [`config`] and [`calculation`] for direct Rust calculations. Runfile parsing,
+//! Start with [`prelude`] for direct Rust calculations. Explicit imports use
+//! [`molecules`] for molecular inputs, [`basis`] for basis data, [`config`] for
+//! scientific options, and [`calculation`] for execution and results. Storage
+//! and raw-integral workflows use [`persistence`]. Runfile parsing,
 //! user environment and filesystem policy belong to the application, as do source
 //! text for scientific diagnostics and terminal presentation. Machine-resource
 //! discovery used by scientific execution is isolated from scientific configuration.
@@ -53,13 +56,11 @@
 //! [`calculation`] for the RHF/UHF equations, orthogonalization convention, and
 //! MP2 correction. MP2 is available only from converged, canonical HF orbitals.
 
-/// Periodic-table element types and properties used by the core API.
+/// Periodic-table element identifier used by atoms in the core API.
 ///
-/// In particular, [`mendeleev::Element`] identifies atoms and provides
-/// properties such as atomic number and atomic weight. Re-exporting the crate
-/// lets users construct core values with the same `Element` type without
-/// declaring a separate direct dependency on `mendeleev`.
-pub use mendeleev;
+/// This is the same type as `mendeleev::Element`; callers do not need a direct
+/// dependency on `mendeleev` to construct atoms.
+pub use mendeleev::Element;
 
 #[deny(clippy::doc_markdown)]
 pub mod basis;
@@ -100,7 +101,7 @@ pub mod bench_support {
 
     use crate::basis::{Basis, BasisFile};
     use crate::eri::electron_repulsion_ints_timed_with_observer;
-    use crate::molecules::geometry::Geometry;
+    use crate::molecules::Geometry;
 
     /// Builds a compact ERI buffer using the former Vec-then-Arc allocation path.
     ///
@@ -138,7 +139,7 @@ pub mod bench_support {
     #[derive(Debug, thiserror::Error)]
     pub enum EriBenchInputError {
         #[error(transparent)]
-        Geometry(#[from] crate::molecules::geometry_parse_error::GeometryParseError),
+        Geometry(#[from] crate::molecules::GeometryParseError),
         #[error(transparent)]
         Basis(#[from] crate::basis::BasisError),
     }

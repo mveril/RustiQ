@@ -186,7 +186,7 @@ impl Molecule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::molecules::{atom::Atom, geometry::Geometry};
+    use crate::molecules::{Atom, Geometry};
     use nalgebra::point;
     use std::num::NonZeroU8;
 

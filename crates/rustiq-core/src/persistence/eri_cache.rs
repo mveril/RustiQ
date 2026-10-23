@@ -7,8 +7,7 @@ use std::{
 use tempfile::Builder;
 
 use crate::{
-    basis::Basis, config::validated::PositiveFiniteF64, eri::CompactEri,
-    molecules::molecule::Molecule,
+    basis::Basis, config::validated::PositiveFiniteF64, eri::CompactEri, molecules::Molecule,
 };
 
 use super::{
@@ -496,14 +495,14 @@ mod tests {
     use crate::{config::DEFAULT_ERI_SCHWARZ_THRESHOLD, test_utils::load_sto3g_basis};
 
     fn input() -> (Molecule, Basis) {
-        let geometry = crate::molecules::geometry::Geometry::from_source(
+        let geometry = crate::molecules::Geometry::from_source(
             "cache-test.xyz",
             "2\nH2\nH 0 0 0\nH 1.4 0 0\n",
         )
         .unwrap();
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZero::new(1).unwrap(),
         )

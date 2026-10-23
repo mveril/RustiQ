@@ -1,6 +1,6 @@
 use std::{num::NonZeroU8, path::PathBuf};
 
-use rustiq_core::molecules::units::Units;
+use rustiq_core::molecules::Units;
 
 #[derive(Debug, serde::Serialize)]
 pub struct MoleculeConfig {

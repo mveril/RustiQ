@@ -11,7 +11,7 @@ use crate::{
         DiisConfig, HfConfig, HfMethod, IntegralConfig, Mp2Config, OrthogonalizationConfig,
         ResolvedHfMethod,
     },
-    molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units},
+    molecules::{Atom, Geometry, Molecule, Units},
     persistence::{AoEriArtifact, EriCache, PortableError, RustiQData},
 };
 use mendeleev::Element;

@@ -1,7 +1,7 @@
 use rustiq_core::{
     basis::BasisFile,
     calculation::CalculationBuilder,
-    molecules::geometry::Geometry,
+    molecules::Geometry,
     persistence::{AoEriArtifact, CompactEri, PortableError, RustiQData},
 };
 
@@ -52,7 +52,7 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
     );
     assert_eq!(
         restored.request().unwrap().molecule().units,
-        rustiq_core::molecules::units::Units::Bohr
+        rustiq_core::molecules::Units::Bohr
     );
     let source = restored.sources().next().unwrap();
     assert_eq!(source.original_name(), "../calculation.toml");
@@ -81,8 +81,8 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
 fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() {
     use rustiq_core::{
         config::{
-            validated::{DiisSize, NonNegativeFiniteF64},
-            DiisConfig, HfConfig, IntegralConfig, OrthogonalizationConfig,
+            DiisConfig, DiisSize, HfConfig, IntegralConfig, NonNegativeFiniteF64,
+            OrthogonalizationConfig,
         },
         persistence::RustiQBundle,
     };

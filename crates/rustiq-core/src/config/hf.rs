@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{
     config::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
-    molecules::molecule::Molecule,
+    molecules::Molecule,
 };
 
 mod density_guess_config;

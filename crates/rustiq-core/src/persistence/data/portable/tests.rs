@@ -13,7 +13,7 @@ use crate::{
     calculation::CalculationBuilder,
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},
     eri::CompactEri,
-    molecules::geometry::Geometry,
+    molecules::Geometry,
     test_utils::load_minimal_basis_file,
 };
 use std::{
@@ -188,7 +188,7 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
 )]
 fn normalized_request_round_trip_keeps_auto_angstrom_defaults_and_requested_options() {
     use crate::config::{DensityGuessConfig, MemoryLimit, RandomGuessConfig};
-    use crate::molecules::units::Units;
+    use crate::molecules::Units;
     let geometry =
         Geometry::from_source("input.xyz", "2\nignored comment\nH 0 0 0\nH 0.74 0 0\n").unwrap();
     let basis = load_minimal_basis_file();
@@ -850,7 +850,7 @@ fn settings_are_resolved_and_machine_policy_is_excluded() {
     use crate::config::{
         DensityGuessConfig, GuessPerturbationConfig, MemoryLimit, RandomGuessConfig,
     };
-    use crate::molecules::units::Units;
+    use crate::molecules::Units;
     let basis = load_minimal_basis_file();
     let geometry = Geometry::from_source(
         "source-path-must-not-leak.xyz",

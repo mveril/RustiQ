@@ -10,7 +10,7 @@ use std::{fs, path::Path};
 
 use rustiq_core::{
     config::{DensityGuessConfig, HfMethod, MemoryLimit},
-    molecules::units::Units,
+    molecules::Units,
 };
 
 use super::parser::parse_runfile;

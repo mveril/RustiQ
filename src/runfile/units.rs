@@ -4,11 +4,11 @@
     reason = "Serde serializer callbacks receive references"
 )]
 pub(crate) fn serialize<S: serde::Serializer>(
-    value: &rustiq_core::molecules::units::Units,
+    value: &rustiq_core::molecules::Units,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(match value {
-        rustiq_core::molecules::units::Units::Bohr => "Bohr",
-        rustiq_core::molecules::units::Units::Angstrom => "Angstrom",
+        rustiq_core::molecules::Units::Bohr => "Bohr",
+        rustiq_core::molecules::Units::Angstrom => "Angstrom",
     })
 }

@@ -4,11 +4,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 use super::Located;
-use crate::molecules::{
-    geometry::Geometry,
-    molecule::{Molecule, MoleculeError},
-    units::Units,
-};
+use crate::molecules::{Geometry, Molecule, MoleculeError, Units};
 
 /// Error while applying molecular configuration to a geometry.
 ///

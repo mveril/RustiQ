@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::PathBuf;
 
-use rustiq_core::{basis::BasisFile, molecules::geometry::Geometry};
+use rustiq_core::{basis::BasisFile, molecules::Geometry};
 
 pub fn h2_inputs() -> Result<(Geometry, BasisFile), Box<dyn std::error::Error>> {
     let geometry_path = workspace_path("samples/h2/molecule.xyz")?.canonicalize()?;

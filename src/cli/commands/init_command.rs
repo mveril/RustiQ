@@ -20,7 +20,7 @@ use crate::runfile::{
     output::Defaults,
     RunFile,
 };
-use rustiq_core::molecules::{geometry::Geometry, molecule::Molecule, units::Units};
+use rustiq_core::molecules::{Geometry, Molecule, Units};
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
 enum Method {

@@ -13,7 +13,7 @@ use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
 
 use crate::basis::gaussian::basis::Basis;
-use crate::molecules::molecule::Molecule;
+use crate::molecules::Molecule;
 
 use super::orthogonalization::OrthogonalizationInfo;
 use super::{
@@ -626,8 +626,8 @@ mod tests {
     use crate::eri::electron_repulsion_ints;
     use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
     use crate::hf::orthogonalization::orthogonalizer;
-    use crate::molecules::atom::Atom;
-    use crate::molecules::geometry::Geometry;
+    use crate::molecules::Atom;
+    use crate::molecules::Geometry;
     use crate::test_utils;
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
@@ -660,7 +660,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -694,7 +694,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -811,7 +811,7 @@ mod tests {
         let basis = Basis::new(vec![duplicated_shell.clone(), duplicated_shell]);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -857,7 +857,7 @@ mod tests {
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -893,7 +893,7 @@ mod tests {
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -928,7 +928,7 @@ mod tests {
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1017,7 +1017,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1047,7 +1047,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1087,7 +1087,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1159,7 +1159,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1206,7 +1206,7 @@ mod tests {
             let basis = test_utils::load_sto3g_basis(&geometry);
             let molecule = Molecule::try_new(
                 geometry,
-                crate::molecules::units::Units::Bohr,
+                crate::molecules::Units::Bohr,
                 0,
                 std::num::NonZeroU8::MIN,
             )

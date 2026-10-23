@@ -88,7 +88,7 @@ mod tests {
         basis::BasisFile,
         calculation::{CalculationBuilder, CalculationExecution},
         config::{HfConfig, Mp2Config},
-        molecules::geometry::Geometry,
+        molecules::Geometry,
     };
 
     #[test]

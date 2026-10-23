@@ -83,7 +83,7 @@ mod builder;
 mod execution;
 mod prepared_calculation;
 mod request;
-pub use crate::basis::{Basis, BasisError};
+use crate::basis::{Basis, BasisError};
 pub use crate::eri::EriError;
 use crate::hf::{scf::ScfSetupError, uhf::UhfSetupError};
 pub use crate::mp2::Mp2Sector;
@@ -118,7 +118,7 @@ use crate::{
         scf_setup::{prepare_configured_scf_setup, ScfPreparationError},
         uhf::{alpha_beta_occupied_orbitals, UhfCalculation},
     },
-    molecules::molecule::{Molecule, MoleculeError},
+    molecules::{Molecule, MoleculeError},
     mp2,
     persistence::EriCache,
 };

@@ -211,7 +211,7 @@ mod tests {
         use rustiq_core::{
             basis::BasisFile,
             calculation::{CalculationBuilder, CalculationExecution},
-            molecules::geometry::Geometry,
+            molecules::Geometry,
         };
         struct FailingWriter(usize);
         impl Write for FailingWriter {

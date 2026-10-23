@@ -123,12 +123,10 @@ impl From<hf::RandomGuessConfig> for core::RandomGuessConfig {
     }
 }
 
-impl From<random_config::RandomConfig> for core::random_config::RandomConfig {
+impl From<random_config::RandomConfig> for core::RandomConfig {
     fn from(value: random_config::RandomConfig) -> Self {
-        use core::random_config::distribution_config::{
-            NormalDistributionConfig, UniformDistributionConfig,
-        };
-        use core::random_config::DistributionConfig;
+        use core::DistributionConfig;
+        use core::{NormalDistributionConfig, UniformDistributionConfig};
         let distribution = match value.distribution {
             random_config::DistributionConfig::Normal { config } => DistributionConfig::Normal {
                 config: NormalDistributionConfig {
@@ -204,13 +202,13 @@ impl From<core::DensityGuessConfig> for hf::DensityGuessConfig {
     }
 }
 
-impl From<core::random_config::RandomConfig> for random_config::RandomConfig {
-    fn from(value: core::random_config::RandomConfig) -> Self {
+impl From<core::RandomConfig> for random_config::RandomConfig {
+    fn from(value: core::RandomConfig) -> Self {
         use random_config::distribution_config::{
             NormalDistributionConfig, UniformDistributionConfig,
         };
         let distribution = match value.distribution {
-            core::random_config::DistributionConfig::Normal { config } => {
+            core::DistributionConfig::Normal { config } => {
                 random_config::DistributionConfig::Normal {
                     config: NormalDistributionConfig {
                         mean: config.mean,
@@ -218,7 +216,7 @@ impl From<core::random_config::RandomConfig> for random_config::RandomConfig {
                     },
                 }
             }
-            core::random_config::DistributionConfig::Uniform { config } => {
+            core::DistributionConfig::Uniform { config } => {
                 random_config::DistributionConfig::Uniform {
                     config: UniformDistributionConfig {
                         min: config.min,

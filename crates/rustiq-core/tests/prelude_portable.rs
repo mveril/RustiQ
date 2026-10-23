@@ -1,7 +1,11 @@
-use rustiq_core::prelude::*;
+use rustiq_core::{
+    calculation::{ArtifactReuseDecision, ArtifactReuseEvent},
+    persistence::{CompactEri, RustiQBundle, RustiQData},
+    prelude::*,
+};
 
 #[test]
-fn portable_workflow_uses_only_the_public_prelude() {
+fn portable_workflow_combines_prelude_with_explicit_storage_imports() {
     let geometry =
         Geometry::from_reader(std::io::Cursor::new("2\nH2 in Bohr\nH 0 0 0\nH 1.4 0 0\n")).unwrap();
     let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();

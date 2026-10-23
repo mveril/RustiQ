@@ -747,7 +747,7 @@ pub fn benchmark_mp2(n: usize, occupied: usize, budget: u64) -> Result<Mp2BenchR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{molecules::molecule::Molecule, test_utils};
+    use crate::{molecules::Molecule, test_utils};
     use approx::assert_abs_diff_eq;
 
     #[test]
@@ -1090,7 +1090,7 @@ mod tests {
         let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1127,7 +1127,7 @@ mod tests {
         ]);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -1176,7 +1176,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::new(2).unwrap(),
         )

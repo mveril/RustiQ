@@ -13,7 +13,7 @@ use std::{
 use rustiq_core::{
     calculation::{CalculationRequest, PreparedCalculation},
     config,
-    molecules::{geometry::Geometry, units::Units},
+    molecules::{Geometry, Units},
 };
 
 use crate::runfile::{

@@ -17,6 +17,14 @@ fn prelude_supports_builder_and_prepared_execution() {
         .with_mp2(Mp2Config::default());
     let direct: Result<CalculationResult, CalculationExecutionError> = builder.execute();
     let direct = direct.unwrap();
+    let mut mutable = CalculationBuilder::new(&geometry, &basis);
+    mutable
+        .molecule_config(*builder.get_molecule_config())
+        .hf(builder.get_hf().clone())
+        .integrals(IntegralConfig::default())
+        .mp2(*builder.get_mp2().unwrap());
+    let mutable_result = mutable.execute().unwrap();
+    assert_eq!(direct.mp2, mutable_result.mp2);
     let prepared: PreparedCalculation = builder.prepare().unwrap();
     let result = prepared.execute().unwrap();
     let HfOutcome::Converged(hf) = result.hf else {

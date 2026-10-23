@@ -5,7 +5,7 @@ use crate::{
     basis::gaussian::basis::Basis,
     config::validated::PositiveFiniteF64,
     eri::{electron_repulsion_ints_with_threshold, CompactEri, EriError},
-    molecules::molecule::Molecule,
+    molecules::Molecule,
     persistence::EriCache,
 };
 
@@ -87,7 +87,7 @@ mod tests {
     use super::*;
     use crate::{
         config::DEFAULT_ERI_SCHWARZ_THRESHOLD,
-        molecules::{molecule::Molecule, units::Units},
+        molecules::{Molecule, Units},
         test_utils::{load_sample_geometry_in_bohr, load_sto3g_basis},
     };
 

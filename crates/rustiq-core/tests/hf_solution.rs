@@ -9,7 +9,7 @@ use rustiq_core::{
         CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfOutcome,
     },
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config, ResolvedHfMethod},
-    molecules::{geometry::Geometry, units::Units},
+    molecules::{Geometry, Units},
 };
 
 fn solution(method: HfMethod, iterations: usize) -> HfOutcome {

@@ -1,11 +1,23 @@
 //! Scientific configuration independent of source formats and environment defaults.
-pub mod hf;
+//!
+//! Import configuration types, random distributions, and validated scalar values
+//! directly from this module. [`Located`] attaches optional frontend source
+//! positions without requiring a source file for direct Rust calculations.
+pub(crate) mod hf;
 mod integrals;
 mod molecule;
-pub mod random_config;
-pub mod validated;
+pub(crate) mod random_config;
+pub(crate) mod validated;
 use bytesize::ByteSize;
 pub use molecule::{MoleculeConfig, MoleculeConfigError};
+pub use random_config::{
+    distribution_config::{NormalDistributionConfig, UniformDistributionConfig},
+    DistributionConfig, DistributionCreationError, RandomConfig,
+};
+pub use validated::{
+    DiisSize, DiisSizeError, NonNegativeFiniteF64, NonNegativeFiniteF64Error, PositiveFiniteF64,
+    PositiveFiniteF64Error,
+};
 
 /// A value with an optional byte range in a source owned by its frontend.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

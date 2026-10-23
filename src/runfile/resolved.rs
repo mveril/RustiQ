@@ -202,7 +202,7 @@ impl ResolvedCalculationConfig {
     }
 
     pub fn molecule_config(&self) -> rustiq_core::config::MoleculeConfig {
-        use rustiq_core::molecules::units::Units as CoreUnits;
+        use rustiq_core::molecules::Units as CoreUnits;
         rustiq_core::config::MoleculeConfig {
             units: match self.molecule.units {
                 Units::Bohr => CoreUnits::Bohr,
@@ -219,7 +219,7 @@ impl ResolvedCalculationConfig {
                 None
             } else {
                 Some(
-                    rustiq_core::config::validated::PositiveFiniteF64::try_new(
+                    rustiq_core::config::PositiveFiniteF64::try_new(
                         self.integrals.schwarz_threshold,
                     )
                     .map_err(|e| drift("integrals.schwarz_threshold", e))?,
@@ -231,8 +231,7 @@ impl ResolvedCalculationConfig {
 
     pub fn hf_config(&self) -> Result<rustiq_core::config::HfConfig, ResolutionError> {
         use rustiq_core::config::{
-            self as core,
-            validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
+            self as core, DiisSize, NonNegativeFiniteF64, PositiveFiniteF64,
         };
         let hf = &self.method.hf;
         let perturbation = |value: &Option<Distribution>| -> Result<_, ResolutionError> {
@@ -308,12 +307,9 @@ impl ResolvedCalculationConfig {
 }
 
 impl Distribution {
-    fn to_core(&self) -> Result<rustiq_core::config::random_config::RandomConfig, ResolutionError> {
-        use rustiq_core::config::random_config::{
-            self as core,
-            distribution_config::{
-                DistributionConfig, NormalDistributionConfig, UniformDistributionConfig,
-            },
+    fn to_core(&self) -> Result<rustiq_core::config::RandomConfig, ResolutionError> {
+        use rustiq_core::config::{
+            self as core, DistributionConfig, NormalDistributionConfig, UniformDistributionConfig,
         };
         let (distribution, seed) = match *self {
             Self::Normal {
@@ -328,10 +324,8 @@ impl Distribution {
                     DistributionConfig::Normal {
                         config: NormalDistributionConfig {
                             mean,
-                            std_dev: rustiq_core::config::validated::PositiveFiniteF64::try_new(
-                                std_dev,
-                            )
-                            .map_err(|e| drift("guess.std_dev", e))?,
+                            std_dev: rustiq_core::config::PositiveFiniteF64::try_new(std_dev)
+                                .map_err(|e| drift("guess.std_dev", e))?,
                         },
                     },
                     seed,

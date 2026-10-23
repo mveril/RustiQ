@@ -719,8 +719,8 @@ impl CoulombAuxiliaryCache {
 mod tests {
     use super::*;
     use crate::basis::gaussian::contraction::Contraction;
-    use crate::molecules::atom::Atom;
-    use crate::molecules::geometry::Geometry;
+    use crate::molecules::Atom;
+    use crate::molecules::Geometry;
     use crate::test_utils;
     use approx::assert_abs_diff_eq;
     use nalgebra::point;

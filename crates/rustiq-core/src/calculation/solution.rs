@@ -94,7 +94,7 @@ impl<State> HfSolution<State> {
     pub(super) fn from_state(summary: HfCalculationResult, state: HfState<'_>) -> Self {
         let (orbitals, integrals) = match state {
             HfState::Rhf(scf) => (
-                HfComponent::Rhf(Orbitals {
+                HfComponent::Restricted(Orbitals {
                     coefficients: scf.mo_coefficients,
                     energies: scf.orbital_energies,
                     occupied: scf.occupied_orbitals,
@@ -102,7 +102,7 @@ impl<State> HfSolution<State> {
                 scf.two_electron_integrals,
             ),
             HfState::Uhf(scf) => (
-                HfComponent::Uhf(Spin {
+                HfComponent::Unrestricted(Spin {
                     alpha: Orbitals {
                         coefficients: scf.mo_coefficients.alpha,
                         energies: scf.orbital_energies.alpha,
@@ -165,7 +165,7 @@ impl HfSolution<Converged> {
     ) -> Result<Mp2Result, CalculationExecutionError> {
         let frozen = config.frozen_orbitals.value;
         let correlation = match &self.0.orbitals {
-            HfComponent::Uhf(Spin { alpha, beta }) => {
+            HfComponent::Unrestricted(Spin { alpha, beta }) => {
                 fn spin(o: &Orbitals, frozen: usize) -> Mp2SpinInput<'_> {
                     Mp2SpinInput {
                         mo_coefficients: &o.coefficients,
@@ -182,7 +182,7 @@ impl HfSolution<Converged> {
                     report,
                 )
             }
-            HfComponent::Rhf(orbitals) => mp2::correlation_energy_with_memory(
+            HfComponent::Restricted(orbitals) => mp2::correlation_energy_with_memory(
                 &Mp2Input {
                     mo_coefficients: &orbitals.coefficients,
                     orbital_energies: &orbitals.energies,
