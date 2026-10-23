@@ -43,7 +43,7 @@ and [public API tests](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-
 provide executable workflows and verification. Link to these sources instead
 of duplicating item-level documentation in the book.
 
-## Public API imports and migration
+## Public API imports
 
 Use `rustiq_core::prelude::*` for direct calculations. It includes
 `CalculationExecution`, the trait providing `execute()` and
@@ -57,27 +57,10 @@ random distributions and validated scalars, `basis` for basis data, and
 `calculation` for execution and results. `Located<T>` remains available from
 `config` and the prelude for optional frontend source positions.
 
-Migrate alpha imports using the following paths. Organizational submodules
-are no longer public; existing calculations keep their scientific behavior.
-
-| Previous import | Current import |
-| --- | --- |
-| `rustiq_core::molecules::geometry::Geometry` | `rustiq_core::molecules::Geometry` |
-| `rustiq_core::molecules::atom::Atom` | `rustiq_core::molecules::Atom` |
-| `rustiq_core::molecules::units::Units` | `rustiq_core::molecules::Units` |
-| `rustiq_core::config::hf::HfConfig` | `rustiq_core::config::HfConfig` |
-| `rustiq_core::config::random_config::RandomConfig` | `rustiq_core::config::RandomConfig` |
-| `rustiq_core::config::random_config::distribution_config::UniformDistributionConfig` | `rustiq_core::config::UniformDistributionConfig` |
-| `rustiq_core::config::validated::PositiveFiniteF64` | `rustiq_core::config::PositiveFiniteF64` |
-| `rustiq_core::calculation::{Basis, BasisError}` | `rustiq_core::basis::{Basis, BasisError}` |
-| `rustiq_core::mendeleev::Element` | `rustiq_core::Element` |
-
-Other molecular and configuration types, including their errors, follow the
-same module-level import convention. For portable archives and raw AO ERIs,
-import `RustiQData`, `RustiQBundle`, and `CompactEri` explicitly from
+For portable archives and raw AO ERIs, import `RustiQData`, `RustiQBundle`, and `CompactEri` explicitly from
 `rustiq_core::persistence`. Import `ArtifactReuseDecision` and
-`ArtifactReuseEvent` from `rustiq_core::calculation`; these advanced types are
-no longer in the prelude. The portable examples linked above demonstrate the
+`ArtifactReuseEvent` from `rustiq_core::calculation`; these advanced types
+require explicit imports. The portable examples linked above demonstrate the
 persistence imports, and the
 [portable prelude test](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/prelude_portable.rs)
 shows how to combine them with the calculation prelude.

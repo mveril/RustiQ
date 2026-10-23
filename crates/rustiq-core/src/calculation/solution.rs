@@ -117,7 +117,12 @@ impl<State> HfSolution<State> {
                 scf.two_electron_integrals,
             ),
         };
-        debug_assert_eq!(summary.method, orbitals.method());
+        match summary.method {
+            ResolvedHfMethod::Rhf => debug_assert!(matches!(orbitals, HfComponent::Restricted(_))),
+            ResolvedHfMethod::Uhf => {
+                debug_assert!(matches!(orbitals, HfComponent::Unrestricted(_)));
+            }
+        }
         Self(
             Arc::new(HfData {
                 summary,
