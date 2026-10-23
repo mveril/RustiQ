@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: d6bea98b0ae689cc8d2f5e772fa98eeb504ded5f6d00dc03aafdca26350ab94a
-Notice inputs SHA-256: 193a0abccfdb25171d46002be1f73025ffbc40113a8dd4b05393915df256684f
+Cargo.lock SHA-256: 2a4cdfa6382e2e5ae287b639191b1af000720b78d0ce3028b2ff458e1d079141
+Notice inputs SHA-256: 4b010d9782a3cc903a37da88abc2ce040d2894f45c0e13901bca07320b9477b1
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -1710,6 +1710,7 @@ Used by:
   windows-result 0.1.2 — https://github.com/microsoft/windows-rs
   windows-result 0.4.1 — https://github.com/microsoft/windows-rs
   windows-strings 0.5.1 — https://github.com/microsoft/windows-rs
+  windows-sys 0.52.0 — https://github.com/microsoft/windows-rs
   windows-sys 0.61.2 — https://github.com/microsoft/windows-rs
   windows-targets 0.52.6 — https://github.com/microsoft/windows-rs
   windows-threading 0.2.1 — https://github.com/microsoft/windows-rs
@@ -11277,7 +11278,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 MIT License (MIT)
 
 Used by:
-  tokio 1.53.1 — https://github.com/tokio-rs/tokio
+  tokio 1.54.1 — https://github.com/tokio-rs/tokio
 
 MIT License
 
@@ -43817,7 +43818,7 @@ freely, subject to the following restrictions:
    misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 
-PACKAGE: tokio 1.53.1
+PACKAGE: tokio 1.54.1
 Declared license: MIT
 Repository: https://github.com/tokio-rs/tokio
 Authors: Tokio Contributors <team@tokio.rs>
