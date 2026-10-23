@@ -49,8 +49,8 @@ Use `rustiq_core::prelude::*` for direct calculations. It includes
 `CalculationExecution`, the trait providing `execute()` and
 `execute_with_events()` for builders and prepared calculations. With explicit
 imports, bring `rustiq_core::calculation::CalculationExecution` into scope to
-call those methods. The builder supports mutable setters such as `hf(...)`, accessors such as `get_hf()`, and
-consuming `with_hf(...)` variants.
+call those methods. The builder supports mutable setters such as `hf(...)`,
+accessors such as `get_hf()`, and consuming `with_hf(...)` variants.
 
 Explicit imports use `molecules` for molecular inputs, `config` for options,
 random distributions and validated scalars, `basis` for basis data, and
@@ -75,9 +75,12 @@ are no longer public; existing calculations keep their scientific behavior.
 Other molecular and configuration types, including their errors, follow the
 same module-level import convention. For portable archives and raw AO ERIs,
 import `RustiQData`, `RustiQBundle`, and `CompactEri` explicitly from
-`rustiq_core::persistence`. Import artifact-reuse notifications from
-`rustiq_core::calculation`; these advanced types are no longer in the prelude.
-The portable examples linked above demonstrate the explicit imports.
+`rustiq_core::persistence`. Import `ArtifactReuseDecision` and
+`ArtifactReuseEvent` from `rustiq_core::calculation`; these advanced types are
+no longer in the prelude. The portable examples linked above demonstrate the
+persistence imports, and the
+[portable prelude test](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/prelude_portable.rs)
+shows how to combine them with the calculation prelude.
 
 ## Architecture and calculation lifecycle
 
