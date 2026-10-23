@@ -85,38 +85,6 @@ fn calculate(
     Ok(result)
 }
 
-fn observables(result: &CalculationResult) -> Vec<(&'static str, f64)> {
-    let scf = &result.hf.summary().scf;
-    let mp2 = result.mp2.as_ref().expect("calculation must include MP2");
-    let mut values = vec![
-        ("nuclear repulsion", scf.nuclear_repulsion_energy),
-        ("HF electronic energy", scf.electronic_energy),
-        ("HF total energy", scf.total_energy),
-        ("kinetic energy", scf.energy_details.kinetic_energy),
-        (
-            "nuclear attraction",
-            scf.energy_details.nuclear_attraction_energy,
-        ),
-        (
-            "electron repulsion",
-            scf.energy_details.electron_repulsion_energy,
-        ),
-        ("MP2 correlation energy", mp2.correlation_energy),
-        ("MP2 electronic energy", mp2.electronic_energy),
-        (
-            "MP2 total energy",
-            mp2.electronic_energy + scf.nuclear_repulsion_energy,
-        ),
-    ];
-    if let Some(spin) = scf.spin {
-        values.extend([
-            ("spin squared", spin.s_squared),
-            ("spin contamination", spin.spin_contamination),
-        ]);
-    }
-    values
-}
-
 struct ReferenceCase {
     name: &'static str,
     geometry: &'static Geometry,
@@ -182,14 +150,11 @@ fn check_rigid_motion(
             })?;
         let scf = &result.hf.summary().scf;
         let expected_scf = &reference.result.hf.summary().scf;
-        let actual = observables(&result);
-        let expected = observables(&reference.result);
-        prop_assert_eq!(actual.len(), expected.len());
-        for ((name, actual), (expected_name, expected)) in actual.iter().zip(&expected) {
-            prop_assert_eq!(name, expected_name);
+        let check = |name: &str, actual: f64, expected: f64| -> TestCaseResult {
             let difference = (actual - expected).abs();
             prop_assert!(
-                difference < ABSOLUTE_TOLERANCE,
+                difference.is_finite()
+                    && approx::abs_diff_eq!(actual, expected, epsilon = ABSOLUTE_TOLERANCE),
                 "{}: {name}: actual={actual:e}, expected={expected:e}, \
                 absolute difference={difference:e}, tolerance={ABSOLUTE_TOLERANCE:e}; \
                 SCF iterations={}, residual={:e}; reference SCF iterations={}, residual={:e}; \
@@ -200,6 +165,72 @@ fn check_rigid_motion(
                 expected_scf.iterations,
                 expected_scf.residual_norm
             );
+            Ok(())
+        };
+        check(
+            "nuclear repulsion",
+            scf.nuclear_repulsion_energy,
+            expected_scf.nuclear_repulsion_energy,
+        )?;
+        check(
+            "HF electronic energy",
+            scf.electronic_energy,
+            expected_scf.electronic_energy,
+        )?;
+        check(
+            "HF total energy",
+            scf.total_energy,
+            expected_scf.total_energy,
+        )?;
+        check(
+            "kinetic energy",
+            scf.energy_details.kinetic_energy,
+            expected_scf.energy_details.kinetic_energy,
+        )?;
+        check(
+            "nuclear attraction",
+            scf.energy_details.nuclear_attraction_energy,
+            expected_scf.energy_details.nuclear_attraction_energy,
+        )?;
+        check(
+            "electron repulsion",
+            scf.energy_details.electron_repulsion_energy,
+            expected_scf.energy_details.electron_repulsion_energy,
+        )?;
+        let mp2 = result.mp2.as_ref().expect("calculation must include MP2");
+        let expected_mp2 = reference
+            .result
+            .mp2
+            .as_ref()
+            .expect("reference calculation must include MP2");
+        check(
+            "MP2 correlation energy",
+            mp2.correlation_energy,
+            expected_mp2.correlation_energy,
+        )?;
+        check(
+            "MP2 electronic energy",
+            mp2.electronic_energy,
+            expected_mp2.electronic_energy,
+        )?;
+        check(
+            "MP2 total energy",
+            mp2.electronic_energy + scf.nuclear_repulsion_energy,
+            expected_mp2.electronic_energy + expected_scf.nuclear_repulsion_energy,
+        )?;
+        prop_assert!(
+            scf.spin.is_some() == expected_scf.spin.is_some(),
+            "{}: spin observables must match reference presence; \
+            translation={translation:?}, rotation={rotation:?}",
+            reference.name
+        );
+        if let (Some(spin), Some(expected_spin)) = (scf.spin, expected_scf.spin) {
+            check("spin squared", spin.s_squared, expected_spin.s_squared)?;
+            check(
+                "spin contamination",
+                spin.spin_contamination,
+                expected_spin.spin_contamination,
+            )?;
         }
     }
     Ok(())
