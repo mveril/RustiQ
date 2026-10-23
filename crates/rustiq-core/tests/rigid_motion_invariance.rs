@@ -5,10 +5,7 @@ use std::{
 };
 
 use nalgebra::{Rotation3, Vector3};
-use proptest::{
-    prelude::*,
-    test_runner::{TestCaseResult, TestRunner},
-};
+use proptest::{prelude::*, test_runner::TestCaseResult};
 use rstest::{fixture, rstest};
 use rustiq_core::{
     basis::BasisFile,
@@ -235,54 +232,19 @@ fn scalar_observables_are_rigid_motion_invariant(
     });
 }
 
-// A fixed batch guarantees every cardinal orientation is exercised.
-#[fixture]
-fn cardinal_rotations() -> Just<[[f64; 3]; 7]> {
-    Just([
-        [0.0, 0.0, 0.0],
-        [FRAC_PI_2, 0.0, 0.0],
-        [0.0, FRAC_PI_2, 0.0],
-        [0.0, 0.0, FRAC_PI_2],
-        [PI, 0.0, 0.0],
-        [0.0, PI, 0.0],
-        [0.0, 0.0, PI],
-    ])
-}
-
-#[fixture]
-fn cardinal_runner() -> TestRunner {
-    // Set cases after reading the environment so PROPTEST_CASES cannot repeat
-    // the fixed batch. Retain source/test metadata for persistence and forking.
-    TestRunner::new(ProptestConfig {
-        cases: 1,
-        source_file: Some(file!()),
-        test_name: Some(concat!(
-            module_path!(),
-            "::scalar_observables_are_cardinal_rotation_invariant"
-        )),
-        ..ProptestConfig::default()
-    })
-}
-
 #[rstest]
+#[case::identity(Rotation3::identity())]
+#[case::x_90_degrees(Rotation3::from_axis_angle(&Vector3::x_axis(), FRAC_PI_2))]
+#[case::y_90_degrees(Rotation3::from_axis_angle(&Vector3::y_axis(), FRAC_PI_2))]
+#[case::z_90_degrees(Rotation3::from_axis_angle(&Vector3::z_axis(), FRAC_PI_2))]
+#[case::x_180_degrees(Rotation3::from_axis_angle(&Vector3::x_axis(), PI))]
+#[case::y_180_degrees(Rotation3::from_axis_angle(&Vector3::y_axis(), PI))]
+#[case::z_180_degrees(Rotation3::from_axis_angle(&Vector3::z_axis(), PI))]
 fn scalar_observables_are_cardinal_rotation_invariant(
     basis: &BasisFile,
     references: &[ReferenceCase; 2],
-    cardinal_rotations: Just<[[f64; 3]; 7]>,
-    mut cardinal_runner: TestRunner,
+    #[case] rotation: Rotation3<f64>,
 ) {
-    cardinal_runner
-        .run(&cardinal_rotations, |angles| {
-            // Axis permutations and sign changes exercise Cartesian p orbitals.
-            for [roll, pitch, yaw] in angles {
-                check_rigid_motion(
-                    references,
-                    basis,
-                    Vector3::zeros(),
-                    Rotation3::from_euler_angles(roll, pitch, yaw),
-                )?;
-            }
-            Ok(())
-        })
+    check_rigid_motion(references, basis, Vector3::zeros(), rotation)
         .expect("cardinal rotations must preserve scalar observables");
 }
