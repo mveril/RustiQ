@@ -46,6 +46,11 @@ impl<T> Spin<T> {
     pub fn into_parts(self) -> (T, T) {
         (self.alpha, self.beta)
     }
+
+    /// Generates alpha and beta in order, stopping on the first error.
+    pub(crate) fn try_generate<E>(mut generate: impl FnMut() -> Result<T, E>) -> Result<Self, E> {
+        Ok(Self::new(generate()?, generate()?))
+    }
 }
 
 impl<T: Clone> Spin<T> {
@@ -72,6 +77,26 @@ mod tests {
 
     #[derive(Debug, PartialEq, Eq)]
     struct NotClone(&'static str);
+
+    #[test]
+    fn try_generate_preserves_spin_order_and_stops_on_error() {
+        let mut calls = 0;
+        let generated = Spin::<usize>::try_generate(|| {
+            calls += 1;
+            Ok::<_, &'static str>(calls)
+        })
+        .unwrap();
+        assert_eq!(generated.into_parts(), (1, 2));
+        assert_eq!(calls, 2);
+
+        let mut failed_calls = 0;
+        let failure = Spin::<usize>::try_generate(|| {
+            failed_calls += 1;
+            Err::<usize, _>("first component failed")
+        });
+        assert_eq!(failure.unwrap_err(), "first component failed");
+        assert_eq!(failed_calls, 1);
+    }
 
     #[test]
     fn as_ref_borrows_non_copy_non_clone_components_in_order() {
