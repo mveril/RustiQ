@@ -50,6 +50,11 @@ pub trait HfReference: sealed::Sealed + std::fmt::Debug + Clone {
     fn component_from_shared<T: std::fmt::Debug + Clone>(value: T) -> Self::Component<T>;
     /// Generate one component for restricted references and two for unrestricted references.
     /// Calls are ordered alpha then beta, preserving seeded alpha sequences.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by the generator, without generating any
+    /// subsequent components.
     fn try_generate_component<T: std::fmt::Debug + Clone, E>(
         generate: impl FnMut() -> Result<T, E>,
     ) -> Result<Self::Component<T>, E>;
