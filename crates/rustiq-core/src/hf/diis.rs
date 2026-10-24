@@ -5,6 +5,8 @@ use thiserror::Error;
 
 use crate::config::validated::DiisSize;
 
+use super::spin::Spin;
+
 #[derive(Debug, Error)]
 pub enum DiisError {
     #[error("DIIS history size must be at least 2, got {0}")]
@@ -46,6 +48,35 @@ impl DiisAccelerator {
     ) -> Option<DMatrix<f64>> {
         let error_matrix = Self::error_matrix(fock_matrix, density_matrix, overlap_matrix);
         self.extrapolate_with_error(fock_matrix, error_matrix)
+    }
+
+    /// Extrapolates both UHF spin channels with one shared set of DIIS weights.
+    pub(crate) fn extrapolate_spin(
+        &mut self,
+        fock: &Spin<&DMatrix<f64>>,
+        density: &Spin<&DMatrix<f64>>,
+        overlap: &DMatrix<f64>,
+    ) -> Option<Spin<DMatrix<f64>>> {
+        let n = fock.alpha().nrows();
+        let mut combined_fock = DMatrix::zeros(n, 2 * n);
+        combined_fock.columns_mut(0, n).copy_from(fock.alpha());
+        combined_fock.columns_mut(n, n).copy_from(fock.beta());
+
+        let mut combined_error = DMatrix::zeros(n, 2 * n);
+        combined_error
+            .columns_mut(0, n)
+            .copy_from(&Self::error_matrix(fock.alpha(), density.alpha(), overlap));
+        combined_error
+            .columns_mut(n, n)
+            .copy_from(&Self::error_matrix(fock.beta(), density.beta(), overlap));
+
+        self.extrapolate_with_error(&combined_fock, combined_error)
+            .map(|extrapolated| {
+                Spin::new(
+                    extrapolated.columns(0, n).into_owned(),
+                    extrapolated.columns(n, n).into_owned(),
+                )
+            })
     }
 
     pub(crate) fn extrapolate_with_error(

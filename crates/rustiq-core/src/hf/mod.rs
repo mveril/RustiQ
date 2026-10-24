@@ -3,6 +3,7 @@
 //! The public scientific conventions are documented in [`crate::calculation`].
 
 pub(crate) mod core;
+mod damping;
 pub(crate) mod density_guess;
 pub(crate) mod diis;
 pub(crate) mod integrals;

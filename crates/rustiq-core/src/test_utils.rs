@@ -1,5 +1,7 @@
 use std::fs::File;
 
+use nalgebra::DMatrix;
+
 use crate::{
     basis::{Basis, BasisFile, BasisStore},
     hf::{density_guess::one_electron::OneElectron, scf::ScfCalculation},
@@ -37,6 +39,34 @@ pub(crate) fn load_sample_geometry_in_bohr(path: &str) -> Geometry {
 pub(crate) fn load_sto3g_basis(geometry: &Geometry) -> Basis {
     let basis_file = load_minimal_basis_file();
     Basis::try_load(&basis_file, geometry).unwrap()
+}
+
+/// A normalized, charge-asymmetric determinant that exhibits SCF charge sloshing.
+/// In the symmetric orthonormal AO basis, the occupied orbital is (cos .3, sin .3).
+pub(crate) fn stretched_h2_rotated_orbitals() -> (Molecule, Basis, DMatrix<f64>) {
+    let mut geometry = load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+    geometry.atoms[0].position.z = -3.0;
+    geometry.atoms[1].position.z = 3.0;
+    let basis = load_sto3g_basis(&geometry);
+    let molecule = Molecule::try_new(geometry, Units::Bohr, 0, std::num::NonZeroU8::MIN).unwrap();
+    let eig = basis.overlap_ints().symmetric_eigen();
+    let inverse_sqrt = &eig.eigenvectors
+        * DMatrix::from_diagonal(&eig.eigenvalues.map(|value| value.sqrt().recip()))
+        * eig.eigenvectors.transpose();
+    let (sin, cos) = 0.3_f64.sin_cos();
+    let rotation = DMatrix::from_row_slice(2, 2, &[cos, -sin, sin, cos]);
+    (molecule, basis, inverse_sqrt * rotation)
+}
+
+/// Optional test bridge to live `PySCF` checks; no production export API.
+pub(crate) fn write_damping_reference(name: &str, value: &serde_json::Value) {
+    if let Some(directory) = std::env::var_os("RUSTIQ_DAMPING_OUTPUT") {
+        std::fs::write(
+            std::path::Path::new(&directory).join(format!("{name}.json")),
+            serde_json::to_vec(value).unwrap(),
+        )
+        .unwrap();
+    }
 }
 
 pub(crate) fn new_one_electron_scf<'a>(

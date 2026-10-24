@@ -66,6 +66,35 @@ Select the H₂/STO-3G RHF comparison without its MP2 variant:
 uv run --locked pytest tools/reference -k 'h2-sto-3g-rhf and not mp2'
 ```
 
+Validate the energy safeguard and optimal damping independently of converged
+reference energies:
+
+```sh
+uv run --locked pytest tools/reference/test_damping.py -q
+```
+
+These six comparisons run the production Rust damping regressions and export
+temporary density/Fock snapshots. PySCF rebuilds the physical Fock matrices,
+electronic energies and AO commutator residuals from those densities, scans 101
+points on each segment, and independently minimizes the rebuilt energy.
+Energy and Fock agreement use an absolute tolerance of `1e-9` (Hartree for
+energies); quadratic profiles use `1e-10` Hartree and populations use `1e-10`
+electrons. The basis contractions come from the same checked-in BSE STO-3G
+source, parsed and normalized independently by PySCF.
+
+The cases cover RHF and UHF charge sloshing in neutral H₂ at 6 bohr, including
+an ordinary uphill step without a DIIS extrapolation and a deliberately
+uphill DIIS proposal. The initial occupied orbital in the symmetric
+orthonormal AO basis is `(cos(0.3), sin(0.3))`. The resulting UHF mixture
+conserves both spin populations and has no determinant spin diagnostics.
+OH tests the coupled segment with unequal alpha and beta occupations.
+Two `Zero` startup cases use four-electron H₂ in the two-function basis: its
+positive electronic energy reproduces the population loss that would occur
+if the zero-electron sentinel were damped toward an occupied determinant.
+This dianion is a finite-basis regression, not a claim of physical binding.
+The segment minimum does not establish the global HF minimum; stretched H₂
+also has distinct stationary solutions with different spin symmetry.
+
 The H₂ matrix also covers the split-valence 6-31G and correlation-consistent
 cc-pVDZ basis sets:
 
