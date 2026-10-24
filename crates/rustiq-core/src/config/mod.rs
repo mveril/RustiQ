@@ -40,7 +40,8 @@ impl<T> Located<T> {
 }
 pub use hf::{
     DensityGuessConfig, DiisConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
-    HfMethodResolutionError, OrthogonalizationConfig, RandomGuessConfig, ResolvedHfMethod,
+    HfMethodConversionError, HfMethodResolutionError, OrthogonalizationConfig, RandomGuessConfig,
+    ResolvedHfMethod, RestrictedMethod, UnrestrictedMethod,
 };
 pub use integrals::{IntegralConfig, DEFAULT_ERI_SCHWARZ_THRESHOLD};
 

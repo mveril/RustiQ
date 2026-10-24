@@ -2,16 +2,17 @@
 //!
 //! The public scientific conventions are documented in [`crate::calculation`].
 
-pub(crate) mod component;
 pub(crate) mod core;
 pub(crate) mod density_guess;
 pub(crate) mod diis;
 pub(crate) mod integrals;
 pub(crate) mod numerical_error;
 pub(crate) mod orthogonalization;
+pub(crate) mod reference;
 pub(crate) mod scf;
 pub(crate) mod scf_energy_details;
 pub(crate) mod scf_iteration;
 pub(crate) mod scf_result;
 pub(crate) mod scf_setup;
+pub(crate) mod spin;
 pub(crate) mod uhf;

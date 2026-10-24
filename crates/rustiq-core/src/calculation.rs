@@ -3,7 +3,7 @@
 //! [`CalculationBuilder`] validates options, converts coordinates to Bohr, builds
 //! the basis and orchestrates HF/MP2. Its prepared inputs can be reused.
 //! [`PreparedCalculation::run_hf`] produces an owned [`HfOutcome`]. Its converged
-//! variant contains an [`HfSolution<Converged>`] reusable for MP2.
+//! variant contains an [`AnyHfSolution<Converged>`] reusable for MP2.
 //! Execution errors retain completed HF output. File loading remains with the caller.
 //!
 //! # Self-consistent field
@@ -76,8 +76,18 @@ use thiserror::Error;
 mod setup_error;
 pub use setup_error::HfSetupError;
 mod solution;
+pub use crate::config::{RestrictedMethod, UnrestrictedMethod};
 use crate::hf::scf_result::ScfOutcome;
-pub use solution::{CalculationExecutionError, Converged, HfOutcome, HfSolution, Unconverged};
+pub use crate::hf::{
+    reference::{
+        HfReference, MoCoefficients, Occupations, OrbitalEnergies, Restricted, Unrestricted,
+    },
+    spin::Spin,
+};
+pub use solution::{
+    AnyHfSolution, CalculationExecutionError, Converged, HfOutcome, HfSolution, RhfSolution,
+    UhfSolution, Unconverged,
+};
 mod artifact_reuse;
 mod builder;
 mod execution;

@@ -135,9 +135,89 @@ CLI TOML/Nickel adapter or another frontend
        one-electron integrals, overlap orthogonalization, AO ERI acquisition
        -> iterative SCF and final canonicalization
        -> HfOutcome::Converged or HfOutcome::Unconverged
-    -> converged HfSolution::mp2()
+    -> converged AnyHfSolution::mp2()
        blocked AO-to-MO integral transformation and MP2 correlation-energy evaluation
 ```
+
+`HfOutcome` tracks convergence, and each variant contains an
+`AnyHfSolution<State>` enum whose `Restricted` and `Unrestricted` variants hold
+`HfSolution<Restricted, State>` and `HfSolution<Unrestricted, State>` respectively.
+The aliases `RhfSolution<State = Converged>` and
+`UhfSolution<State = Converged>` shorten those concrete solution types. The default
+state parameter is `Converged`. For the common HF-to-MP2 path, use
+`let hf = prepared.run_hf()?.into_converged()?;` followed by `hf.mp2(config)`.
+`into_converged()` transfers the converged solution, or returns an execution error
+retaining the unconverged outcome through `into_hf()`. To inspect an outcome
+without consuming it, use `as_converged()` or `as_unconverged()`.
+On the resulting `AnyHfSolution<State>`, `as_restricted()` and
+`as_unrestricted()` borrow the concrete solution. `into_restricted()` and
+`into_unrestricted()` transfer it, returning the original enum in `Err` when the
+reference does not match. The owned `into_*` helpers delegate to `TryFrom`, so
+`AnyHfSolution::<Converged>::try_from(outcome)` and
+`RhfSolution::<State>::try_from(hf)` / `UhfSolution::<State>::try_from(hf)` expose
+the same errors and retained output through the standard conversion traits.
+The inverse `From` conversions wrap a typed RHF/UHF solution in
+`AnyHfSolution<State>`, or wrap an `AnyHfSolution<Converged>` /
+`AnyHfSolution<Unconverged>` in the matching `HfOutcome` variant. All these
+conversions also support `.try_into()` / `.into()`.
+These operations preserve the convergence state and
+avoid copying scientific arrays. For example,
+`outcome.as_converged().and_then(|hf| hf.as_restricted())` borrows a converged RHF
+solution without nested matches. The sealed `HfReference`
+trait associates a `Method` (`RestrictedMethod` or `UnrestrictedMethod`),
+`Component<T>` for coefficient data (`T` or `Spin<T>`), `OrbitalEnergies`, and
+`Occupations`. Coefficient, energy, and occupation representations are independent.
+For the supported RHF reference, `Restricted` uses one coefficient matrix, one
+energy vector, and a scalar `usize` occupied count. `Unrestricted` uses `Spin<T>`
+for coefficients, energies, and occupied counts. RHF cannot store contradictory
+alpha and beta counts because it has only one count. Typed solutions borrow the
+representations through read-only accessors; the aliases `MoCoefficients<R>`,
+`OrbitalEnergies<R>`, and `Occupations<R>` simplify their signatures. All five
+aliases are exported from `calculation` and the prelude. Cloning shares the
+retained arrays. Energy entries are in Hartree and correspond to coefficient
+columns; occupied counts select the first columns (one doubly occupied spatial
+count for RHF, separate electron counts for UHF). Unconverged orbital snapshots
+are diagnostic: they need not diagonalize the final Fock matrix or reproduce the
+last damped density and reported energy. Final canonicalization is guaranteed
+only for converged solutions.
+The reference contract and `Spin<T>` live in shared HF modules, independent of
+execution.
+
+Each reference profile fixes its data types at compile time. A future method
+requiring different occupation or energy representations must introduce an
+appropriate profile (or a profile parameter), even if it also shares spatial
+coefficients. Adding a method enum variant alone cannot change an associated type
+according to its runtime value. Keep method-family classification separate from
+profile compatibility when extending conversions. Such extensions are future
+work tracked in the [roadmap](https://github.com/mveril/RustiQ/blob/main/ROADMAP.md).
+
+Both method enums convert to `HfMethod` and `ResolvedHfMethod` using `From`/`Into`.
+Their inverse `TryFrom` conversions return `HfMethodConversionError` for an
+incompatible reference or unresolved `HfMethod::Auto`; resolve `Auto` with the
+molecular state before conversion. Only converged solutions expose `mp2()`, both
+through the runtime enum and through either concrete reference type. MP2 dispatch
+matches the method exhaustively, so adding another method requires an explicit
+choice of correlation implementation. This structure prepares for future
+extensions; the implemented methods remain RHF and UHF. MP2 errors retain the
+same typed reference inside `HfOutcome` for a later retry. See
+`crates/rustiq-core/tests/hf_solution.rs` for executable API examples.
+
+The complete offline example in `crates/rustiq-core/examples/hf_solution.rs`
+is also included directly in the `HfOutcome` API documentation. Run it from the
+repository root:
+
+```sh
+cargo run -p rustiq-chem-core --example hf_solution --no-default-features
+```
+
+It embeds the checked-in STO-3G basis and the H2 singlet and OH doublet geometries,
+with coordinates interpreted in Angstrom. It prints reference-specific occupied
+counts, total HF energies and MP2 correlation energies in Hartree. A deliberately
+invalid frozen-orbital count demonstrates error recovery: the example drops the
+original HF handle, extracts the retained output from the error using the standard
+conversion traits, and retries MP2 without rerunning HF. Unexpected failures
+propagate as errors. The example illustrates API ownership and error handling;
+the independent scientific comparisons remain separate verification procedures.
 
 `prepare()` constructs reusable input data; it does not compute integrals or
 solve HF. Each normal `run_hf()` call builds a new HF execution state, including

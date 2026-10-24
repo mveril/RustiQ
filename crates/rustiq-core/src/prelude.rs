@@ -20,7 +20,7 @@
 //! println!("HF energy: {}", result.hf.summary().scf.total_energy);
 //!
 //! // A new MP2 evaluation reuses the same HF orbitals and integrals.
-//! let HfOutcome::Converged(hf) = result.hf else { return Err("HF did not converge".into()); };
+//! let hf = result.hf.into_converged()?;
 //! let mp2 = hf.mp2(Mp2Config::default())?;
 //! println!("MP2 correlation: {}", mp2.correlation_energy);
 //! # Ok(())
@@ -30,9 +30,11 @@
 pub use crate::{
     basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution,
-        CalculationExecutionError, CalculationResult, Converged, HfOutcome, HfSolution,
-        PreparedCalculation, Unconverged,
+        AnyHfSolution, CalculationBuilder, CalculationError, CalculationEvent,
+        CalculationExecution, CalculationExecutionError, CalculationResult, Converged, HfOutcome,
+        HfReference, HfSolution, MoCoefficients, Occupations, OrbitalEnergies, PreparedCalculation,
+        Restricted, RestrictedMethod, RhfSolution, Spin, UhfSolution, Unconverged, Unrestricted,
+        UnrestrictedMethod,
     },
     config::{HfConfig, HfMethod, IntegralConfig, Located, MoleculeConfig, Mp2Config},
     molecules::{Atom, Geometry, GeometryParseError, Units},

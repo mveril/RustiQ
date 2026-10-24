@@ -27,10 +27,14 @@ fn prelude_supports_builder_and_prepared_execution() {
     assert_eq!(direct.mp2, mutable_result.mp2);
     let prepared: PreparedCalculation = builder.prepare().unwrap();
     let result = prepared.execute().unwrap();
-    let HfOutcome::Converged(hf) = result.hf else {
-        panic!("expected converged HF");
-    };
-    let hf: HfSolution<Converged> = hf;
+    let hf: AnyHfSolution<Converged> = result.hf.into_converged().unwrap();
+    let typed = hf.as_restricted().unwrap();
+    let typed: &RhfSolution = typed;
+    let coefficients: &MoCoefficients<Restricted> = typed.mo_coefficients();
+    let energies: &OrbitalEnergies<Restricted> = typed.orbital_energies();
+    let occupied: &Occupations<Restricted> = typed.occupied_orbitals();
+    assert_eq!(coefficients.ncols(), energies.len());
+    assert!(*occupied <= coefficients.ncols());
     assert_eq!(direct.mp2, result.mp2);
     assert_eq!(Some(hf.mp2(Mp2Config::default()).unwrap()), result.mp2);
 }
