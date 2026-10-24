@@ -29,8 +29,12 @@ where
         )?;
         writeln!(
             self.writer,
-            "{} total energy (without nuclear repulsion): {:.6} Hartree",
-            self.label, result.electronic_energy
+            "{} {} Hartree",
+            crate::cli::color::title(format!(
+                "{} total energy (without nuclear repulsion):",
+                self.label
+            )),
+            crate::cli::color::value(format!("{:.6}", result.electronic_energy))
         )?;
         writeln!(
             self.writer,
@@ -81,5 +85,42 @@ mod tests {
         let output = String::from_utf8(output).unwrap();
         assert!(output.contains("RHF MP2 correlation energy"));
         assert!(output.contains("RHF MP2 total energy (including nuclear repulsion)"));
+    }
+
+    #[test]
+    fn mp2_summary_colors_all_energy_values() {
+        let mut output = Vec::new();
+        crate::cli::color::with_test_color(clap::ColorChoice::Always, || {
+            Mp2Reporter::new(&mut output, "RHF MP2")
+                .write_summary(
+                    &Mp2Result {
+                        correlation_energy: -0.1,
+                        electronic_energy: -1.2,
+                    },
+                    &ScfResult {
+                        iterations: 1,
+                        electronic_energy: -1.1,
+                        nuclear_repulsion_energy: 0.3,
+                        total_energy: -0.8,
+                        delta_energy: 0.0,
+                        residual_norm: 0.0,
+                        spin: None,
+                        energy_details: rustiq_core::calculation::ScfEnergyDetails {
+                            kinetic_energy: 0.0,
+                            nuclear_attraction_energy: 0.0,
+                            electron_repulsion_energy: 0.0,
+                        },
+                        orthogonalization: rustiq_core::calculation::OrthogonalizationInfo::default(
+                        ),
+                        timings: rustiq_core::calculation::ScfTimings::default(),
+                    },
+                )
+                .unwrap();
+        });
+
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(output.matches("\x1b[1m\x1b[33m").count(), 3);
+        assert!(output
+            .contains("\x1b[1m\x1b[36mRHF MP2 total energy (without nuclear repulsion):\x1b[0m"));
     }
 }

@@ -13,6 +13,12 @@ The standard `run` report has three visible parts:
   rank, energy components, and timings. The H₂ sample's total HF energy is
   reported as `-1.116759` Hartree.
 
+With colors enabled, section titles are cyan, successful SCF convergence is
+green, and displayed energy values are yellow. The same energy-value styling is
+used for HF iteration values, energy components, and MP2 energies; residuals
+and other diagnostics remain uncolored. The `Calculation` heading follows the
+same title styling. TOML and XYZ use syntax highlighting.
+
 The original TOML and XYZ source text, along with full canonical views of the
 resolved configuration and geometry, are retained as internal representations;
 the standard CLI report does not display them.

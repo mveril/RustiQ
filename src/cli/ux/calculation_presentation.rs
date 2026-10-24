@@ -188,7 +188,8 @@ pub(crate) fn calculation_summary(prepared: &PreparedCalculation, geometry_path:
     };
 
     format!(
-        "Calculation\n  Geometry      {}\n  Atoms         {}\n  Charge        {}\n  Multiplicity  {}\n  Coordinates   {coordinates}\n  HF            {method}\n  Basis         {} ({} functions)",
+        "{}\n  Geometry      {}\n  Atoms         {}\n  Charge        {}\n  Multiplicity  {}\n  Coordinates   {coordinates}\n  HF            {method}\n  Basis         {} ({} functions)",
+        crate::cli::color::title("Calculation"),
         geometry_path.display(),
         molecule.geometry().atoms.len(),
         molecule.charge(),
@@ -294,6 +295,27 @@ mod tests {
         assert_eq!(source.calculation_name, "calculation.toml");
         assert_eq!(source.geometry_reference, Path::new("../molecule.xyz"));
         assert_eq!(source.geometry_path, Path::new("/workspace/molecule.xyz"));
+    }
+
+    #[test]
+    fn calculation_summary_uses_the_section_title_style() {
+        let geometry =
+            Geometry::from_source("input.xyz", "2\nH2\nH 0 0 -0.37\nH 0 0 0.37\n").unwrap();
+        let prepared = prepare("[molecule]\n[basis]\nname = 'sto-3g'\n", &geometry);
+        let render = |mode| {
+            crate::cli::color::with_test_color(mode, || {
+                calculation_summary(&prepared, Path::new("molecule.xyz"))
+            })
+        };
+        let plain = render(clap::ColorChoice::Never);
+        let colored = render(clap::ColorChoice::Always);
+
+        assert!(colored.starts_with("\x1b[1m\x1b[36mCalculation\x1b[0m\n"));
+        assert!(colored.ends_with("2 functions)"));
+        assert_eq!(
+            colored.replace("\x1b[1m\x1b[36mCalculation\x1b[0m", "Calculation"),
+            plain
+        );
     }
 
     #[test]
