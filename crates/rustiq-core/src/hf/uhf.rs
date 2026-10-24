@@ -277,17 +277,42 @@ impl<'a> UhfCalculation<'a> {
         let run_start = Instant::now();
         let iterations_start = Instant::now();
 
+        let mut pure_density = true;
         for i in 0..self.max_iterations {
             iterations = i + 1;
 
             if i == 0 {
                 self.update_fock_matrices();
             }
+            let previous_state = self.diis.as_ref().map(|_| {
+                (
+                    self.density.clone(),
+                    self.fock.clone(),
+                    self.calculate_total_energy_from_current_fock(),
+                )
+            });
             self.apply_diis_if_enabled();
             self.solve_roothaan_hall_equations()?;
             self.update_density_matrices();
             self.update_residual_norm_and_next_fock();
             self.update_total_energy_from_current_fock();
+
+            pure_density = true;
+            if let Some((previous_density, previous_fock, previous_energy)) = previous_state {
+                let roundoff = 64.0 * f64::EPSILON * previous_energy.abs().max(1.0);
+                if self.energy > previous_energy + roundoff {
+                    self.diis
+                        .as_mut()
+                        .expect("DIIS history exists during damping")
+                        .clear();
+                    self.fock = previous_fock.clone();
+                    self.solve_roothaan_hall_equations()?;
+                    self.update_density_matrices();
+                    self.update_residual_norm_and_next_fock();
+                    let fraction = self.apply_optimal_damping(&previous_density, &previous_fock)?;
+                    pure_density = fraction >= 1.0;
+                }
+            }
 
             ensure_finite_value(self.energy, "UHF electronic energy")?;
             ensure_finite_value(self.residual_norm, "UHF residual norm")?;
@@ -301,7 +326,8 @@ impl<'a> UhfCalculation<'a> {
                 residual_norm: self.residual_norm,
             });
 
-            if delta_energy < self.convergence_threshold
+            if pure_density
+                && delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
             {
                 termination = ScfTermination::Converged;
@@ -320,7 +346,8 @@ impl<'a> UhfCalculation<'a> {
         let total_energy = self.energy + nuclear_repulsion;
         let final_energy_details_start = Instant::now();
         let energy_details = self.calculate_energy_details();
-        let spin = self.spin_diagnostics()?;
+        // Mixed densities do not define the candidate orbital determinant.
+        let spin = pure_density.then(|| self.spin_diagnostics()).transpose()?;
         self.timings.final_energy_details = final_energy_details_start.elapsed();
         self.timings.total = run_start.elapsed() + self.timings.setup.total;
 
@@ -331,7 +358,7 @@ impl<'a> UhfCalculation<'a> {
             total_energy,
             delta_energy,
             residual_norm: self.residual_norm,
-            spin: Some(spin),
+            spin,
             energy_details,
             orthogonalization: self.orthogonalization,
             timings: self.timings.clone(),
@@ -383,6 +410,41 @@ impl<'a> UhfCalculation<'a> {
 
     fn update_fock_matrices(&mut self) {
         self.fock = self.build_fock_matrices(&self.density);
+    }
+
+    fn apply_optimal_damping(
+        &mut self,
+        previous_density: &SpinMatrices,
+        previous_fock: &SpinMatrices,
+    ) -> Result<f64, NumericalError> {
+        let fraction = super::damping::damping_fraction([
+            (
+                &previous_density.alpha,
+                &self.density.alpha,
+                &previous_fock.alpha,
+                &self.fock.alpha,
+            ),
+            (
+                &previous_density.beta,
+                &self.density.beta,
+                &previous_fock.beta,
+                &self.fock.beta,
+            ),
+        ])?;
+        self.density = previous_density
+            .as_ref()
+            .zip_map(self.density.as_ref(), |old, new| {
+                old + (new - old) * fraction
+            });
+        self.fock = previous_fock
+            .as_ref()
+            .zip_map(self.fock.as_ref(), |old, new| old + (new - old) * fraction);
+        self.residual_norm =
+            scf_residual_norm(&self.fock.alpha, &self.density.alpha, &self.overlap_matrix).hypot(
+                scf_residual_norm(&self.fock.beta, &self.density.beta, &self.overlap_matrix),
+            );
+        self.update_total_energy_from_current_fock();
+        Ok(fraction)
     }
 
     fn apply_diis_if_enabled(&mut self) {
@@ -623,6 +685,116 @@ mod tests {
         test_utils,
     };
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn coupled_damping_matches_rebuilt_energy_on_segment() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::Units::Bohr,
+            0,
+            std::num::NonZeroU8::new(2).unwrap(),
+        )
+        .unwrap();
+        let mut uhf =
+            UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
+                .unwrap();
+        uhf.update_fock_matrices();
+        let old_density = uhf.density.clone();
+        let old_fock = uhf.fock.clone();
+        let old_energy = uhf.calculate_total_energy_from_current_fock();
+        uhf.solve_roothaan_hall_equations().unwrap();
+        uhf.update_density_matrices();
+        uhf.update_fock_matrices();
+        let candidate = uhf.density.clone();
+        let da = &candidate.alpha - &old_density.alpha;
+        let db = &candidate.beta - &old_density.beta;
+        let slope = da.dot(&old_fock.alpha) + db.dot(&old_fock.beta);
+        let curvature = f64::midpoint(
+            da.dot(&(&uhf.fock.alpha - &old_fock.alpha)),
+            db.dot(&(&uhf.fock.beta - &old_fock.beta)),
+        );
+        uhf.apply_optimal_damping(&old_density, &old_fock).unwrap();
+        let minimum = uhf.energy;
+        for i in 0..=100 {
+            let t = f64::from(i) / 100.0;
+            uhf.density = old_density
+                .as_ref()
+                .zip_map(candidate.as_ref(), |old, new| old + (new - old) * t);
+            uhf.update_fock_matrices();
+            let actual = uhf.calculate_total_energy_from_current_fock();
+            assert_abs_diff_eq!(
+                actual,
+                old_energy + slope * t + curvature * t * t,
+                epsilon = 1e-10
+            );
+            assert!(minimum <= actual + 1e-10);
+        }
+    }
+
+    #[test]
+    fn uphill_diis_is_rejected_and_uhf_recovers() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::Units::Bohr,
+            0,
+            std::num::NonZeroU8::new(2).unwrap(),
+        )
+        .unwrap();
+        let mut uhf =
+            UhfCalculation::new(&molecule, &basis, 1, 1e-8, 1e-8, OneElectron::default()).unwrap();
+        uhf.update_fock_matrices();
+        let previous_energy = uhf.calculate_total_energy_from_current_fock();
+        let previous_density = uhf.density.clone();
+        let n = basis.nbasis();
+        let mut bad_fock = DMatrix::zeros(n, 2 * n);
+        bad_fock.columns_mut(0, n).copy_from(&(-&uhf.fock.alpha));
+        bad_fock.columns_mut(n, n).copy_from(&(-&uhf.fock.beta));
+        uhf.fock.alpha = bad_fock.columns(0, n).into_owned();
+        uhf.fock.beta = bad_fock.columns(n, n).into_owned();
+        uhf.solve_roothaan_hall_equations().unwrap();
+        uhf.update_density_matrices();
+        uhf.update_fock_matrices();
+        assert!(uhf.calculate_total_energy_from_current_fock() > previous_energy + 1.0);
+        uhf.density = previous_density;
+        uhf.enable_diis(6).unwrap();
+        uhf.diis
+            .as_mut()
+            .unwrap()
+            .extrapolate_with_error(&bad_fock, DMatrix::zeros(n, 2 * n));
+        let first = uhf.run().unwrap();
+        assert!(matches!(first, ScfOutcome::Unconverged(_)));
+        assert!(first.summary().electronic_energy <= previous_energy + 1e-12);
+        let rebuilt = uhf.build_fock_matrices(&uhf.density);
+        assert_abs_diff_eq!(uhf.fock.alpha, rebuilt.alpha, epsilon = 1e-12);
+        assert_abs_diff_eq!(uhf.fock.beta, rebuilt.beta, epsilon = 1e-12);
+        assert_abs_diff_eq!(
+            uhf.density.alpha.dot(&uhf.overlap_matrix),
+            5.0,
+            epsilon = 1e-10
+        );
+        assert_abs_diff_eq!(
+            uhf.density.beta.dot(&uhf.overlap_matrix),
+            4.0,
+            epsilon = 1e-10
+        );
+        uhf.max_iterations = 100;
+        let recovered = uhf.run().unwrap();
+        assert!(matches!(recovered, ScfOutcome::Converged(_)));
+        let mut reference =
+            UhfCalculation::new(&molecule, &basis, 100, 1e-8, 1e-8, OneElectron::default())
+                .unwrap();
+        let reference = reference.run().unwrap();
+        assert_abs_diff_eq!(
+            recovered.summary().electronic_energy,
+            reference.summary().electronic_energy,
+            epsilon = 1e-8
+        );
+        assert_final_densities_match_canonical_orbitals(&uhf, 1e-8);
+    }
 
     fn perturbed_core_guess(seed: u64, std_dev: f64) -> CoreHamiltonian {
         CoreHamiltonian::new(Some(GuessPerturbationConfig {

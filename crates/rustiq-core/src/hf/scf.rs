@@ -402,13 +402,12 @@ impl<'a> ScfCalculation<'a> {
     ) -> Result<f64, NumericalError> {
         let density_step = &self.density_matrix - previous_density;
         let fock_step = &self.fock_matrix - previous_fock;
-        // P includes both spins. Since F(P) is affine, the energy change is
-        // exactly slope * t + curvature * t^2 for 0 <= t <= 1.
-        let slope = density_step.dot(previous_fock);
-        let curvature = 0.5 * density_step.dot(&fock_step);
-        ensure_finite_value(slope, "optimal damping slope")?;
-        ensure_finite_value(curvature, "optimal damping curvature")?;
-        let fraction = Self::optimal_damping_fraction(slope, curvature);
+        let fraction = super::damping::damping_fraction([(
+            previous_density,
+            &self.density_matrix,
+            previous_fock,
+            &self.fock_matrix,
+        )])?;
         self.density_matrix = previous_density + density_step * fraction;
         self.fock_matrix = previous_fock + fock_step * fraction;
         self.residual_norm = Self::scf_residual_norm(
@@ -418,16 +417,6 @@ impl<'a> ScfCalculation<'a> {
         );
         self.update_total_energy_from_current_fock();
         Ok(fraction)
-    }
-
-    fn optimal_damping_fraction(slope: f64, curvature: f64) -> f64 {
-        if curvature > 0.0 {
-            (-0.5 * (slope / curvature)).clamp(0.0, 1.0)
-        } else if slope + curvature <= 0.0 {
-            1.0
-        } else {
-            0.0
-        }
     }
 
     fn apply_diis_if_enabled(&mut self) {
@@ -644,7 +633,7 @@ mod tests {
             (1.0, -2.0, 1.0),
             (3.0, -2.0, 0.0),
         ] {
-            let fraction = ScfCalculation::optimal_damping_fraction(slope, curvature);
+            let fraction = super::super::damping::optimal_damping_fraction(slope, curvature);
             assert_abs_diff_eq!(fraction, expected, epsilon = 1e-15);
             let energy = slope * fraction + curvature * fraction * fraction;
             for index in 0..=100 {

@@ -83,6 +83,18 @@ route, not the HF model.
 The DIIS method is associated with Pulay's extrapolation approach
 ([Pulay, 1982](https://onlinelibrary.wiley.com/doi/10.1002/jcc.540030413)).
 
+RHF and UHF share safeguards against excessive DIIS weights. If a DIIS
+proposal raises the electronic energy beyond a roundoff allowance, its history
+is cleared and a step from the physical Fock operator is damped by minimizing
+the HF energy along the density segment. UHF uses one common mixing fraction
+for both spins, including their Coulomb coupling. Mixing normalized endpoint densities
+preserves each spin population but need not give a single determinant; a damped step cannot
+by itself establish convergence. If an unconverged run ends on a mixed UHF
+density, determinant spin diagnostics are omitted. These safeguards do not guarantee the global
+HF minimum or stability against spin symmetry breaking.
+For background on UHF damping, see
+[Yamamoto and Mochizuki (2014)](https://doi.org/10.1273/cbij.14.14).
+
 The default maximum is 100 iterations. The default `convergence_threshold` is
 \\(10^{-8}\\). Both the absolute change in electronic energy between iterations
 and the Frobenius norm of the AO commutator residual must fall below this
