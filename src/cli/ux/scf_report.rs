@@ -50,9 +50,9 @@ where
         }
         writeln!(
             self.writer,
-            "{} {:.6e} Hartree",
+            "{} {} Hartree",
             color::title("SCF delta energy:"),
-            result.delta_energy
+            color::value(format!("{:.6e}", result.delta_energy))
         )?;
         writeln!(
             self.writer,
@@ -62,13 +62,13 @@ where
         )?;
         writeln!(
             self.writer,
-            "Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
-            result.electronic_energy
+            "Total SCF Energy (without nuclear repulsion): {} Hartree",
+            color::value(format!("{:.6}", result.electronic_energy))
         )?;
         writeln!(
             self.writer,
-            "Nuclear Repulsion Energy: {:.6} Hartree",
-            result.nuclear_repulsion_energy
+            "Nuclear Repulsion Energy: {} Hartree",
+            color::value(format!("{:.6}", result.nuclear_repulsion_energy))
         )?;
         writeln!(
             self.writer,
@@ -101,23 +101,29 @@ where
         writeln!(self.writer, "{}", color::title("Energy Details:"))?;
         writeln!(
             self.writer,
-            "  Kinetic Energy: {:.6} Hartree",
-            result.energy_details.kinetic_energy
+            "  Kinetic Energy: {} Hartree",
+            color::value(format!("{:.6}", result.energy_details.kinetic_energy))
         )?;
         writeln!(
             self.writer,
-            "  Nuclear Attraction Energy: {:.6} Hartree",
-            result.energy_details.nuclear_attraction_energy
+            "  Nuclear Attraction Energy: {} Hartree",
+            color::value(format!(
+                "{:.6}",
+                result.energy_details.nuclear_attraction_energy
+            ))
         )?;
         writeln!(
             self.writer,
-            "  Electron Repulsion Energy: {:.6} Hartree",
-            result.energy_details.electron_repulsion_energy
+            "  Electron Repulsion Energy: {} Hartree",
+            color::value(format!(
+                "{:.6}",
+                result.energy_details.electron_repulsion_energy
+            ))
         )?;
         writeln!(
             self.writer,
-            "  Total SCF Energy (without nuclear repulsion): {:.6} Hartree",
-            result.electronic_energy
+            "  Total SCF Energy (without nuclear repulsion): {} Hartree",
+            color::value(format!("{:.6}", result.electronic_energy))
         )?;
         writeln!(self.writer, "{}", color::title("Timings:"))?;
         writeln!(
@@ -188,10 +194,10 @@ where
         self.write_header().and_then(|()| {
             writeln!(
                 self.writer,
-                "{:>4} {:>18.10} {:>14.6e} {:>14.6e}",
+                "{:>4} {} {} {:>14.6e}",
                 iteration.iteration,
-                iteration.electronic_energy,
-                iteration.delta_energy,
+                color::value(format!("{:>18.10}", iteration.electronic_energy)),
+                color::value(format!("{:>14.6e}", iteration.delta_energy)),
                 iteration.residual_norm
             )
         })
@@ -249,6 +255,39 @@ mod tests {
     }
 
     #[test]
+    fn scf_summary_colors_each_energy_value() {
+        let mut output = Vec::new();
+        color::with_test_color(ColorChoice::Always, || {
+            ScfReporter::new(&mut output)
+                .write_summary(
+                    &ScfResult {
+                        iterations: 1,
+                        electronic_energy: -1.0,
+                        nuclear_repulsion_energy: 0.2,
+                        total_energy: -0.8,
+                        delta_energy: 1.0,
+                        residual_norm: 0.1,
+                        spin: None,
+                        energy_details: ScfEnergyDetails {
+                            kinetic_energy: 0.3,
+                            nuclear_attraction_energy: -1.5,
+                            electron_repulsion_energy: 0.2,
+                        },
+                        orthogonalization: OrthogonalizationInfo::default(),
+                        timings: ScfTimings::default(),
+                    },
+                    true,
+                )
+                .unwrap();
+        });
+
+        let output = String::from_utf8(output).unwrap();
+        assert_eq!(output.matches("\x1b[1m\x1b[33m").count(), 8);
+        assert!(output.contains("SCF residual norm:"));
+        assert!(!output.contains("\x1b[1m\x1b[33m1.000000e-1"));
+    }
+
+    #[test]
     fn scf_header_keeps_alignment_when_colored() {
         let render = |mode| {
             color::with_test_color(mode, || {
@@ -261,12 +300,7 @@ mod tests {
                         residual_norm: 0.0,
                     })
                     .unwrap();
-                String::from_utf8(output)
-                    .unwrap()
-                    .lines()
-                    .next()
-                    .unwrap()
-                    .to_owned()
+                String::from_utf8(output).unwrap()
             })
         };
         let plain = render(ColorChoice::Never);
@@ -288,10 +322,11 @@ mod tests {
             visible
         };
         assert_eq!(
-            plain,
-            "iter             E_elec        delta_E       residual"
+            plain.lines().next(),
+            Some("iter             E_elec        delta_E       residual")
         );
         assert!(colored.contains("\x1b["));
         assert_eq!(strip_ansi(&colored), plain);
+        assert_eq!(colored.matches("\x1b[1m\x1b[33m").count(), 2);
     }
 }
