@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// An HF solution whose reference is selected at runtime.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum AnyHfSolution<State = Converged> {
     Restricted(RhfSolution<State>),
     Unrestricted(UhfSolution<State>),
@@ -51,8 +51,23 @@ struct HfData<R: HfReference> {
 /// use rustiq_core::calculation::{HfSolution, Restricted, Unrestricted};
 /// fn invalid(hf: HfSolution<Restricted>) -> HfSolution<Unrestricted> { hf }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct HfSolution<R: HfReference, State = Converged>(Arc<HfData<R>>, PhantomData<State>);
+
+impl<R: HfReference, State> Clone for HfSolution<R, State> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0), PhantomData)
+    }
+}
+
+impl<State> Clone for AnyHfSolution<State> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Restricted(solution) => Self::Restricted(solution.clone()),
+            Self::Unrestricted(solution) => Self::Unrestricted(solution.clone()),
+        }
+    }
+}
 
 /// Restricted closed-shell HF solution, converged by default.
 pub type RhfSolution<State = Converged> = HfSolution<Restricted, State>;
@@ -536,5 +551,21 @@ impl HfSolution<Unrestricted, Converged> {
     /// Returns an error retaining HF if the MP2 inputs or computation are invalid.
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         AnyHfSolution::from(self.clone()).mp2(config)
+    }
+}
+
+#[cfg(test)]
+mod clone_tests {
+    use super::{AnyHfSolution, HfSolution};
+    use crate::hf::reference::Restricted;
+
+    struct NonCloneState;
+
+    #[test]
+    fn solutions_are_cloneable_without_cloning_the_state_marker() {
+        fn assert_clone<T: Clone>() {}
+
+        assert_clone::<HfSolution<Restricted, NonCloneState>>();
+        assert_clone::<AnyHfSolution<NonCloneState>>();
     }
 }
