@@ -48,9 +48,7 @@ impl<T> Spin<T> {
     }
 
     /// Generates alpha and beta in order, stopping on the first error.
-    pub(crate) fn try_generate<E>(
-        mut generate: impl FnMut() -> Result<T, E>,
-    ) -> Result<Self, E> {
+    pub(crate) fn try_generate<E>(mut generate: impl FnMut() -> Result<T, E>) -> Result<Self, E> {
         Ok(Self::new(generate()?, generate()?))
     }
 }
