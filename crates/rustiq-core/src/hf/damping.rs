@@ -13,6 +13,9 @@ pub(super) struct DensitySegment<'a> {
 
 /// All channels use the same fraction, retaining the interspin Coulomb terms.
 /// Each density uses its physical occupation convention (spin-summed for RHF).
+/// The Fock matrices must be physical operators for their endpoint densities.
+/// Population conservation additionally requires equally populated endpoints;
+/// the SCF loops exclude the Zero startup sentinel before calling this routine.
 pub(super) fn damping_fraction<'a>(
     channels: impl IntoIterator<Item = DensitySegment<'a>>,
 ) -> Result<f64, NumericalError> {
@@ -37,5 +40,64 @@ pub(super) fn optimal_damping_fraction(slope: f64, curvature: f64) -> f64 {
         1.0
     } else {
         0.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn tiny_curvature_needs_no_arbitrary_cutoff() {
+        for scale in [1.0, f64::EPSILON, f64::MIN_POSITIVE, f64::from_bits(8)] {
+            assert_abs_diff_eq!(optimal_damping_fraction(-scale, scale), 0.5, epsilon = 0.0);
+            assert_abs_diff_eq!(
+                optimal_damping_fraction(-3.0 * scale, scale),
+                1.0,
+                epsilon = 0.0
+            );
+            assert_abs_diff_eq!(optimal_damping_fraction(scale, scale), 0.0, epsilon = 0.0);
+        }
+        // A finite slope divided by subnormal curvature may overflow; the
+        // correctly clamped minimizer is still the appropriate endpoint.
+        assert_abs_diff_eq!(
+            optimal_damping_fraction(-1.0, f64::from_bits(1)),
+            1.0,
+            epsilon = 0.0
+        );
+        assert_abs_diff_eq!(
+            optimal_damping_fraction(1.0, f64::from_bits(1)),
+            0.0,
+            epsilon = 0.0
+        );
+        assert_abs_diff_eq!(optimal_damping_fraction(0.0, 0.0), 1.0, epsilon = 0.0);
+        assert_abs_diff_eq!(optimal_damping_fraction(2.0, -2.0), 1.0, epsilon = 0.0);
+    }
+
+    #[test]
+    fn rejects_nonfinite_slopes_and_curvatures() {
+        let zero = DMatrix::zeros(1, 1);
+        let one = DMatrix::identity(1, 1);
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let nonfinite = DMatrix::from_element(1, 1, value);
+            for (previous_fock, fock) in [(&nonfinite, &one), (&zero, &nonfinite)] {
+                assert!(damping_fraction([DensitySegment {
+                    previous_density: &zero,
+                    density: &one,
+                    previous_fock,
+                    fock,
+                }])
+                .is_err());
+            }
+        }
+        let huge = DMatrix::from_element(1, 1, f64::MAX);
+        assert!(damping_fraction([DensitySegment {
+            previous_density: &zero,
+            density: &one,
+            previous_fock: &huge,
+            fock: &(-&huge),
+        }])
+        .is_err());
     }
 }

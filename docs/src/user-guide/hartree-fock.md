@@ -83,11 +83,19 @@ route, not the HF model.
 The DIIS method is associated with Pulay's extrapolation approach
 ([Pulay, 1982](https://onlinelibrary.wiley.com/doi/10.1002/jcc.540030413)).
 
-RHF and UHF share safeguards against excessive DIIS weights. If a DIIS
-proposal raises the electronic energy beyond a roundoff allowance, its history
-is cleared and a step from the physical Fock operator is damped by minimizing
-the HF energy along the density segment. For spin channel \\(\sigma\\), let
-\\(P_\\sigma^{(0)}\\) be the density before the DIIS proposal and
+Enabling DIIS also enables an energy safeguard in RHF and UHF. Once the
+density has the required electron populations, a step that raises the
+electronic energy beyond a roundoff allowance clears the DIIS history and
+triggers optimal damping. This includes ordinary SCF steps when DIIS has too
+little usable history to extrapolate: diagonalizing the physical Fock matrix
+minimizes a linearized energy, and can still raise the full HF energy.
+For a rejected DIIS extrapolation, the candidate is first recomputed from the
+physical Fock operator. An ordinary step already supplies that candidate.
+The `Zero` guess is a startup sentinel without the required electrons, so its
+first step is not damped; occupied orbitals establish the electron populations.
+
+Optimal damping minimizes the HF energy along a density segment. For spin
+channel \\(\sigma\\), let \\(P_\\sigma^{(0)}\\) be the density before the step and
 \\(P_\\sigma^{(1)}\\) the density obtained by diagonalizing the physical Fock
 operator. The damped density is
 
@@ -105,17 +113,26 @@ along this segment is quadratic:
    \\mathrm{curvature} = \\frac{1}{2}\\sum_\\sigma \\operatorname{Tr}
    [\\Delta P_\\sigma \\Delta F_\\sigma], \\]
 
-where \\(\\Delta P_\\sigma=P_\\sigma^{(1)}-P_\\sigma^{(0)}\\) and
+Here \\(F_\\sigma^{(k)}\\) is the physical Fock operator built from the
+endpoint densities; each UHF Fock operator depends on both spin channels.
+Also, \\(\\Delta P_\\sigma=P_\\sigma^{(1)}-P_\\sigma^{(0)}\\) and
 \\(\\Delta F_\\sigma=F_\\sigma^{(1)}-F_\\sigma^{(0)}\\). For RHF, the
 sum has one spin-summed density and its Fock matrix; for UHF, it runs over
 \\(\\sigma\\in\\{\\alpha,\\beta\\}\\). The UHF terms use one shared
 \\(t\\), so \\(\\mathrm{curvature}\\) includes the Coulomb coupling between the spin channels.
-The implementation chooses \\(t\\) that minimizes \\(E(t)\\) on \\([0,1]\\).
+The implementation chooses \\(t\\) that minimizes \\(E(t)\\) on this common
+segment, \\([0,1]\\), rather than varying the two spin fractions independently.
+Electron populations in the AO basis are \\(N_\\sigma=\\operatorname{Tr}(P_\\sigma S)\\),
+or \\(N=\\operatorname{Tr}(PS)\\) for the RHF spin-summed density.
 When both endpoint densities have the required electron populations, their
 mixture preserves those populations, though it need not represent a single
-determinant. A damped step cannot by itself establish convergence. If an
-unconverged run ends on a mixed UHF density, determinant spin diagnostics are
-omitted. These safeguards do not guarantee the global HF minimum or stability
+determinant. Convergence and determinant spin diagnostics require the stored
+density to be represented by the current orbitals. An interior mixture generally
+does not represent the candidate determinant. If damping retains the previous endpoint
+(\\(t=0\\)), its density also need not match the newly computed orbitals;
+spin diagnostics are omitted in that case too. The undamped candidate
+(\\(t=1\\)) retains its orbital representation. These safeguards do not
+guarantee the global HF minimum or stability
 against spin symmetry breaking.
 For background on UHF damping, see
 [Yamamoto and Mochizuki (2014)](https://doi.org/10.1273/cbij.14.14).
@@ -148,7 +165,8 @@ absolute energy tolerance of \\(2\times10^{-10}\\) Hartree; the CLI test checks
 the rounded value. See [reference comparison coverage](../scientific-scope.md#reference-comparisons)
 and the [output guide](../getting-started/output.md).
 
-For UHF, the output includes \\(\langle S^2\rangle\\) and its deviation from the
+When determinant spin diagnostics are available, UHF output includes
+\\(\langle S^2\rangle\\) and its deviation from the
 requested spin state's ideal value. A nonzero deviation is called spin
 contamination. For a requested spin \\(S=(M-1)/2\\), where \\(M\\) is
 multiplicity, the ideal expectation is \\(S(S+1)\\) in units of \\(\hbar^2\\).

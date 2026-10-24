@@ -55,6 +55,8 @@ pub struct ScfCalculation<'a> {
     pub(crate) orbital_energies: DVector<f64>,
     /// Current electron density matrix.
     pub(crate) density_matrix: DMatrix<f64>,
+    /// False only for the Zero startup sentinel; orbital updates establish N.
+    density_has_required_population: bool,
     /// Fock matrix.
     pub(crate) fock_matrix: DMatrix<f64>,
     /// Current SCF residual norm from F(P) P S - S P F(P).
@@ -189,6 +191,7 @@ impl<'a> ScfCalculation<'a> {
         let orbital_guess = density_guess_builder
             .build_orbital_guess(&h_core, basis)
             .map_err(ScfSetupError::DensityGuess)?;
+        let density_has_required_population = !matches!(&orbital_guess, OrbitalGuess::Zero);
         let (density_matrix, mo_coefficients, orbital_energies) = match orbital_guess {
             OrbitalGuess::CommonFockLike(fock_like)
             | OrbitalGuess::UnrestrictedFockLike(crate::hf::uhf::Spin {
@@ -222,6 +225,7 @@ impl<'a> ScfCalculation<'a> {
             mo_coefficients,
             orbital_energies,
             density_matrix,
+            density_has_required_population,
             fock_matrix,
             residual_norm: f64::INFINITY,
             diis: None,
@@ -295,14 +299,20 @@ impl<'a> ScfCalculation<'a> {
             if i == 0 {
                 self.update_fock_matrix();
             }
-            let previous_state = self.diis.as_ref().map(|_| {
-                (
-                    self.density_matrix.clone(),
-                    self.fock_matrix.clone(),
-                    self.calculate_total_energy_from_current_fock(),
-                )
-            });
-            self.apply_diis_if_enabled();
+            // ODA also stabilizes uphill ordinary SCF steps when DIIS has no
+            // usable extrapolation. Never mix the Zero sentinel with N electrons.
+            let previous_state = self
+                .diis
+                .as_ref()
+                .filter(|_| self.density_has_required_population)
+                .map(|_| {
+                    (
+                        self.density_matrix.clone(),
+                        self.fock_matrix.clone(),
+                        self.calculate_total_energy_from_current_fock(),
+                    )
+                });
+            let diis_extrapolated = self.apply_diis_if_enabled();
 
             // b. Solve Roothaan-Hall equation and update MO coefficients
             self.solve_roothaan_hall_equation()?;
@@ -314,28 +324,30 @@ impl<'a> ScfCalculation<'a> {
             self.update_residual_norm_and_next_fock();
 
             self.update_total_energy_from_current_fock();
-            let mut pure_density = true;
+            let mut density_matches_orbitals = true;
             if let Some((previous_density, previous_fock, previous_energy)) = previous_state {
                 let roundoff = 64.0 * f64::EPSILON * previous_energy.abs().max(1.0);
                 if self.energy > previous_energy + roundoff {
-                    // An uphill DIIS proposal can perpetuate charge sloshing.
-                    // Restart from the physical F(P), then minimize the RHF
-                    // energy along the resulting density segment (optimal damping).
+                    // Charge sloshing can raise even an ordinary step's energy.
+                    // For DIIS, first recover the physical-Fock candidate;
+                    // otherwise that candidate is already available.
                     self.diis
                         .as_mut()
-                        .expect("DIIS history exists when a DIIS proposal is damped")
+                        .expect("DIIS is enabled during energy safeguarding")
                         .clear();
-                    self.fock_matrix = previous_fock.clone();
-                    self.solve_roothaan_hall_equation()?;
-                    self.update_density_matrix();
-                    self.update_residual_norm_and_next_fock();
+                    if diis_extrapolated {
+                        self.fock_matrix = previous_fock.clone();
+                        self.solve_roothaan_hall_equation()?;
+                        self.update_density_matrix();
+                        self.update_residual_norm_and_next_fock();
+                    }
                     let fraction = self.apply_optimal_damping(&previous_density, &previous_fock)?;
                     #[allow(
                         clippy::float_cmp,
                         reason = "Exactly one marks the undamped endpoint, not approximate numerical convergence"
                     )]
                     {
-                        pure_density = fraction == 1.0;
+                        density_matches_orbitals = fraction == 1.0;
                     }
                 }
             }
@@ -353,7 +365,7 @@ impl<'a> ScfCalculation<'a> {
             };
             observer(&iteration);
 
-            if pure_density
+            if density_matches_orbitals
                 && delta_energy < self.convergence_threshold
                 && self.residual_norm < self.convergence_threshold
             {
@@ -400,16 +412,20 @@ impl<'a> ScfCalculation<'a> {
         previous_density: &DMatrix<f64>,
         previous_fock: &DMatrix<f64>,
     ) -> Result<f64, NumericalError> {
-        let density_step = &self.density_matrix - previous_density;
-        let fock_step = &self.fock_matrix - previous_fock;
         let fraction = super::damping::damping_fraction([super::damping::DensitySegment {
             previous_density,
             density: &self.density_matrix,
             previous_fock,
             fock: &self.fock_matrix,
         }])?;
-        self.density_matrix = previous_density + density_step * fraction;
-        self.fock_matrix = previous_fock + fock_step * fraction;
+        if fraction == 0.0 {
+            self.density_matrix = previous_density.clone();
+            self.fock_matrix = previous_fock.clone();
+        } else if fraction < 1.0 {
+            self.density_matrix =
+                previous_density + (&self.density_matrix - previous_density) * fraction;
+            self.fock_matrix = previous_fock + (&self.fock_matrix - previous_fock) * fraction;
+        }
         self.residual_norm = Self::scf_residual_norm(
             &self.fock_matrix,
             &self.density_matrix,
@@ -419,7 +435,8 @@ impl<'a> ScfCalculation<'a> {
         Ok(fraction)
     }
 
-    fn apply_diis_if_enabled(&mut self) {
+    /// Returns whether a genuine extrapolation replaced the physical Fock.
+    fn apply_diis_if_enabled(&mut self) -> bool {
         if let Some(diis) = &mut self.diis {
             if let Some(fock_matrix) = diis.extrapolate(
                 &self.fock_matrix,
@@ -427,8 +444,10 @@ impl<'a> ScfCalculation<'a> {
                 &self.overlap_matrix,
             ) {
                 self.fock_matrix = fock_matrix;
+                return true;
             }
         }
+        false
     }
 
     fn solve_roothaan_hall_equation(&mut self) -> Result<(), NumericalError> {
@@ -487,6 +506,7 @@ impl<'a> ScfCalculation<'a> {
 
     fn update_density_matrix(&mut self) {
         self.density_matrix = self.calculate_density_matrix();
+        self.density_has_required_population = true;
     }
 
     fn update_total_energy_from_current_fock(&mut self) {
@@ -628,6 +648,8 @@ mod tests {
             (-2.0, 4.0, 0.25),
             (-4.0, 1.0, 1.0),
             (2.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (-2.0, 1.0, 1.0),
             (-1.0, 0.0, 1.0),
             (1.0, 0.0, 0.0),
             (1.0, -2.0, 1.0),
@@ -641,6 +663,99 @@ mod tests {
                 assert!(energy <= slope * trial + curvature * trial * trial + 1e-14);
             }
         }
+    }
+
+    #[test]
+    fn damping_reference_rhf_ordinary_uphill_step_is_damped_without_diis_extrapolation() {
+        let (molecule, basis, coefficients) = test_utils::stretched_h2_rotated_orbitals();
+        let mut scf = test_utils::new_one_electron_scf(&molecule, &basis, 1, 1e-10);
+        scf.mo_coefficients = coefficients;
+        scf.update_density_matrix();
+        scf.update_fock_matrix();
+        let old_density = scf.density_matrix.clone();
+        let old_energy = scf.calculate_total_energy_from_current_fock();
+        scf.solve_roothaan_hall_equation().unwrap();
+        scf.update_density_matrix();
+        scf.update_residual_norm_and_next_fock();
+        let candidate = scf.density_matrix.clone();
+        let candidate_energy = scf.calculate_total_energy_from_current_fock();
+        assert!(candidate_energy > old_energy + 0.05);
+        scf.density_matrix = old_density.clone();
+        scf.enable_diis(DiisSize::try_new(6).unwrap());
+        let result = scf.run().unwrap();
+        assert!(matches!(result, ScfOutcome::Unconverged(_)));
+        assert_abs_diff_eq!(scf.energy, -0.735_533_659_273_390, epsilon = 1e-10);
+        assert_abs_diff_eq!(
+            (&scf.density_matrix * &scf.overlap_matrix).trace(),
+            2.0,
+            epsilon = 1e-12
+        );
+        assert_abs_diff_eq!(
+            scf.fock_matrix,
+            scf.build_fock_matrix(&scf.density_matrix),
+            epsilon = 1e-12
+        );
+        assert_abs_diff_eq!(
+            scf.residual_norm,
+            ScfCalculation::scf_residual_norm(
+                &scf.fock_matrix,
+                &scf.density_matrix,
+                &scf.overlap_matrix
+            ),
+            epsilon = 1e-12
+        );
+        let step = &candidate - &old_density;
+        let fraction = (&scf.density_matrix - &old_density).dot(&step) / step.norm_squared();
+        assert_abs_diff_eq!(fraction, 0.445_402_193_469_286, epsilon = 1e-10);
+        test_utils::write_damping_reference(
+            "h2-rhf-ordinary",
+            &serde_json::json!({
+            "system": "h2", "method": "rhf", "nao": 2,
+            "previous": [old_density.as_slice()], "candidate": [candidate.as_slice()],
+            "density": [scf.density_matrix.as_slice()], "fock": [scf.fock_matrix.as_slice()],
+            "energy": scf.energy, "previous_energy": old_energy, "candidate_energy": candidate_energy,
+            "fraction": fraction, "residual": scf.residual_norm}),
+        );
+        assert!(!scf.apply_diis_if_enabled());
+    }
+
+    #[test]
+    fn damping_reference_rhf_zero_startup_preserves_population_even_if_energy_is_positive() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::Units::Bohr,
+            -2,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+        let mut scf = ScfCalculation::new(
+            &molecule,
+            &basis,
+            1,
+            1e-10,
+            1e-8,
+            crate::hf::density_guess::zero::Zero,
+        )
+        .unwrap();
+        assert!(!scf.density_has_required_population);
+        scf.enable_diis(DiisSize::try_new(6).unwrap());
+        let result = scf.run().unwrap();
+        assert!(matches!(result, ScfOutcome::Unconverged(_)));
+        assert!(scf.energy > 0.2);
+        assert!(scf.density_has_required_population);
+        assert_abs_diff_eq!(
+            (&scf.density_matrix * &scf.overlap_matrix).trace(),
+            4.0,
+            epsilon = 1e-12
+        );
+        test_utils::write_damping_reference(
+            "h2-dianion-rhf",
+            &serde_json::json!({
+            "system": "h2-dianion", "method": "rhf", "nao": 2,
+            "density": [scf.density_matrix.as_slice()], "fock": [scf.fock_matrix.as_slice()], "energy": scf.energy}),
+        );
     }
 
     #[test]
@@ -675,6 +790,41 @@ mod tests {
             10.0,
             epsilon = 1e-10
         );
+    }
+
+    #[test]
+    fn optimal_damping_retains_exact_endpoint_matrices() {
+        let geometry = test_utils::load_sample_geometry_in_bohr("samples/h2/molecule.xyz");
+        let basis = test_utils::load_sto3g_basis(&geometry);
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+        let mut scf =
+            ScfCalculation::new(&molecule, &basis, 1, 1e-8, 1e-8, CoreHamiltonian::default())
+                .unwrap();
+        scf.update_fock_matrix();
+        let ground_density = scf.density_matrix.clone();
+        let ground_fock = scf.fock_matrix.clone();
+        let rotation = DMatrix::from_row_slice(2, 2, &[1.0, -1.0, 1.0, 1.0]) / 2.0_f64.sqrt();
+        scf.mo_coefficients = &scf.mo_coefficients * rotation;
+        scf.update_density_matrix();
+        scf.update_fock_matrix();
+        let trial_density = scf.density_matrix.clone();
+        let trial_fock = scf.fock_matrix.clone();
+        let zero = scf
+            .apply_optimal_damping(&ground_density, &ground_fock)
+            .unwrap();
+        assert_abs_diff_eq!(zero, 0.0, epsilon = 0.0);
+        let one = scf
+            .apply_optimal_damping(&trial_density, &trial_fock)
+            .unwrap();
+        assert_abs_diff_eq!(one, 1.0, epsilon = 0.0);
+        assert_eq!(scf.density_matrix, ground_density);
+        assert_eq!(scf.fock_matrix, ground_fock);
     }
 
     #[test]
@@ -715,6 +865,7 @@ mod tests {
             scf.build_fock_matrix(&scf.density_matrix),
             epsilon = 1e-12
         );
+        assert!(!scf.apply_diis_if_enabled());
 
         scf.max_iterations = 100;
         let recovered = scf.run().unwrap();
