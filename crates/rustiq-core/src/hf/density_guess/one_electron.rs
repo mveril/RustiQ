@@ -30,8 +30,8 @@ impl<R: HfReference> DensityGuess<R> for OneElectron {
             Some(perturbation) => {
                 perturb_fock_like_matrices(h_core, perturbation).map_err(Into::into)
             }
-            None => Ok(OrbitalGuess::FockLike(R::component_from_spin(
-                crate::hf::spin::Spin::duplicate(h_core.clone()),
+            None => Ok(OrbitalGuess::FockLike(R::component_from_shared(
+                h_core.clone(),
             ))),
         }
     }

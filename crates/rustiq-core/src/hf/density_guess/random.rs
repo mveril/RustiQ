@@ -1,7 +1,6 @@
 use super::{symmetric_random_matrix, DensityGuess, DensityGuessError, OrbitalGuess};
 use crate::config::hf::RandomGuessConfig;
 use crate::hf::reference::HfReference;
-use crate::hf::uhf::Spin;
 use nalgebra::DMatrix;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -24,9 +23,8 @@ impl<R: HfReference> DensityGuess<R> for Random {
     ) -> Result<OrbitalGuess<R>, Self::Error> {
         let nbasis = basis.nbasis();
         let mut sampler = self.config.random.sample_iter()?;
-        Ok(OrbitalGuess::FockLike(R::component_from_spin(Spin::new(
-            symmetric_random_matrix(nbasis, &mut sampler)?,
-            symmetric_random_matrix(nbasis, &mut sampler)?,
-        ))))
+        Ok(OrbitalGuess::FockLike(R::try_generate_component(|| {
+            symmetric_random_matrix(nbasis, &mut sampler)
+        })?))
     }
 }

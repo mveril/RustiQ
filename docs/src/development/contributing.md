@@ -163,8 +163,10 @@ Initial guesses use the same reference markers through `DensityGuess<R>` and
 `OrbitalGuess<R>`. Reference-specific Fock-like inputs contain one matrix for
 `Restricted` and a `Spin` pair for `Unrestricted`, using the same `HfReference`
 component contract as `HfSolution`. The zero startup sentinel is available for
-both. Unperturbed guesses duplicate the core matrix for UHF; restricted random
-and perturbed guesses retain alpha from the seeded spin sequence.
+both. Unperturbed guesses retain one core matrix for RHF or duplicate it for
+UHF. Random and perturbed guesses generate one matrix for RHF or two ordered
+alpha/beta matrices for UHF without constructing a discarded beta matrix;
+the seeded alpha sequence is preserved across references.
 
 Only converged solutions expose MP2. Method dispatch is exhaustive, so each
 supported reference has an explicit correlation implementation. An MP2 error

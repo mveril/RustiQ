@@ -7,7 +7,6 @@ use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::zero::Zero;
 use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
 use crate::hf::reference::{HfReference, Restricted};
-use crate::hf::uhf::Spin;
 use nalgebra::{DMatrix, DVector};
 use std::error::Error;
 use thiserror::Error;
@@ -74,10 +73,9 @@ pub(crate) fn perturb_fock_like_matrices<R: HfReference>(
     perturbation: GuessPerturbationConfig,
 ) -> Result<OrbitalGuess<R>, DistributionCreationError> {
     let mut sampler = perturbation.random.sample_iter()?;
-    Ok(OrbitalGuess::FockLike(R::component_from_spin(Spin::new(
-        fock_like + symmetric_random_matrix(fock_like.nrows(), &mut sampler)?,
-        fock_like + symmetric_random_matrix(fock_like.nrows(), &mut sampler)?,
-    ))))
+    Ok(OrbitalGuess::FockLike(R::try_generate_component(|| {
+        symmetric_random_matrix(fock_like.nrows(), &mut sampler).map(|noise| fock_like + noise)
+    })?))
 }
 
 #[allow(
@@ -168,6 +166,28 @@ mod tests {
         T: DensityGuess,
         T::Error: 'static,
     {
+    }
+
+    #[test]
+    fn unperturbed_guesses_share_alpha_and_beta_fock_matrices() {
+        let (_, basis, h_core) = h2_system();
+        for config in [
+            DensityGuessConfig::CoreHamiltonian { perturbation: None },
+            DensityGuessConfig::OneElectron { perturbation: None },
+        ] {
+            let restricted: OrbitalGuess<Restricted> =
+                config.build_orbital_guess(&h_core, &basis).unwrap();
+            let unrestricted: OrbitalGuess<Unrestricted> =
+                config.build_orbital_guess(&h_core, &basis).unwrap();
+            let (OrbitalGuess::FockLike(shared), OrbitalGuess::FockLike(spin)) =
+                (restricted, unrestricted)
+            else {
+                panic!("unperturbed guesses must contain Fock-like matrices");
+            };
+            assert_eq!(shared, h_core);
+            assert_eq!(spin.alpha(), &shared);
+            assert_eq!(spin.beta(), &shared);
+        }
     }
 
     #[test]
