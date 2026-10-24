@@ -97,18 +97,19 @@ operator. The damped density is
 Because each Hartree-Fock Fock matrix is affine in the densities, the energy
 along this segment is quadratic:
 
-\\[ E(t) = E(0) + s t + c t^2, \\]
+\\[ E(t) - E(0) = \\mathrm{slope}\\, t
+   + \\mathrm{curvature}\\, t^2. \\]
 
-\\[ s = \\sum_\\sigma \\operatorname{Tr}
+\\[ \\mathrm{slope} = \\sum_\\sigma \\operatorname{Tr}
    [\\Delta P_\\sigma F_\\sigma^{(0)}], \\qquad
-   c = \\frac{1}{2}\\sum_\\sigma \\operatorname{Tr}
+   \\mathrm{curvature} = \\frac{1}{2}\\sum_\\sigma \\operatorname{Tr}
    [\\Delta P_\\sigma \\Delta F_\\sigma], \\]
 
 where \\(\\Delta P_\\sigma=P_\\sigma^{(1)}-P_\\sigma^{(0)}\\) and
 \\(\\Delta F_\\sigma=F_\\sigma^{(1)}-F_\\sigma^{(0)}\\). For RHF, the
 sum has one spin-summed density and its Fock matrix; for UHF, it runs over
 \\(\\sigma\\in\\{\\alpha,\\beta\\}\\). The UHF terms use one shared
-\\(t\\), so \\(c\\) includes the Coulomb coupling between the spin channels.
+\\(t\\), so \\(\\mathrm{curvature}\\) includes the Coulomb coupling between the spin channels.
 The implementation chooses \\(t\\) that minimizes \\(E(t)\\) on \\([0,1]\\).
 When both endpoint densities have the required electron populations, their
 mixture preserves those populations, though it need not represent a single
