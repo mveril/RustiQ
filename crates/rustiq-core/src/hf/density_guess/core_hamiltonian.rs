@@ -1,8 +1,7 @@
-use super::{
-    unrestricted_perturb_fock_like_matrices, DensityGuess, DensityGuessError, OrbitalGuess,
-};
+use super::{perturb_fock_like_matrices, DensityGuess, DensityGuessError, OrbitalGuess};
 use crate::basis::gaussian::basis::Basis;
 use crate::config::hf::GuessPerturbationConfig;
+use crate::hf::reference::HfReference;
 use nalgebra::DMatrix;
 
 #[derive(Default)]
@@ -16,18 +15,20 @@ impl CoreHamiltonian {
     }
 }
 
-impl DensityGuess for CoreHamiltonian {
+impl<R: HfReference> DensityGuess<R> for CoreHamiltonian {
     type Error = DensityGuessError;
     fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
         _basis: &Basis,
-    ) -> Result<OrbitalGuess, Self::Error> {
+    ) -> Result<OrbitalGuess<R>, Self::Error> {
         match self.perturbation {
             Some(perturbation) => {
-                unrestricted_perturb_fock_like_matrices(h_core, perturbation).map_err(Into::into)
+                perturb_fock_like_matrices(h_core, perturbation).map_err(Into::into)
             }
-            None => Ok(OrbitalGuess::CommonFockLike(h_core.clone())),
+            None => Ok(OrbitalGuess::FockLike(R::component_from_spin(
+                crate::hf::spin::Spin::duplicate(h_core.clone()),
+            ))),
         }
     }
 }

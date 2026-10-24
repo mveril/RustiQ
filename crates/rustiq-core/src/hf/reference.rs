@@ -45,6 +45,9 @@ pub trait HfReference: sealed::Sealed + std::fmt::Debug + Clone {
     type Method: Copy + std::fmt::Debug + Into<ResolvedHfMethod> + Into<HfMethod>;
     /// Shape of coefficient-like data: shared or separate per spin.
     type Component<T: std::fmt::Debug + Clone>: std::fmt::Debug + Clone;
+    /// Select the reference's component layout from alpha and beta values.
+    /// Restricted references retain alpha; unrestricted references retain both.
+    fn component_from_spin<T: std::fmt::Debug + Clone>(spin: Spin<T>) -> Self::Component<T>;
     /// Energy representation, independent of the coefficient layout.
     type OrbitalEnergies: std::fmt::Debug + Clone;
     /// Occupation representation, independent of coefficient and energy layouts.
@@ -63,12 +66,18 @@ impl sealed::Sealed for Unrestricted {}
 impl HfReference for Restricted {
     type Method = RestrictedMethod;
     type Component<T: std::fmt::Debug + Clone> = T;
+    fn component_from_spin<T: std::fmt::Debug + Clone>(spin: Spin<T>) -> T {
+        spin.alpha
+    }
     type OrbitalEnergies = DVector<f64>;
     type Occupations = usize;
 }
 impl HfReference for Unrestricted {
     type Method = UnrestrictedMethod;
     type Component<T: std::fmt::Debug + Clone> = Spin<T>;
+    fn component_from_spin<T: std::fmt::Debug + Clone>(spin: Spin<T>) -> Spin<T> {
+        spin
+    }
     type OrbitalEnergies = Spin<DVector<f64>>;
     type Occupations = Spin<usize>;
 }

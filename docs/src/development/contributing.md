@@ -159,6 +159,13 @@ coefficient columns. Cloning a solution shares retained scientific data. An
 unconverged solution keeps diagnostic orbitals, while final canonical orbitals
 are guaranteed only after convergence.
 
+Initial guesses use the same reference markers through `DensityGuess<R>` and
+`OrbitalGuess<R>`. Reference-specific Fock-like inputs contain one matrix for
+`Restricted` and a `Spin` pair for `Unrestricted`, using the same `HfReference`
+component contract as `HfSolution`. The zero startup sentinel is available for
+both. Unperturbed guesses duplicate the core matrix for UHF; restricted random
+and perturbed guesses retain alpha from the seeded spin sequence.
+
 Only converged solutions expose MP2. Method dispatch is exhaustive, so each
 supported reference has an explicit correlation implementation. An MP2 error
 retains the completed HF result for inspection or retry. See the

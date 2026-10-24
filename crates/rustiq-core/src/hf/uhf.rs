@@ -76,7 +76,7 @@ impl<'a> UhfCalculation<'a> {
         density_guess_builder: G,
     ) -> Result<Self, UhfSetupError<G::Error>>
     where
-        G: DensityGuess,
+        G: DensityGuess<super::reference::Unrestricted>,
         G::Error: 'static,
     {
         Self::new_with_progress(
@@ -100,7 +100,7 @@ impl<'a> UhfCalculation<'a> {
         mut progress: F,
     ) -> Result<Self, UhfSetupError<G::Error>>
     where
-        G: DensityGuess,
+        G: DensityGuess<super::reference::Unrestricted>,
         G::Error: 'static,
         F: FnMut(ScfSetupStep),
     {
@@ -150,7 +150,7 @@ impl<'a> UhfCalculation<'a> {
         mut progress: F,
     ) -> Result<Self, UhfSetupError<G::Error>>
     where
-        G: DensityGuess,
+        G: DensityGuess<super::reference::Unrestricted>,
         G::Error: 'static,
         F: FnMut(ScfSetupStep),
     {
@@ -177,21 +177,7 @@ impl<'a> UhfCalculation<'a> {
             .map_err(ScfSetupError::DensityGuess)?;
         let density_has_required_population = !matches!(&orbital_guess, OrbitalGuess::Zero);
         let (density, mo_coefficients, orbital_energies) = match orbital_guess {
-            OrbitalGuess::CommonFockLike(fock_like) => {
-                let coefficients =
-                    mo_coefficients_from_fock_like_matrix(&fock_like, &orthogonalizer)
-                        .map_err(ScfSetupError::Numerical)?;
-                let mo_coefficients = SpinMatrices::duplicate(coefficients);
-                let density = mo_coefficients
-                    .clone()
-                    .zip_map(occupied_orbitals, |coefficients, occupied| {
-                        density_from_mo_coefficients(&coefficients, occupied)
-                    });
-                let orbital_energies =
-                    Spin::duplicate(DVector::zeros(mo_coefficients.alpha.ncols()));
-                (density, mo_coefficients, orbital_energies)
-            }
-            OrbitalGuess::UnrestrictedFockLike(Spin { alpha, beta }) => {
+            OrbitalGuess::FockLike(Spin { alpha, beta }) => {
                 let mo_coefficients = SpinMatrices::new(
                     mo_coefficients_from_fock_like_matrix(&alpha, &orthogonalizer)
                         .map_err(ScfSetupError::Numerical)?,

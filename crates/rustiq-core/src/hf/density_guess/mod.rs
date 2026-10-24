@@ -6,6 +6,7 @@ use crate::config::random_config::distribution_config::{DistributionCreationErro
 use crate::hf::density_guess::core_hamiltonian::CoreHamiltonian;
 use crate::hf::density_guess::zero::Zero;
 use crate::hf::numerical_error::{ensure_finite_values, NumericalError};
+use crate::hf::reference::{HfReference, Restricted};
 use crate::hf::uhf::Spin;
 use nalgebra::{DMatrix, DVector};
 use std::error::Error;
@@ -24,33 +25,32 @@ pub(crate) mod one_electron;
 pub(crate) mod random;
 pub(crate) mod zero;
 
-pub trait DensityGuess: Send + Sync {
+pub trait DensityGuess<R: HfReference = Restricted>: Send + Sync {
     type Error: Error;
     fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
         basis: &Basis,
-    ) -> Result<OrbitalGuess, Self::Error>;
+    ) -> Result<OrbitalGuess<R>, Self::Error>;
 }
 
 /// Input to the shared SCF orbital-to-density construction path.
 ///
 /// Strategies cannot return an arbitrary AO density matrix: normal guesses provide
 /// symmetric Fock-like matrices, while `Zero` is an explicit startup sentinel.
-pub enum OrbitalGuess {
-    CommonFockLike(DMatrix<f64>),
-    UnrestrictedFockLike(Spin<DMatrix<f64>>),
+pub enum OrbitalGuess<R: HfReference = Restricted> {
+    FockLike(R::Component<DMatrix<f64>>),
     Zero,
 }
 
-impl DensityGuess for DensityGuessConfig {
+impl<R: HfReference> DensityGuess<R> for DensityGuessConfig {
     type Error = DensityGuessError;
 
     fn build_orbital_guess(
         &self,
         h_core: &DMatrix<f64>,
         basis: &Basis,
-    ) -> Result<OrbitalGuess, Self::Error> {
+    ) -> Result<OrbitalGuess<R>, Self::Error> {
         match self {
             DensityGuessConfig::CoreHamiltonian { perturbation } => {
                 CoreHamiltonian::new(*perturbation).build_orbital_guess(h_core, basis)
@@ -61,21 +61,23 @@ impl DensityGuess for DensityGuessConfig {
             DensityGuessConfig::Random { config } => {
                 Random::new(*config).build_orbital_guess(h_core, basis)
             }
-            DensityGuessConfig::Zero => Ok(Zero::build_orbital_guess(&Zero, h_core, basis)
-                .unwrap_or_else(|error| match error {})),
+            DensityGuessConfig::Zero => Ok(<Zero as DensityGuess<R>>::build_orbital_guess(
+                &Zero, h_core, basis,
+            )
+            .unwrap_or_else(|error| match error {})),
         }
     }
 }
 
-pub(crate) fn unrestricted_perturb_fock_like_matrices(
+pub(crate) fn perturb_fock_like_matrices<R: HfReference>(
     fock_like: &DMatrix<f64>,
     perturbation: GuessPerturbationConfig,
-) -> Result<OrbitalGuess, DistributionCreationError> {
+) -> Result<OrbitalGuess<R>, DistributionCreationError> {
     let mut sampler = perturbation.random.sample_iter()?;
-    Ok(OrbitalGuess::UnrestrictedFockLike(Spin::new(
+    Ok(OrbitalGuess::FockLike(R::component_from_spin(Spin::new(
         fock_like + symmetric_random_matrix(fock_like.nrows(), &mut sampler)?,
         fock_like + symmetric_random_matrix(fock_like.nrows(), &mut sampler)?,
-    )))
+    ))))
 }
 
 #[allow(
@@ -134,6 +136,7 @@ mod tests {
     use crate::config::validated::PositiveFiniteF64;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::orthogonalization::orthogonalizer as build_orthogonalizer;
+    use crate::hf::reference::Unrestricted;
     use crate::molecules::Molecule;
     use crate::test_utils;
 
@@ -149,13 +152,7 @@ mod tests {
             orthogonalizer: &DMatrix<f64>,
         ) -> Result<DMatrix<f64>, Box<dyn Error>> {
             match self.build_orbital_guess(h_core, basis)? {
-                OrbitalGuess::CommonFockLike(fock_like) => {
-                    let coefficients =
-                        mo_coefficients_from_fock_like_matrix(&fock_like, orthogonalizer)?;
-                    let occupied = coefficients.columns(0, molecule.occupied_orbitals());
-                    Ok(2.0 * occupied * occupied.transpose())
-                }
-                OrbitalGuess::UnrestrictedFockLike(Spin { alpha, .. }) => {
+                OrbitalGuess::FockLike(alpha) => {
                     let coefficients =
                         mo_coefficients_from_fock_like_matrix(&alpha, orthogonalizer)?;
                     let occupied = coefficients.columns(0, molecule.occupied_orbitals());
@@ -171,6 +168,57 @@ mod tests {
         T: DensityGuess,
         T::Error: 'static,
     {
+    }
+
+    #[test]
+    fn seeded_guesses_preserve_reference_layout_and_alpha_sequence() {
+        let (_, basis, h_core) = h2_system();
+        for config in [
+            DensityGuessConfig::Random {
+                config: RandomGuessConfig::default(),
+            },
+            DensityGuessConfig::CoreHamiltonian {
+                perturbation: Some(perturbation(42)),
+            },
+            DensityGuessConfig::OneElectron {
+                perturbation: Some(perturbation(42)),
+            },
+        ] {
+            // Explicit seeds make both references consume the same spin sequence.
+            let config = match config {
+                DensityGuessConfig::Random { mut config } => {
+                    config.random.seed = Some(42);
+                    DensityGuessConfig::Random { config }
+                }
+                config => config,
+            };
+            let restricted: OrbitalGuess<Restricted> =
+                config.build_orbital_guess(&h_core, &basis).unwrap();
+            let unrestricted: OrbitalGuess<Unrestricted> =
+                config.build_orbital_guess(&h_core, &basis).unwrap();
+            let (OrbitalGuess::FockLike(shared), OrbitalGuess::FockLike(spin)) =
+                (restricted, unrestricted)
+            else {
+                panic!("random and perturbed guesses must use reference-specific matrices");
+            };
+            assert_eq!(shared, spin.alpha);
+            assert_ne!(spin.alpha, spin.beta);
+            let overlap = basis.overlap_ints();
+            let orthogonalizer = orthogonalizer(&basis);
+            for fock_like in [&shared, &spin.alpha, &spin.beta] {
+                let coefficients =
+                    mo_coefficients_from_fock_like_matrix(fock_like, &orthogonalizer).unwrap();
+                let metric = coefficients.transpose() * &overlap * &coefficients;
+                assert!(
+                    (metric - DMatrix::identity(coefficients.ncols(), coefficients.ncols())).norm()
+                        < 1e-10
+                );
+                let occupied = coefficients.columns(0, 1);
+                let density = occupied * occupied.transpose();
+                assert!(((&density * &overlap).trace() - 1.0).abs() < 1e-10);
+                assert!((&density * &overlap * &density - &density).norm() < 1e-10);
+            }
+        }
     }
 
     fn h2_system() -> (Molecule, Basis, DMatrix<f64>) {
