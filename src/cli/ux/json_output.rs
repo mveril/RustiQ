@@ -285,7 +285,7 @@ mod tests {
             basis::BasisFile,
             calculation::{CalculationBuilder, CalculationExecution},
             config::{HfConfig, Mp2Config},
-            molecules::geometry::Geometry,
+            molecules::Geometry,
         };
         let geometry =
             Geometry::from_reader(&include_bytes!("../../../samples/h2/molecule.xyz")[..]).unwrap();

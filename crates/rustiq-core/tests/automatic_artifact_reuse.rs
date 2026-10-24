@@ -8,7 +8,7 @@ use rustiq_core::{
         ArtifactReuseDecision, CalculationBuilder, CalculationEvent, CalculationExecution,
     },
     config::Mp2Config,
-    molecules::geometry::Geometry,
+    molecules::Geometry,
     persistence::{CompactEri, EriCache, RustiQData},
 };
 
@@ -204,7 +204,7 @@ fn explicit_portable_eri_take_precedence_over_local_cache_and_computation() {
 fn restored_open_shell_calculation_preserves_requested_units_and_resolved_method() {
     use rustiq_core::{
         config::{DiisConfig, HfConfig, MoleculeConfig, ResolvedHfMethod},
-        molecules::units::Units,
+        molecules::Units,
     };
     use std::num::NonZeroU8;
     let geometry = Geometry::from_source("oh.xyz", "2\nOH\nO 0 0 0\nH 0 0 0.97\n").unwrap();

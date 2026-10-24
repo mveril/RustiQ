@@ -1,6 +1,6 @@
 use crate::{
     config::{HfConfig, IntegralConfig, MoleculeConfig, Mp2Config},
-    molecules::geometry::Geometry,
+    molecules::Geometry,
 };
 
 /// Frontend-independent, normalized inputs used to prepare a calculation.

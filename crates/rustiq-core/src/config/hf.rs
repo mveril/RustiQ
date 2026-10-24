@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{
     config::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64},
-    molecules::molecule::Molecule,
+    molecules::Molecule,
 };
 
 mod density_guess_config;
@@ -81,6 +81,97 @@ pub enum HfMethod {
 pub enum ResolvedHfMethod {
     Rhf,
     Uhf,
+}
+
+/// Methods supported with restricted orbitals.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RestrictedMethod {
+    #[default]
+    Rhf,
+}
+/// Methods supported with unrestricted orbitals.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum UnrestrictedMethod {
+    #[default]
+    Uhf,
+}
+impl From<RestrictedMethod> for ResolvedHfMethod {
+    fn from(method: RestrictedMethod) -> Self {
+        match method {
+            RestrictedMethod::Rhf => Self::Rhf,
+        }
+    }
+}
+impl From<UnrestrictedMethod> for ResolvedHfMethod {
+    fn from(method: UnrestrictedMethod) -> Self {
+        match method {
+            UnrestrictedMethod::Uhf => Self::Uhf,
+        }
+    }
+}
+impl From<RestrictedMethod> for HfMethod {
+    fn from(method: RestrictedMethod) -> Self {
+        match method {
+            RestrictedMethod::Rhf => Self::Rhf,
+        }
+    }
+}
+impl From<UnrestrictedMethod> for HfMethod {
+    fn from(method: UnrestrictedMethod) -> Self {
+        match method {
+            UnrestrictedMethod::Uhf => Self::Uhf,
+        }
+    }
+}
+/// A method cannot be represented by the requested HF reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
+pub enum HfMethodConversionError {
+    #[error("method {method:?} is not an explicit restricted HF method")]
+    Restricted { method: HfMethod },
+    #[error("method {method:?} is not an explicit unrestricted HF method")]
+    Unrestricted { method: HfMethod },
+}
+
+impl TryFrom<HfMethod> for RestrictedMethod {
+    type Error = HfMethodConversionError;
+    fn try_from(method: HfMethod) -> Result<Self, Self::Error> {
+        match method {
+            HfMethod::Rhf => Ok(Self::Rhf),
+            HfMethod::Auto | HfMethod::Uhf => Err(HfMethodConversionError::Restricted { method }),
+        }
+    }
+}
+impl TryFrom<HfMethod> for UnrestrictedMethod {
+    type Error = HfMethodConversionError;
+    fn try_from(method: HfMethod) -> Result<Self, Self::Error> {
+        match method {
+            HfMethod::Uhf => Ok(Self::Uhf),
+            HfMethod::Auto | HfMethod::Rhf => Err(HfMethodConversionError::Unrestricted { method }),
+        }
+    }
+}
+impl TryFrom<ResolvedHfMethod> for RestrictedMethod {
+    type Error = HfMethodConversionError;
+    fn try_from(method: ResolvedHfMethod) -> Result<Self, Self::Error> {
+        match method {
+            ResolvedHfMethod::Rhf => Ok(Self::Rhf),
+            ResolvedHfMethod::Uhf => Err(HfMethodConversionError::Restricted {
+                method: HfMethod::Uhf,
+            }),
+        }
+    }
+}
+impl TryFrom<ResolvedHfMethod> for UnrestrictedMethod {
+    type Error = HfMethodConversionError;
+    fn try_from(method: ResolvedHfMethod) -> Result<Self, Self::Error> {
+        match method {
+            ResolvedHfMethod::Uhf => Ok(Self::Uhf),
+            ResolvedHfMethod::Rhf => Err(HfMethodConversionError::Unrestricted {
+                method: HfMethod::Rhf,
+            }),
+        }
+    }
 }
 
 impl std::fmt::Display for ResolvedHfMethod {

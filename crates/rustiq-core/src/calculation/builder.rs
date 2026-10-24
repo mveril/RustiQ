@@ -1,7 +1,7 @@
 use crate::{
     basis::{Basis, BasisFile},
     config::{HfConfig, IntegralConfig, MoleculeConfig, Mp2Config},
-    molecules::{geometry::Geometry, units::Units},
+    molecules::{Geometry, Units},
     persistence::EriCache,
 };
 use std::time::Instant;
@@ -24,7 +24,7 @@ use super::{
 ///     basis::BasisFile,
 ///     calculation::{CalculationBuilder, CalculationExecution},
 ///     config::{HfConfig, MoleculeConfig, Mp2Config},
-///     molecules::{geometry::Geometry, units::Units},
+///     molecules::{Geometry, Units},
 /// };
 /// # fn example(geometry: &Geometry, basis_file: &BasisFile) -> Result<(), Box<dyn std::error::Error>> {
 /// let calculation = CalculationBuilder::new(geometry, basis_file)

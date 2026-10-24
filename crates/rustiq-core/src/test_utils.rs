@@ -3,7 +3,7 @@ use std::fs::File;
 use crate::{
     basis::{Basis, BasisFile, BasisStore},
     hf::{density_guess::one_electron::OneElectron, scf::ScfCalculation},
-    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
+    molecules::{Geometry, Molecule, Units},
 };
 
 pub(crate) fn load_minimal_basis_file() -> BasisFile {

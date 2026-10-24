@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use serde::{Deserialize, Serialize};
 
 use crate::runfile::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
-use rustiq_core::molecules::molecule::Molecule;
+use rustiq_core::molecules::Molecule;
 
 mod density_guess_config;
 mod guess_perturbation_config;

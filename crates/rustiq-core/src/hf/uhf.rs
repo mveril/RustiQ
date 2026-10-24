@@ -9,7 +9,7 @@ use crate::{
     config::DiisConfig,
     eri::{index::PairIndex, CompactEri, EriError},
     hf::numerical_error::{ensure_finite_value, ensure_finite_values, NumericalError},
-    molecules::molecule::Molecule,
+    molecules::Molecule,
 };
 
 use super::orthogonalization::OrthogonalizationInfo;
@@ -34,35 +34,7 @@ where
     ElectronRepulsion(#[from] EriError),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Spin<T> {
-    pub(crate) alpha: T,
-    pub(crate) beta: T,
-}
-
-impl<T> Spin<T> {
-    pub(crate) fn new(alpha: T, beta: T) -> Self {
-        Self { alpha, beta }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn as_ref(&self) -> Spin<&T> {
-        Spin::new(&self.alpha, &self.beta)
-    }
-
-    pub(crate) fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
-        Spin::new(f(self.alpha, other.alpha), f(self.beta, other.beta))
-    }
-}
-
-impl<T: Clone> Spin<T> {
-    pub(crate) fn duplicate(value: T) -> Self {
-        Self {
-            alpha: value.clone(),
-            beta: value,
-        }
-    }
-}
+pub(crate) use super::spin::Spin;
 
 pub(crate) type SpinMatrices = Spin<DMatrix<f64>>;
 pub struct UhfCalculation<'a> {
@@ -691,7 +663,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -705,7 +677,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::new(2).unwrap(),
         )
@@ -830,7 +802,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -868,7 +840,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )
@@ -933,7 +905,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             1,
             std::num::NonZeroU8::new(2).unwrap(),
         )
@@ -973,7 +945,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             1,
             std::num::NonZeroU8::new(2).unwrap(),
         )
@@ -1014,7 +986,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::new(2).unwrap(),
         )
@@ -1110,7 +1082,7 @@ mod tests {
             let basis = test_utils::load_sto3g_basis(&geometry);
             let molecule = Molecule::try_new(
                 geometry,
-                crate::molecules::units::Units::Bohr,
+                crate::molecules::Units::Bohr,
                 0,
                 std::num::NonZeroU8::new(2).unwrap(),
             )
@@ -1159,7 +1131,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::new(2).unwrap(),
         )

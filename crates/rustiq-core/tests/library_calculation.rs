@@ -3,7 +3,7 @@ use rustiq_core::{
     basis::BasisFile,
     calculation::{CalculationBuilder, CalculationExecution},
     config::{HfConfig, HfMethod, Mp2Config},
-    molecules::{geometry::Geometry, units::Units},
+    molecules::{Geometry, Units},
 };
 
 // Exercise the same calculation types as an external consumer, without access

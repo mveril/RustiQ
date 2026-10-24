@@ -15,7 +15,7 @@ use crate::{
         DiisConfig, HfConfig, HfMethod, IntegralConfig, MemoryLimit, MoleculeConfig, Mp2Config,
         OrthogonalizationConfig,
     },
-    molecules::{atom::Atom, geometry::Geometry, units::Units},
+    molecules::{Atom, Geometry, Units},
 };
 
 pub(crate) const REQUEST_PATH: &str = "request.json";

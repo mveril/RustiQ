@@ -1,6 +1,6 @@
 use super::{
-    CalculationError, CalculationEvent, CalculationExecution, CalculationExecutionError,
-    CalculationResult, HfCalculation, HfCalculationResult, HfOutcome, HfSolution,
+    AnyHfSolution, CalculationError, CalculationEvent, CalculationExecution,
+    CalculationExecutionError, CalculationResult, HfCalculation, HfOutcome,
 };
 use crate::eri::CompactEri;
 use crate::hf::scf_result::ScfOutcome;
@@ -11,7 +11,7 @@ use crate::{
         DiisConfig, HfConfig, HfMethod, IntegralConfig, Mp2Config, OrthogonalizationConfig,
         ResolvedHfMethod,
     },
-    molecules::{atom::Atom, geometry::Geometry, molecule::Molecule, units::Units},
+    molecules::{Atom, Geometry, Molecule, Units},
     persistence::{AoEriArtifact, EriCache, PortableError, RustiQData},
 };
 use mendeleev::Element;
@@ -256,20 +256,12 @@ impl PreparedCalculation {
             events.borrow_mut()(CalculationEvent::ScfIteration(iteration));
         })?;
         let hf = match outcome {
-            ScfOutcome::Converged(scf) => HfOutcome::Converged(HfSolution::from_state(
-                HfCalculationResult {
-                    method: *method,
-                    scf,
-                },
-                calculation.state,
-            )),
-            ScfOutcome::Unconverged(scf) => HfOutcome::Unconverged(HfSolution::from_state(
-                HfCalculationResult {
-                    method: *method,
-                    scf,
-                },
-                calculation.state,
-            )),
+            ScfOutcome::Converged(scf) => {
+                HfOutcome::Converged(AnyHfSolution::from_state(scf, calculation.state))
+            }
+            ScfOutcome::Unconverged(scf) => {
+                HfOutcome::Unconverged(AnyHfSolution::from_state(scf, calculation.state))
+            }
         };
         if retain_artifact {
             if let CalculationSource::Portable(reuse) = &self.source {
@@ -306,16 +298,12 @@ impl PreparedCalculation {
             .mp2
             .as_ref()
             .map(|config| {
-                let converged = match &hf {
-                    HfOutcome::Converged(hf) => hf,
-                    HfOutcome::Unconverged(_) => {
-                        return Err(hf
-                            .clone()
-                            .execution_error(CalculationError::HfNotConverged {
-                                iterations: hf.summary().scf.iterations,
-                            }))
-                    }
-                };
+                let converged = hf.as_converged().ok_or_else(|| {
+                    hf.clone()
+                        .execution_error(CalculationError::HfNotConverged {
+                            iterations: hf.summary().scf.iterations,
+                        })
+                })?;
                 let result = converged.mp2_with_report(*config, &mut |plan| {
                     events(CalculationEvent::Mp2Planned(plan));
                 })?;

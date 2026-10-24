@@ -11,7 +11,7 @@ use rustiq_core::{
     basis::BasisFile,
     calculation::{CalculationBuilder, CalculationExecution, CalculationResult, HfOutcome},
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config},
-    molecules::{geometry::Geometry, units::Units},
+    molecules::{Geometry, Units},
 };
 
 // Absolute tolerance in Hartree for energies, dimensionless for spin.

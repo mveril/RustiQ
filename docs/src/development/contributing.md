@@ -43,6 +43,28 @@ and [public API tests](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-
 provide executable workflows and verification. Link to these sources instead
 of duplicating item-level documentation in the book.
 
+## Public API imports
+
+Use `rustiq_core::prelude::*` for direct calculations. It includes
+`CalculationExecution`, the trait providing `execute()` and
+`execute_with_events()` for builders and prepared calculations. With explicit
+imports, bring `rustiq_core::calculation::CalculationExecution` into scope to
+call those methods. The builder supports mutable setters such as `hf(...)`,
+accessors such as `get_hf()`, and consuming `with_hf(...)` variants.
+
+Explicit imports use `molecules` for molecular inputs, `config` for options,
+random distributions and validated scalars, `basis` for basis data, and
+`calculation` for execution and results. `Located<T>` remains available from
+`config` and the prelude for optional frontend source positions.
+
+For portable archives and raw AO ERIs, import `RustiQData`, `RustiQBundle`, and `CompactEri` explicitly from
+`rustiq_core::persistence`. Import `ArtifactReuseDecision` and
+`ArtifactReuseEvent` from `rustiq_core::calculation`; these advanced types
+require explicit imports. The portable examples linked above demonstrate the
+persistence imports, and the
+[portable prelude test](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/prelude_portable.rs)
+shows how to combine them with the calculation prelude.
+
 ## Architecture and calculation lifecycle
 
 The root CLI package owns terminal reports, application directories, and
@@ -111,11 +133,55 @@ CLI TOML/Nickel adapter or another frontend
        molecule in Bohr, Gaussian basis, resolved HF method and random seeds
     -> PreparedCalculation::run_hf()
        one-electron integrals, overlap orthogonalization, AO ERI acquisition
-       -> iterative SCF and final canonicalization
+       -> iterative SCF; final canonicalization if converged
        -> HfOutcome::Converged or HfOutcome::Unconverged
-    -> converged HfSolution::mp2()
+    -> converged AnyHfSolution::mp2()
        blocked AO-to-MO integral transformation and MP2 correlation-energy evaluation
 ```
+
+`HfOutcome` records whether HF converged and contains an
+`AnyHfSolution<State>` whose `Restricted` or `Unrestricted` variant retains the
+reference-specific solution. `HfSolution<R, State>` carries both the reference
+and convergence state in its type; the `RhfSolution` and `UhfSolution` aliases
+name the common profiles. For HF followed by MP2, call
+`prepared.run_hf()?.into_converged()?` and then `hf.mp2(config)`. The conversion
+returns an execution error retaining the unconverged outcome, recoverable with
+`into_hf()`. Typed/runtime conversions preserve state and return the original
+solution when the requested reference does not match.
+
+The sealed `HfReference` contract associates a compatible HF method, coefficient
+representation, orbital energies, and occupations. RHF has one shared
+coefficient matrix and energy vector with one doubly occupied spatial-orbital
+count. UHF has separate alpha and beta coefficients, energies, and electron
+counts, represented by `Spin<T>`. Read-only accessors expose these values;
+energies are in Hartree, and each occupation count selects a prefix of its
+coefficient columns. Cloning a solution shares retained scientific data. An
+unconverged solution keeps diagnostic orbitals, while final canonical orbitals
+are guaranteed only after convergence.
+
+Only converged solutions expose MP2. Method dispatch is exhaustive, so each
+supported reference has an explicit correlation implementation. An MP2 error
+retains the completed HF result for inspection or retry. See the
+[`hf_solution` example](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/examples/hf_solution.rs)
+and [API tests](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/hf_solution.rs)
+for executable workflows.
+
+The complete offline example in `crates/rustiq-core/examples/hf_solution.rs`
+is also included directly in the `HfOutcome` API documentation. Run it from the
+repository root:
+
+```sh
+cargo run -p rustiq-chem-core --example hf_solution --no-default-features
+```
+
+It embeds the checked-in STO-3G basis and the H2 singlet and OH doublet geometries,
+with coordinates interpreted in Angstrom. It prints reference-specific occupied
+counts, total HF energies and MP2 correlation energies in Hartree. A deliberately
+invalid frozen-orbital count demonstrates error recovery: the example drops the
+original HF handle, extracts the retained output from the error using the standard
+conversion traits, and retries MP2 without rerunning HF. Unexpected failures
+propagate as errors. The example illustrates API ownership and error handling;
+the independent scientific comparisons remain separate verification procedures.
 
 `prepare()` constructs reusable input data; it does not compute integrals or
 solve HF. Each normal `run_hf()` call builds a new HF execution state, including

@@ -12,7 +12,7 @@ use crate::{
         random_config::{DistributionConfig, RandomConfig},
         DensityGuessConfig, HfMethod, ResolvedHfMethod,
     },
-    molecules::molecule::Molecule,
+    molecules::Molecule,
 };
 
 pub(crate) const CALCULATION_PATH: &str = "calculation.json";
@@ -527,12 +527,8 @@ const V1_BOHR_IN_ANGSTROM: f64 = 0.529_177_210_903;
     clippy::items_after_statements,
     reason = "The frozen V1 contract compares Bohr values exactly and keeps its ULP ordering helper beside the comparison"
 )]
-fn coordinate_matches_v1(
-    requested: f64,
-    resolved: f64,
-    units: crate::molecules::units::Units,
-) -> bool {
-    use crate::molecules::units::Units;
+fn coordinate_matches_v1(requested: f64, resolved: f64, units: crate::molecules::Units) -> bool {
+    use crate::molecules::Units;
     let expected = match units {
         Units::Bohr => requested,
         Units::Angstrom => requested / V1_BOHR_IN_ANGSTROM,
@@ -806,7 +802,7 @@ mod tests {
 #[cfg(test)]
 mod v1_contract_tests {
     use super::*;
-    use crate::molecules::{atom::Atom, geometry::Geometry, units::Units};
+    use crate::molecules::{Atom, Geometry, Units};
     use nalgebra::point;
     use serde_json::{json, Value};
     use std::num::NonZeroU8;

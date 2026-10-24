@@ -3,7 +3,7 @@ use crate::{
     basis::{Basis, BasisFile},
     eri::{electron_repulsion_ints_with_threshold, index::PairIndex},
     hf::core::nucl_attraction_ints,
-    molecules::{geometry::Geometry, molecule::Molecule, units::Units},
+    molecules::{Geometry, Molecule, Units},
 };
 use nalgebra::{Rotation3, Vector3};
 use serde_json::json;

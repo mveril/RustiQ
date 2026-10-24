@@ -134,7 +134,7 @@ mod tests {
     use crate::config::validated::PositiveFiniteF64;
     use crate::hf::core::core_hamiltonian_ints;
     use crate::hf::orthogonalization::orthogonalizer as build_orthogonalizer;
-    use crate::molecules::molecule::Molecule;
+    use crate::molecules::Molecule;
     use crate::test_utils;
 
     trait DensityGuessTestExt: DensityGuess
@@ -178,7 +178,7 @@ mod tests {
         let basis = test_utils::load_sto3g_basis(&geometry);
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )

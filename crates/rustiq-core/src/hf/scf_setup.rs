@@ -11,7 +11,7 @@ use crate::{
         DEFAULT_ERI_SCHWARZ_THRESHOLD,
     },
     eri::{CompactEri, EriError},
-    molecules::molecule::Molecule,
+    molecules::Molecule,
     persistence::EriCache,
 };
 

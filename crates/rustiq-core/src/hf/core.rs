@@ -6,7 +6,7 @@ use crate::{
     basis::gaussian::basis::{
         coulomb_auxiliary, gaussian_product_center, hermite_coeff, hermite_terms, Basis,
     },
-    molecules::geometry::Geometry,
+    molecules::Geometry,
 };
 
 pub fn nucl_attraction_ints(mol: &Geometry, basis: &Basis) -> DMatrix<f64> {

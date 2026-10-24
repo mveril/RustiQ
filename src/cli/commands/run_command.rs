@@ -25,7 +25,7 @@ use crate::runfile::parser::parse_runfile;
 use rustiq_core::{
     basis::{BasisFile, BasisStore},
     calculation::{CalculationBuilder, CalculationExecution},
-    molecules::geometry::Geometry,
+    molecules::Geometry,
     persistence::{EriCache, RustiQBundle, RustiQData},
 };
 

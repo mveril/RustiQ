@@ -1,4 +1,4 @@
-pub use rustiq_core::config::validated::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
+pub use rustiq_core::config::{DiisSize, NonNegativeFiniteF64, PositiveFiniteF64};
 
 macro_rules! serialize_inner {
     ($module:ident, $ty:ty) => {

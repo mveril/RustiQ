@@ -10,7 +10,7 @@ use crate::cli::{
     color,
     commands::{CommandResult, Runnable},
 };
-use rustiq_core::molecules::geometry::Geometry;
+use rustiq_core::molecules::Geometry;
 
 #[derive(clap::Args, Debug)]
 pub struct InfoCommand {

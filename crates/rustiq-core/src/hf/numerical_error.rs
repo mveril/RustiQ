@@ -4,7 +4,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum NumericalError {
     #[error(transparent)]
-    NuclearRepulsion(#[from] crate::molecules::nuclear_repulsion_error::NuclearRepulsionError),
+    NuclearRepulsion(#[from] crate::molecules::NuclearRepulsionError),
     #[error("{matrix} matrix is not positive definite")]
     IndefiniteMatrix { matrix: &'static str },
     #[error("{values} contain a non-finite value")]

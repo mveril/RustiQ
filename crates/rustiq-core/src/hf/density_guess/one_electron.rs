@@ -43,9 +43,9 @@ mod tests {
 
     use crate::hf::density_guess::DensityGuess;
     use crate::hf::scf::ScfCalculation;
-    use crate::molecules::atom::Atom;
-    use crate::molecules::geometry::Geometry;
-    use crate::molecules::molecule::Molecule;
+    use crate::molecules::Atom;
+    use crate::molecules::Geometry;
+    use crate::molecules::Molecule;
     use crate::test_utils;
     use nalgebra::point;
     use std::convert::Infallible;
@@ -86,7 +86,7 @@ mod tests {
         let basis = Basis::try_load(&basis_file, &geometry).unwrap();
         let molecule = Molecule::try_new(
             geometry,
-            crate::molecules::units::Units::Bohr,
+            crate::molecules::Units::Bohr,
             0,
             std::num::NonZeroU8::MIN,
         )

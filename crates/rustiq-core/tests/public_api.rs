@@ -4,7 +4,7 @@
 )]
 
 //! These tests also run with no default features: no runfile parser or runtime.
-use mendeleev::Element;
+use rustiq_core::Element;
 use std::num::{NonZeroU8, NonZeroUsize};
 
 use approx::assert_abs_diff_eq;
@@ -17,15 +17,12 @@ use rustiq_core::{
         Mp2Error, NumericalError, ScfSetupStep,
     },
     config::{
-        random_config::{
-            distribution_config::UniformDistributionConfig, DistributionConfig, RandomConfig,
-        },
-        validated::{NonNegativeFiniteF64, PositiveFiniteF64},
-        DensityGuessConfig, DiisConfig, GuessPerturbationConfig, HfConfig, HfConfigError, HfMethod,
-        IntegralConfig, Located, MoleculeConfig, Mp2Config, OrthogonalizationConfig,
-        RandomGuessConfig, ResolvedHfMethod,
+        DensityGuessConfig, DiisConfig, DistributionConfig, GuessPerturbationConfig, HfConfig,
+        HfConfigError, HfMethod, IntegralConfig, Located, MoleculeConfig, Mp2Config,
+        NonNegativeFiniteF64, OrthogonalizationConfig, PositiveFiniteF64, RandomConfig,
+        RandomGuessConfig, ResolvedHfMethod, UniformDistributionConfig,
     },
-    molecules::{atom::Atom, geometry::Geometry, units::Units},
+    molecules::{Atom, Geometry, Units},
 };
 
 fn geometry() -> Geometry {

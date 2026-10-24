@@ -1,4 +1,4 @@
-use crate::{basis::Basis, config::validated::PositiveFiniteF64, molecules::geometry::Geometry};
+use crate::{basis::Basis, config::validated::PositiveFiniteF64, molecules::Geometry};
 
 use super::{sha256, Sha256Digest, COMPACT_ERI_REPRESENTATION, SCIENTIFIC_IDENTITY_VERSION};
 
