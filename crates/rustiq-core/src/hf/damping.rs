@@ -17,7 +17,7 @@ pub(super) fn damping_fraction<const N: usize>(
     channels: [DensitySegment<'_>; N],
 ) -> Result<f64, NumericalError> {
     // HF Fock operators are affine in the full density. Along a common
-    // segment, E(t) - E(0) = slope * t + curvature * t^2 exactly.
+    // segment, \(E(t)-E(0)=\mathrm{slope}\,t+\mathrm{curvature}\,t^2\), exactly.
     let mut slope = 0.0;
     let mut curvature = 0.0;
     for (previous_density, density, previous_fock, fock) in channels {
