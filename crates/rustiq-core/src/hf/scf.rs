@@ -851,6 +851,65 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Small synthetic contraction indices are exactly representable as f64"
+    )]
+    fn fock_contraction_matches_scalar_reference_across_dimensions_and_threads() {
+        let basis_file = test_utils::load_minimal_basis_file();
+        let geometry = create_h2_geometry();
+        let original_basis = Basis::try_load(&basis_file, &geometry).unwrap();
+        let molecule = Molecule::try_new(
+            geometry,
+            crate::molecules::units::Units::Bohr,
+            0,
+            std::num::NonZeroU8::MIN,
+        )
+        .unwrap();
+        // Synthetic tensors isolate scheduling from integral evaluation and SCF convergence.
+        for n in [2, 24, 33] {
+            let basis = Basis::new(vec![original_basis.shells[0].clone(); n]);
+            let mut scf =
+                ScfCalculation::new(&molecule, &original_basis, 10, 1e-6, 1e-8, TestDensityGuess)
+                    .unwrap();
+            scf.basis = &basis;
+            scf.h_core = DMatrix::from_fn(n, n, |i, j| (i + j) as f64 / 100.0);
+            scf.two_electron_integrals = CompactEri::from_ordered_values(
+                n,
+                (0..CompactEri::storage_len(n))
+                    .map(|i| (i % 19) as f64 / 1000.0)
+                    .collect(),
+            )
+            .unwrap();
+            let density = DMatrix::from_fn(n, n, |i, j| ((i + j) % 7) as f64 / 11.0);
+            let reference = DMatrix::from_fn(n, n, |mu, nu| {
+                let mut value = scf.h_core[(mu, nu)];
+                for lambda in 0..n {
+                    for sigma in 0..n {
+                        value += density[(lambda, sigma)]
+                            * (scf.two_electron_integrals[(mu, nu, lambda, sigma)]
+                                - 0.5 * scf.two_electron_integrals[(mu, sigma, lambda, nu)]);
+                    }
+                }
+                value
+            });
+            let mut previous = None;
+            for threads in [1, 2, 12] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                let actual = pool.install(|| scf.build_fock_matrix(&density));
+                assert_abs_diff_eq!(actual, reference, epsilon = 1e-12);
+                if let Some(previous) = &previous {
+                    assert_eq!(&actual, previous);
+                }
+                previous = Some(actual);
+            }
+        }
+    }
+
+    #[test]
     fn test_build_fock_matrix() {
         let basis_file = test_utils::load_minimal_basis_file();
         let geometry = create_h2_geometry();
