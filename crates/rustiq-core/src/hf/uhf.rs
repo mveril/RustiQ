@@ -459,30 +459,12 @@ impl<'a> UhfCalculation<'a> {
 
     fn apply_diis_if_enabled(&mut self) {
         if let Some(diis) = &mut self.diis {
-            // Both spin channels describe one coupled SCF problem. Concatenate
-            // their residuals so a single set of DIIS weights minimizes both.
-            let n = self.fock.alpha.nrows();
-            let mut fock = DMatrix::zeros(n, 2 * n);
-            fock.columns_mut(0, n).copy_from(&self.fock.alpha);
-            fock.columns_mut(n, n).copy_from(&self.fock.beta);
-            let mut error = DMatrix::zeros(n, 2 * n);
-            error
-                .columns_mut(0, n)
-                .copy_from(&DiisAccelerator::error_matrix(
-                    &self.fock.alpha,
-                    &self.density.alpha,
-                    &self.overlap_matrix,
-                ));
-            error
-                .columns_mut(n, n)
-                .copy_from(&DiisAccelerator::error_matrix(
-                    &self.fock.beta,
-                    &self.density.beta,
-                    &self.overlap_matrix,
-                ));
-            if let Some(extrapolated) = diis.extrapolate_with_error(&fock, error) {
-                self.fock.alpha = extrapolated.columns(0, n).into_owned();
-                self.fock.beta = extrapolated.columns(n, n).into_owned();
+            if let Some(fock) = diis.extrapolate_spin(
+                &self.fock.as_ref(),
+                &self.density.as_ref(),
+                &self.overlap_matrix,
+            ) {
+                self.fock = fock;
             }
         }
     }
