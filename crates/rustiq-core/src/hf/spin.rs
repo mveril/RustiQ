@@ -31,14 +31,20 @@ impl<T> Spin<T> {
         Spin::new(&self.alpha, &self.beta)
     }
 
+    /// Applies a function to each component, preserving alpha, beta order.
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Spin<U> {
+        Spin::new(f(self.alpha), f(self.beta))
+    }
+
+    /// Combines corresponding components from two spin pairs.
+    pub fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
+        Spin::new(f(self.alpha, other.alpha), f(self.beta, other.beta))
+    }
+
     /// Takes both components in alpha, beta order.
     #[must_use]
     pub fn into_parts(self) -> (T, T) {
         (self.alpha, self.beta)
-    }
-
-    pub(crate) fn zip_map<U, V>(self, other: Spin<U>, mut f: impl FnMut(T, U) -> V) -> Spin<V> {
-        Spin::new(f(self.alpha, other.alpha), f(self.beta, other.beta))
     }
 }
 
@@ -48,6 +54,15 @@ impl<T: Clone> Spin<T> {
             alpha: value.clone(),
             beta: value,
         }
+    }
+}
+
+impl<T> IntoIterator for Spin<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, 2>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [self.alpha, self.beta].into_iter()
     }
 }
 

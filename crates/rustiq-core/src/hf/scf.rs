@@ -402,12 +402,12 @@ impl<'a> ScfCalculation<'a> {
     ) -> Result<f64, NumericalError> {
         let density_step = &self.density_matrix - previous_density;
         let fock_step = &self.fock_matrix - previous_fock;
-        let fraction = super::damping::damping_fraction([(
+        let fraction = super::damping::damping_fraction([super::damping::DensitySegment {
             previous_density,
-            &self.density_matrix,
+            density: &self.density_matrix,
             previous_fock,
-            &self.fock_matrix,
-        )])?;
+            fock: &self.fock_matrix,
+        }])?;
         self.density_matrix = previous_density + density_step * fraction;
         self.fock_matrix = previous_fock + fock_step * fraction;
         self.residual_norm = Self::scf_residual_norm(

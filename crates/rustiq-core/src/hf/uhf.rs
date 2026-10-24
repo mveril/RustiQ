@@ -417,20 +417,26 @@ impl<'a> UhfCalculation<'a> {
         previous_density: &SpinMatrices,
         previous_fock: &SpinMatrices,
     ) -> Result<f64, NumericalError> {
-        let fraction = super::damping::damping_fraction([
-            (
-                &previous_density.alpha,
-                &self.density.alpha,
-                &previous_fock.alpha,
-                &self.fock.alpha,
-            ),
-            (
-                &previous_density.beta,
-                &self.density.beta,
-                &previous_fock.beta,
-                &self.fock.beta,
-            ),
-        ])?;
+        let segments = previous_density
+            .as_ref()
+            .zip_map(self.density.as_ref(), |old, new| (old, new))
+            .zip_map(
+                previous_fock.as_ref(),
+                |(old_density, density), old_fock| (old_density, density, old_fock),
+            )
+            .zip_map(
+                self.fock.as_ref(),
+                |(old_density, density, old_fock), fock| (old_density, density, old_fock, fock),
+            )
+            .map(|(previous_density, density, previous_fock, fock)| {
+                super::damping::DensitySegment {
+                    previous_density,
+                    density,
+                    previous_fock,
+                    fock,
+                }
+            });
+        let fraction = super::damping::damping_fraction(segments)?;
         self.density = previous_density
             .as_ref()
             .zip_map(self.density.as_ref(), |old, new| {
@@ -439,10 +445,14 @@ impl<'a> UhfCalculation<'a> {
         self.fock = previous_fock
             .as_ref()
             .zip_map(self.fock.as_ref(), |old, new| old + (new - old) * fraction);
-        self.residual_norm =
-            scf_residual_norm(&self.fock.alpha, &self.density.alpha, &self.overlap_matrix).hypot(
-                scf_residual_norm(&self.fock.beta, &self.density.beta, &self.overlap_matrix),
-            );
+        let (alpha_residual, beta_residual) = self
+            .fock
+            .as_ref()
+            .zip_map(self.density.as_ref(), |fock, density| {
+                scf_residual_norm(fock, density, &self.overlap_matrix)
+            })
+            .into_parts();
+        self.residual_norm = alpha_residual.hypot(beta_residual);
         self.update_total_energy_from_current_fock();
         Ok(fraction)
     }
