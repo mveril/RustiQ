@@ -86,12 +86,36 @@ The DIIS method is associated with Pulay's extrapolation approach
 RHF and UHF share safeguards against excessive DIIS weights. If a DIIS
 proposal raises the electronic energy beyond a roundoff allowance, its history
 is cleared and a step from the physical Fock operator is damped by minimizing
-the HF energy along the density segment. UHF uses one common mixing fraction
-for both spins, including their Coulomb coupling. Mixing normalized endpoint densities
-preserves each spin population but need not give a single determinant; a damped step cannot
-by itself establish convergence. If an unconverged run ends on a mixed UHF
-density, determinant spin diagnostics are omitted. These safeguards do not guarantee the global
-HF minimum or stability against spin symmetry breaking.
+the HF energy along the density segment. For spin channel \\(\sigma\\), let
+\\(P_\\sigma^{(0)}\\) be the density before the DIIS proposal and
+\\(P_\\sigma^{(1)}\\) the density obtained by diagonalizing the physical Fock
+operator. The damped density is
+
+\\[ P_\\sigma(t) = (1-t)P_\\sigma^{(0)} + tP_\\sigma^{(1)},
+   \\qquad 0 \\le t \\le 1. \\]
+
+Because each Hartree-Fock Fock matrix is affine in the densities, the energy
+along this segment is quadratic:
+
+\\[ E(t) = E(0) + s t + c t^2, \\]
+
+\\[ s = \\sum_\\sigma \\operatorname{Tr}
+   [\\Delta P_\\sigma F_\\sigma^{(0)}], \\qquad
+   c = \\frac{1}{2}\\sum_\\sigma \\operatorname{Tr}
+   [\\Delta P_\\sigma \\Delta F_\\sigma], \\]
+
+where \\(\\Delta P_\\sigma=P_\\sigma^{(1)}-P_\\sigma^{(0)}\\) and
+\\(\\Delta F_\\sigma=F_\\sigma^{(1)}-F_\\sigma^{(0)}\\). For RHF, the
+sum has one spin-summed density and its Fock matrix; for UHF, it runs over
+\\(\\sigma\\in\\{\\alpha,\\beta\\}\\). The UHF terms use one shared
+\\(t\\), so \\(c\\) includes the Coulomb coupling between the spin channels.
+The implementation chooses \\(t\\) that minimizes \\(E(t)\\) on \\([0,1]\\).
+When both endpoint densities have the required electron populations, their
+mixture preserves those populations, though it need not represent a single
+determinant. A damped step cannot by itself establish convergence. If an
+unconverged run ends on a mixed UHF density, determinant spin diagnostics are
+omitted. These safeguards do not guarantee the global HF minimum or stability
+against spin symmetry breaking.
 For background on UHF damping, see
 [Yamamoto and Mochizuki (2014)](https://doi.org/10.1273/cbij.14.14).
 
