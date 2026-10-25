@@ -31,12 +31,139 @@ struct Orbitals<R: HfReference> {
 type RestrictedOrbitals = Orbitals<Restricted>;
 type UnrestrictedOrbitals = Orbitals<Unrestricted>;
 
+/// Describes the owned output of a physical SCF method, independently of its driver.
+///
+/// Coefficients, energies and occupations have independent representations. The
+/// descriptor identifies the physical method; sharing orbital representations
+/// does not make two descriptors interchangeable. Implementing this trait does
+/// not grant HF operations or provide a calculation engine.
+///
+/// This contract is open to additional descriptors. Construction of solutions is
+/// controlled by the library so that convergence cannot be asserted by callers.
+pub trait ScfMethod: std::fmt::Debug {
+    /// Coefficient representation, including scalar type and channel layout.
+    type Coefficients: std::fmt::Debug;
+    /// Orbital energy representation; independent of coefficient topology.
+    type OrbitalEnergies: std::fmt::Debug;
+    /// Occupation representation; independent of coefficient topology.
+    type Occupations: std::fmt::Debug;
+    /// Method-specific summary, including its numerical diagnostics.
+    type Summary: std::fmt::Debug;
+    /// Retained scientific data specific to this method.
+    type Data: std::fmt::Debug;
+}
+
+/// HF method descriptor with a reference-checked physical method identity.
 #[derive(Debug)]
-struct HfData<R: HfReference> {
-    summary: HfCalculationResult,
-    method: R::Method,
-    orbitals: Orbitals<R>,
-    integrals: CompactEri,
+pub struct HfModel<R: HfReference>(R::Method);
+
+impl<R: HfReference> ScfMethod for HfModel<R> {
+    type Coefficients = MoCoefficients<R>;
+    type OrbitalEnergies = OrbitalEnergies<R>;
+    type Occupations = Occupations<R>;
+    type Summary = HfCalculationResult;
+    type Data = CompactEri;
+}
+
+impl<R: HfReference> HfModel<R> {
+    /// Returns the physical HF method compatible with this reference.
+    #[must_use]
+    pub fn method(&self) -> R::Method {
+        self.0
+    }
+}
+
+#[derive(Debug)]
+struct ScfData<M: ScfMethod> {
+    method: M,
+    summary: M::Summary,
+    coefficients: M::Coefficients,
+    energies: M::OrbitalEnergies,
+    occupied: M::Occupations,
+    data: M::Data,
+}
+
+/// Immutable owned SCF output, distinct from the metrics in [`super::ScfResult`].
+/// Cloning shares all scientific data, without requiring the descriptor or state
+/// marker to implement `Clone`. A descriptor determines physical method identity,
+/// independent orbital representations, summary and retained data. The generic
+/// contract requires no AO ERIs. MP2 is exposed by the converged HF wrapper only.
+///
+/// ```compile_fail
+/// use rustiq_core::prelude::*;
+/// fn invalid<M: ScfMethod>(solution: &ScfSolution<M>) {
+///     solution.mp2(Mp2Config::default());
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use rustiq_core::prelude::*;
+/// fn invalid<M: ScfMethod>(solution: ScfSolution<M, Unconverged>) -> ScfSolution<M> {
+///     solution
+/// }
+/// ```
+/// Sharing all storage representations does not make physical methods interchangeable:
+///
+/// ```compile_fail
+/// use rustiq_core::prelude::*;
+/// fn invalid<M, N>(solution: ScfSolution<M>) -> ScfSolution<N>
+/// where
+///     M: ScfMethod,
+///     N: ScfMethod<Coefficients = M::Coefficients,
+///         OrbitalEnergies = M::OrbitalEnergies, Occupations = M::Occupations,
+///         Summary = M::Summary, Data = M::Data>,
+/// {
+///     solution
+/// }
+/// ```
+#[derive(Debug)]
+pub struct ScfSolution<M: ScfMethod, State = Converged>(Arc<ScfData<M>>, PhantomData<State>);
+
+impl<M: ScfMethod, State> Clone for ScfSolution<M, State> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0), PhantomData)
+    }
+}
+
+impl<M: ScfMethod, State> ScfSolution<M, State> {
+    /// Borrows the physical method descriptor.
+    #[must_use]
+    pub fn method(&self) -> &M {
+        &self.0.method
+    }
+    /// Borrows the method-specific summary.
+    #[must_use]
+    pub fn summary(&self) -> &M::Summary {
+        &self.0.summary
+    }
+    /// Borrows the coefficient representation selected by the method.
+    #[must_use]
+    pub fn mo_coefficients(&self) -> &M::Coefficients {
+        &self.0.coefficients
+    }
+    /// Borrows orbital energies in the method-specific representation.
+    #[must_use]
+    pub fn orbital_energies(&self) -> &M::OrbitalEnergies {
+        &self.0.energies
+    }
+    /// Borrows the method-specific occupations.
+    #[must_use]
+    pub fn occupied_orbitals(&self) -> &M::Occupations {
+        &self.0.occupied
+    }
+    /// Borrows retained scientific data without copying it.
+    #[must_use]
+    pub fn data(&self) -> &M::Data {
+        &self.0.data
+    }
+}
+
+impl<R: HfReference, State> ScfSolution<HfModel<R>, State> {
+    /// Borrows HF SCF metrics without duplicating the summary.
+    #[must_use]
+    pub fn scf(&self) -> &super::ScfResult {
+        &self.summary().scf
+    }
 }
 
 /// Immutable HF output owning the orbitals and integrals needed for subsequent MP2.
@@ -52,11 +179,11 @@ struct HfData<R: HfReference> {
 /// fn invalid(hf: HfSolution<Restricted>) -> HfSolution<Unrestricted> { hf }
 /// ```
 #[derive(Debug)]
-pub struct HfSolution<R: HfReference, State = Converged>(Arc<HfData<R>>, PhantomData<State>);
+pub struct HfSolution<R: HfReference, State = Converged>(ScfSolution<HfModel<R>, State>);
 
 impl<R: HfReference, State> Clone for HfSolution<R, State> {
     fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0), PhantomData)
+        Self(self.0.clone())
     }
 }
 
@@ -75,11 +202,11 @@ pub type RhfSolution<State = Converged> = HfSolution<Restricted, State>;
 /// Unrestricted HF solution, converged by default.
 pub type UhfSolution<State = Converged> = HfSolution<Unrestricted, State>;
 
-/// HF orbitals have passed convergence and final canonicalization.
+/// SCF orbitals have passed convergence and final canonicalization.
 #[derive(Debug, Clone, Copy)]
 pub struct Converged;
 
-/// HF exhausted its iteration budget without reaching convergence.
+/// SCF exhausted its iteration budget without reaching convergence.
 #[derive(Debug, Clone, Copy)]
 pub struct Unconverged;
 
@@ -182,21 +309,39 @@ impl HfOutcome {
 }
 
 impl<R: HfReference, State> HfSolution<R, State> {
+    /// Borrows the method-independent owned output without copying scientific data.
+    #[must_use]
+    pub fn as_scf(&self) -> &ScfSolution<HfModel<R>, State> {
+        &self.0
+    }
+
+    /// Takes the method-independent output without copying scientific data.
+    #[must_use]
+    pub fn into_scf(self) -> ScfSolution<HfModel<R>, State> {
+        self.0
+    }
+
+    /// Restores the HF wrapper while preserving method identity and convergence state.
+    #[must_use]
+    pub fn from_scf(solution: ScfSolution<HfModel<R>, State>) -> Self {
+        Self(solution)
+    }
+
     /// Borrows the retained AO ERI tensor without copying it.
     #[must_use]
     pub fn ao_eri(&self) -> &CompactEri {
-        &self.0.integrals
+        self.0.data()
     }
 
     #[must_use]
     pub fn summary(&self) -> &HfCalculationResult {
-        &self.0.summary
+        self.0.summary()
     }
 
     /// Returns the method allowed by this reference type.
     #[must_use]
     pub fn method(&self) -> R::Method {
-        self.0.method
+        self.0.method().method()
     }
 
     /// Borrows shared MO coefficients, or separate alpha and beta coefficients.
@@ -205,7 +350,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
     /// Unconverged snapshots need not reproduce the last damped density.
     #[must_use]
     pub fn mo_coefficients(&self) -> &MoCoefficients<R> {
-        &self.0.orbitals.coefficients
+        self.0.mo_coefficients()
     }
 
     /// Borrows orbital energies in Hartree in the reference-specific representation.
@@ -213,7 +358,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
     /// guaranteed only for converged solutions.
     #[must_use]
     pub fn orbital_energies(&self) -> &OrbitalEnergies<R> {
-        &self.0.orbitals.energies
+        self.0.orbital_energies()
     }
 
     /// Borrows the number of occupied spatial orbitals for each reference.
@@ -222,7 +367,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
     /// the corresponding coefficient columns.
     #[must_use]
     pub fn occupied_orbitals(&self) -> &Occupations<R> {
-        &self.0.orbitals.occupied
+        self.0.occupied_orbitals()
     }
 
     fn new(
@@ -231,18 +376,20 @@ impl<R: HfReference, State> HfSolution<R, State> {
         orbitals: Orbitals<R>,
         integrals: CompactEri,
     ) -> Self {
-        Self(
-            Arc::new(HfData {
+        Self(ScfSolution(
+            Arc::new(ScfData {
                 summary: HfCalculationResult {
                     method: method.into(),
                     scf,
                 },
-                method,
-                orbitals,
-                integrals,
+                method: HfModel(method),
+                coefficients: orbitals.coefficients,
+                energies: orbitals.energies,
+                occupied: orbitals.occupied,
+                data: integrals,
             }),
             PhantomData,
-        )
+        ))
     }
 }
 
@@ -438,7 +585,7 @@ impl AnyHfSolution<Converged> {
         let correlation = match self {
             Self::Unrestricted(hf) => match hf.method() {
                 UnrestrictedMethod::Uhf => {
-                    let orbitals = &hf.0.orbitals;
+                    let orbitals = hf.as_scf();
                     let spin = |coefficients, energies, occupied| Mp2SpinInput {
                         mo_coefficients: coefficients,
                         orbital_energies: energies,
@@ -447,14 +594,14 @@ impl AnyHfSolution<Converged> {
                     };
                     mp2::uhf_correlation_energy_with_memory(
                         spin(
-                            &orbitals.coefficients.alpha,
-                            &orbitals.energies.alpha,
-                            orbitals.occupied.alpha,
+                            &orbitals.mo_coefficients().alpha,
+                            &orbitals.orbital_energies().alpha,
+                            orbitals.occupied_orbitals().alpha,
                         ),
                         spin(
-                            &orbitals.coefficients.beta,
-                            &orbitals.energies.beta,
-                            orbitals.occupied.beta,
+                            &orbitals.mo_coefficients().beta,
+                            &orbitals.orbital_energies().beta,
+                            orbitals.occupied_orbitals().beta,
                         ),
                         self.ao_eri(),
                         config.memory_limit.value.resolve().as_u64(),
@@ -464,12 +611,12 @@ impl AnyHfSolution<Converged> {
             },
             Self::Restricted(hf) => match hf.method() {
                 RestrictedMethod::Rhf => {
-                    let orbitals = &hf.0.orbitals;
+                    let orbitals = hf.as_scf();
                     mp2::correlation_energy_with_memory(
                         &Mp2Input {
-                            mo_coefficients: &orbitals.coefficients,
-                            orbital_energies: &orbitals.energies,
-                            occupied_orbitals: orbitals.occupied,
+                            mo_coefficients: orbitals.mo_coefficients(),
+                            orbital_energies: orbitals.orbital_energies(),
+                            occupied_orbitals: *orbitals.occupied_orbitals(),
                             frozen_orbitals: frozen,
                             two_electron_integrals: self.ao_eri(),
                         },
@@ -567,5 +714,43 @@ mod clone_tests {
 
         assert_clone::<HfSolution<Restricted, NonCloneState>>();
         assert_clone::<AnyHfSolution<NonCloneState>>();
+    }
+}
+
+#[cfg(test)]
+mod extensibility_tests {
+    use super::*;
+
+    // Deliberately non-HF storage, with shared coefficients but separate spin counts.
+    // No AO ERIs, HF summary, Clone descriptor or shared occupation topology required.
+    #[derive(Debug)]
+    struct AlternateMethod;
+    impl ScfMethod for AlternateMethod {
+        type Coefficients = Vec<f64>;
+        type OrbitalEnergies = Vec<f64>;
+        type Occupations = crate::hf::spin::Spin<usize>;
+        type Summary = f64;
+        type Data = ();
+    }
+
+    #[test]
+    fn alternate_output_needs_no_hf_data_and_clones_without_copying() {
+        struct State;
+        let output: ScfSolution<AlternateMethod, State> = ScfSolution(
+            Arc::new(ScfData {
+                method: AlternateMethod,
+                summary: -0.5,
+                coefficients: vec![1.0],
+                energies: vec![-0.5],
+                occupied: crate::hf::spin::Spin::new(1, 0),
+                data: (),
+            }),
+            PhantomData,
+        );
+        let cloned = output.clone();
+        assert!(Arc::ptr_eq(&output.0, &cloned.0));
+        assert_eq!(*cloned.summary(), -0.5);
+        assert_eq!(*cloned.occupied_orbitals().alpha(), 1);
+        assert_eq!(*cloned.occupied_orbitals().beta(), 0);
     }
 }

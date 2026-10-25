@@ -478,3 +478,47 @@ fn standard_reference_conversions_round_trip_both_convergence_states() {
         }
     }
 }
+
+#[test]
+fn generic_owned_output_preserves_hf_storage_state_and_mp2() {
+    use rustiq_core::prelude::{
+        AnyHfSolution, HfModel, HfReference, HfSolution, ScfMethod, ScfSolution,
+    };
+
+    fn check<R: HfReference, State>(hf: HfSolution<R, State>) -> HfSolution<R, State> {
+        fn inspect<M: ScfMethod, S>(scf: &ScfSolution<M, S>) {
+            let clone = scf.clone();
+            assert!(std::ptr::eq(scf.mo_coefficients(), clone.mo_coefficients()));
+            assert!(std::ptr::eq(scf.summary(), clone.summary()));
+            assert!(std::ptr::eq(scf.data(), clone.data()));
+        }
+        let retained = hf.clone();
+        inspect(hf.as_scf());
+        let scf: ScfSolution<HfModel<R>, State> = hf.into_scf();
+        assert!(std::ptr::eq(scf.data(), retained.ao_eri()));
+        assert!(std::ptr::eq(scf.scf(), retained.as_scf().scf()));
+        let resolved: ResolvedHfMethod = scf.method().method().into();
+        assert_eq!(resolved, retained.method().into());
+        HfSolution::from_scf(scf)
+    }
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        for iterations in [1, 100] {
+            match solution(method, iterations) {
+                HfOutcome::Converged(AnyHfSolution::Restricted(hf)) => {
+                    let expected = hf.mp2(Mp2Config::default()).unwrap();
+                    assert_eq!(check(hf).mp2(Mp2Config::default()).unwrap(), expected);
+                }
+                HfOutcome::Converged(AnyHfSolution::Unrestricted(hf)) => {
+                    let expected = hf.mp2(Mp2Config::default()).unwrap();
+                    assert_eq!(check(hf).mp2(Mp2Config::default()).unwrap(), expected);
+                }
+                HfOutcome::Unconverged(AnyHfSolution::Restricted(hf)) => {
+                    check(hf);
+                }
+                HfOutcome::Unconverged(AnyHfSolution::Unrestricted(hf)) => {
+                    check(hf);
+                }
+            }
+        }
+    }
+}
