@@ -168,14 +168,7 @@ impl<State> From<ScfSolution<HfMethodDescriptor<Unrestricted>, State>> for AnyHf
 
 /// Extracts restricted generic HF output, preserving allocation and convergence state.
 /// Returns the original runtime solution unchanged if its reference is unrestricted.
-///
-/// ```
-/// use rustiq_core::prelude::*;
-/// fn restricted<State>(hf: AnyHfSolution<State>)
-///     -> Result<ScfSolution<HfMethodDescriptor<Restricted>, State>, AnyHfSolution<State>> {
-///     hf.try_into()
-/// }
-/// ```
+/// The runnable conversion example on [`HfSolution`] exercises this extraction.
 impl<State> TryFrom<AnyHfSolution<State>> for ScfSolution<HfMethodDescriptor<Restricted>, State> {
     type Error = AnyHfSolution<State>;
 

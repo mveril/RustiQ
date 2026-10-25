@@ -13,7 +13,7 @@ use crate::{
 /// It inspects RHF/UHF occupations and recovers retained HF output after a
 /// deliberately invalid frozen-orbital configuration before retrying MP2.
 /// Run it with `cargo run -p rustiq-chem-core --example hf_solution --no-default-features`.
-#[doc = concat!("\n```no_run\n", include_str!("../../../examples/hf_solution.rs"), "\n```\n")]
+#[doc = concat!("\n```\n", include_str!("../../../examples/hf_solution.rs"), "\n```\n")]
 #[derive(Debug, Clone)]
 pub enum HfOutcome {
     Converged(AnyHfSolution<Converged>),

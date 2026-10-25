@@ -123,20 +123,35 @@ impl<R: HfReference, State> HfSolution<R, State> {
 
 /// Transfers HF output into generic output, preserving the shared allocation and state.
 ///
+/// This runnable offline example uses the bundled H2/STO-3G fixture. Hidden setup
+/// loads the fixture and runs RHF; the visible code borrows, converts through the
+/// runtime enum, extracts the typed output, and evaluates MP2.
+///
 /// ```
-/// use rustiq_core::prelude::*;
-/// fn inspect<M: ScfMethod, State>(solution: &ScfSolution<M, State>) {
-///     let _ = solution.mo_coefficients();
-///     let _ = solution.orbital_energies();
-///     let _ = solution.occupations();
-///     let _ = solution.summary();
-///     let _ = solution.retained_data();
-/// }
-/// fn process<R: HfReference, State>(hf: HfSolution<R, State>) -> HfSolution<R, State> {
-///     inspect(hf.as_ref());
-///     let scf: ScfSolution<HfMethodDescriptor<R>, State> = hf.into();
-///     scf.into()
-/// }
+/// # use rustiq_core::prelude::*;
+/// # fn inspect<M: ScfMethod, State>(solution: &ScfSolution<M, State>) {
+/// #     let _ = solution.mo_coefficients();
+/// #     let _ = solution.orbital_energies();
+/// #     let _ = solution.occupations();
+/// #     let _ = solution.summary();
+/// #     let _ = solution.retained_data();
+/// # }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # let geometry = Geometry::from_reader(&include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/samples/h2/molecule.xyz"))[..])?;
+/// # let basis = BasisFile::from_reader(&include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/sto-3g.json"))[..])?;
+/// # let prepared = CalculationBuilder::new(&geometry, &basis)
+/// #     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
+/// #     .prepare()?;
+/// # let hf = prepared.run_hf()?.into_converged()?.into_restricted().unwrap_or_else(|_| panic!("H2 singlet should select RHF"));
+/// inspect(hf.as_ref());
+/// let scf: ScfSolution<HfMethodDescriptor<Restricted>> = hf.into();
+/// let runtime: AnyHfSolution = scf.into();
+/// let scf = ScfSolution::<HfMethodDescriptor<Restricted>>::try_from(runtime)
+///     .unwrap_or_else(|_| panic!("the runtime solution should remain restricted"));
+/// let hf = HfSolution::from_scf(scf);
+/// assert!(hf.mp2(Mp2Config::default())?.correlation_energy < 0.0);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// Reference and convergence state cannot change through these conversions:
