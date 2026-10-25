@@ -45,6 +45,19 @@ pub trait HfReference: sealed::Sealed + std::fmt::Debug + Clone {
     type Method: Copy + std::fmt::Debug + Into<ResolvedHfMethod> + Into<HfMethod>;
     /// Shape of coefficient-like data: shared or separate per spin.
     type Component<T: std::fmt::Debug + Clone>: std::fmt::Debug + Clone;
+    /// Create the reference's component layout from one shared value.
+    /// Restricted references keep the value; unrestricted references duplicate it.
+    fn component_from_shared<T: std::fmt::Debug + Clone>(value: T) -> Self::Component<T>;
+    /// Generate one component for restricted references and two for unrestricted references.
+    /// Calls are ordered alpha then beta, preserving seeded alpha sequences.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by the generator, without generating any
+    /// subsequent components.
+    fn try_generate_component<T: std::fmt::Debug + Clone, E>(
+        generate: impl FnMut() -> Result<T, E>,
+    ) -> Result<Self::Component<T>, E>;
     /// Energy representation, independent of the coefficient layout.
     type OrbitalEnergies: std::fmt::Debug + Clone;
     /// Occupation representation, independent of coefficient and energy layouts.
@@ -63,12 +76,28 @@ impl sealed::Sealed for Unrestricted {}
 impl HfReference for Restricted {
     type Method = RestrictedMethod;
     type Component<T: std::fmt::Debug + Clone> = T;
+    fn component_from_shared<T: std::fmt::Debug + Clone>(value: T) -> T {
+        value
+    }
+    fn try_generate_component<T: std::fmt::Debug + Clone, E>(
+        mut generate: impl FnMut() -> Result<T, E>,
+    ) -> Result<T, E> {
+        generate()
+    }
     type OrbitalEnergies = DVector<f64>;
     type Occupations = usize;
 }
 impl HfReference for Unrestricted {
     type Method = UnrestrictedMethod;
     type Component<T: std::fmt::Debug + Clone> = Spin<T>;
+    fn component_from_shared<T: std::fmt::Debug + Clone>(value: T) -> Spin<T> {
+        Spin::duplicate(value)
+    }
+    fn try_generate_component<T: std::fmt::Debug + Clone, E>(
+        generate: impl FnMut() -> Result<T, E>,
+    ) -> Result<Spin<T>, E> {
+        Spin::try_generate(generate)
+    }
     type OrbitalEnergies = Spin<DVector<f64>>;
     type Occupations = Spin<usize>;
 }
@@ -81,3 +110,39 @@ pub type OrbitalEnergies<R> = <R as HfReference>::OrbitalEnergies;
 
 /// Occupations in the representation selected by the reference.
 pub type Occupations<R> = <R as HfReference>::Occupations;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_component_counts_match_reference_layout() {
+        let mut restricted_calls = 0;
+        let restricted = Restricted::try_generate_component(|| {
+            restricted_calls += 1;
+            Ok::<_, ()>(restricted_calls)
+        })
+        .unwrap();
+        assert_eq!(restricted, 1);
+        assert_eq!(restricted_calls, 1);
+
+        let mut unrestricted_calls = 0;
+        let unrestricted = Unrestricted::try_generate_component(|| {
+            unrestricted_calls += 1;
+            Ok::<_, ()>(unrestricted_calls)
+        })
+        .unwrap();
+        assert_eq!(*unrestricted.alpha(), 1);
+        assert_eq!(*unrestricted.beta(), 2);
+        assert_eq!(unrestricted_calls, 2);
+    }
+
+    #[test]
+    fn shared_components_have_reference_specific_layouts() {
+        let restricted = Restricted::component_from_shared(vec![1, 2]);
+        let unrestricted = Unrestricted::component_from_shared(vec![1, 2]);
+        assert_eq!(restricted, vec![1, 2]);
+        assert_eq!(unrestricted.alpha(), &restricted);
+        assert_eq!(unrestricted.beta(), &restricted);
+    }
+}
