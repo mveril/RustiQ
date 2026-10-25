@@ -70,7 +70,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
     /// Returns the method allowed by this reference type.
     #[must_use]
     pub fn method(&self) -> R::Method {
-        self.0.method().method()
+        self.0.method_descriptor().method()
     }
 
     /// Borrows shared MO coefficients, or separate alpha and beta coefficients.

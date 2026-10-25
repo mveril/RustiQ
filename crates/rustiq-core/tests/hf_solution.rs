@@ -519,7 +519,10 @@ fn assert_shared_scf_output<M: rustiq_core::prelude::ScfMethod, State>(
     actual: &rustiq_core::prelude::ScfSolution<M, State>,
     expected: &rustiq_core::prelude::ScfSolution<M, State>,
 ) {
-    assert!(std::ptr::eq(actual.method(), expected.method()));
+    assert!(std::ptr::eq(
+        actual.method_descriptor(),
+        expected.method_descriptor()
+    ));
     assert!(std::ptr::eq(
         actual.mo_coefficients(),
         expected.mo_coefficients()
@@ -560,7 +563,7 @@ fn generic_owned_output_preserves_hf_storage_state_and_mp2() {
             scf.scf_result(),
             retained.as_scf().scf_result()
         ));
-        let resolved: ResolvedHfMethod = scf.method().method().into();
+        let resolved: ResolvedHfMethod = scf.method_descriptor().method().into();
         assert_eq!(resolved, retained.method().into());
         let hf: HfSolution<R, State> = scf.into();
         // The named methods use the same allocation-preserving conversion traits.

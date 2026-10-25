@@ -8,7 +8,7 @@ struct ScfData<M: ScfMethod> {
     summary: M::Summary,
     coefficients: M::Coefficients,
     energies: M::OrbitalEnergies,
-    occupied: M::Occupations,
+    occupations: M::Occupations,
     retained_data: M::RetainedData,
 }
 
@@ -69,7 +69,7 @@ impl<M: ScfMethod, State> ScfSolution<M, State> {
                 summary,
                 coefficients,
                 energies,
-                occupied: occupations,
+                occupations,
                 retained_data,
             }),
             PhantomData,
@@ -78,7 +78,7 @@ impl<M: ScfMethod, State> ScfSolution<M, State> {
 
     /// Borrows the physical method descriptor.
     #[must_use]
-    pub fn method(&self) -> &M {
+    pub fn method_descriptor(&self) -> &M {
         &self.0.method
     }
     /// Borrows the method-specific summary.
@@ -99,7 +99,7 @@ impl<M: ScfMethod, State> ScfSolution<M, State> {
     /// Borrows the occupation representation selected by the method.
     #[must_use]
     pub fn occupations(&self) -> &M::Occupations {
-        &self.0.occupied
+        &self.0.occupations
     }
     /// Borrows retained scientific data without copying it.
     #[must_use]
@@ -133,7 +133,7 @@ mod extensibility_tests {
                 summary: -0.5,
                 coefficients: vec![1.0],
                 energies: vec![-0.5],
-                occupied: crate::hf::spin::Spin::new(0.75, 0.25),
+                occupations: crate::hf::spin::Spin::new(0.75, 0.25),
                 retained_data: (),
             }),
             PhantomData,
