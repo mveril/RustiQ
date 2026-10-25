@@ -111,8 +111,13 @@ impl DiisAccelerator {
         for history_size in (2..=self.history.len()).rev() {
             let start = self.history.len() - history_size;
             let b_size = history_size + 1;
+            // Residual dot products are cheap for small matrices. Scale task
+            // grain by their length instead of spawning one task per entry.
+            let residual_len = self.history[start].error_matrix.len().max(1);
+            let gram_grain = (65_536 / residual_len).max(1);
             let b_values = (0..b_size.pow(2))
                 .into_par_iter()
+                .with_min_len(gram_grain)
                 .map(|index| {
                     let i = index % b_size;
                     let j = index / b_size;
@@ -148,6 +153,7 @@ impl DiisAccelerator {
             let (nrows, ncols) = self.history[start].fock_matrix.shape();
             let fock_values = (0..nrows * ncols)
                 .into_par_iter()
+                .with_min_len(1024)
                 .map(|index| {
                     let mu = index % nrows;
                     let nu = index / nrows;
@@ -167,6 +173,48 @@ impl DiisAccelerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Small synthetic matrix indices are exactly representable as f64"
+    )]
+    fn diis_extrapolation_matches_analytic_weights_across_dimensions_and_threads() {
+        for (rows, cols) in [(2, 2), (13, 13), (65, 65), (129, 129), (13, 26)] {
+            let focks: Vec<_> = [1.0, 4.0, 9.0]
+                .into_iter()
+                .map(|scale| {
+                    DMatrix::from_fn(rows, cols, |i, j| scale * (i + j + 1) as f64 / 100.0)
+                })
+                .collect();
+            // Orthogonal residuals with squared norms 1, 4 and 9 give
+            // normalized inverse-norm weights 36/49, 9/49 and 4/49.
+            let expected =
+                &focks[0] * (36.0 / 49.0) + &focks[1] * (9.0 / 49.0) + &focks[2] * (4.0 / 49.0);
+            let mut previous = None;
+            for threads in [1, 2, 12] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                let actual = pool.install(|| {
+                    let mut diis = DiisAccelerator::try_new(6).unwrap();
+                    let mut result = None;
+                    for (index, fock) in focks.iter().enumerate() {
+                        let mut error = DMatrix::zeros(rows, cols);
+                        error[(index % rows, index / rows)] = (index + 1) as f64;
+                        result = diis.extrapolate_with_error(fock, error);
+                    }
+                    result.unwrap()
+                });
+                approx::assert_abs_diff_eq!(actual, expected, epsilon = 1e-12);
+                if let Some(previous) = &previous {
+                    assert_eq!(&actual, previous);
+                }
+                previous = Some(actual);
+            }
+        }
+    }
 
     #[test]
     fn test_joint_spin_residuals_use_common_weights() {
