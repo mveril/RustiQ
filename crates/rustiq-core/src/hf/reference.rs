@@ -3,7 +3,7 @@
 use nalgebra::{DMatrix, DVector};
 
 use super::spin::Spin;
-use crate::config::{HfMethod, ResolvedHfMethod, RestrictedMethod, UnrestrictedMethod};
+use crate::config::{ResolvedHfMethod, RestrictedMethod, UnrestrictedMethod};
 
 mod sealed {
     pub trait Sealed {}
@@ -40,9 +40,27 @@ mod sealed {
 /// use rustiq_core::calculation::{HfReference, Restricted, Spin};
 /// let _: <Restricted as HfReference>::Occupations = Spin::new(2, 1);
 /// ```
+///
+/// Orbital energy representations are also reference-specific:
+///
+/// ```compile_fail
+/// use rustiq_core::calculation::{OrbitalEnergies, Restricted, Unrestricted};
+/// fn incompatible(energies: OrbitalEnergies<Restricted>) -> OrbitalEnergies<Unrestricted> {
+///     energies
+/// }
+/// ```
 pub trait HfReference: sealed::Sealed + std::fmt::Debug + Clone {
-    /// Methods compatible with this orbital layout.
-    type Method: Copy + std::fmt::Debug + Into<ResolvedHfMethod> + Into<HfMethod>;
+    /// Methods compatible with this reference, convertible to a resolved HF method.
+    ///
+    /// ```
+    /// use rustiq_core::calculation::{HfReference, Restricted, RestrictedMethod};
+    /// use rustiq_core::config::ResolvedHfMethod;
+    /// fn resolved<R: HfReference>(method: R::Method) -> ResolvedHfMethod {
+    ///     method.into()
+    /// }
+    /// assert_eq!(resolved::<Restricted>(RestrictedMethod::Rhf), ResolvedHfMethod::Rhf);
+    /// ```
+    type Method: Copy + std::fmt::Debug + Into<ResolvedHfMethod>;
     /// Shape of coefficient-like data: shared or separate per spin.
     type Component<T: std::fmt::Debug + Clone>: std::fmt::Debug + Clone;
     /// Create the reference's component layout from one shared value.

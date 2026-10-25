@@ -150,7 +150,9 @@ returns an execution error retaining the unconverged outcome, recoverable with
 solution when the requested reference does not match.
 
 The sealed `HfReference` contract associates a compatible HF method, coefficient
-representation, orbital energies, and occupations. RHF has one shared
+representation, orbital energies, and occupations. Generic code converts the
+associated method into `ResolvedHfMethod`; conversion into the input selector
+`HfMethod` is not required by the trait. RHF has one shared
 coefficient matrix and energy vector with one doubly occupied spatial-orbital
 count. UHF has separate alpha and beta coefficients, energies, and electron
 counts, represented by `Spin<T>`. Read-only accessors expose these values;
