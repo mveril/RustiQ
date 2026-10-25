@@ -19,6 +19,41 @@ use crate::{calculation::CalculationExecutionError, config::Mp2Config, mp2::Mp2R
 ///     solution.mp2(Mp2Config::default())
 /// }
 /// ```
+///
+/// Both supported converged HF references implement this capability:
+///
+/// ```
+/// use rustiq_core::prelude::{Converged, Mp2Calculation, RhfSolution, UhfSolution};
+///
+/// fn require_mp2<T: Mp2Calculation>() {}
+///
+/// fn main() {
+///     require_mp2::<RhfSolution<Converged>>();
+///     require_mp2::<UhfSolution<Converged>>();
+/// }
+/// ```
+///
+/// Unconverged references do not implement it:
+///
+/// ```compile_fail
+/// use rustiq_core::prelude::{Mp2Calculation, RhfSolution, Unconverged};
+///
+/// fn require_mp2<T: Mp2Calculation>() {}
+///
+/// fn main() {
+///     require_mp2::<RhfSolution<Unconverged>>();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use rustiq_core::prelude::{Mp2Calculation, UhfSolution, Unconverged};
+///
+/// fn require_mp2<T: Mp2Calculation>() {}
+///
+/// fn main() {
+///     require_mp2::<UhfSolution<Unconverged>>();
+/// }
+/// ```
 pub trait Mp2Calculation {
     /// Evaluates the MP2 correction without rerunning the reference calculation.
     ///

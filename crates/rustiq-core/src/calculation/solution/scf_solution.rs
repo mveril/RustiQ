@@ -25,6 +25,24 @@ struct ScfData<M: ScfMethod> {
 /// }
 /// ```
 ///
+/// Converged HF result representations do not imply an MP2 formulation:
+///
+/// ```compile_fail
+/// use rustiq_core::prelude::{
+///     Converged,
+///     HfMethodDescriptor,
+///     Mp2Calculation,
+///     Restricted,
+///     ScfSolution,
+/// };
+///
+/// fn require_mp2<T: Mp2Calculation>() {}
+///
+/// fn main() {
+///     require_mp2::<ScfSolution<HfMethodDescriptor<Restricted>, Converged>>();
+/// }
+/// ```
+///
 /// ```compile_fail
 /// use rustiq_core::prelude::*;
 /// fn invalid<M: ScfMethod>(solution: ScfSolution<M, Unconverged>) -> ScfSolution<M> {

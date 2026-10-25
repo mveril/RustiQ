@@ -15,9 +15,16 @@ use crate::{
 /// adding another reference does not imply that an MP2 formulation is supported for it.
 ///
 /// ```compile_fail
-/// use rustiq_core::{calculation::{AnyHfSolution, Converged}, config::Mp2Config};
-/// fn invalid(hf: &AnyHfSolution<Converged>) {
-///     hf.mp2(Mp2Config::default());
+/// use rustiq_core::prelude::{
+///     AnyHfSolution,
+///     Converged,
+///     Mp2Calculation,
+/// };
+///
+/// fn require_mp2<T: Mp2Calculation>() {}
+///
+/// fn main() {
+///     require_mp2::<AnyHfSolution<Converged>>();
 /// }
 /// ```
 #[derive(Debug)]
