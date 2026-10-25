@@ -75,12 +75,17 @@ impl HfOutcome {
     /// Takes the converged solution without cloning its scientific data.
     ///
     /// ```no_run
-    /// use rustiq_core::prelude::*;
-    /// use rustiq_core::calculation::Mp2Result;
-    /// fn correlate(prepared: &PreparedCalculation) -> Result<Mp2Result, CalculationExecutionError> {
-    ///     let hf = prepared.run_hf()?.into_converged()?;
-    ///     hf.mp2(Mp2Config::default())
-    /// }
+    /// use rustiq_core::{
+    ///     calculation::Mp2Result,
+    ///     prelude::{CalculationExecution, Mp2Config, PreparedCalculation},
+    /// };
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let prepared: PreparedCalculation = todo!("prepare a geometry and basis");
+    /// let hf = prepared.run_hf()?.into_converged()?;
+    /// let mp2: Mp2Result = hf.mp2(Mp2Config::default())?;
+    /// # let _ = mp2;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Errors
