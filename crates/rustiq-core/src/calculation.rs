@@ -85,7 +85,7 @@ pub use crate::hf::{
     spin::Spin,
 };
 pub use solution::{
-    AnyHfSolution, CalculationExecutionError, Converged, HfModel, HfOutcome, HfSolution,
+    AnyHfSolution, CalculationExecutionError, Converged, HfMethodDescriptor, HfOutcome, HfSolution,
     RhfSolution, ScfMethod, ScfSolution, UhfSolution, Unconverged,
 };
 mod artifact_reuse;

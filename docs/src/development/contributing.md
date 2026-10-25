@@ -149,22 +149,42 @@ returns an execution error retaining the unconverged outcome, recoverable with
 `into_hf()`. Typed/runtime conversions preserve state and return the original
 solution when the requested reference does not match.
 
-`HfSolution<R, State>` wraps `ScfSolution<HfModel<R>, State>`. Generic consumers
-can borrow it with `as_scf()` or take ownership with `into_scf()`; `from_scf()`
-restores the HF wrapper with the same reference and convergence state. These
-operations preserve the shared allocation and do not copy orbitals or AO ERIs.
-Existing HF callers need no migration.
+`HfSolution<R, State>` wraps `ScfSolution<HfMethodDescriptor<R>, State>`.
+The following conversions preserve the physical method, reference, convergence
+state and shared scientific allocation:
 
-`ScfSolution<M, State>` owns output; `ScfResult` contains numerical metrics.
-The public `ScfMethod` descriptor associates independent coefficient, energy,
-occupation, summary and retained-data types. Its type identifies the physical
-method separately from those representations. The generic container requires
-neither an HF summary nor AO ERIs. Implementing the descriptor does not provide
-an SCF engine or a public solution constructor: the library controls construction
-and convergence state. For HF, `HfModel<R>` retains the compatible method,
-`HfCalculationResult` summary and AO ERIs. Only the compatible converged HF
-wrapper exposes MP2; generic output must first be restored with `from_scf()`.
-The HF specialization also exposes `scf()` to borrow metrics from its summary.
+| Source | Target | Conversion |
+| --- | --- | --- |
+| `HfSolution<R, State>` | `ScfSolution<HfMethodDescriptor<R>, State>` | `From` / `Into`, or `into_scf()` |
+| `ScfSolution<HfMethodDescriptor<R>, State>` | `HfSolution<R, State>` | `From` / `Into`, or `from_scf()` |
+| `&HfSolution<R, State>` | `&ScfSolution<HfMethodDescriptor<R>, State>` | `AsRef`, or `as_scf()` |
+| Restricted or unrestricted generic HF output | `AnyHfSolution<State>` | `From` / `Into` |
+| `AnyHfSolution<State>` | Restricted or unrestricted generic HF output | `TryFrom` / `TryInto` |
+
+The checked runtime extraction returns the original `AnyHfSolution<State>` on
+a reference mismatch. These conversions transfer or borrow existing ownership;
+they do not clone scientific data or allocate another result. The named methods
+delegate to the standard traits. The HF wrapper keeps its explicit interface,
+including `occupied_orbitals()`; existing HF callers need no migration.
+
+`ScfSolution<M, State>` owns scientific output; `ScfResult` contains numerical
+metrics. The public `ScfMethod` trait associates independent coefficient,
+energy, occupation, summary and `RetainedData` types. It describes output rather
+than an executable SCF algorithm. The implementing descriptor type identifies
+the physical method separately from those representations. The generic `occupations()` accessor
+borrows method-specific occupations, which need not be integer orbital counts.
+`retained_data()` borrows scientific artifacts retained after execution; the
+generic contract requires neither an HF summary nor AO ERIs.
+
+Implementing this trait does not provide an SCF engine or a public solution
+constructor: the library establishes the method-specific convergence state.
+For HF, `HfMethodDescriptor<R>` identifies the compatible method, with an
+`HfCalculationResult` summary and retained AO ERIs. Its `ScfSolution`
+specialization exposes `scf_result()` to borrow metrics from the summary.
+Only compatible converged HF wrappers expose MP2; generic HF output can be
+restored through `Into` or `from_scf()`. Supported converged HF implementations
+also guarantee final canonicalization; this is an HF guarantee, rather than a
+universal requirement on every SCF method.
 
 The sealed `HfReference` contract associates a compatible HF method, coefficient
 representation, orbital energies, and occupations. Generic code converts the

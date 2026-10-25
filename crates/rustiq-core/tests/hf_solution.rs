@@ -479,27 +479,58 @@ fn standard_reference_conversions_round_trip_both_convergence_states() {
     }
 }
 
+fn assert_shared_scf_output<M: rustiq_core::prelude::ScfMethod, State>(
+    actual: &rustiq_core::prelude::ScfSolution<M, State>,
+    expected: &rustiq_core::prelude::ScfSolution<M, State>,
+) {
+    assert!(std::ptr::eq(actual.method(), expected.method()));
+    assert!(std::ptr::eq(
+        actual.mo_coefficients(),
+        expected.mo_coefficients()
+    ));
+    assert!(std::ptr::eq(
+        actual.orbital_energies(),
+        expected.orbital_energies()
+    ));
+    assert!(std::ptr::eq(actual.occupations(), expected.occupations()));
+    assert!(std::ptr::eq(actual.summary(), expected.summary()));
+    assert!(std::ptr::eq(
+        actual.retained_data(),
+        expected.retained_data()
+    ));
+}
+
 #[test]
 fn generic_owned_output_preserves_hf_storage_state_and_mp2() {
     use rustiq_core::prelude::{
-        AnyHfSolution, HfModel, HfReference, HfSolution, ScfMethod, ScfSolution,
+        AnyHfSolution, HfMethodDescriptor, HfReference, HfSolution, ScfMethod, ScfSolution,
     };
 
     fn check<R: HfReference, State>(hf: HfSolution<R, State>) -> HfSolution<R, State> {
         fn inspect<M: ScfMethod, S>(scf: &ScfSolution<M, S>) {
-            let clone = scf.clone();
-            assert!(std::ptr::eq(scf.mo_coefficients(), clone.mo_coefficients()));
-            assert!(std::ptr::eq(scf.summary(), clone.summary()));
-            assert!(std::ptr::eq(scf.data(), clone.data()));
+            assert_shared_scf_output(scf, &scf.clone());
         }
         let retained = hf.clone();
-        inspect(hf.as_scf());
-        let scf: ScfSolution<HfModel<R>, State> = hf.into_scf();
-        assert!(std::ptr::eq(scf.data(), retained.ao_eri()));
-        assert!(std::ptr::eq(scf.scf(), retained.as_scf().scf()));
+        inspect(hf.as_ref());
+        assert!(std::ptr::eq(hf.as_scf(), hf.as_ref()));
+        let scf: ScfSolution<HfMethodDescriptor<R>, State> = hf.into();
+        assert_shared_scf_output(&scf, retained.as_scf());
+        assert!(std::ptr::eq(scf.retained_data(), retained.ao_eri()));
+        assert!(std::ptr::eq(
+            scf.occupations(),
+            retained.occupied_orbitals()
+        ));
+        assert!(std::ptr::eq(
+            scf.scf_result(),
+            retained.as_scf().scf_result()
+        ));
         let resolved: ResolvedHfMethod = scf.method().method().into();
         assert_eq!(resolved, retained.method().into());
-        HfSolution::from_scf(scf)
+        let hf: HfSolution<R, State> = scf.into();
+        // The named methods use the same allocation-preserving conversion traits.
+        let hf = HfSolution::from_scf(hf.into_scf());
+        assert_shared_scf_output(hf.as_scf(), retained.as_scf());
+        hf
     }
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         for iterations in [1, 100] {
@@ -519,6 +550,84 @@ fn generic_owned_output_preserves_hf_storage_state_and_mp2() {
                     check(hf);
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn generic_runtime_conversions_preserve_data_on_success_and_reference_mismatch() {
+    use rustiq_core::prelude::{
+        AnyHfSolution, HfMethodDescriptor, Restricted, ScfSolution, Unrestricted,
+    };
+
+    fn round_trip<State>(hf: AnyHfSolution<State>) -> AnyHfSolution<State> {
+        let retained = hf.clone();
+        let restored: AnyHfSolution<State> = match hf.method() {
+            ResolvedHfMethod::Rhf => {
+                let Err(original) =
+                    ScfSolution::<HfMethodDescriptor<Unrestricted>, State>::try_from(hf)
+                else {
+                    panic!("restricted output must not become unrestricted");
+                };
+                assert!(matches!(original, AnyHfSolution::Restricted(_)));
+                assert_shared_scf_output(
+                    original.as_restricted().unwrap().as_scf(),
+                    retained.as_restricted().unwrap().as_scf(),
+                );
+                let Ok(scf) =
+                    ScfSolution::<HfMethodDescriptor<Restricted>, State>::try_from(original)
+                else {
+                    panic!("restricted output must be extractable");
+                };
+                assert_shared_scf_output(&scf, retained.as_restricted().unwrap().as_scf());
+                scf.into()
+            }
+            ResolvedHfMethod::Uhf => {
+                let Err(original) =
+                    ScfSolution::<HfMethodDescriptor<Restricted>, State>::try_from(hf)
+                else {
+                    panic!("unrestricted output must not become restricted");
+                };
+                assert!(matches!(original, AnyHfSolution::Unrestricted(_)));
+                assert_shared_scf_output(
+                    original.as_unrestricted().unwrap().as_scf(),
+                    retained.as_unrestricted().unwrap().as_scf(),
+                );
+                let Ok(scf) =
+                    ScfSolution::<HfMethodDescriptor<Unrestricted>, State>::try_from(original)
+                else {
+                    panic!("unrestricted output must be extractable");
+                };
+                assert_shared_scf_output(&scf, retained.as_unrestricted().unwrap().as_scf());
+                scf.into()
+            }
+        };
+        assert_eq!(restored.method(), retained.method());
+        assert!(std::ptr::eq(restored.summary(), retained.summary()));
+        assert!(std::ptr::eq(restored.ao_eri(), retained.ao_eri()));
+        match &restored {
+            AnyHfSolution::Restricted(hf) => {
+                assert_shared_scf_output(hf.as_scf(), retained.as_restricted().unwrap().as_scf());
+            }
+            AnyHfSolution::Unrestricted(hf) => {
+                assert_shared_scf_output(hf.as_scf(), retained.as_unrestricted().unwrap().as_scf());
+            }
+        }
+        restored
+    }
+
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        for iterations in [1, 100] {
+            let outcome = solution(method, iterations);
+            let retained = outcome.clone();
+            let restored: HfOutcome = match outcome {
+                HfOutcome::Converged(hf) => round_trip(hf).into(),
+                HfOutcome::Unconverged(hf) => round_trip(hf).into(),
+            };
+            assert_eq!(restored.is_converged(), retained.is_converged());
+            assert_eq!(restored.method(), retained.method());
+            assert!(std::ptr::eq(restored.summary(), retained.summary()));
+            assert!(std::ptr::eq(restored.ao_eri(), retained.ao_eri()));
         }
     }
 }
