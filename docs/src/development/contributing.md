@@ -149,6 +149,13 @@ returns an execution error retaining the unconverged outcome, recoverable with
 `into_hf()`. Typed/runtime conversions preserve state and return the original
 solution when the requested reference does not match.
 
+The owned-output implementation lives in
+`crates/rustiq-core/src/calculation/solution/`, with separate modules for generic
+results, HF adaptation, runtime dispatch, outcomes and execution errors. The
+`calculation/solution.rs` facade preserves the existing public exports through
+`rustiq_core::calculation` and the prelude. Convergence markers stay together,
+and private shared storage stays with the result that owns it.
+
 `HfSolution<R, State>` wraps `ScfSolution<HfMethodDescriptor<R>, State>`.
 The following conversions preserve the physical method, reference, convergence
 state and shared scientific allocation:
