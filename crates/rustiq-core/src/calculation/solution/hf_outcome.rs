@@ -80,7 +80,10 @@ impl HfOutcome {
     ///     prelude::{CalculationExecution, Mp2Config, PreparedCalculation},
     /// };
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let prepared: PreparedCalculation = todo!("prepare a geometry and basis");
+    /// # fn prepare_calculation() -> PreparedCalculation {
+    /// #     unimplemented!("geometry and basis setup omitted")
+    /// # }
+    /// let prepared = prepare_calculation();
     /// let hf = prepared.run_hf()?.into_converged()?;
     /// let mp2: Mp2Result = hf.mp2(Mp2Config::default())?;
     /// # let _ = mp2;
