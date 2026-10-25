@@ -304,9 +304,14 @@ impl PreparedCalculation {
                             iterations: hf.summary().scf.iterations,
                         })
                 })?;
-                let result = converged.mp2_with_report(*config, &mut |plan| {
-                    events(CalculationEvent::Mp2Planned(plan));
-                })?;
+                let result = match converged {
+                    AnyHfSolution::Restricted(hf) => hf.mp2_with_report(*config, &mut |plan| {
+                        events(CalculationEvent::Mp2Planned(plan));
+                    }),
+                    AnyHfSolution::Unrestricted(hf) => hf.mp2_with_report(*config, &mut |plan| {
+                        events(CalculationEvent::Mp2Planned(plan));
+                    }),
+                }?;
                 events(CalculationEvent::Mp2Completed {
                     hf: hf.summary(),
                     result: &result,
