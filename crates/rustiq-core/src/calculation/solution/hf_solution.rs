@@ -3,13 +3,13 @@ use super::{
     ScfSolution,
 };
 use crate::{
-    calculation::{HfCalculationResult, ScfResult},
+    calculation::{CalculationError, HfCalculationResult, HfOutcome, ScfResult},
     config::Mp2Config,
     eri::CompactEri,
     hf::reference::{
         HfReference, MoCoefficients, Occupations, OrbitalEnergies, Restricted, Unrestricted,
     },
-    mp2::Mp2Result,
+    mp2::{self, Mp2Input, Mp2Result, Mp2SpinInput},
 };
 
 /// Immutable HF output owning the orbitals and integrals needed for subsequent MP2.
@@ -208,6 +208,34 @@ impl HfSolution<Restricted, Converged> {
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         Mp2Calculation::mp2(self, config)
     }
+
+    pub(super) fn mp2_with_report(
+        &self,
+        config: Mp2Config,
+        report: &mut impl FnMut(crate::mp2::Mp2MemoryPlan),
+    ) -> Result<Mp2Result, CalculationExecutionError> {
+        let orbitals = self.as_scf();
+        let correlation = mp2::correlation_energy_with_memory(
+            &Mp2Input {
+                mo_coefficients: orbitals.mo_coefficients(),
+                orbital_energies: orbitals.orbital_energies(),
+                occupied_orbitals: *orbitals.occupations(),
+                frozen_orbitals: config.frozen_orbitals.value,
+                two_electron_integrals: self.ao_eri(),
+            },
+            config.memory_limit.value.resolve().as_u64(),
+            report,
+        );
+        finish_mp2(
+            self.summary().scf.electronic_energy,
+            config,
+            correlation,
+            |cause| {
+                let retained: AnyHfSolution = self.clone().into();
+                CalculationExecutionError::with_hf(cause, HfOutcome::from(retained))
+            },
+        )
+    }
 }
 
 impl HfSolution<Unrestricted, Converged> {
@@ -218,18 +246,83 @@ impl HfSolution<Unrestricted, Converged> {
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
         Mp2Calculation::mp2(self, config)
     }
+
+    pub(super) fn mp2_with_report(
+        &self,
+        config: Mp2Config,
+        report: &mut impl FnMut(crate::mp2::Mp2MemoryPlan),
+    ) -> Result<Mp2Result, CalculationExecutionError> {
+        let orbitals = self.as_scf();
+        let spin = |coefficients, energies, occupied| Mp2SpinInput {
+            mo_coefficients: coefficients,
+            orbital_energies: energies,
+            occupied_orbitals: occupied,
+            frozen_orbitals: config.frozen_orbitals.value,
+        };
+        let correlation = mp2::uhf_correlation_energy_with_memory(
+            spin(
+                &orbitals.mo_coefficients().alpha,
+                &orbitals.orbital_energies().alpha,
+                orbitals.occupations().alpha,
+            ),
+            spin(
+                &orbitals.mo_coefficients().beta,
+                &orbitals.orbital_energies().beta,
+                orbitals.occupations().beta,
+            ),
+            self.ao_eri(),
+            config.memory_limit.value.resolve().as_u64(),
+            report,
+        );
+        finish_mp2(
+            self.summary().scf.electronic_energy,
+            config,
+            correlation,
+            |cause| {
+                let retained: AnyHfSolution = self.clone().into();
+                CalculationExecutionError::with_hf(cause, HfOutcome::from(retained))
+            },
+        )
+    }
 }
 
 impl Mp2Calculation for HfSolution<Restricted, Converged> {
     fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
-        AnyHfSolution::from(self.clone()).mp2_with_report(config, &mut |_| {})
+        self.mp2_with_report(config, &mut |_| {})
     }
 }
 
 impl Mp2Calculation for HfSolution<Unrestricted, Converged> {
     fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
-        AnyHfSolution::from(self.clone()).mp2_with_report(config, &mut |_| {})
+        self.mp2_with_report(config, &mut |_| {})
     }
+}
+
+fn finish_mp2(
+    electronic_energy: f64,
+    config: Mp2Config,
+    correlation: Result<f64, mp2::Mp2Error>,
+    on_error: impl FnOnce(CalculationError) -> CalculationExecutionError,
+) -> Result<Mp2Result, CalculationExecutionError> {
+    let correlation_energy = match correlation {
+        Ok(energy) => energy,
+        Err(error) => {
+            let span = match error {
+                mp2::Mp2Error::InvalidFrozenOrbitalCount { .. } => config.frozen_orbitals.span,
+                mp2::Mp2Error::InvalidMemoryLimit
+                | mp2::Mp2Error::InsufficientMemory { .. }
+                | mp2::Mp2Error::SizeOverflow => config.memory_limit.span,
+                _ => None,
+            };
+            let cause = CalculationError::Mp2 { error, span };
+            return Err(on_error(cause));
+        }
+    };
+
+    Ok(Mp2Result {
+        correlation_energy,
+        electronic_energy: electronic_energy + correlation_energy,
+    })
 }
 
 #[cfg(test)]
