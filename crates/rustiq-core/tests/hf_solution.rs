@@ -418,10 +418,19 @@ fn try_from_converged_output_retains_unconverged_output_in_errors() {
 }
 
 #[test]
-fn taking_wrong_reference_returns_the_original_solution() {
+fn taking_wrong_reference_returns_a_typed_error_and_retains_the_original_solution() {
     let restricted = solution(HfMethod::Rhf, 100).into_converged().unwrap();
     let retained = restricted.clone();
-    let original = restricted.into_unrestricted().unwrap_err();
+    let error = restricted.into_unrestricted().unwrap_err();
+    assert_eq!(
+        error.expected(),
+        rustiq_core::calculation::HfReferenceKind::Unrestricted
+    );
+    assert_eq!(
+        error.actual(),
+        rustiq_core::calculation::HfReferenceKind::Restricted
+    );
+    let original = error.into_solution();
     assert!(std::ptr::eq(original.summary(), retained.summary()));
     let restricted = original.into_restricted().unwrap();
     assert!(std::ptr::eq(restricted.summary(), retained.summary()));
@@ -429,7 +438,16 @@ fn taking_wrong_reference_returns_the_original_solution() {
 
     let unrestricted = solution(HfMethod::Uhf, 100).into_converged().unwrap();
     let retained = unrestricted.clone();
-    let original = unrestricted.into_restricted().unwrap_err();
+    let error = unrestricted.into_restricted().unwrap_err();
+    assert_eq!(
+        error.expected(),
+        rustiq_core::calculation::HfReferenceKind::Restricted
+    );
+    assert_eq!(
+        error.actual(),
+        rustiq_core::calculation::HfReferenceKind::Unrestricted
+    );
+    let original = error.into_solution();
     assert!(std::ptr::eq(original.summary(), retained.summary()));
     let unrestricted = original.into_unrestricted().unwrap();
     assert!(std::ptr::eq(unrestricted.summary(), retained.summary()));
@@ -446,13 +464,31 @@ fn standard_reference_conversions_round_trip_both_convergence_states() {
         let retained = hf.clone();
         let wrapped = match hf.method() {
             ResolvedHfMethod::Rhf => {
-                let original = UhfSolution::<State>::try_from(hf).unwrap_err();
+                let error = UhfSolution::<State>::try_from(hf).unwrap_err();
+                assert_eq!(
+                    error.expected(),
+                    rustiq_core::calculation::HfReferenceKind::Unrestricted
+                );
+                assert_eq!(
+                    error.actual(),
+                    rustiq_core::calculation::HfReferenceKind::Restricted
+                );
+                let original = error.into_solution();
                 assert!(std::ptr::eq(original.summary(), retained.summary()));
                 let typed: RhfSolution<State> = original.try_into().unwrap();
                 AnyHfSolution::from(typed)
             }
             ResolvedHfMethod::Uhf => {
-                let original = RhfSolution::<State>::try_from(hf).unwrap_err();
+                let error = RhfSolution::<State>::try_from(hf).unwrap_err();
+                assert_eq!(
+                    error.expected(),
+                    rustiq_core::calculation::HfReferenceKind::Restricted
+                );
+                assert_eq!(
+                    error.actual(),
+                    rustiq_core::calculation::HfReferenceKind::Unrestricted
+                );
+                let original = error.into_solution();
                 assert!(std::ptr::eq(original.summary(), retained.summary()));
                 let typed: UhfSolution<State> = original.try_into().unwrap();
                 typed.into()
@@ -564,11 +600,20 @@ fn generic_runtime_conversions_preserve_data_on_success_and_reference_mismatch()
         let retained = hf.clone();
         let restored: AnyHfSolution<State> = match hf.method() {
             ResolvedHfMethod::Rhf => {
-                let Err(original) =
+                let Err(error) =
                     ScfSolution::<HfMethodDescriptor<Unrestricted>, State>::try_from(hf)
                 else {
                     panic!("restricted output must not become unrestricted");
                 };
+                assert_eq!(
+                    error.expected(),
+                    rustiq_core::calculation::HfReferenceKind::Unrestricted
+                );
+                assert_eq!(
+                    error.actual(),
+                    rustiq_core::calculation::HfReferenceKind::Restricted
+                );
+                let original = error.into_solution();
                 assert!(matches!(original, AnyHfSolution::Restricted(_)));
                 assert_shared_scf_output(
                     original.as_restricted().unwrap().as_scf(),
@@ -583,11 +628,19 @@ fn generic_runtime_conversions_preserve_data_on_success_and_reference_mismatch()
                 scf.into()
             }
             ResolvedHfMethod::Uhf => {
-                let Err(original) =
-                    ScfSolution::<HfMethodDescriptor<Restricted>, State>::try_from(hf)
+                let Err(error) = ScfSolution::<HfMethodDescriptor<Restricted>, State>::try_from(hf)
                 else {
                     panic!("unrestricted output must not become restricted");
                 };
+                assert_eq!(
+                    error.expected(),
+                    rustiq_core::calculation::HfReferenceKind::Restricted
+                );
+                assert_eq!(
+                    error.actual(),
+                    rustiq_core::calculation::HfReferenceKind::Unrestricted
+                );
+                let original = error.into_solution();
                 assert!(matches!(original, AnyHfSolution::Unrestricted(_)));
                 assert_shared_scf_output(
                     original.as_unrestricted().unwrap().as_scf(),

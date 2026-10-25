@@ -168,11 +168,13 @@ state and shared scientific allocation:
 | Restricted or unrestricted generic HF output | `AnyHfSolution<State>` | `From` / `Into` |
 | `AnyHfSolution<State>` | Restricted or unrestricted generic HF output | `TryFrom` / `TryInto` |
 
-The checked runtime extraction returns the original `AnyHfSolution<State>` on
-a reference mismatch. These conversions transfer or borrow existing ownership;
-they do not clone scientific data or allocate another result. The named methods
-delegate to the standard traits. The HF wrapper keeps its explicit interface,
-including `occupied_orbitals()`; existing HF callers need no migration.
+The checked runtime extraction returns `HfReferenceMismatch<State>` on a
+reference mismatch. It reports the expected and actual HF references and retains
+the original `AnyHfSolution<State>`, recoverable with `into_solution()`. These
+conversions transfer or borrow existing ownership; they do not clone scientific
+data or allocate another result. The named methods delegate to the standard
+traits. The HF wrapper keeps its explicit interface, including
+`occupied_orbitals()`; existing HF callers need no migration.
 
 `ScfSolution<M, State>` owns scientific output; `ScfResult` contains numerical
 metrics. The public `ScfMethod` trait associates independent coefficient,

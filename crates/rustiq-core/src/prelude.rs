@@ -32,9 +32,10 @@ pub use crate::{
     calculation::{
         AnyHfSolution, CalculationBuilder, CalculationError, CalculationEvent,
         CalculationExecution, CalculationExecutionError, CalculationResult, Converged,
-        HfMethodDescriptor, HfOutcome, HfReference, HfSolution, MoCoefficients, Occupations,
-        OrbitalEnergies, PreparedCalculation, Restricted, RestrictedMethod, RhfSolution, ScfMethod,
-        ScfSolution, Spin, UhfSolution, Unconverged, Unrestricted, UnrestrictedMethod,
+        HfMethodDescriptor, HfOutcome, HfReference, HfReferenceKind, HfReferenceMismatch,
+        HfSolution, MoCoefficients, Occupations, OrbitalEnergies, PreparedCalculation, Restricted,
+        RestrictedMethod, RhfSolution, ScfMethod, ScfSolution, Spin, UhfSolution, Unconverged,
+        Unrestricted, UnrestrictedMethod,
     },
     config::{HfConfig, HfMethod, IntegralConfig, Located, MoleculeConfig, Mp2Config},
     molecules::{Atom, Geometry, GeometryParseError, Units},

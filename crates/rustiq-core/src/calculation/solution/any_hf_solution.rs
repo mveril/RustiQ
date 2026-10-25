@@ -1,6 +1,6 @@
 use super::{
-    CalculationExecutionError, Converged, HfMethodDescriptor, HfSolution, RhfSolution, ScfSolution,
-    UhfSolution,
+    CalculationExecutionError, Converged, HfMethodDescriptor, HfReferenceKind, HfReferenceMismatch,
+    HfSolution, RhfSolution, ScfSolution, UhfSolution,
 };
 use crate::{
     calculation::{CalculationError, HfCalculationResult, HfState, Mp2Result, ScfResult},
@@ -81,16 +81,16 @@ impl<State> AnyHfSolution<State> {
     /// Takes the restricted solution without cloning its scientific data.
     ///
     /// # Errors
-    /// Returns the original enum unchanged when its reference is unrestricted.
-    pub fn into_restricted(self) -> Result<RhfSolution<State>, Self> {
+    /// Returns an error containing the original solution if its reference is unrestricted.
+    pub fn into_restricted(self) -> Result<RhfSolution<State>, HfReferenceMismatch<State>> {
         self.try_into()
     }
 
     /// Takes the unrestricted solution without cloning its scientific data.
     ///
     /// # Errors
-    /// Returns the original enum unchanged when its reference is restricted.
-    pub fn into_unrestricted(self) -> Result<UhfSolution<State>, Self> {
+    /// Returns an error containing the original solution if its reference is restricted.
+    pub fn into_unrestricted(self) -> Result<UhfSolution<State>, HfReferenceMismatch<State>> {
         self.try_into()
     }
 
@@ -118,23 +118,31 @@ impl<State> AnyHfSolution<State> {
 
 /// Extracts an existing restricted solution without changing its convergence state.
 impl<State> TryFrom<AnyHfSolution<State>> for RhfSolution<State> {
-    type Error = AnyHfSolution<State>;
+    type Error = HfReferenceMismatch<State>;
 
     fn try_from(hf: AnyHfSolution<State>) -> Result<Self, Self::Error> {
         match hf {
             AnyHfSolution::Restricted(hf) => Ok(hf),
-            other @ AnyHfSolution::Unrestricted(_) => Err(other),
+            other @ AnyHfSolution::Unrestricted(_) => Err(HfReferenceMismatch::new(
+                HfReferenceKind::Restricted,
+                HfReferenceKind::Unrestricted,
+                other,
+            )),
         }
     }
 }
 
 /// Extracts an existing unrestricted solution without changing its convergence state.
 impl<State> TryFrom<AnyHfSolution<State>> for UhfSolution<State> {
-    type Error = AnyHfSolution<State>;
+    type Error = HfReferenceMismatch<State>;
 
     fn try_from(hf: AnyHfSolution<State>) -> Result<Self, Self::Error> {
         match hf {
-            other @ AnyHfSolution::Restricted(_) => Err(other),
+            other @ AnyHfSolution::Restricted(_) => Err(HfReferenceMismatch::new(
+                HfReferenceKind::Unrestricted,
+                HfReferenceKind::Restricted,
+                other,
+            )),
             AnyHfSolution::Unrestricted(hf) => Ok(hf),
         }
     }
@@ -167,10 +175,11 @@ impl<State> From<ScfSolution<HfMethodDescriptor<Unrestricted>, State>> for AnyHf
 }
 
 /// Extracts restricted generic HF output, preserving allocation and convergence state.
-/// Returns the original runtime solution unchanged if its reference is unrestricted.
+/// Returns [`HfReferenceMismatch`] if its reference is unrestricted; the error retains the
+/// original solution for recovery.
 /// The runnable conversion example on [`HfSolution`] exercises this extraction.
 impl<State> TryFrom<AnyHfSolution<State>> for ScfSolution<HfMethodDescriptor<Restricted>, State> {
-    type Error = AnyHfSolution<State>;
+    type Error = HfReferenceMismatch<State>;
 
     fn try_from(value: AnyHfSolution<State>) -> Result<Self, Self::Error> {
         RhfSolution::<State>::try_from(value).map(Into::into)
@@ -178,9 +187,10 @@ impl<State> TryFrom<AnyHfSolution<State>> for ScfSolution<HfMethodDescriptor<Res
 }
 
 /// Extracts unrestricted generic HF output, preserving allocation and convergence state.
-/// Returns the original runtime solution unchanged if its reference is restricted.
+/// Returns [`HfReferenceMismatch`] if its reference is restricted; the error retains the
+/// original solution for recovery.
 impl<State> TryFrom<AnyHfSolution<State>> for ScfSolution<HfMethodDescriptor<Unrestricted>, State> {
-    type Error = AnyHfSolution<State>;
+    type Error = HfReferenceMismatch<State>;
 
     fn try_from(value: AnyHfSolution<State>) -> Result<Self, Self::Error> {
         UhfSolution::<State>::try_from(value).map(Into::into)
