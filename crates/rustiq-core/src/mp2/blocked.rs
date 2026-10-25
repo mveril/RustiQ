@@ -23,6 +23,7 @@ pub struct Mp2MemoryPlan {
 
 /// Spin sector whose workspace is described by an [`Mp2MemoryPlan`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Mp2Sector {
     Rhf,
     UhfAlphaAlpha,

@@ -27,15 +27,13 @@ use super::{
 ///     molecules::{Geometry, Units},
 /// };
 /// # fn example(geometry: &Geometry, basis_file: &BasisFile) -> Result<(), Box<dyn std::error::Error>> {
+/// let mut molecule = MoleculeConfig::default();
+/// molecule.units = Units::Angstrom;
+/// let mut hf = HfConfig::default();
+/// hf.diis.enabled = true;
 /// let calculation = CalculationBuilder::new(geometry, basis_file)
-///     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
-///     .with_hf(HfConfig {
-///         diis: rustiq_core::config::DiisConfig {
-///             enabled: true,
-///             ..Default::default()
-///         },
-///         ..Default::default()
-///     })
+///     .with_molecule_config(molecule)
+///     .with_hf(hf)
 ///     .with_mp2(Mp2Config::default());
 /// let prepared = calculation.prepare()?;
 /// let result = prepared.execute()?;

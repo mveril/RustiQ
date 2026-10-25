@@ -16,12 +16,14 @@ pub struct HfCalculationResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EriCacheAction {
     Hit,
     Stored,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EriCacheEvent {
     pub action: EriCacheAction,
     pub name: Option<String>,
@@ -40,6 +42,7 @@ pub enum ArtifactReuseDecision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ArtifactReuseEvent {
     pub artifact: &'static str,
     pub decision: ArtifactReuseDecision,
@@ -47,6 +50,7 @@ pub struct ArtifactReuseEvent {
 
 /// Results of the requested scientific stages, without presentation choices.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CalculationResult {
     pub hf: HfOutcome,
     pub mp2: Option<Mp2Result>,

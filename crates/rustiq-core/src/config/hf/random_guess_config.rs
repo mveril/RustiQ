@@ -2,6 +2,7 @@ use crate::config::random_config::distribution_config::UniformDistributionConfig
 use crate::config::random_config::{DistributionConfig, RandomConfig};
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct RandomGuessConfig {
     pub random: RandomConfig,
 }

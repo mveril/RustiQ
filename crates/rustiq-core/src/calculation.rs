@@ -136,6 +136,7 @@ use crate::{
 
 /// Typed errors with optional input locations, but no source text or renderer.
 #[derive(Debug, Error, Diagnostic)]
+#[non_exhaustive]
 pub enum CalculationError {
     #[error(transparent)]
     Basis(#[from] BasisError),

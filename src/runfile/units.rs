@@ -10,5 +10,10 @@ pub(crate) fn serialize<S: serde::Serializer>(
     serializer.serialize_str(match value {
         rustiq_core::molecules::Units::Bohr => "Bohr",
         rustiq_core::molecules::Units::Angstrom => "Angstrom",
+        _ => {
+            return Err(serde::ser::Error::custom(
+                "unsupported coordinate unit in runfile",
+            ))
+        }
     })
 }

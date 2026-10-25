@@ -8,6 +8,7 @@ use crate::config::validated::DiisSize;
 use super::spin::Spin;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DiisError {
     #[error("DIIS history size must be at least 2, got {0}")]
     HistoryTooSmall(usize),

@@ -210,17 +210,20 @@ fn restored_open_shell_calculation_preserves_requested_units_and_resolved_method
     let geometry = Geometry::from_source("oh.xyz", "2\nOH\nO 0 0 0\nH 0 0 0.97\n").unwrap();
     let (_, basis) = inputs(1.4);
     let original = CalculationBuilder::new(&geometry, &basis)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            multiplicity: NonZeroU8::new(2).unwrap().into(),
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = MoleculeConfig::default();
+            updated_config.units = Units::Angstrom;
+            updated_config.multiplicity = NonZeroU8::new(2).unwrap().into();
+            updated_config
         })
-        .with_hf(HfConfig {
-            diis: DiisConfig {
-                enabled: true,
-                ..Default::default()
-            },
-            ..Default::default()
+        .with_hf({
+            let mut updated_config = HfConfig::default();
+            updated_config.diis = {
+                let mut updated_config = DiisConfig::default();
+                updated_config.enabled = true;
+                updated_config
+            };
+            updated_config
         })
         .prepare()
         .unwrap();

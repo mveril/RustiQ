@@ -4,6 +4,7 @@ use super::{validated::PositiveFiniteF64, Located};
 pub const DEFAULT_ERI_SCHWARZ_THRESHOLD: f64 = 1e-12;
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct IntegralConfig {
     /// Schwarz screening cutoff for ERIs. Larger values discard more small
     /// integrals, reducing ERI computation time at the cost of accuracy;

@@ -103,9 +103,11 @@ mod tests {
             let mut collector = CalculationSummaryCollector::default();
             let mut completions = 0;
             let result = CalculationBuilder::new(&geometry, &basis)
-                .with_hf(HfConfig {
-                    max_iterations: std::num::NonZeroUsize::new(iterations).unwrap(),
-                    ..HfConfig::default()
+                .with_hf({
+                    let mut updated_config = HfConfig::default();
+                    updated_config.max_iterations =
+                        std::num::NonZeroUsize::new(iterations).unwrap();
+                    updated_config
                 })
                 .with_mp2(mp2.then(Mp2Config::default))
                 .execute_with_events(|event| {

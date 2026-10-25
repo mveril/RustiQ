@@ -18,19 +18,22 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let prepared = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = MoleculeConfig::default();
+            updated_config.units = Units::Angstrom;
+            updated_config
         })
-        .with_hf(HfConfig {
-            method: method.into(),
-            max_iterations: iterations.try_into().unwrap(),
-            ..Default::default()
+        .with_hf({
+            let mut updated_config = HfConfig::default();
+            updated_config.method = method.into();
+            updated_config.max_iterations = iterations.try_into().unwrap();
+            updated_config
         })
         // run_hf must ignore MP2 configuration, including invalid configurations.
-        .with_mp2(Mp2Config {
-            frozen_orbitals: 99.into(),
-            ..Default::default()
+        .with_mp2({
+            let mut updated_config = Mp2Config::default();
+            updated_config.frozen_orbitals = 99.into();
+            updated_config
         })
         .prepare()
         .unwrap();
@@ -51,6 +54,11 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
     hf
 }
 
+#[allow(
+    clippy::panic,
+    clippy::panic_in_result_fn,
+    reason = "A new public HF solution variant requires updating this test helper"
+)]
 fn mp2_for_runtime_reference(
     hf: &AnyHfSolution,
     config: Mp2Config,
@@ -58,6 +66,7 @@ fn mp2_for_runtime_reference(
     match hf {
         AnyHfSolution::Restricted(hf) => hf.mp2(config),
         AnyHfSolution::Unrestricted(hf) => hf.mp2(config),
+        _ => panic!("unexpected future HF solution variant"),
     }
 }
 
@@ -92,13 +101,11 @@ fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
         assert_eq!(hf.method(), resolved_method);
         let first = mp2_for_runtime_reference(&hf, Mp2Config::default()).unwrap();
         assert!(std::ptr::eq(hf.summary(), hf.clone().summary()));
-        let error = mp2_for_runtime_reference(
-            &hf,
-            Mp2Config {
-                frozen_orbitals: 99.into(),
-                ..Default::default()
-            },
-        )
+        let error = mp2_for_runtime_reference(&hf, {
+            let mut updated_config = Mp2Config::default();
+            updated_config.frozen_orbitals = 99.into();
+            updated_config
+        })
         .unwrap_err();
         assert!(matches!(error.cause(), CalculationError::Mp2 { .. }));
         assert!(matches!(error.hf(), Some(HfOutcome::Converged(_))));
@@ -145,16 +152,12 @@ fn mp2_memory_errors_preserve_hf_for_retry() {
             panic!("convergence");
         };
         for budget in [0, 1] {
-            let error = mp2_for_runtime_reference(
-                &hf,
-                Mp2Config {
-                    memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(
-                        budget,
-                    ))
-                    .into(),
-                    ..Default::default()
-                },
-            )
+            let error = mp2_for_runtime_reference(&hf, {
+                let mut updated_config = Mp2Config::default();
+                updated_config.memory_limit =
+                    rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(budget)).into();
+                updated_config
+            })
             .unwrap_err();
             assert!(matches!(
                 error.cause(),
@@ -166,16 +169,12 @@ fn mp2_memory_errors_preserve_hf_for_retry() {
             let HfOutcome::Converged(recovered) = error.into_hf().unwrap() else {
                 panic!("retained HF");
             };
-            let result = mp2_for_runtime_reference(
-                &recovered,
-                Mp2Config {
-                    memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(
-                        1024,
-                    ))
-                    .into(),
-                    ..Default::default()
-                },
-            )
+            let result = mp2_for_runtime_reference(&recovered, {
+                let mut updated_config = Mp2Config::default();
+                updated_config.memory_limit =
+                    rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1024)).into();
+                updated_config
+            })
             .unwrap();
             assert_eq!(
                 result,
@@ -191,9 +190,10 @@ fn preparation_error_has_no_hf() {
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let error = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            charge: 99.into(),
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = MoleculeConfig::default();
+            updated_config.charge = 99.into();
+            updated_config
         })
         .execute()
         .unwrap_err();
@@ -305,10 +305,11 @@ fn open_shell_solution_retains_separate_occupations_through_mp2_recovery() {
     let geometry = Geometry::from_reader(&include_bytes!("data/samples/oh/oh.xyz")[..]).unwrap();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let prepared = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            multiplicity: std::num::NonZeroU8::new(2).unwrap().into(),
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = MoleculeConfig::default();
+            updated_config.units = Units::Angstrom;
+            updated_config.multiplicity = std::num::NonZeroU8::new(2).unwrap().into();
+            updated_config
         })
         .prepare()
         .unwrap();
@@ -326,9 +327,10 @@ fn open_shell_solution_retains_separate_occupations_through_mp2_recovery() {
         hf.orbital_energies().beta().len()
     );
     let error = hf
-        .mp2(Mp2Config {
-            frozen_orbitals: 99.into(),
-            ..Default::default()
+        .mp2({
+            let mut updated_config = Mp2Config::default();
+            updated_config.frozen_orbitals = 99.into();
+            updated_config
         })
         .unwrap_err();
     let HfOutcome::Converged(AnyHfSolution::Unrestricted(recovered)) = error.into_hf().unwrap()
@@ -389,6 +391,7 @@ fn borrowed_accessors_preserve_reference_state_and_shared_data() {
                 assert_eq!(*unrestricted.occupied_orbitals().alpha(), 1);
                 assert_eq!(*unrestricted.occupied_orbitals().beta(), 1);
             }
+            _ => panic!("unexpected future HF method variant"),
         }
     }
 
@@ -514,6 +517,7 @@ fn standard_reference_conversions_round_trip_both_convergence_states() {
                 let typed: UhfSolution<State> = original.try_into().unwrap();
                 typed.into()
             }
+            _ => panic!("unexpected future HF method variant"),
         };
         assert!(std::ptr::eq(wrapped.summary(), retained.summary()));
         assert!(std::ptr::eq(wrapped.ao_eri(), retained.ao_eri()));
@@ -609,6 +613,7 @@ fn generic_owned_output_preserves_hf_storage_state_and_mp2() {
                 HfOutcome::Unconverged(AnyHfSolution::Unrestricted(hf)) => {
                     check(hf);
                 }
+                _ => panic!("unexpected future HF outcome variant"),
             }
         }
     }
@@ -678,6 +683,7 @@ fn generic_runtime_conversions_preserve_data_on_success_and_reference_mismatch()
                 assert_shared_scf_output(&scf, retained.as_unrestricted().unwrap().as_scf());
                 scf.into()
             }
+            _ => panic!("unexpected future HF method variant"),
         };
         assert_eq!(restored.method(), retained.method());
         assert!(std::ptr::eq(restored.summary(), retained.summary()));
@@ -689,6 +695,7 @@ fn generic_runtime_conversions_preserve_data_on_success_and_reference_mismatch()
             AnyHfSolution::Unrestricted(hf) => {
                 assert_shared_scf_output(hf.as_scf(), retained.as_unrestricted().unwrap().as_scf());
             }
+            _ => panic!("unexpected future HF solution variant"),
         }
         restored
     }

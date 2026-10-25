@@ -23,6 +23,7 @@ pub struct MoleculeConfigError {
 
 /// Molecular state and coordinate units, independent of geometry file paths.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct MoleculeConfig {
     pub units: Units,
     pub charge: Located<i32>,

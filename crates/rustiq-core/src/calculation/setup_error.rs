@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Scientific setup error shared by RHF and UHF.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum HfSetupError {
     #[error(transparent)]
     DensityGuess(#[from] DensityGuessError),

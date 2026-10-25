@@ -457,6 +457,7 @@ impl BasisStore {
 
 /// Custom error type for file-related operations in `BasisStore`.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum FileError {
     /// I/O error occurred.
     #[error("I/O error: {0}")]
@@ -479,6 +480,7 @@ impl From<FileError> for DownloadParseSaveError {
 
 /// Error type for importing a basis file into the store.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum ImportError {
     /// The imported JSON could not be deserialized.
     #[error("Serialization error: {0}")]
@@ -494,6 +496,7 @@ pub enum ImportError {
 
 /// Error type for atomic basis file writes.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SaveError {
     /// I/O error occurred while writing the temporary file.
     #[error("I/O error while saving: {0}")]
@@ -507,6 +510,7 @@ pub enum SaveError {
 /// Custom error type for errors occurring during the online listing of basis sets.
 #[cfg(feature = "online")]
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DownloadParseError {
     /// HTTP error occurred during the download.
     #[error("HTTP error: {0}")]
@@ -520,6 +524,7 @@ pub enum DownloadParseError {
 /// Custom error type for downloading and saving basis set files in `BasisStore`.
 #[cfg(feature = "online")]
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DownloadSaveError {
     /// Error occurred while saving the downloaded file.
     #[error(transparent)]
@@ -533,6 +538,7 @@ pub enum DownloadSaveError {
 /// Custom error type for downloading and saving basis set files in `BasisStore`.
 #[cfg(feature = "online")]
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DownloadParseSaveError {
     /// I/O error occurred while reading a saved basis file.
     #[error("I/O error: {0}")]

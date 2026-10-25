@@ -56,6 +56,7 @@ pub struct Mp2Result {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Mp2Error {
     #[error("MP2 energy denominator {denominator} Hartree is too close to zero (minimum magnitude: {threshold} Hartree)")]
     NearZeroDenominator { denominator: f64, threshold: f64 },
@@ -594,6 +595,7 @@ fn mo_two_electron_integral(
 }
 
 #[cfg(feature = "bench-support")]
+#[non_exhaustive]
 pub struct Mp2BenchResult {
     pub dense_elapsed: std::time::Duration,
     pub blocked_elapsed: std::time::Duration,

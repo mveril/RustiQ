@@ -167,6 +167,10 @@ impl<W: Write> CalculationReporter<W> {
                 EriCacheAction::Stored => {
                     writeln!(scf.writer_mut(), "AO ERI cache: stored as {target}")
                 }
+                _ => writeln!(
+                    scf.writer_mut(),
+                    "AO ERI cache: unknown action for {target}"
+                ),
             }
         });
     }
@@ -176,6 +180,7 @@ impl<W: Write> CalculationReporter<W> {
             let label = match hf.method {
                 ResolvedHfMethod::Rhf => "RHF MP2",
                 ResolvedHfMethod::Uhf => "UHF MP2",
+                _ => "HF MP2",
             };
             Mp2Reporter::new(scf.writer_mut(), label).write_summary(result, &hf.scf)
         });

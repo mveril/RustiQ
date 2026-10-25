@@ -11,13 +11,15 @@ fn prelude_supports_builder_and_prepared_execution() {
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let builder = CalculationBuilder::new(&geometry, &basis)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = MoleculeConfig::default();
+            updated_config.units = Units::Angstrom;
+            updated_config
         })
-        .with_hf(HfConfig {
-            method: HfMethod::Rhf.into(),
-            ..Default::default()
+        .with_hf({
+            let mut updated_config = HfConfig::default();
+            updated_config.method = HfMethod::Rhf.into();
+            updated_config
         })
         .with_mp2(Mp2Config::default());
     let direct: Result<CalculationResult, CalculationExecutionError> = builder.execute();

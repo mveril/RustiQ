@@ -12,6 +12,7 @@ use std::error::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DensityGuessError {
     #[error("random distribution creation failed: {0}")]
     DistributionCreation(#[from] DistributionCreationError),

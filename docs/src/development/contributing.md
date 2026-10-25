@@ -57,6 +57,19 @@ random distributions and validated scalars, `basis` for basis data, and
 `calculation` for execution and results. `Located<T>` remains available from
 `config` and the prelude for optional frontend source positions.
 
+Extensible option structs, including HF, DIIS, orthogonalization, molecular,
+integral, MP2, random-guess, and guess-perturbation configurations, are
+`#[non_exhaustive]`. Create them with `Default::default()` and then assign the
+public fields you want to customize. External Rust callers cannot use struct
+literals or `..Default::default()` to construct these types. See the core
+`config` module's Rustdoc for executable examples.
+
+New options must have defaults that preserve the previous behavior when the
+option is omitted. Maintain this contract in both the core's `Default`
+implementations and the input frontend's defaults. Non-exhaustiveness protects
+Rust source compatibility when fields are added; preserving default behavior
+also requires checking the existing calculation and input regression tests.
+
 For portable archives and raw AO ERIs, import `RustiQData`, `RustiQBundle`, and `CompactEri` explicitly from
 `rustiq_core::persistence`. Import `ArtifactReuseDecision` and
 `ArtifactReuseEvent` from `rustiq_core::calculation`; these advanced types

@@ -19,6 +19,7 @@ pub use guess_perturbation_config::GuessPerturbationConfig;
 pub use random_guess_config::RandomGuessConfig;
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct HfConfig {
     pub method: Located<HfMethod>,
     pub max_iterations: NonZeroUsize,
@@ -42,6 +43,7 @@ impl Default for HfConfig {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct DiisConfig {
     pub enabled: bool,
     pub max_history: Located<DiisSize>,
@@ -57,6 +59,7 @@ impl Default for DiisConfig {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct OrthogonalizationConfig {
     pub linear_dependency_threshold: Located<NonNegativeFiniteF64>,
 }
@@ -70,6 +73,7 @@ impl Default for OrthogonalizationConfig {
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HfMethod {
     #[default]
     Auto,
@@ -78,6 +82,7 @@ pub enum HfMethod {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ResolvedHfMethod {
     Rhf,
     Uhf,
@@ -184,6 +189,7 @@ impl std::fmt::Display for ResolvedHfMethod {
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HfMethodResolutionError {
     #[error(
         "RHF requires a closed-shell singlet: total electrons = {electrons}, multiplicity = {multiplicity}"

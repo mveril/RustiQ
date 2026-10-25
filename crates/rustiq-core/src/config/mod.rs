@@ -3,6 +3,27 @@
 //! Import configuration types, random distributions, and validated scalar values
 //! directly from this module. [`Located`] attaches optional frontend source
 //! positions without requiring a source file for direct Rust calculations.
+//!
+//! Extensible option structs are non-exhaustive. Start from [`Default`] and
+//! change the public fields you need; future options must default to behavior
+//! compatible with existing configurations. This applies to both core defaults
+//! and the defaults supplied by an input frontend.
+//!
+//! ```
+//! use rustiq_core::config::{HfConfig, HfMethod, Mp2Config};
+//! let mut hf = HfConfig::default();
+//! hf.method = HfMethod::Uhf.into();
+//! let mut mp2 = Mp2Config::default();
+//! mp2.frozen_orbitals = 1.into();
+//! ```
+//!
+//! Struct literals, including update syntax, cannot construct these options
+//! outside this crate:
+//!
+//! ```compile_fail
+//! use rustiq_core::config::Mp2Config;
+//! let mp2 = Mp2Config { frozen_orbitals: 1.into(), ..Default::default() };
+//! ```
 pub(crate) mod hf;
 mod integrals;
 mod molecule;
@@ -47,6 +68,7 @@ pub use integrals::{IntegralConfig, DEFAULT_ERI_SCHWARZ_THRESHOLD};
 
 /// MP2 options shared by restricted and unrestricted calculations.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct Mp2Config {
     pub frozen_orbitals: Located<usize>,
     /// Additional MP2 matrix workspace budget; excludes existing HF data.
@@ -54,6 +76,7 @@ pub struct Mp2Config {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum MemoryLimit {
     #[default]
     Auto,

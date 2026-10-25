@@ -3,6 +3,7 @@ use crate::config::random_config::{DistributionConfig, RandomConfig};
 use crate::config::validated::PositiveFiniteF64;
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct GuessPerturbationConfig {
     pub random: RandomConfig,
 }
