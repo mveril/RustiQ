@@ -1,4 +1,7 @@
-use super::{AnyHfSolution, CalculationExecutionError, Converged, HfMethodDescriptor, ScfSolution};
+use super::{
+    AnyHfSolution, CalculationExecutionError, Converged, HfMethodDescriptor, Mp2Calculation,
+    ScfSolution,
+};
 use crate::{
     calculation::{HfCalculationResult, ScfResult},
     config::Mp2Config,
@@ -203,7 +206,7 @@ impl HfSolution<Restricted, Converged> {
     /// # Errors
     /// Returns an error retaining HF if the MP2 inputs or computation are invalid.
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
-        AnyHfSolution::from(self.clone()).mp2(config)
+        Mp2Calculation::mp2(self, config)
     }
 }
 
@@ -213,7 +216,19 @@ impl HfSolution<Unrestricted, Converged> {
     /// # Errors
     /// Returns an error retaining HF if the MP2 inputs or computation are invalid.
     pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
-        AnyHfSolution::from(self.clone()).mp2(config)
+        Mp2Calculation::mp2(self, config)
+    }
+}
+
+impl Mp2Calculation for HfSolution<Restricted, Converged> {
+    fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
+        AnyHfSolution::from(self.clone()).mp2_with_report(config, &mut |_| {})
+    }
+}
+
+impl Mp2Calculation for HfSolution<Unrestricted, Converged> {
+    fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
+        AnyHfSolution::from(self.clone()).mp2_with_report(config, &mut |_| {})
     }
 }
 

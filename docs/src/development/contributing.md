@@ -135,7 +135,8 @@ CLI TOML/Nickel adapter or another frontend
        one-electron integrals, overlap orthogonalization, AO ERI acquisition
        -> iterative SCF; final canonicalization if converged
        -> HfOutcome::Converged or HfOutcome::Unconverged
-    -> converged AnyHfSolution::mp2()
+    -> extract the typed converged RHF/UHF solution
+    -> Mp2Calculation::mp2()
        blocked AO-to-MO integral transformation and MP2 correlation-energy evaluation
 ```
 
@@ -143,11 +144,15 @@ CLI TOML/Nickel adapter or another frontend
 `AnyHfSolution<State>` whose `Restricted` or `Unrestricted` variant retains the
 reference-specific solution. `HfSolution<R, State>` carries both the reference
 and convergence state in its type; the `RhfSolution` and `UhfSolution` aliases
-name the common profiles. For HF followed by MP2, call
-`prepared.run_hf()?.into_converged()?` and then `hf.mp2(config)`. The conversion
+name the common profiles. `AnyHfSolution` does not expose MP2. For HF followed
+by MP2, call `prepared.run_hf()?.into_converged()?`, match the runtime variant,
+then call `mp2(config)` on the resulting typed RHF or UHF solution. Both typed
+solutions implement the `Mp2Calculation` capability trait, exported in the
+prelude; unconverged and generic runtime solutions do not. The conversion
 returns an execution error retaining the unconverged outcome, recoverable with
-`into_hf()`. Typed/runtime conversions preserve state and return the original
-solution when the requested reference does not match.
+`into_hf()`. Typed/runtime conversions preserve state and return a typed
+`HfReferenceMismatch` error that retains the original solution when the requested
+reference does not match.
 
 The owned-output implementation lives in
 `crates/rustiq-core/src/calculation/solution/`, with separate modules for generic
@@ -190,10 +195,12 @@ constructor: the library establishes the method-specific convergence state.
 For HF, `HfMethodDescriptor<R>` identifies the compatible method, with an
 `HfCalculationResult` summary and retained AO ERIs. Its `ScfSolution`
 specialization exposes `scf_result()` to borrow metrics from the summary.
-Only compatible converged HF wrappers expose MP2; generic HF output can be
-restored through `Into` or `from_scf()`. Supported converged HF implementations
-also guarantee final canonicalization; this is an HF guarantee, rather than a
-universal requirement on every SCF method.
+Only compatible converged HF wrappers implement `Mp2Calculation`; generic HF
+output can be restored through `Into` or `from_scf()`. `AnyHfSolution` itself
+does not imply that MP2 is available for every contained or future HF reference.
+Supported converged HF implementations also guarantee final canonicalization;
+this is an HF guarantee, rather than a universal requirement on every SCF
+method.
 
 The sealed `HfReference` contract associates a compatible HF method, coefficient
 representation, orbital energies, and occupations. Generic code converts the

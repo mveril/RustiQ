@@ -7,6 +7,7 @@ mod hf_method_descriptor;
 mod hf_outcome;
 mod hf_reference_mismatch;
 mod hf_solution;
+mod mp2_calculation;
 mod scf_method;
 mod scf_solution;
 
@@ -17,5 +18,6 @@ pub use hf_method_descriptor::HfMethodDescriptor;
 pub use hf_outcome::HfOutcome;
 pub use hf_reference_mismatch::{HfReferenceKind, HfReferenceMismatch};
 pub use hf_solution::{HfSolution, RhfSolution, UhfSolution};
+pub use mp2_calculation::Mp2Calculation;
 pub use scf_method::ScfMethod;
 pub use scf_solution::ScfSolution;

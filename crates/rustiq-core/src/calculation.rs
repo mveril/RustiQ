@@ -86,8 +86,8 @@ pub use crate::hf::{
 };
 pub use solution::{
     AnyHfSolution, CalculationExecutionError, Converged, HfMethodDescriptor, HfOutcome,
-    HfReferenceKind, HfReferenceMismatch, HfSolution, RhfSolution, ScfMethod, ScfSolution,
-    UhfSolution, Unconverged,
+    HfReferenceKind, HfReferenceMismatch, HfSolution, Mp2Calculation, RhfSolution, ScfMethod,
+    ScfSolution, UhfSolution, Unconverged,
 };
 mod artifact_reuse;
 mod builder;

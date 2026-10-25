@@ -6,7 +6,8 @@
 use rustiq_core::{
     basis::BasisFile,
     calculation::{
-        CalculationBuilder, CalculationError, CalculationEvent, CalculationExecution, HfOutcome,
+        AnyHfSolution, CalculationBuilder, CalculationError, CalculationEvent,
+        CalculationExecution, CalculationExecutionError, HfOutcome, Mp2Result,
     },
     config::{HfConfig, HfMethod, MoleculeConfig, Mp2Config, ResolvedHfMethod},
     molecules::{Geometry, Units},
@@ -50,6 +51,16 @@ fn solution(method: HfMethod, iterations: usize) -> HfOutcome {
     hf
 }
 
+fn mp2_for_runtime_reference(
+    hf: &AnyHfSolution,
+    config: Mp2Config,
+) -> Result<Mp2Result, CalculationExecutionError> {
+    match hf {
+        AnyHfSolution::Restricted(hf) => hf.mp2(config),
+        AnyHfSolution::Unrestricted(hf) => hf.mp2(config),
+    }
+}
+
 #[test]
 fn outcome_reports_resolved_method_for_both_convergence_states() {
     for (method, expected) in [
@@ -79,22 +90,30 @@ fn hf_outlives_inputs_and_can_retry_mp2_after_error() {
             panic!("expected convergence");
         };
         assert_eq!(hf.method(), resolved_method);
-        let first = hf.mp2(Mp2Config::default()).unwrap();
+        let first = mp2_for_runtime_reference(&hf, Mp2Config::default()).unwrap();
         assert!(std::ptr::eq(hf.summary(), hf.clone().summary()));
-        let error = hf
-            .mp2(Mp2Config {
+        let error = mp2_for_runtime_reference(
+            &hf,
+            Mp2Config {
                 frozen_orbitals: 99.into(),
                 ..Default::default()
-            })
-            .unwrap_err();
+            },
+        )
+        .unwrap_err();
         assert!(matches!(error.cause(), CalculationError::Mp2 { .. }));
         assert!(matches!(error.hf(), Some(HfOutcome::Converged(_))));
         drop(hf);
         let HfOutcome::Converged(recovered) = error.into_hf().unwrap() else {
             panic!("expected convergence");
         };
-        assert_eq!(first, recovered.mp2(Mp2Config::default()).unwrap());
-        assert_eq!(first, recovered.clone().mp2(Mp2Config::default()).unwrap());
+        assert_eq!(
+            first,
+            mp2_for_runtime_reference(&recovered, Mp2Config::default()).unwrap()
+        );
+        assert_eq!(
+            first,
+            mp2_for_runtime_reference(&recovered, Mp2Config::default()).unwrap()
+        );
     }
 }
 
@@ -126,15 +145,17 @@ fn mp2_memory_errors_preserve_hf_for_retry() {
             panic!("convergence");
         };
         for budget in [0, 1] {
-            let error = hf
-                .mp2(Mp2Config {
+            let error = mp2_for_runtime_reference(
+                &hf,
+                Mp2Config {
                     memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(
                         budget,
                     ))
                     .into(),
                     ..Default::default()
-                })
-                .unwrap_err();
+                },
+            )
+            .unwrap_err();
             assert!(matches!(
                 error.cause(),
                 CalculationError::Mp2 {
@@ -145,16 +166,21 @@ fn mp2_memory_errors_preserve_hf_for_retry() {
             let HfOutcome::Converged(recovered) = error.into_hf().unwrap() else {
                 panic!("retained HF");
             };
-            let result = recovered
-                .mp2(Mp2Config {
+            let result = mp2_for_runtime_reference(
+                &recovered,
+                Mp2Config {
                     memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(
                         1024,
                     ))
                     .into(),
                     ..Default::default()
-                })
-                .unwrap();
-            assert_eq!(result, hf.mp2(Mp2Config::default()).unwrap());
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                result,
+                mp2_for_runtime_reference(&hf, Mp2Config::default()).unwrap()
+            );
         }
     }
 }
@@ -178,8 +204,13 @@ fn preparation_error_has_no_hf() {
 #[test]
 fn typed_solutions_preserve_reference_and_mp2() {
     use rustiq_core::calculation::{
-        AnyHfSolution, RestrictedMethod, RhfSolution, UhfSolution, UnrestrictedMethod,
+        AnyHfSolution, Mp2Calculation, RestrictedMethod, RhfSolution, UhfSolution,
+        UnrestrictedMethod,
     };
+
+    fn via_capability<S: Mp2Calculation>(solution: &S) -> rustiq_core::calculation::Mp2Result {
+        solution.mp2(Mp2Config::default()).unwrap()
+    }
 
     let HfOutcome::Converged(AnyHfSolution::Restricted(hf)) = solution(HfMethod::Rhf, 100) else {
         panic!("expected restricted converged solution");
@@ -195,13 +226,8 @@ fn typed_solutions_preserve_reference_and_mp2() {
     assert_eq!(hf.method(), RestrictedMethod::Rhf);
     assert_eq!(HfMethod::from(hf.method()), HfMethod::Rhf);
     assert_eq!(ResolvedHfMethod::from(hf.method()), ResolvedHfMethod::Rhf);
-    let expected = hf.mp2(Mp2Config::default()).unwrap();
-    assert_eq!(
-        expected,
-        AnyHfSolution::Restricted(hf)
-            .mp2(Mp2Config::default())
-            .unwrap()
-    );
+    let expected = via_capability(&hf);
+    assert_eq!(expected, hf.mp2(Mp2Config::default()).unwrap());
 
     let HfOutcome::Converged(AnyHfSolution::Unrestricted(hf)) = solution(HfMethod::Uhf, 100) else {
         panic!("expected unrestricted converged solution");
@@ -224,13 +250,8 @@ fn typed_solutions_preserve_reference_and_mp2() {
     assert_eq!(hf.method(), UnrestrictedMethod::Uhf);
     assert_eq!(HfMethod::from(hf.method()), HfMethod::Uhf);
     assert_eq!(ResolvedHfMethod::from(hf.method()), ResolvedHfMethod::Uhf);
-    let expected = hf.mp2(Mp2Config::default()).unwrap();
-    assert_eq!(
-        expected,
-        AnyHfSolution::Unrestricted(hf)
-            .mp2(Mp2Config::default())
-            .unwrap()
-    );
+    let expected = via_capability(&hf);
+    assert_eq!(expected, hf.mp2(Mp2Config::default()).unwrap());
 }
 
 #[test]

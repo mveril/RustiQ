@@ -11,6 +11,16 @@ use crate::{
 };
 
 /// An HF solution whose reference is selected at runtime.
+///
+/// MP2 is available on the typed, converged HF solutions rather than on this runtime enum, so
+/// adding another reference does not imply that an MP2 formulation is supported for it.
+///
+/// ```compile_fail
+/// use rustiq_core::{calculation::{AnyHfSolution, Converged}, config::Mp2Config};
+/// fn invalid(hf: &AnyHfSolution<Converged>) {
+///     hf.mp2(Mp2Config::default());
+/// }
+/// ```
 #[derive(Debug)]
 pub enum AnyHfSolution<State = Converged> {
     Restricted(RhfSolution<State>),
@@ -53,14 +63,7 @@ impl<State> AnyHfSolution<State> {
 
     /// Borrows the restricted solution while preserving its convergence state.
     ///
-    /// ```compile_fail
-    /// use rustiq_core::prelude::*;
-    /// fn invalid(hf: &AnyHfSolution<Unconverged>) {
-    ///     if let Some(restricted) = hf.as_restricted() {
-    ///         restricted.mp2(Mp2Config::default());
-    ///     }
-    /// }
-    /// ```
+    /// `AnyHfSolution` itself does not expose MP2; call it on a typed, converged HF variant.
     #[must_use]
     pub fn as_restricted(&self) -> Option<&RhfSolution<State>> {
         match self {
@@ -198,23 +201,6 @@ impl<State> TryFrom<AnyHfSolution<State>> for ScfSolution<HfMethodDescriptor<Unr
 }
 
 impl AnyHfSolution<Converged> {
-    /// Evaluate MP2 without rerunning HF. An error retains this HF solution.
-    ///
-    /// ```compile_fail
-    /// use rustiq_core::{calculation::{HfSolution, Restricted, Unconverged}, config::Mp2Config};
-    /// fn invalid(hf: HfSolution<Restricted, Unconverged>) {
-    ///     hf.mp2(Mp2Config::default());
-    /// }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the MP2 configuration, orbital data, memory budget, or numerical result
-    /// is invalid.
-    pub fn mp2(&self, config: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
-        self.mp2_with_report(config, &mut |_| {})
-    }
-
     pub(crate) fn mp2_with_report(
         &self,
         config: Mp2Config,

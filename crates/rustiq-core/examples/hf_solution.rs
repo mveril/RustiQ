@@ -61,9 +61,14 @@ fn run_case(xyz: &[u8], multiplicity: NonZeroU8, basis: &BasisFile) -> Result<()
     );
 
     // Deliberately freeze more orbitals than are occupied in either example.
-    let Err(error) = hf.mp2(Mp2Config {
+    let method = hf.method();
+    let config = Mp2Config {
         frozen_orbitals: 99.into(),
         ..Default::default()
+    };
+    let Err(error) = (match &hf {
+        AnyHfSolution::Restricted(hf) => hf.mp2(config),
+        AnyHfSolution::Unrestricted(hf) => hf.mp2(config),
     }) else {
         return Err("the deliberately invalid MP2 configuration unexpectedly succeeded".into());
     };
@@ -76,11 +81,7 @@ fn run_case(xyz: &[u8], multiplicity: NonZeroU8, basis: &BasisFile) -> Result<()
     ) {
         return Err(error.into());
     }
-    println!(
-        "{} expected MP2 input error: {}",
-        hf.method(),
-        error.cause()
-    );
+    println!("{} expected MP2 input error: {}", method, error.cause());
 
     // Drop the original handle: the error still owns the completed HF output.
     drop(hf);
@@ -89,11 +90,13 @@ fn run_case(xyz: &[u8], multiplicity: NonZeroU8, basis: &BasisFile) -> Result<()
         .ok_or("MP2 error did not retain HF output")?;
     // AnyHfSolution defaults to Converged; try_into checks the retained outcome.
     let recovered: AnyHfSolution = outcome.try_into()?;
-    let mp2 = recovered.mp2(Mp2Config::default())?;
+    let mp2 = match recovered {
+        AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default())?,
+        AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default())?,
+    };
     println!(
         "{} MP2 correlation energy after retry: {:.12} Eh",
-        recovered.method(),
-        mp2.correlation_energy
+        method, mp2.correlation_energy
     );
     Ok(())
 }

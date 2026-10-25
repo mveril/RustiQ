@@ -1,4 +1,9 @@
+use rustiq_core::calculation::Mp2Result;
 use rustiq_core::prelude::*;
+
+fn run_mp2<S: Mp2Calculation>(solution: &S) -> Result<Mp2Result, CalculationExecutionError> {
+    solution.mp2(Mp2Config::default())
+}
 
 #[test]
 fn prelude_supports_builder_and_prepared_execution() {
@@ -36,5 +41,5 @@ fn prelude_supports_builder_and_prepared_execution() {
     assert_eq!(coefficients.ncols(), energies.len());
     assert!(*occupied <= coefficients.ncols());
     assert_eq!(direct.mp2, result.mp2);
-    assert_eq!(Some(hf.mp2(Mp2Config::default()).unwrap()), result.mp2);
+    assert_eq!(Some(run_mp2(typed).unwrap()), result.mp2);
 }

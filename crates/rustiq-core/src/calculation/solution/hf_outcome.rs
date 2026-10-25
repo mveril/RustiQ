@@ -77,7 +77,7 @@ impl HfOutcome {
     /// ```no_run
     /// use rustiq_core::{
     ///     calculation::Mp2Result,
-    ///     prelude::{CalculationExecution, Mp2Config, PreparedCalculation},
+    ///     prelude::{AnyHfSolution, CalculationExecution, Mp2Config, PreparedCalculation},
     /// };
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # fn prepare_calculation() -> PreparedCalculation {
@@ -85,7 +85,10 @@ impl HfOutcome {
     /// # }
     /// let prepared = prepare_calculation();
     /// let hf = prepared.run_hf()?.into_converged()?;
-    /// let mp2: Mp2Result = hf.mp2(Mp2Config::default())?;
+    /// let mp2: Mp2Result = match hf {
+    ///     AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default())?,
+    ///     AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default())?,
+    /// };
     /// # let _ = mp2;
     /// # Ok(())
     /// # }
