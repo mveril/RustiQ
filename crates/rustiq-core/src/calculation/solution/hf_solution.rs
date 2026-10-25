@@ -209,7 +209,7 @@ impl HfSolution<Restricted, Converged> {
         Mp2Calculation::mp2(self, config)
     }
 
-    pub(super) fn mp2_with_report(
+    pub(in crate::calculation) fn mp2_with_report(
         &self,
         config: Mp2Config,
         report: &mut impl FnMut(crate::mp2::Mp2MemoryPlan),
@@ -247,7 +247,7 @@ impl HfSolution<Unrestricted, Converged> {
         Mp2Calculation::mp2(self, config)
     }
 
-    pub(super) fn mp2_with_report(
+    pub(in crate::calculation) fn mp2_with_report(
         &self,
         config: Mp2Config,
         report: &mut impl FnMut(crate::mp2::Mp2MemoryPlan),

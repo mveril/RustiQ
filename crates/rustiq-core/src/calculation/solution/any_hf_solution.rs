@@ -1,10 +1,10 @@
 use super::{
-    CalculationExecutionError, Converged, HfMethodDescriptor, HfReferenceKind, HfReferenceMismatch,
-    HfSolution, RhfSolution, ScfSolution, UhfSolution,
+    Converged, HfMethodDescriptor, HfReferenceKind, HfReferenceMismatch, HfSolution, RhfSolution,
+    ScfSolution, UhfSolution,
 };
 use crate::{
-    calculation::{HfCalculationResult, HfState, Mp2Result, ScfResult},
-    config::{Mp2Config, ResolvedHfMethod, RestrictedMethod, UnrestrictedMethod},
+    calculation::{HfCalculationResult, HfState, ScfResult},
+    config::{ResolvedHfMethod, RestrictedMethod, UnrestrictedMethod},
     eri::CompactEri,
     hf::reference::{Restricted, Unrestricted},
 };
@@ -196,18 +196,5 @@ impl<State> TryFrom<AnyHfSolution<State>> for ScfSolution<HfMethodDescriptor<Unr
 
     fn try_from(value: AnyHfSolution<State>) -> Result<Self, Self::Error> {
         UhfSolution::<State>::try_from(value).map(Into::into)
-    }
-}
-
-impl AnyHfSolution<Converged> {
-    pub(crate) fn mp2_with_report(
-        &self,
-        config: Mp2Config,
-        report: &mut impl FnMut(crate::mp2::Mp2MemoryPlan),
-    ) -> Result<Mp2Result, CalculationExecutionError> {
-        match self {
-            Self::Restricted(hf) => hf.mp2_with_report(config, report),
-            Self::Unrestricted(hf) => hf.mp2_with_report(config, report),
-        }
     }
 }
