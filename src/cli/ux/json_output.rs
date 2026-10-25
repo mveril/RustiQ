@@ -288,30 +288,33 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     use super::*;
-    use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
+    use rustiq_core::calculation::{
+        CalculationBuilder, CalculationExecution, OrthogonalizationInfo, ScfEnergyDetails,
+        ScfResult, ScfTimings,
+    };
 
     fn scf_result() -> ScfResult {
-        ScfResult {
-            iterations: 2,
-            electronic_energy: -1.831_863_646_477_507,
-            nuclear_repulsion_energy: 0.715_104_339_081_081,
-            total_energy: -1.116_759_307_396_426,
-            delta_energy: 0.0,
-            residual_norm: 0.0,
-            spin: None,
-            energy_details: ScfEnergyDetails {
-                kinetic_energy: 0.0,
-                nuclear_attraction_energy: 0.0,
-                electron_repulsion_energy: 0.0,
-            },
-            orthogonalization: OrthogonalizationInfo {
-                basis_dimension: 2,
-                effective_rank: 1,
-                discarded_directions: 1,
-                relative_threshold: 1e-8,
-            },
-            timings: ScfTimings::default(),
-        }
+        let mut result = crate::cli::ux::test_support::scf_result();
+        result.iterations = 2;
+        result.electronic_energy = -1.831_863_646_477_507;
+        result.nuclear_repulsion_energy = 0.715_104_339_081_081;
+        result.total_energy = -1.116_759_307_396_426;
+        result.delta_energy = 0.0;
+        result.residual_norm = 0.0;
+        result.spin = None;
+        result.energy_details = ScfEnergyDetails {
+            kinetic_energy: 0.0,
+            nuclear_attraction_energy: 0.0,
+            electron_repulsion_energy: 0.0,
+        };
+        result.orthogonalization = OrthogonalizationInfo {
+            basis_dimension: 2,
+            effective_rank: 1,
+            discarded_directions: 1,
+            relative_threshold: 1e-8,
+        };
+        result.timings = ScfTimings::default();
+        result
     }
 
     #[test]
@@ -441,15 +444,23 @@ mod tests {
     }
 
     fn summary(converged: bool) -> CalculationSummary {
-        CalculationSummary {
-            hf: rustiq_core::calculation::HfCalculationResult {
-                method: ResolvedHfMethod::Rhf,
-                scf: scf_result(),
-            },
-            converged,
-            mp2: None,
-            artifacts: None,
-        }
+        let geometry = rustiq_core::molecules::Geometry::from_reader(
+            &include_bytes!("../../../samples/h2/molecule.xyz")[..],
+        )
+        .unwrap();
+        let basis = rustiq_core::basis::BasisFile::from_reader(
+            &include_bytes!("../../../crates/rustiq-core/tests/data/sto-3g.json")[..],
+        )
+        .unwrap();
+        let mut collector =
+            crate::cli::commands::calculation_result::CalculationSummaryCollector::default();
+        CalculationBuilder::new(&geometry, &basis)
+            .execute_with_events(|event| collector.on_event(&event))
+            .unwrap();
+        let mut summary = collector.finish();
+        summary.hf.scf = scf_result();
+        summary.converged = converged;
+        summary
     }
 
     #[test]

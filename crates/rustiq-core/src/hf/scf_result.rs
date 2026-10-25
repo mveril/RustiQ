@@ -3,6 +3,19 @@ use super::scf_energy_details::ScfEnergyDetails;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
+/// Metrics returned by a completed restricted or unrestricted SCF calculation.
+///
+/// RustiQ constructs these values. Downstream code should inspect their public
+/// fields rather than create synthetic results.
+///
+/// ```compile_fail
+/// use rustiq_core::calculation::{ScfResult, ScfIteration, ScfTimings, ScfSetupTimings};
+/// let _ = ScfResult { ..unimplemented!() };
+/// let _ = ScfIteration { ..unimplemented!() };
+/// let _ = ScfTimings { ..unimplemented!() };
+/// let _ = ScfSetupTimings { ..unimplemented!() };
+/// ```
 pub struct ScfResult {
     pub iterations: usize,
     pub electronic_energy: f64,
@@ -55,6 +68,7 @@ impl ScfTermination {
 }
 
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ScfTimings {
     pub setup: ScfSetupTimings,
     pub iterations: Duration,
@@ -63,6 +77,7 @@ pub struct ScfTimings {
 }
 
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ScfSetupTimings {
     pub core_hamiltonian: Duration,
     pub overlap: Duration,

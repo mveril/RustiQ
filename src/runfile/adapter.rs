@@ -8,11 +8,11 @@ pub struct UnsupportedCoreVariant(&'static str);
 
 impl From<&molecule::MoleculeConfig> for core::MoleculeConfig {
     fn from(value: &molecule::MoleculeConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.units = value.units;
-        updated_config.charge = value.charge.into();
-        updated_config.multiplicity = value.multiplicity.into();
-        updated_config
+        let mut config = Self::default();
+        config.units = value.units;
+        config.charge = value.charge.into();
+        config.multiplicity = value.multiplicity.into();
+        config
     }
 }
 
@@ -28,10 +28,10 @@ impl From<&hf::HfMethod> for core::HfMethod {
 
 impl From<&hf::DiisConfig> for core::DiisConfig {
     fn from(value: &hf::DiisConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.enabled = value.enabled;
-        updated_config.max_history = value.max_history.into();
-        updated_config
+        let mut config = Self::default();
+        config.enabled = value.enabled;
+        config.max_history = value.max_history.into();
+        config
     }
 }
 
@@ -46,9 +46,9 @@ impl From<&core::DiisConfig> for hf::DiisConfig {
 
 impl From<&hf::OrthogonalizationConfig> for core::OrthogonalizationConfig {
     fn from(value: &hf::OrthogonalizationConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.linear_dependency_threshold = value.linear_dependency_threshold.into();
-        updated_config
+        let mut config = Self::default();
+        config.linear_dependency_threshold = value.linear_dependency_threshold.into();
+        config
     }
 }
 
@@ -62,35 +62,35 @@ impl From<&core::OrthogonalizationConfig> for hf::OrthogonalizationConfig {
 
 impl From<&hf::HfConfig> for core::HfConfig {
     fn from(value: &hf::HfConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.method = core::HfMethod::from(&value.method).into();
-        updated_config.max_iterations = value.max_iterations;
-        updated_config.convergence_threshold = value.convergence_threshold;
-        updated_config.guess = core::DensityGuessConfig::from(value.guess).into();
-        updated_config.diis = (&value.diis).into();
-        updated_config.orthogonalization = (&value.orthogonalization).into();
-        updated_config
+        let mut config = Self::default();
+        config.method = core::HfMethod::from(&value.method).into();
+        config.max_iterations = value.max_iterations;
+        config.convergence_threshold = value.convergence_threshold;
+        config.guess = core::DensityGuessConfig::from(value.guess).into();
+        config.diis = (&value.diis).into();
+        config.orthogonalization = (&value.orthogonalization).into();
+        config
     }
 }
 
 impl From<&mp2::Mp2Config> for core::Mp2Config {
     fn from(value: &mp2::Mp2Config) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.frozen_orbitals = value.frozen_orbitals.into();
-        updated_config.memory_limit = match value.memory_limit {
+        let mut config = Self::default();
+        config.frozen_orbitals = value.frozen_orbitals.into();
+        config.memory_limit = match value.memory_limit {
             crate::config::MemoryLimit::Auto => core::MemoryLimit::Auto,
             crate::config::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
         }
         .into();
-        updated_config
+        config
     }
 }
 
 impl From<&integrals::IntegralConfig> for core::IntegralConfig {
     fn from(value: &integrals::IntegralConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.schwarz_threshold = value.schwarz_threshold.into();
-        updated_config
+        let mut config = Self::default();
+        config.schwarz_threshold = value.schwarz_threshold.into();
+        config
     }
 }
 
@@ -113,17 +113,17 @@ impl From<hf::DensityGuessConfig> for core::DensityGuessConfig {
 
 impl From<hf::GuessPerturbationConfig> for core::GuessPerturbationConfig {
     fn from(value: hf::GuessPerturbationConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.random = value.random.into();
-        updated_config
+        let mut config = Self::default();
+        config.random = value.random.into();
+        config
     }
 }
 
 impl From<hf::RandomGuessConfig> for core::RandomGuessConfig {
     fn from(value: hf::RandomGuessConfig) -> Self {
-        let mut updated_config = Self::default();
-        updated_config.random = value.random.into();
-        updated_config
+        let mut config = Self::default();
+        config.random = value.random.into();
+        config
     }
 }
 
@@ -145,10 +145,9 @@ impl From<random_config::RandomConfig> for core::RandomConfig {
                 },
             },
         };
-        Self {
-            distribution,
-            seed: value.seed,
-        }
+        let mut config = Self::new(distribution);
+        config.seed = value.seed;
+        config
     }
 }
 
@@ -341,12 +340,12 @@ mod tests {
         assert!(core_diis.enabled);
         assert_eq!(core_diis.max_history.value.into_inner(), 9);
         let core_diis = {
-            let mut updated_config = core_diis;
-            updated_config.max_history = rustiq_core::config::Located {
+            let mut diis = core_diis;
+            diis.max_history = rustiq_core::config::Located {
                 value: core_diis.max_history.value,
                 span: Some((12usize, 2usize).into()),
             };
-            updated_config
+            diis
         };
         let frontend_diis = crate::runfile::hf::DiisConfig::from(&core_diis);
         assert!(frontend_diis.enabled);
@@ -368,12 +367,12 @@ mod tests {
             1e-7
         );
         let core_orthogonalization = {
-            let mut updated_config = rustiq_core::config::OrthogonalizationConfig::default();
-            updated_config.linear_dependency_threshold = rustiq_core::config::Located {
+            let mut orthogonalization = rustiq_core::config::OrthogonalizationConfig::default();
+            orthogonalization.linear_dependency_threshold = rustiq_core::config::Located {
                 value: core_orthogonalization.linear_dependency_threshold.value,
                 span: Some((20usize, 3usize).into()),
             };
-            updated_config
+            orthogonalization
         };
         let frontend_orthogonalization =
             crate::runfile::hf::OrthogonalizationConfig::from(&core_orthogonalization);

@@ -6,5 +6,7 @@ pub(crate) mod calculation_report;
 pub(crate) mod json_output;
 pub(crate) mod mp2_report;
 pub mod scf_report;
+#[cfg(test)]
+mod test_support;
 pub(crate) use banner::print_startup_banner;
 pub(crate) use basis_table::BasisTableItem;

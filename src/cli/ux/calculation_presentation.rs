@@ -138,7 +138,7 @@ pub(crate) fn requested_calculation(
     Ok(CanonicalPair {
         toml,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
-        units: unit_name(request.molecule().units),
+        units: unit_name(request.molecule().units)?,
     })
 }
 
@@ -152,7 +152,7 @@ pub(crate) fn portable_requested_calculation(
     Ok(CanonicalPair {
         toml: render_calculation_toml(configuration)?,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
-        units: unit_name(request.molecule().units),
+        units: unit_name(request.molecule().units)?,
     })
 }
 
@@ -237,11 +237,11 @@ pub(crate) fn resolved_calculation(
     })
 }
 
-fn unit_name(unit: Units) -> &'static str {
+fn unit_name(unit: Units) -> Result<&'static str, RenderError> {
     match unit {
-        Units::Bohr => "Bohr",
-        Units::Angstrom => "Angstrom",
-        _ => "Unknown",
+        Units::Bohr => Ok("Bohr"),
+        Units::Angstrom => Ok("Angstrom"),
+        _ => Err(RenderError("unsupported coordinate unit".into())),
     }
 }
 

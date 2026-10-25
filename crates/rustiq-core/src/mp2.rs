@@ -46,6 +46,26 @@ pub struct Mp2Input<'a> {
 }
 
 /// MP2 correlation correction and corrected electronic energy, in Hartree.
+///
+/// This result remains constructible because [`crate::calculation::Mp2Calculation`] is a public
+/// implementation point for supported external calculations.
+///
+/// ```
+/// use rustiq_core::{
+///     calculation::{CalculationExecutionError, Mp2Calculation, Mp2Result},
+///     config::Mp2Config,
+/// };
+///
+/// struct ExternalMp2;
+/// impl Mp2Calculation for ExternalMp2 {
+///     fn mp2(&self, _: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
+///         Ok(Mp2Result {
+///             correlation_energy: -0.01,
+///             electronic_energy: -1.0,
+///         })
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mp2Result {
     /// Second-order correction to the HF electronic energy.

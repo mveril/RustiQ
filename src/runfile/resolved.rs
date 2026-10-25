@@ -203,34 +203,28 @@ impl ResolvedCalculationConfig {
 
     pub fn molecule_config(&self) -> rustiq_core::config::MoleculeConfig {
         use rustiq_core::molecules::Units as CoreUnits;
-        {
-            let mut updated_config = rustiq_core::config::MoleculeConfig::default();
-            updated_config.units = match self.molecule.units {
-                Units::Bohr => CoreUnits::Bohr,
-                Units::Angstrom => CoreUnits::Angstrom,
-            };
-            updated_config.charge = self.molecule.charge.into();
-            updated_config.multiplicity = self.molecule.multiplicity.into();
-            updated_config
-        }
+        let mut config = rustiq_core::config::MoleculeConfig::default();
+        config.units = match self.molecule.units {
+            Units::Bohr => CoreUnits::Bohr,
+            Units::Angstrom => CoreUnits::Angstrom,
+        };
+        config.charge = self.molecule.charge.into();
+        config.multiplicity = self.molecule.multiplicity.into();
+        config
     }
 
     pub fn integral_config(&self) -> Result<rustiq_core::config::IntegralConfig, ResolutionError> {
-        Ok({
-            let mut updated_config = rustiq_core::config::IntegralConfig::default();
-            updated_config.schwarz_threshold = if self.integrals.schwarz_threshold == 0.0 {
-                None
-            } else {
-                Some(
-                    rustiq_core::config::PositiveFiniteF64::try_new(
-                        self.integrals.schwarz_threshold,
-                    )
+        let mut config = rustiq_core::config::IntegralConfig::default();
+        config.schwarz_threshold = if self.integrals.schwarz_threshold == 0.0 {
+            None
+        } else {
+            Some(
+                rustiq_core::config::PositiveFiniteF64::try_new(self.integrals.schwarz_threshold)
                     .map_err(|e| drift("integrals.schwarz_threshold", e))?,
-                )
-            }
-            .into();
-            updated_config
-        })
+            )
+        }
+        .into();
+        Ok(config)
     }
 
     pub fn hf_config(&self) -> Result<rustiq_core::config::HfConfig, ResolutionError> {
@@ -242,11 +236,9 @@ impl ResolvedCalculationConfig {
             value
                 .as_ref()
                 .map(|value| {
-                    Ok({
-                        let mut updated_config = core::GuessPerturbationConfig::default();
-                        updated_config.random = value.to_core()?;
-                        updated_config
-                    })
+                    let mut config = core::GuessPerturbationConfig::default();
+                    config.random = value.to_core()?;
+                    Ok(config)
                 })
                 .transpose()
         };
@@ -261,60 +253,55 @@ impl ResolvedCalculationConfig {
             } => core::DensityGuessConfig::OneElectron {
                 perturbation: perturbation(value)?,
             },
-            Guess::Random { distribution } => core::DensityGuessConfig::Random {
-                config: {
-                    let mut updated_config = core::RandomGuessConfig::default();
-                    updated_config.random = distribution.to_core()?;
-                    updated_config
-                },
-            },
+            Guess::Random { distribution } => {
+                let mut random_guess = core::RandomGuessConfig::default();
+                random_guess.random = distribution.to_core()?;
+                core::DensityGuessConfig::Random {
+                    config: random_guess,
+                }
+            }
             Guess::Zero => core::DensityGuessConfig::Zero,
         };
-        Ok({
-            let mut updated_config = core::HfConfig::default();
-            updated_config.method = match hf.method {
-                HfMethod::Auto => core::HfMethod::Auto,
-                HfMethod::Rhf => core::HfMethod::Rhf,
-                HfMethod::Uhf => core::HfMethod::Uhf,
-            }
+        let mut config = core::HfConfig::default();
+        config.method = match hf.method {
+            HfMethod::Auto => core::HfMethod::Auto,
+            HfMethod::Rhf => core::HfMethod::Rhf,
+            HfMethod::Uhf => core::HfMethod::Uhf,
+        }
+        .into();
+        config.max_iterations = hf.max_iterations;
+        config.convergence_threshold = PositiveFiniteF64::try_new(hf.convergence_threshold)
+            .map_err(|e| drift("hf.convergence_threshold", e))?;
+        config.guess = guess.into();
+
+        let mut diis = core::DiisConfig::default();
+        diis.enabled = hf.diis.enabled;
+        diis.max_history = DiisSize::try_new(hf.diis.max_history)
+            .map_err(|e| drift("diis.max_history", e))?
             .into();
-            updated_config.max_iterations = hf.max_iterations;
-            updated_config.convergence_threshold =
-                PositiveFiniteF64::try_new(hf.convergence_threshold)
-                    .map_err(|e| drift("hf.convergence_threshold", e))?;
-            updated_config.guess = guess.into();
-            updated_config.diis = {
-                let mut updated_config = core::DiisConfig::default();
-                updated_config.enabled = hf.diis.enabled;
-                updated_config.max_history = DiisSize::try_new(hf.diis.max_history)
-                    .map_err(|e| drift("diis.max_history", e))?
-                    .into();
-                updated_config
-            };
-            updated_config.orthogonalization = {
-                let mut updated_config = core::OrthogonalizationConfig::default();
-                updated_config.linear_dependency_threshold =
-                    NonNegativeFiniteF64::try_new(hf.orthogonalization.linear_dependency_threshold)
-                        .map_err(|e| drift("orthogonalization.linear_dependency_threshold", e))?
-                        .into();
-                updated_config
-            };
-            updated_config
-        })
+        config.diis = diis;
+
+        let mut orthogonalization = core::OrthogonalizationConfig::default();
+        orthogonalization.linear_dependency_threshold =
+            NonNegativeFiniteF64::try_new(hf.orthogonalization.linear_dependency_threshold)
+                .map_err(|e| drift("orthogonalization.linear_dependency_threshold", e))?
+                .into();
+        config.orthogonalization = orthogonalization;
+        Ok(config)
     }
 
     pub fn mp2_config(&self) -> Option<rustiq_core::config::Mp2Config> {
         self.method.mp2.as_ref().map(|mp2| {
-            let mut updated_config = rustiq_core::config::Mp2Config::default();
-            updated_config.frozen_orbitals = mp2.frozen_orbitals.into();
-            updated_config.memory_limit = match mp2.memory_limit {
+            let mut config = rustiq_core::config::Mp2Config::default();
+            config.frozen_orbitals = mp2.frozen_orbitals.into();
+            config.memory_limit = match mp2.memory_limit {
                 crate::config::MemoryLimit::Auto => rustiq_core::config::MemoryLimit::Auto,
                 crate::config::MemoryLimit::Fixed(size) => {
                     rustiq_core::config::MemoryLimit::Fixed(size)
                 }
             }
             .into();
-            updated_config
+            config
         })
     }
 }
@@ -356,7 +343,9 @@ impl Distribution {
                 )
             }
         };
-        Ok(core::RandomConfig { distribution, seed })
+        let mut config = core::RandomConfig::new(distribution);
+        config.seed = seed;
+        Ok(config)
     }
 }
 

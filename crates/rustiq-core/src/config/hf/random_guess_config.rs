@@ -1,4 +1,3 @@
-use crate::config::random_config::distribution_config::UniformDistributionConfig;
 use crate::config::random_config::{DistributionConfig, RandomConfig};
 
 #[derive(Debug, Clone, Copy)]
@@ -10,15 +9,13 @@ pub struct RandomGuessConfig {
 impl Default for RandomGuessConfig {
     fn default() -> Self {
         Self {
-            random: RandomConfig {
-                distribution: DistributionConfig::Uniform {
-                    config: UniformDistributionConfig {
-                        min: -1f64,
-                        max: 1f64,
+            random: RandomConfig::new(DistributionConfig::Uniform {
+                config:
+                    crate::config::random_config::distribution_config::UniformDistributionConfig {
+                        min: -1.0,
+                        max: 1.0,
                     },
-                },
-                seed: None,
-            },
+            }),
         }
     }
 }

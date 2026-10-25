@@ -258,17 +258,15 @@ mod tests {
     }
 
     fn perturbation(seed: u64) -> GuessPerturbationConfig {
-        GuessPerturbationConfig {
-            random: crate::config::random_config::RandomConfig {
-                distribution: DistributionConfig::Normal {
-                    config: NormalDistributionConfig {
-                        mean: 0.0,
-                        std_dev: PositiveFiniteF64::try_new(1e-4).unwrap(),
-                    },
+        let mut random =
+            crate::config::random_config::RandomConfig::new(DistributionConfig::Normal {
+                config: NormalDistributionConfig {
+                    mean: 0.0,
+                    std_dev: PositiveFiniteF64::try_new(1e-4).unwrap(),
                 },
-                seed: Some(seed),
-            },
-        }
+            });
+        random.seed = Some(seed);
+        GuessPerturbationConfig { random }
     }
 
     fn assert_symmetric(matrix: &DMatrix<f64>) {

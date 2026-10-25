@@ -64,11 +64,35 @@ public fields you want to customize. External Rust callers cannot use struct
 literals or `..Default::default()` to construct these types. See the core
 `config` module's Rustdoc for executable examples.
 
+`RandomConfig` is also non-exhaustive, but has no `Default` implementation
+because no distribution is appropriate for every calculation. Start with
+`RandomConfig::new(distribution)` and assign `seed` when reproducible sampling
+is required. An absent seed continues to initialize sampling from system
+randomness.
+
 New options must have defaults that preserve the previous behavior when the
 option is omitted. Maintain this contract in both the core's `Default`
 implementations and the input frontend's defaults. Non-exhaustiveness protects
 Rust source compatibility when fields are added; preserving default behavior
 also requires checking the existing calculation and input regression tests.
+
+The core produces `ScfResult`, `ScfIteration`, SCF timings,
+`HfCalculationResult`, and `Mp2MemoryPlan`; these are non-exhaustive inspection
+records, not extension points for constructing scientific output. Public
+fields remain readable, while new diagnostics can be added without requiring
+downstream struct literals to change. `Mp2Result` remains constructible because
+the public `Mp2Calculation` trait lets downstream implementations return the
+same result type.
+
+Enums are non-exhaustive when callers select among evolving configurations or
+consume results that may gain another variant, such as `HfMethod`,
+`ResolvedHfMethod`, density guesses, random distributions, and MP2 sectors.
+`HfOutcome` remains exhaustive because a completed HF run has exactly two
+convergence states; setup and calculation failures are returned as errors.
+`RestrictedMethod` and `UnrestrictedMethod` also remain exhaustive and name
+only the currently implemented method for each reference. Adding a supported
+method is an explicit API change, rather than an open-ended configuration
+choice.
 
 For portable archives and raw AO ERIs, import `RustiQData`, `RustiQBundle`, and `CompactEri` explicitly from
 `rustiq_core::persistence`. Import `ArtifactReuseDecision` and

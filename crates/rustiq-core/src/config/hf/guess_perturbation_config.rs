@@ -17,14 +17,11 @@ impl Default for GuessPerturbationConfig {
 }
 
 fn default_random_config() -> RandomConfig {
-    RandomConfig {
-        distribution: DistributionConfig::Normal {
-            config: NormalDistributionConfig {
-                mean: 0.0,
-                std_dev: PositiveFiniteF64::try_new(1e-4)
-                    .expect("default perturbation standard deviation is positive and finite"),
-            },
+    RandomConfig::new(DistributionConfig::Normal {
+        config: NormalDistributionConfig {
+            mean: 0.0,
+            std_dev: PositiveFiniteF64::try_new(1e-4)
+                .expect("default perturbation standard deviation is positive and finite"),
         },
-        seed: None,
-    }
+    })
 }

@@ -10,6 +10,15 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
+/// Resolved HF method and its SCF metrics, produced by a completed calculation.
+///
+/// Use the calculation outcome's `summary()` accessor to inspect this value.
+///
+/// ```compile_fail
+/// use rustiq_core::calculation::HfCalculationResult;
+/// let _ = HfCalculationResult { ..unimplemented!() };
+/// ```
 pub struct HfCalculationResult {
     pub method: ResolvedHfMethod,
     pub scf: ScfResult,
