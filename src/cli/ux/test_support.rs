@@ -2,10 +2,11 @@ use std::sync::OnceLock;
 
 use rustiq_core::{
     basis::BasisFile,
+    config::MoleculeConfig,
     calculation::{
         CalculationBuilder, CalculationEvent, CalculationExecution, CalculationResult, ScfIteration,
     },
-    molecules::Geometry,
+    molecules::{Geometry, Units},
 };
 
 static SAMPLE: OnceLock<(CalculationResult, ScfIteration)> = OnceLock::new();
@@ -19,8 +20,11 @@ fn sample() -> &'static (CalculationResult, ScfIteration) {
             &include_bytes!("../../../crates/rustiq-core/tests/data/sto-3g.json")[..],
         )
         .expect("bundled STO-3G basis is valid");
+        let mut molecule_config = MoleculeConfig::default();
+        molecule_config.units = Units::Angstrom;
         let mut first_iteration = None;
         let result = CalculationBuilder::new(&geometry, &basis)
+            .with_molecule_config(molecule_config)
             .execute_with_events(|event| {
                 if let CalculationEvent::ScfIteration(iteration) = event {
                     first_iteration.get_or_insert_with(|| iteration.clone());
@@ -40,4 +44,15 @@ pub(crate) fn scf_result() -> rustiq_core::calculation::ScfResult {
 
 pub(crate) fn scf_iteration() -> ScfIteration {
     sample().1.clone()
+}
+
+#[test]
+fn h2_fixture_uses_angstrom_coordinates() {
+    let scf = scf_result();
+    let reference_energy = -1.116_759_307_506_361_3_f64;
+    assert!(
+        (scf.total_energy - reference_energy).abs() < 1e-9,
+        "H2/STO-3G total energy must match the Angstrom-coordinate reference: {}",
+        scf.total_energy
+    );
 }
