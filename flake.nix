@@ -140,16 +140,31 @@
             version = cargoToml.package.version;
             src = cargoSource;
             strictDeps = true;
-            cargoExtraArgs = "--locked --workspace";
+            cargoExtraArgs = "--locked --workspace --no-default-features --features online";
           };
 
           cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
+
+          # Generate installed assets with a separate executable so the shipped
+          # CLI does not retain the optional generator code or dependencies.
+          cliGenerators = craneLib.buildPackage (
+            commonCargoArgs
+            // {
+              inherit cargoArtifacts;
+              cargoExtraArgs = "${commonCargoArgs.cargoExtraArgs} --features manpages,completions";
+              doCheck = false;
+              nativeBuildInputs = [ pkgs.git ];
+            }
+          );
 
           rustiq = craneLib.buildPackage (
             commonCargoArgs
             // {
               inherit cargoArtifacts;
-              nativeBuildInputs = [ pkgs.git ];
+              nativeBuildInputs = [
+                pkgs.git
+                pkgs.installShellFiles
+              ];
               # Crane's package build uses Cargo's release profile. Pass the
               # exact profile name because PROFILE is only debug/release-like.
               RUSTIQ_BUILD_PROFILE = "release";
@@ -165,9 +180,35 @@
                 else
                   "unknown";
               postInstall = ''
+                ${cliGenerators}/bin/rustiq manpages manpages
+                installManPage manpages/*.1
+                mkdir -p completions "$out/share/rustiq/completions"
+                for shell in bash zsh fish elvish powershell nushell; do
+                  ${cliGenerators}/bin/rustiq completions "$shell" > "completions/$shell"
+                done
+                installShellCompletion --cmd rustiq \
+                  --bash completions/bash --zsh completions/zsh --fish completions/fish
+                cp completions/nushell "$out/share/rustiq/completions/rustiq.nu"
+                cp completions/powershell "$out/share/rustiq/completions/rustiq.ps1"
+                cp completions/elvish "$out/share/rustiq/completions/rustiq.elv"
                 mkdir -p "$out/share/doc/rustiq"
                 cp COPYING LICENSE-MIT LICENSE-APACHE DISTRIBUTION.md THIRD-PARTY-NOTICES.txt \
                   "$out/share/doc/rustiq/"
+              '';
+              doInstallCheck = true;
+              installCheckPhase = ''
+                runHook preInstallCheck
+                "$out/bin/rustiq" --help > installed-help
+                ! grep -Eq 'manpages|completions' installed-help
+                test -s "$out/share/man/man1/rustiq.1.gz"
+                test -s "$out/share/man/man1/rustiq-artifact-inspect.1.gz"
+                test -s "$out/share/bash-completion/completions/rustiq"
+                test -s "$out/share/zsh/site-functions/_rustiq"
+                test -s "$out/share/fish/vendor_completions.d/rustiq.fish"
+                for file in rustiq.nu rustiq.ps1 rustiq.elv; do
+                  test -s "$out/share/rustiq/completions/$file"
+                done
+                runHook postInstallCheck
               '';
               meta.license = with pkgs.lib.licenses; [
                 mit
@@ -391,6 +432,7 @@
             commonCargoArgs
             // {
               inherit cargoArtifacts;
+              cargoExtraArgs = "--locked --workspace --all-features";
               cargoClippyExtraArgs = "--all-targets -- --deny warnings";
             }
           );
@@ -399,6 +441,7 @@
             commonCargoArgs
             // {
               inherit cargoArtifacts;
+              cargoExtraArgs = "--locked --workspace --all-features";
               nativeBuildInputs = [ pkgs.git ];
             }
           );

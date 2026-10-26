@@ -70,9 +70,11 @@ name = "rustiq"
 path = "src/main.rs"
 
 [features]
-default = ["online"]
+default = ["online", "manpages", "completions"]
 online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
 bench-support = ["rustiq-core/bench-support"]
+manpages = ["dep:clap_mangen"]
+completions = ["dep:clap_complete", "dep:clap_complete_nushell", "dep:sysinfo"]
 
 [dependencies]
 bytesize.workspace = true
@@ -103,6 +105,10 @@ tempfile.workspace = true
 nickel-lang-core = { version = "=0.19.0", default-features = false }
 # Preserve Nickel's TOML layout while choosing readable float representations.
 toml_edit = "0.25"
+clap_complete = { version = "4.6.11", optional = true }
+clap_mangen = { version = "0.3.3", optional = true }
+clap_complete_nushell = { version = "4.6.2", optional = true }
+sysinfo = { workspace = true, optional = true }
 
 [dev-dependencies]
 vergen-gix = { version = "10", features = ["cargo", "rustc"] }

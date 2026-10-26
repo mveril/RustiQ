@@ -163,20 +163,74 @@ effect.
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `rustiq init <XYZ>` | Create a TOML calculation input that refers to an XYZ geometry. |
-| `rustiq run [INPUT]` | Run TOML or Nickel input, or rerun calculations from a `.rustiq` bundle. With no path, read TOML from standard input. Multi-entry inputs run as batches. |
-| `rustiq basis import <PATH>...` | Import basis JSON files into the local basis store. |
-| `rustiq basis list [--online] [--verbose]` | List locally stored bases; online listing is available in builds with the `online` feature. |
-| `rustiq basis download <NAME>` | Download a basis in builds with the `online` feature. |
-| `rustiq basis remove <NAME>...` / `--all` | Remove selected bases or the local basis store contents. |
-| `rustiq cache list [--cache-dir DIR]` | Inspect AO ERI cache entries and their validation status. |
-| `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries. |
-| `rustiq artifact inspect <PATH> [--format FORMAT]` | Inspect portable `.rustiq` calculation snapshots and artifact metadata. |
-| `rustiq artifact verify <PATH>` | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle. |
-| `rustiq geometry info [XYZ]` | Print basic geometry information; read XYZ from standard input when no path is given. |
-| `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry` | Transform a geometry and write the result; each subcommand has its own help. |
+### Manual pages and shell completions
+
+Cargo builds enable the independent `manpages` and `completions` features by
+default. They provide these commands:
+
+```sh
+rustiq manpages ./manpages
+rustiq completions > current-shell-completion
+rustiq completions bash > rustiq.bash
+rustiq completions zsh > _rustiq
+rustiq completions fish > rustiq.fish
+rustiq completions elvish > rustiq.elv
+rustiq completions powershell > rustiq.ps1
+rustiq completions nushell > rustiq.nu
+```
+
+`manpages` creates its destination directory and replaces existing generated
+pages. It writes `rustiq.1` and pages for the subcommands, including nested
+commands such as `rustiq-artifact-inspect.1`. Each page includes the
+[online manual](https://mveril.github.io/RustiQ/) in its SEE ALSO section.
+`completions` writes only the script to standard output; generation errors go
+to standard error and return a failing exit status. Its shell argument is
+optional: RustiQ recognizes the calling process's shell first, then falls back
+to the `SHELL` environment variable. This includes `nu` for Nushell and `pwsh`
+or `powershell` for PowerShell. If neither identifies a supported shell, the
+command asks you to provide one explicitly. Supply the argument when running
+through a launcher that obscures the calling shell.
+Both generators use the
+build's application commands and options, excluding the generation commands
+themselves. For example, offline builds omit online-only basis commands.
+
+Load the generated file in the matching shell: `source ./rustiq.bash` in Bash,
+`source ./rustiq.fish` in Fish, or `source ./rustiq.elv` in Elvish. For Zsh,
+place `_rustiq` in a directory on `$fpath` before running `autoload -Uz compinit;
+compinit`. In PowerShell, dot-source the script with `. ./rustiq.ps1`; it
+registers native argument completion without adding a command wrapper or
+`Get-Help` integration. In Nushell, load it with `use ./rustiq.nu *`.
+Add the appropriate loading command to your shell configuration to retain it
+in future sessions.
+
+To select features explicitly from a checkout, use, for example:
+
+```sh
+cargo run --locked --no-default-features --features manpages -- manpages ./manpages
+cargo run --locked --no-default-features --features completions -- completions nushell
+```
+
+These examples omit `online`; add it to the feature list if needed. A build
+without a generator's feature omits that command and its dependency. The
+[Nix package](../development/nix-packages.md#installed-manual-and-completions)
+installs the generated assets but disables both generators in its executable.
+
+### Application commands
+
+| Command                                                                 | Purpose                                                                                                                                                  |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rustiq init <XYZ>`                                                     | Create a TOML calculation input that refers to an XYZ geometry.                                                                                          |
+| `rustiq run [INPUT]`                                                    | Run TOML or Nickel input, or rerun calculations from a `.rustiq` bundle. With no path, read TOML from standard input. Multi-entry inputs run as batches. |
+| `rustiq basis import <PATH>...`                                         | Import basis JSON files into the local basis store.                                                                                                      |
+| `rustiq basis list [--online] [--verbose]`                              | List locally stored bases; online listing is available in builds with the `online` feature.                                                              |
+| `rustiq basis download <NAME>`                                          | Download a basis in builds with the `online` feature.                                                                                                    |
+| `rustiq basis remove <NAME>...` / `--all`                               | Remove selected bases or the local basis store contents.                                                                                                 |
+| `rustiq cache list [--cache-dir DIR]`                                   | Inspect AO ERI cache entries and their validation status.                                                                                                |
+| `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries.                                                                                                             |
+| `rustiq artifact inspect <PATH> [--format FORMAT]`                      | Inspect portable `.rustiq` calculation snapshots and artifact metadata.                                                                                  |
+| `rustiq artifact verify <PATH>`                                         | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
+| `rustiq geometry info [XYZ]`                                            | Print basic geometry information; read XYZ from standard input when no path is given.                                                                    |
+| `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry`  | Transform a geometry and write the result; each subcommand has its own help.                                                                             |
 
 The geometry tools and basis storage are utilities around a calculation; they
 do not create a `.rustiq` portable artifact. See the
@@ -209,15 +263,15 @@ JSON output suppresses progress and writes only the result document.
 
 Important options:
 
-| Option | Behavior |
-| --- | --- |
-| `--format FORMAT` (`text` or `json`) | Select text output (default) or versioned JSON. JSON result data is written to standard output. |
-| `--pretty` | Pretty-print single-calculation or batch JSON, optionally with syntax highlighting. Requires `--format json`. |
-| `--color MODE` (`auto`, `always`, or `never`) | Control ANSI colors globally; also accepts `RUSTIQ_COLOR`. Use `--color never` when redirecting pretty JSON. |
-| `--auto-download` / `--no-auto-download` | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
-| `--cache-dir DIR` | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching. |
-| `--reuse PATH` | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation. |
-| `--artifact PATH` | Write the current calculation or batch as a portable `.rustiq` bundle, independently of text or JSON output. |
+| Option                                        | Behavior                                                                                                                                                                                                                                                         |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--format FORMAT` (`text` or `json`)          | Select text output (default) or versioned JSON. JSON result data is written to standard output.                                                                                                                                                                  |
+| `--pretty`                                    | Pretty-print single-calculation or batch JSON, optionally with syntax highlighting. Requires `--format json`.                                                                                                                                                    |
+| `--color MODE` (`auto`, `always`, or `never`) | Control ANSI colors globally; also accepts `RUSTIQ_COLOR`. Use `--color never` when redirecting pretty JSON.                                                                                                                                                     |
+| `--auto-download` / `--no-auto-download`      | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
+| `--cache-dir DIR`                             | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching.                                                                                                                                |
+| `--reuse PATH`                                | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation.                                                                                                                                                                     |
+| `--artifact PATH`                             | Write the current calculation or batch as a portable `.rustiq` bundle, independently of text or JSON output.                                                                                                                                                     |
 
 Output presentation is selected exclusively by the CLI `--format text|json` option.
 The TOML and Nickel calculation contracts do not accept an `output` section.
@@ -237,13 +291,13 @@ The CLI reports input, basis, preparation, and calculation errors as diagnostics
 Exit codes follow the Unix convention: zero means complete success; any nonzero
 code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.
 
-| Code | Meaning |
-| --- | --- |
-| `0` | All requested calculations succeeded. Help and version requests also return zero. |
-| `1` | General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error. |
-| `2` | Invalid command-line arguments. |
-| `3` | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge. |
-| `4` | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors. |
+| Code | Meaning                                                                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | All requested calculations succeeded. Help and version requests also return zero.                                                               |
+| `1`  | General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error. |
+| `2`  | Invalid command-line arguments.                                                                                                                 |
+| `3`  | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.                                     |
+| `4`  | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.                      |
 
 These codes apply to TOML, Nickel, and `.rustiq` inputs, with text or JSON output.
 A calculation succeeds only when the complete requested method succeeds: converged
@@ -280,14 +334,14 @@ inspect the exit code and, when available, individual JSON outcomes; see the
 
 ## Feature availability
 
-| Capability | Available behavior |
-| --- | --- |
-| TOML | One calculation per input; see the checked-in [H₂ input](../user-guide/configuration.md). |
-| Nickel | One calculation or an ordered study/batch; see the checked-in [study example](../user-guide/nickel-studies.md). |
-| JSON | Versioned single-calculation and batch results, selected with `run --format json`; schemas are linked below. |
-| AO ERI cache | Optional local reuse through `[cache].enabled` and `--cache-dir`; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral. |
+| Capability                | Available behavior                                                                                                                                                                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TOML                      | One calculation per input; see the checked-in [H₂ input](../user-guide/configuration.md).                                                                                                                                                                                                                       |
+| Nickel                    | One calculation or an ordered study/batch; see the checked-in [study example](../user-guide/nickel-studies.md).                                                                                                                                                                                                 |
+| JSON                      | Versioned single-calculation and batch results, selected with `run --format json`; schemas are linked below.                                                                                                                                                                                                    |
+| AO ERI cache              | Optional local reuse through `[cache].enabled` and `--cache-dir`; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral.                                                                                                                                                    |
 | Portable `.rustiq` bundle | Create with `run --artifact`, rerun with `run FILE.rustiq`, reuse artifacts with `run INPUT --reuse FILE.rustiq`, inspect with `artifact inspect`, and validate stored AO ERIs with `artifact verify`. Reruns start a fresh HF calculation. See the [portable bundle guide](../user-guide/portable-bundles.md). |
-| Scientific status | Experimental; selected checks do not establish research-grade correctness. See [scientific scope and limitations](../scientific-scope.md). |
+| Scientific status         | Experimental; selected checks do not establish research-grade correctness. See [scientific scope and limitations](../scientific-scope.md).                                                                                                                                                                      |
 
 Basis downloads and online basis listing require a build with the `online`
 feature. The standard CLI enables it; offline builds provide import, local
@@ -346,14 +400,14 @@ The following settings are accepted by both TOML and Nickel. This is a
 navigation aid, not a second schema: exact defaults, value constraints, and
 cross-field validation remain defined by the linked Nickel contract.
 
-| Section | Supported settings |
-| --- | --- |
-| `[molecule]` | `geometry`, `charge`, `multiplicity`, `units` (`Angstrom` or `Bohr`) |
-| `[basis]` | `name` |
-| `[method.hf]` | `method` (`Auto`, `Rhf`, `Uhf`), `max_iterations`, `convergence_threshold`, `guess`, `diis.enabled`, `diis.max_history`, `orthogonalization.linear_dependency_threshold` |
-| `[method.mp2]` | `frozen_orbitals`, `memory_limit` |
-| `[integrals]` | `schwarz_threshold` for integral screening |
-| `[cache]` | `enabled` for the disposable local AO ERI cache |
+| Section        | Supported settings                                                                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[molecule]`   | `geometry`, `charge`, `multiplicity`, `units` (`Angstrom` or `Bohr`)                                                                                                     |
+| `[basis]`      | `name`                                                                                                                                                                   |
+| `[method.hf]`  | `method` (`Auto`, `Rhf`, `Uhf`), `max_iterations`, `convergence_threshold`, `guess`, `diis.enabled`, `diis.max_history`, `orthogonalization.linear_dependency_threshold` |
+| `[method.mp2]` | `frozen_orbitals`, `memory_limit`                                                                                                                                        |
+| `[integrals]`  | `schwarz_threshold` for integral screening                                                                                                                               |
+| `[cache]`      | `enabled` for the disposable local AO ERI cache                                                                                                                          |
 
 The accepted density guesses and their fields are defined in the Nickel
 contract; see the HF guide for their use. The cache stores AO ERI data only; it
