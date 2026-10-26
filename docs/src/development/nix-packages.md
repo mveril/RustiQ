@@ -115,9 +115,12 @@ For persistent configuration, use the corresponding installed profile path
 instead of a checkout's `result` link. PowerShell support registers native
 argument completion only.
 
-Nix generates the files with a separate build tool. The installed executable
-retains `online` but disables the Cargo features `manpages` and `completions`,
-so it does not offer the generation commands or link their dependencies.
+Nix generates the files with a separate build tool and sets
+`RUSTIQ_PACKAGING=true` so both generators omit themselves from manuals and
+completions. The installed executable retains `online` but disables the Cargo
+features `manpages` and `completions`, so it does not offer generation commands
+or link their dependencies. Other packagers can set the same variable when
+generating assets for a binary built without those features.
 Nix checks build and test all features separately; package installation checks
 verify the installed assets and the absence of generator commands.
 

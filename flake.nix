@@ -180,6 +180,7 @@
                 else
                   "unknown";
               postInstall = ''
+                export RUSTIQ_PACKAGING=true
                 ${cliGenerators}/bin/rustiq manpages manpages
                 installManPage manpages/*.1
                 mkdir -p completions "$out/share/rustiq/completions"

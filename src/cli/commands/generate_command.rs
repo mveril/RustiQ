@@ -4,24 +4,39 @@ use miette::IntoDiagnostic;
 use super::{CommandResult, Runnable};
 use crate::cli::Cli;
 
-/// Describe the installed application without the optional generation commands.
-fn application_command() -> Command {
+/// Controls which optional self-documentation commands appear in generated files.
+fn packaging_enabled() -> miette::Result<bool> {
+    match std::env::var("RUSTIQ_PACKAGING") {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" => Ok(true),
+            "0" | "false" => Ok(false),
+            _ => Err(miette::miette!(
+                "invalid RUSTIQ_PACKAGING value {value:?}; expected true, false, 1, or 0"
+            )),
+        },
+        Err(std::env::VarError::NotPresent) => Ok(false),
+        Err(std::env::VarError::NotUnicode(_)) => Err(miette::miette!(
+            "RUSTIQ_PACKAGING must be valid UTF-8; expected true, false, 1, or 0"
+        )),
+    }
+}
+
+/// Describe the application, omitting generator commands for packaged output.
+fn application_command() -> miette::Result<Command> {
+    let packaging = packaging_enabled()?;
     let cli = Cli::command();
-    // Clap cannot remove subcommands. Reuse the derived arguments and command
-    // definitions rather than hiding generators (some shells complete hidden commands).
-    Command::new("rustiq")
+    let command = Command::new("rustiq")
         .bin_name("rustiq")
         .about(cli.get_about().cloned().unwrap_or_default())
         .author(env!("CARGO_PKG_AUTHORS"))
         .version(env!("CARGO_PKG_VERSION"))
         .disable_version_flag(true)
         .arg_required_else_help(true)
-        .args(cli.get_arguments().cloned())
-        .subcommands(
-            cli.get_subcommands()
-                .filter(|command| !matches!(command.get_name(), "manpages" | "completions"))
-                .cloned(),
-        )
+        .args(cli.get_arguments().cloned());
+    let subcommands = cli
+        .get_subcommands()
+        .filter(|command| !packaging || !matches!(command.get_name(), "manpages" | "completions"));
+    Ok(command.subcommands(subcommands.cloned()))
 }
 
 #[cfg(feature = "manpages")]
@@ -34,8 +49,8 @@ pub struct ManpagesCommand {
 #[cfg(feature = "manpages")]
 impl Runnable for ManpagesCommand {
     fn run(&self) -> CommandResult {
+        let mut command = application_command()?.disable_help_subcommand(true);
         std::fs::create_dir_all(&self.directory).into_diagnostic()?;
-        let mut command = application_command().disable_help_subcommand(true);
         command.build();
         write_manpages(command, &self.directory).into_diagnostic()
     }
@@ -145,7 +160,7 @@ impl Runnable for CompletionsCommand {
                 "could not detect a supported shell; specify bash, zsh, fish, elvish, powershell, or nushell"
             )
         })?;
-        let mut command = application_command();
+        let mut command = application_command()?;
         command.build();
         let mut output = std::io::stdout().lock();
         match shell {
@@ -165,7 +180,26 @@ impl Runnable for CompletionsCommand {
 
 #[cfg(all(test, feature = "completions"))]
 mod tests {
-    use super::Shell;
+    use super::{packaging_enabled, Shell};
+
+    #[test]
+    fn parses_packaging_environment_values() {
+        for (value, expected) in [
+            ("true", true),
+            ("TRUE", true),
+            (" 1 ", true),
+            ("false", false),
+            ("FALSE", false),
+            ("0", false),
+        ] {
+            temp_env::with_var("RUSTIQ_PACKAGING", Some(value), || {
+                assert_eq!(packaging_enabled().unwrap(), expected);
+            });
+        }
+        temp_env::with_var("RUSTIQ_PACKAGING", Some("yes"), || {
+            assert!(packaging_enabled().is_err());
+        });
+    }
 
     #[test]
     fn recognizes_shell_executables_and_nix_wrappers() {

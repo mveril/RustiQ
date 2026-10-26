@@ -9,6 +9,7 @@ fn rustiq(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .args(args)
         .env("RUSTIQ_COLOR", "never")
+        .env("RUSTIQ_PACKAGING", "false")
         .output()
         .unwrap()
 }
@@ -29,7 +30,7 @@ fn generator_availability_matches_features() {
 
 #[cfg(feature = "completions")]
 #[test]
-fn all_shells_describe_the_application_without_generators() {
+fn all_shells_include_generator_commands_for_nonpackaged_output() {
     for shell in ["bash", "zsh", "fish", "elvish", "powershell", "nushell"] {
         let output = rustiq(&["completions", shell]);
         assert!(output.status.success(), "{shell}: {output:?}");
@@ -38,10 +39,10 @@ fn all_shells_describe_the_application_without_generators() {
         for expected in ["rustiq", "artifact", "inspect", "color"] {
             assert!(script.contains(expected), "{shell}: missing {expected}");
         }
-        assert!(!script.contains("manpages"), "{shell}");
+        assert_eq!(script.contains("manpages"), cfg!(feature = "manpages"));
         assert!(
-            !script.contains("Write a shell completion script"),
-            "{shell}"
+            script.contains("completions"),
+            "{shell}: missing completions command"
         );
         assert!(!script.contains('\u{1b}'), "{shell}");
     }
@@ -54,6 +55,40 @@ fn invalid_shell_is_rejected_without_a_script() {
     assert_eq!(output.status.code(), Some(2));
     assert_eq!(output.stdout, b"");
     assert_ne!(output.stderr, b"");
+}
+
+#[cfg(feature = "completions")]
+#[test]
+fn packaging_mode_hides_generator_commands_from_every_shell() {
+    for shell in ["bash", "zsh", "fish", "elvish", "powershell", "nushell"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+            .args(["completions", shell])
+            .env("RUSTIQ_PACKAGING", "1")
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{shell}: {output:?}");
+        let script = String::from_utf8(output.stdout).unwrap();
+        assert!(!script.contains("manpages"), "{shell}");
+        assert!(
+            !script.contains("Write a shell completion script"),
+            "{shell}"
+        );
+    }
+}
+
+#[cfg(feature = "completions")]
+#[test]
+fn invalid_packaging_value_is_reported_without_a_script() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+        .args(["completions", "bash"])
+        .env("RUSTIQ_PACKAGING", "yes")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert_eq!(output.stdout, b"");
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("RUSTIQ_PACKAGING"));
 }
 
 #[cfg(feature = "completions")]
@@ -117,6 +152,7 @@ fn manpages_include_nested_commands_global_options_and_book_link() {
     let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
         .arg("manpages")
         .arg(&destination)
+        .env("RUSTIQ_PACKAGING", "false")
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -127,11 +163,56 @@ fn manpages_include_nested_commands_global_options_and_book_link() {
         assert!(page.contains("SEE ALSO"), "{name}");
         assert!(page.contains("https://mveril.github.io/RustiQ/"), "{name}");
         assert!(page.contains("color"), "{name}");
-        assert!(!page.contains("manpages"), "{name}");
-        assert!(!page.contains("completions"), "{name}");
+    }
+    let root_page = std::fs::read_to_string(destination.join("rustiq.1")).unwrap();
+    assert!(root_page.contains("manpages"));
+    assert_eq!(
+        root_page.contains("completions"),
+        cfg!(feature = "completions")
+    );
+    assert!(destination.join("rustiq-manpages.1").exists());
+    assert_eq!(
+        destination.join("rustiq-completions.1").exists(),
+        cfg!(feature = "completions")
+    );
+}
+
+#[cfg(feature = "manpages")]
+#[test]
+fn packaging_mode_hides_generator_commands_from_manpages() {
+    let temp = tempfile::tempdir().unwrap();
+    let destination = temp.path().join("packaged-manpages");
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+        .args(["manpages", destination.to_str().unwrap()])
+        .env("RUSTIQ_PACKAGING", "true")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    for page in std::fs::read_dir(&destination).unwrap() {
+        let page = std::fs::read_to_string(page.unwrap().path()).unwrap();
+        assert!(!page.contains("manpages"));
+        assert!(!page.contains("completions"));
+        assert!(page.contains("https://mveril.github.io/RustiQ/"));
     }
     assert!(!destination.join("rustiq-manpages.1").exists());
     assert!(!destination.join("rustiq-completions.1").exists());
+}
+
+#[cfg(feature = "manpages")]
+#[test]
+fn invalid_packaging_value_does_not_create_the_destination() {
+    let temp = tempfile::tempdir().unwrap();
+    let destination = temp.path().join("invalid-manpages");
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+        .args(["manpages", destination.to_str().unwrap()])
+        .env("RUSTIQ_PACKAGING", "yes")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!destination.exists());
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("RUSTIQ_PACKAGING"));
 }
 
 #[cfg(feature = "manpages")]

@@ -193,6 +193,12 @@ through a launcher that obscures the calling shell.
 Both generators use the
 build's application commands and options, excluding the generation commands
 themselves. For example, offline builds omit online-only basis commands.
+By default, generated files include the generator commands too. Set
+`RUSTIQ_PACKAGING=true` (or `1`) to omit `manpages` and `completions` from
+both manuals and shell completion scripts; `false`, `0`, or an unset variable
+keeps them. Other packagers can use this setting when installing generated
+files alongside a binary built without the generator features. Values other
+than `true`, `false`, `1`, and `0` produce an error.
 
 Load the generated file in the matching shell: `source ./rustiq.bash` in Bash,
 `source ./rustiq.fish` in Fish, or `source ./rustiq.elv` in Elvish. For Zsh,
