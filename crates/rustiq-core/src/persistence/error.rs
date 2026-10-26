@@ -16,6 +16,7 @@ pub(crate) enum StorageError {
 
 /// Portable persistence failures, independent of the physical container library.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PortableError {
     #[error("AO ERI is incompatible with the prepared calculation")]
     IncompatibleEri,
@@ -64,6 +65,7 @@ impl From<PersistenceWriteError> for PortableError {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum NpyError {
     #[error("could not read NPY data: {0}")]
     Read(#[source] io::Error),
@@ -107,6 +109,7 @@ pub(crate) enum ManifestError {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ArtifactError {
     #[error("AO ERI artifact is missing")]
     Missing,

@@ -2,13 +2,17 @@
 use super::{hf, integrals, molecule, mp2, random_config};
 use rustiq_core::config as core;
 
+#[derive(Debug, thiserror::Error)]
+#[error("the CLI cannot render an unknown {0} variant from rustiq-core")]
+pub struct UnsupportedCoreVariant(&'static str);
+
 impl From<&molecule::MoleculeConfig> for core::MoleculeConfig {
     fn from(value: &molecule::MoleculeConfig) -> Self {
-        Self {
-            units: value.units,
-            charge: value.charge.into(),
-            multiplicity: value.multiplicity.into(),
-        }
+        let mut config = Self::default();
+        config.units = value.units;
+        config.charge = value.charge.into();
+        config.multiplicity = value.multiplicity.into();
+        config
     }
 }
 
@@ -24,10 +28,10 @@ impl From<&hf::HfMethod> for core::HfMethod {
 
 impl From<&hf::DiisConfig> for core::DiisConfig {
     fn from(value: &hf::DiisConfig) -> Self {
-        Self {
-            enabled: value.enabled,
-            max_history: value.max_history.into(),
-        }
+        let mut config = Self::default();
+        config.enabled = value.enabled;
+        config.max_history = value.max_history.into();
+        config
     }
 }
 
@@ -42,9 +46,9 @@ impl From<&core::DiisConfig> for hf::DiisConfig {
 
 impl From<&hf::OrthogonalizationConfig> for core::OrthogonalizationConfig {
     fn from(value: &hf::OrthogonalizationConfig) -> Self {
-        Self {
-            linear_dependency_threshold: value.linear_dependency_threshold.into(),
-        }
+        let mut config = Self::default();
+        config.linear_dependency_threshold = value.linear_dependency_threshold.into();
+        config
     }
 }
 
@@ -58,35 +62,35 @@ impl From<&core::OrthogonalizationConfig> for hf::OrthogonalizationConfig {
 
 impl From<&hf::HfConfig> for core::HfConfig {
     fn from(value: &hf::HfConfig) -> Self {
-        Self {
-            method: core::HfMethod::from(&value.method).into(),
-            max_iterations: value.max_iterations,
-            convergence_threshold: value.convergence_threshold,
-            guess: core::DensityGuessConfig::from(value.guess).into(),
-            diis: (&value.diis).into(),
-            orthogonalization: (&value.orthogonalization).into(),
-        }
+        let mut config = Self::default();
+        config.method = core::HfMethod::from(&value.method).into();
+        config.max_iterations = value.max_iterations;
+        config.convergence_threshold = value.convergence_threshold;
+        config.guess = core::DensityGuessConfig::from(value.guess).into();
+        config.diis = (&value.diis).into();
+        config.orthogonalization = (&value.orthogonalization).into();
+        config
     }
 }
 
 impl From<&mp2::Mp2Config> for core::Mp2Config {
     fn from(value: &mp2::Mp2Config) -> Self {
-        Self {
-            frozen_orbitals: value.frozen_orbitals.into(),
-            memory_limit: match value.memory_limit {
-                crate::config::MemoryLimit::Auto => core::MemoryLimit::Auto,
-                crate::config::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
-            }
-            .into(),
+        let mut config = Self::default();
+        config.frozen_orbitals = value.frozen_orbitals.into();
+        config.memory_limit = match value.memory_limit {
+            crate::config::MemoryLimit::Auto => core::MemoryLimit::Auto,
+            crate::config::MemoryLimit::Fixed(size) => core::MemoryLimit::Fixed(size),
         }
+        .into();
+        config
     }
 }
 
 impl From<&integrals::IntegralConfig> for core::IntegralConfig {
     fn from(value: &integrals::IntegralConfig) -> Self {
-        Self {
-            schwarz_threshold: value.schwarz_threshold.into(),
-        }
+        let mut config = Self::default();
+        config.schwarz_threshold = value.schwarz_threshold.into();
+        config
     }
 }
 
@@ -109,17 +113,17 @@ impl From<hf::DensityGuessConfig> for core::DensityGuessConfig {
 
 impl From<hf::GuessPerturbationConfig> for core::GuessPerturbationConfig {
     fn from(value: hf::GuessPerturbationConfig) -> Self {
-        Self {
-            random: value.random.into(),
-        }
+        let mut config = Self::default();
+        config.random = value.random.into();
+        config
     }
 }
 
 impl From<hf::RandomGuessConfig> for core::RandomGuessConfig {
     fn from(value: hf::RandomGuessConfig) -> Self {
-        Self {
-            random: value.random.into(),
-        }
+        let mut config = Self::default();
+        config.random = value.random.into();
+        config
     }
 }
 
@@ -141,23 +145,24 @@ impl From<random_config::RandomConfig> for core::RandomConfig {
                 },
             },
         };
-        Self {
-            distribution,
-            seed: value.seed,
-        }
+        let mut config = Self::new(distribution);
+        config.seed = value.seed;
+        config
     }
 }
 
-impl From<&core::HfConfig> for hf::HfConfig {
-    fn from(value: &core::HfConfig) -> Self {
-        Self {
-            method: value.method.value.into(),
+impl TryFrom<&core::HfConfig> for hf::HfConfig {
+    type Error = UnsupportedCoreVariant;
+
+    fn try_from(value: &core::HfConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            method: value.method.value.try_into()?,
             max_iterations: value.max_iterations,
             convergence_threshold: value.convergence_threshold,
-            guess: value.guess.value.into(),
+            guess: value.guess.value.try_into()?,
             diis: (&value.diis).into(),
             orthogonalization: (&value.orthogonalization).into(),
-        }
+        })
     }
 }
 
@@ -169,41 +174,59 @@ impl From<&core::IntegralConfig> for integrals::IntegralConfig {
     }
 }
 
-impl From<core::HfMethod> for hf::HfMethod {
-    fn from(value: core::HfMethod) -> Self {
+impl TryFrom<core::HfMethod> for hf::HfMethod {
+    type Error = UnsupportedCoreVariant;
+
+    fn try_from(value: core::HfMethod) -> Result<Self, Self::Error> {
         match value {
-            core::HfMethod::Auto => Self::Auto,
-            core::HfMethod::Rhf => Self::Rhf,
-            core::HfMethod::Uhf => Self::Uhf,
+            core::HfMethod::Auto => Ok(Self::Auto),
+            core::HfMethod::Rhf => Ok(Self::Rhf),
+            core::HfMethod::Uhf => Ok(Self::Uhf),
+            _ => Err(UnsupportedCoreVariant("HF method")),
         }
     }
 }
 
-impl From<core::DensityGuessConfig> for hf::DensityGuessConfig {
-    fn from(value: core::DensityGuessConfig) -> Self {
+impl TryFrom<core::DensityGuessConfig> for hf::DensityGuessConfig {
+    type Error = UnsupportedCoreVariant;
+
+    fn try_from(value: core::DensityGuessConfig) -> Result<Self, Self::Error> {
         match value {
-            core::DensityGuessConfig::CoreHamiltonian { perturbation } => Self::CoreHamiltonian {
-                perturbation: perturbation.map(|value| hf::GuessPerturbationConfig {
-                    random: value.random.into(),
-                }),
-            },
-            core::DensityGuessConfig::OneElectron { perturbation } => Self::OneElectron {
-                perturbation: perturbation.map(|value| hf::GuessPerturbationConfig {
-                    random: value.random.into(),
-                }),
-            },
-            core::DensityGuessConfig::Random { config } => Self::Random {
+            core::DensityGuessConfig::CoreHamiltonian { perturbation } => {
+                Ok(Self::CoreHamiltonian {
+                    perturbation: convert_perturbation(perturbation)?,
+                })
+            }
+            core::DensityGuessConfig::OneElectron { perturbation } => Ok(Self::OneElectron {
+                perturbation: convert_perturbation(perturbation)?,
+            }),
+            core::DensityGuessConfig::Random { config } => Ok(Self::Random {
                 config: hf::RandomGuessConfig {
-                    random: config.random.into(),
+                    random: config.random.try_into()?,
                 },
-            },
-            core::DensityGuessConfig::Zero => Self::Zero,
+            }),
+            core::DensityGuessConfig::Zero => Ok(Self::Zero),
+            _ => Err(UnsupportedCoreVariant("density guess")),
         }
     }
 }
 
-impl From<core::RandomConfig> for random_config::RandomConfig {
-    fn from(value: core::RandomConfig) -> Self {
+fn convert_perturbation(
+    value: Option<core::GuessPerturbationConfig>,
+) -> Result<Option<hf::GuessPerturbationConfig>, UnsupportedCoreVariant> {
+    value
+        .map(|value| {
+            Ok(hf::GuessPerturbationConfig {
+                random: value.random.try_into()?,
+            })
+        })
+        .transpose()
+}
+
+impl TryFrom<core::RandomConfig> for random_config::RandomConfig {
+    type Error = UnsupportedCoreVariant;
+
+    fn try_from(value: core::RandomConfig) -> Result<Self, Self::Error> {
         use random_config::distribution_config::{
             NormalDistributionConfig, UniformDistributionConfig,
         };
@@ -224,23 +247,27 @@ impl From<core::RandomConfig> for random_config::RandomConfig {
                     },
                 }
             }
+            _ => return Err(UnsupportedCoreVariant("random distribution")),
         };
-        Self {
+        Ok(Self {
             distribution,
             seed: value.seed,
-        }
+        })
     }
 }
 
-impl From<&core::Mp2Config> for mp2::Mp2Config {
-    fn from(value: &core::Mp2Config) -> Self {
-        Self {
+impl TryFrom<&core::Mp2Config> for mp2::Mp2Config {
+    type Error = UnsupportedCoreVariant;
+
+    fn try_from(value: &core::Mp2Config) -> Result<Self, Self::Error> {
+        Ok(Self {
             frozen_orbitals: value.frozen_orbitals.value,
             memory_limit: match value.memory_limit.value {
                 core::MemoryLimit::Auto => crate::config::MemoryLimit::Auto,
                 core::MemoryLimit::Fixed(size) => crate::config::MemoryLimit::Fixed(size),
+                _ => return Err(UnsupportedCoreVariant("MP2 memory limit")),
             },
-        }
+        })
     }
 }
 
@@ -248,6 +275,56 @@ impl From<&core::Mp2Config> for mp2::Mp2Config {
 mod tests {
     use rustiq_core::config::{DensityGuessConfig, RandomGuessConfig};
     use std::mem::discriminant;
+
+    #[test]
+    fn omitted_options_preserve_core_and_frontend_defaults() {
+        fn json(value: impl serde::Serialize) -> serde_json::Value {
+            serde_json::to_value(value).unwrap()
+        }
+
+        let parsed = crate::runfile::parser::parse_runfile(
+            "defaults.toml",
+            "[basis]\nname = 'sto-3g'\n[method.mp2]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            json(super::hf::HfConfig::try_from(parsed.hf_config.as_ref().unwrap()).unwrap()),
+            json(super::hf::HfConfig::try_from(&rustiq_core::config::HfConfig::default()).unwrap()),
+        );
+        assert_eq!(
+            json(super::mp2::Mp2Config::try_from(parsed.mp2_config.as_ref().unwrap()).unwrap(),),
+            json(
+                super::mp2::Mp2Config::try_from(&rustiq_core::config::Mp2Config::default())
+                    .unwrap(),
+            ),
+        );
+        assert_eq!(
+            json(super::integrals::IntegralConfig::from(
+                &parsed.integral_config
+            )),
+            json(super::integrals::IntegralConfig::from(
+                &rustiq_core::config::IntegralConfig::default(),
+            )),
+        );
+        let molecule =
+            rustiq_core::config::MoleculeConfig::from(&super::molecule::MoleculeConfig::default());
+        assert_eq!(parsed.molecule_config.units, molecule.units);
+        // The frontend accepts ordinary XYZ coordinates in Angstrom; the core
+        // default is atomic units. Preserve both existing conventions.
+        assert_eq!(
+            parsed.molecule_config.units,
+            rustiq_core::molecules::Units::Angstrom
+        );
+        assert_eq!(
+            rustiq_core::config::MoleculeConfig::default().units,
+            rustiq_core::molecules::Units::Bohr,
+        );
+        assert_eq!(parsed.molecule_config.charge.value, molecule.charge.value);
+        assert_eq!(
+            parsed.molecule_config.multiplicity.value,
+            molecule.multiplicity.value,
+        );
+    }
 
     #[test]
     #[allow(
@@ -262,12 +339,13 @@ mod tests {
         let core_diis = rustiq_core::config::DiisConfig::from(&frontend_diis);
         assert!(core_diis.enabled);
         assert_eq!(core_diis.max_history.value.into_inner(), 9);
-        let core_diis = rustiq_core::config::DiisConfig {
-            max_history: rustiq_core::config::Located {
+        let core_diis = {
+            let mut diis = core_diis;
+            diis.max_history = rustiq_core::config::Located {
                 value: core_diis.max_history.value,
                 span: Some((12usize, 2usize).into()),
-            },
-            ..core_diis
+            };
+            diis
         };
         let frontend_diis = crate::runfile::hf::DiisConfig::from(&core_diis);
         assert!(frontend_diis.enabled);
@@ -288,11 +366,13 @@ mod tests {
                 .into_inner(),
             1e-7
         );
-        let core_orthogonalization = rustiq_core::config::OrthogonalizationConfig {
-            linear_dependency_threshold: rustiq_core::config::Located {
+        let core_orthogonalization = {
+            let mut orthogonalization = rustiq_core::config::OrthogonalizationConfig::default();
+            orthogonalization.linear_dependency_threshold = rustiq_core::config::Located {
                 value: core_orthogonalization.linear_dependency_threshold.value,
                 span: Some((20usize, 3usize).into()),
-            },
+            };
+            orthogonalization
         };
         let frontend_orthogonalization =
             crate::runfile::hf::OrthogonalizationConfig::from(&core_orthogonalization);

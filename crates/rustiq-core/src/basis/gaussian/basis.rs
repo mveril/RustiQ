@@ -40,6 +40,7 @@ pub struct Basis {
 
 /// An error raised before any basis functions are constructed.
 #[derive(Debug, Error, PartialEq)]
+#[non_exhaustive]
 pub enum BasisError {
     #[error(
         "basis data for element Z={atomic_number} contains an ECP ({ecp_electrons} core electrons, {potential_count} potentials), but RustiQ does not support ECPs"

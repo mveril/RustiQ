@@ -47,21 +47,21 @@ fn calculate(
     method: HfMethod,
     multiplicity: u8,
 ) -> Result<CalculationResult, TestCaseError> {
+    let mut molecule = MoleculeConfig::default();
+    molecule.units = Units::Angstrom;
+    molecule.multiplicity = NonZeroU8::new(multiplicity)
+        .expect("fixture multiplicity must be positive")
+        .into();
+
+    let mut hf = HfConfig::default();
+    hf.method = method.into();
+    hf.convergence_threshold = SCF_CONVERGENCE_THRESHOLD
+        .try_into()
+        .expect("positive finite SCF threshold");
+
     let result = CalculationBuilder::new(geometry, basis)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            multiplicity: NonZeroU8::new(multiplicity)
-                .expect("fixture multiplicity must be positive")
-                .into(),
-            ..Default::default()
-        })
-        .with_hf(HfConfig {
-            method: method.into(),
-            convergence_threshold: SCF_CONVERGENCE_THRESHOLD
-                .try_into()
-                .expect("positive finite SCF threshold"),
-            ..Default::default()
-        })
+        .with_molecule_config(molecule)
+        .with_hf(hf)
         .with_mp2(Mp2Config::default())
         .execute()
         .map_err(|error| {

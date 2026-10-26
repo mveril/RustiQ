@@ -30,6 +30,7 @@ impl ArtifactReport {
             self.origin = match event.action {
                 EriCacheAction::Hit => "cache",
                 EriCacheAction::Stored => "computation",
+                _ => "unknown",
             };
         }
     }

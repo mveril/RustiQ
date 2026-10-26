@@ -12,8 +12,10 @@
 //!     "2\nH2\nH 0 0 -0.37\nH 0 0 0.37\n",
 //! ))?;
 //! let basis = BasisFile::from_reader(std::fs::File::open("sto-3g.json")?)?;
+//! let mut molecule_config = MoleculeConfig::default();
+//! molecule_config.units = Units::Angstrom;
 //! let prepared = CalculationBuilder::new(&geometry, &basis)
-//!     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
+//!     .with_molecule_config(molecule_config)
 //!     .with_mp2(Mp2Config::default())
 //!     .prepare()?;
 //! let result = prepared.execute()?;
@@ -24,6 +26,7 @@
 //! let mp2 = match hf {
 //!     AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default())?,
 //!     AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default())?,
+//!     _ => return Err("unsupported HF reference for this example".into()),
 //! };
 //! println!("MP2 correlation: {}", mp2.correlation_energy);
 //! # Ok(())

@@ -88,6 +88,7 @@ impl HfOutcome {
     /// let mp2: Mp2Result = match hf {
     ///     AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default())?,
     ///     AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default())?,
+    ///     _ => return Err("unsupported HF reference for this example".into()),
     /// };
     /// # let _ = mp2;
     /// # Ok(())

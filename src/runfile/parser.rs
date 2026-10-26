@@ -19,9 +19,17 @@ pub struct ParsedRunFile {
 pub fn parsed_calculation(
     calculation: super::resolved::ResolvedCalculationConfig,
 ) -> miette::Result<ParsedRunFile> {
-    Ok(ParsedRunFile {
-        #[cfg(test)]
-        runfile: super::RunFile {
+    let hf_config = calculation.hf_config().into_diagnostic()?;
+    let mp2_config = calculation.mp2_config();
+    #[cfg(test)]
+    let runfile = {
+        let hf = crate::runfile::hf::HfConfig::try_from(&hf_config).into_diagnostic()?;
+        let mp2 = mp2_config
+            .as_ref()
+            .map(crate::runfile::mp2::Mp2Config::try_from)
+            .transpose()
+            .into_diagnostic()?;
+        super::RunFile {
             molecule: super::molecule::MoleculeConfig {
                 geometry: calculation.molecule.geometry.clone(),
                 charge: calculation.molecule.charge,
@@ -31,17 +39,18 @@ pub fn parsed_calculation(
             basis: super::basis::BasisConfig {
                 name: calculation.basis.name.clone(),
             },
-            method: super::method::MethodConfig {
-                hf: Some((&calculation.hf_config().into_diagnostic()?).into()),
-                mp2: calculation.mp2_config().as_ref().map(Into::into),
-            },
+            method: super::method::MethodConfig { hf: Some(hf), mp2 },
             integrals: (&calculation.integral_config().into_diagnostic()?).into(),
             cache: super::cache::CacheConfig {
                 enabled: calculation.cache.enabled,
             },
-        },
-        hf_config: Some(calculation.hf_config().into_diagnostic()?),
-        mp2_config: calculation.mp2_config(),
+        }
+    };
+    Ok(ParsedRunFile {
+        #[cfg(test)]
+        runfile,
+        hf_config: Some(hf_config),
+        mp2_config,
         molecule_config: calculation.molecule_config(),
         integral_config: calculation.integral_config().into_diagnostic()?,
         resolved: super::resolved::ResolvedInput::new(vec![calculation]).into_diagnostic()?,
@@ -90,6 +99,19 @@ pub fn parse_runfile(
     let mut integral_config = calculation.integral_config().into_diagnostic()?;
 
     #[cfg(test)]
+    let runfile_hf_config = hf_config
+        .as_ref()
+        .map(crate::runfile::hf::HfConfig::try_from)
+        .transpose()
+        .into_diagnostic()?;
+    #[cfg(test)]
+    let runfile_mp2_config = mp2_config
+        .as_ref()
+        .map(crate::runfile::mp2::Mp2Config::try_from)
+        .transpose()
+        .into_diagnostic()?;
+
+    #[cfg(test)]
     let runfile = RunFile {
         molecule: super::molecule::MoleculeConfig {
             geometry: calculation.molecule.geometry.clone(),
@@ -101,10 +123,8 @@ pub fn parse_runfile(
             name: calculation.basis.name.clone(),
         },
         method: super::method::MethodConfig {
-            hf: source_map
-                .span(&["method", "hf"])
-                .and_then(|_| hf_config.as_ref().map(Into::into)),
-            mp2: mp2_config.as_ref().map(Into::into),
+            hf: source_map.span(&["method", "hf"]).and(runfile_hf_config),
+            mp2: runfile_mp2_config,
         },
         integrals: (&integral_config).into(),
         cache: super::cache::CacheConfig {

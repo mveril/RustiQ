@@ -14,6 +14,7 @@ pub struct Molecule {
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MoleculeError {
     #[error("molecule geometry must contain at least one atom")]
     EmptyGeometry,

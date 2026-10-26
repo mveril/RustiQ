@@ -578,21 +578,21 @@ impl Random {
         use crate::config::random_config::distribution_config::{
             NormalDistributionConfig, UniformDistributionConfig,
         };
-        RandomConfig {
-            seed: self.seed,
-            distribution: match self.distribution {
-                Distribution::Uniform { min, max } => DistributionConfig::Uniform {
-                    config: UniformDistributionConfig { min, max },
-                },
-                Distribution::Normal { mean, std_dev } => DistributionConfig::Normal {
-                    config: NormalDistributionConfig {
-                        mean,
-                        std_dev: crate::config::validated::PositiveFiniteF64::try_new(std_dev)
-                            .expect("validated snapshot"),
-                    },
+        let distribution = match self.distribution {
+            Distribution::Uniform { min, max } => DistributionConfig::Uniform {
+                config: UniformDistributionConfig { min, max },
+            },
+            Distribution::Normal { mean, std_dev } => DistributionConfig::Normal {
+                config: NormalDistributionConfig {
+                    mean,
+                    std_dev: crate::config::validated::PositiveFiniteF64::try_new(std_dev)
+                        .expect("validated snapshot"),
                 },
             },
-        }
+        };
+        let mut config = RandomConfig::new(distribution);
+        config.seed = self.seed;
+        config
     }
 }
 impl ResolvedRandom {

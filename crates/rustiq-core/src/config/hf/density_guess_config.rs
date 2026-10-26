@@ -1,6 +1,7 @@
 use crate::config::hf::{GuessPerturbationConfig, RandomGuessConfig};
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum DensityGuessConfig {
     CoreHamiltonian {
         perturbation: Option<GuessPerturbationConfig>,

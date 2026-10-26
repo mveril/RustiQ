@@ -28,6 +28,7 @@ use crate::{
 /// }
 /// ```
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum AnyHfSolution<State = Converged> {
     Restricted(RhfSolution<State>),
     Unrestricted(UhfSolution<State>),

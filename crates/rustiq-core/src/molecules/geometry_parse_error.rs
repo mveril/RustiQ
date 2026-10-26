@@ -4,6 +4,7 @@ use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
 #[derive(Debug, Error, Diagnostic)]
+#[non_exhaustive]
 pub enum GeometryParseError {
     #[error("unable to read XYZ geometry: {0}")]
     #[diagnostic(

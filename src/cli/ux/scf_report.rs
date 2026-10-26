@@ -210,40 +210,34 @@ mod tests {
     use clap::ColorChoice;
     use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
 
+    fn scf_result() -> ScfResult {
+        let mut result = crate::cli::ux::test_support::scf_result();
+        result.iterations = 1;
+        result.electronic_energy = -1.0;
+        result.nuclear_repulsion_energy = 0.2;
+        result.total_energy = -0.8;
+        result.delta_energy = 1.0;
+        result.residual_norm = 0.1;
+        result.spin = None;
+        result.energy_details = ScfEnergyDetails {
+            kinetic_energy: 0.3,
+            nuclear_attraction_energy: -1.5,
+            electron_repulsion_energy: 0.2,
+        };
+        result.orthogonalization = OrthogonalizationInfo::default();
+        result.timings = ScfTimings::default();
+        result
+    }
+
     #[test]
     fn test_scf_reporter_writes_iteration_and_summary() {
         let mut output = Vec::new();
         {
             let mut reporter = ScfReporter::new(&mut output);
             reporter
-                .write_iteration(&ScfIteration {
-                    iteration: 1,
-                    electronic_energy: -1.0,
-                    delta_energy: 1.0,
-                    residual_norm: 0.1,
-                })
+                .write_iteration(&crate::cli::ux::test_support::scf_iteration())
                 .unwrap();
-            reporter
-                .write_summary(
-                    &ScfResult {
-                        iterations: 1,
-                        electronic_energy: -1.0,
-                        nuclear_repulsion_energy: 0.2,
-                        total_energy: -0.8,
-                        delta_energy: 1.0,
-                        residual_norm: 0.1,
-                        spin: None,
-                        energy_details: ScfEnergyDetails {
-                            kinetic_energy: 0.3,
-                            nuclear_attraction_energy: -1.5,
-                            electron_repulsion_energy: 0.2,
-                        },
-                        orthogonalization: OrthogonalizationInfo::default(),
-                        timings: ScfTimings::default(),
-                    },
-                    true,
-                )
-                .unwrap();
+            reporter.write_summary(&scf_result(), true).unwrap();
         }
 
         let output = String::from_utf8(output).unwrap();
@@ -259,25 +253,7 @@ mod tests {
         let mut output = Vec::new();
         color::with_test_color(ColorChoice::Always, || {
             ScfReporter::new(&mut output)
-                .write_summary(
-                    &ScfResult {
-                        iterations: 1,
-                        electronic_energy: -1.0,
-                        nuclear_repulsion_energy: 0.2,
-                        total_energy: -0.8,
-                        delta_energy: 1.0,
-                        residual_norm: 0.1,
-                        spin: None,
-                        energy_details: ScfEnergyDetails {
-                            kinetic_energy: 0.3,
-                            nuclear_attraction_energy: -1.5,
-                            electron_repulsion_energy: 0.2,
-                        },
-                        orthogonalization: OrthogonalizationInfo::default(),
-                        timings: ScfTimings::default(),
-                    },
-                    true,
-                )
+                .write_summary(&scf_result(), true)
                 .unwrap();
         });
 
@@ -293,12 +269,7 @@ mod tests {
             color::with_test_color(mode, || {
                 let mut output = Vec::new();
                 ScfReporter::new(&mut output)
-                    .write_iteration(&ScfIteration {
-                        iteration: 1,
-                        electronic_energy: -1.0,
-                        delta_energy: 0.0,
-                        residual_norm: 0.0,
-                    })
+                    .write_iteration(&crate::cli::ux::test_support::scf_iteration())
                     .unwrap();
                 String::from_utf8(output).unwrap()
             })

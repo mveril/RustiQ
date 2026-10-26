@@ -34,8 +34,15 @@ struct CalculationToml {
 }
 
 impl CalculationToml {
-    fn requested(request: &CalculationRequest, cache_enabled: bool) -> Self {
-        Self {
+    fn requested(request: &CalculationRequest, cache_enabled: bool) -> Result<Self, RenderError> {
+        let hf = crate::runfile::hf::HfConfig::try_from(request.hf())
+            .map_err(|error| RenderError(error.to_string()))?;
+        let mp2 = request
+            .mp2()
+            .map(crate::runfile::mp2::Mp2Config::try_from)
+            .transpose()
+            .map_err(|error| RenderError(error.to_string()))?;
+        Ok(Self {
             molecule: MoleculeConfig {
                 geometry: "molecule.xyz".into(),
                 charge: request.molecule().charge.value,
@@ -45,20 +52,24 @@ impl CalculationToml {
             basis: BasisConfig {
                 name: request.basis_name().into(),
             },
-            method: MethodConfig {
-                hf: Some(request.hf().into()),
-                mp2: request.mp2().map(Into::into),
-            },
+            method: MethodConfig { hf: Some(hf), mp2 },
             integrals: request.integrals().into(),
             cache: Some(CacheConfig {
                 enabled: cache_enabled,
             }),
-        }
+        })
     }
 
-    fn resolved(prepared: &PreparedCalculation) -> Self {
+    fn resolved(prepared: &PreparedCalculation) -> Result<Self, RenderError> {
         let molecule = prepared.get_molecule();
-        Self {
+        let hf = crate::runfile::hf::HfConfig::try_from(&prepared.hf_config())
+            .map_err(|error| RenderError(error.to_string()))?;
+        let mp2 = prepared
+            .mp2_config()
+            .map(crate::runfile::mp2::Mp2Config::try_from)
+            .transpose()
+            .map_err(|error| RenderError(error.to_string()))?;
+        Ok(Self {
             molecule: MoleculeConfig {
                 geometry: "molecule.xyz".into(),
                 charge: molecule.charge(),
@@ -68,13 +79,10 @@ impl CalculationToml {
             basis: BasisConfig {
                 name: prepared.basis_name().into(),
             },
-            method: MethodConfig {
-                hf: Some((&prepared.hf_config()).into()),
-                mp2: prepared.mp2_config().map(Into::into),
-            },
+            method: MethodConfig { hf: Some(hf), mp2 },
             integrals: (&prepared.integral_config()).into(),
             cache: None,
-        }
+        })
     }
 }
 
@@ -126,11 +134,11 @@ pub(crate) fn requested_calculation(
     request: &CalculationRequest,
     cache_enabled: bool,
 ) -> Result<CanonicalPair, RenderError> {
-    let toml = render_calculation_toml(CalculationToml::requested(request, cache_enabled))?;
+    let toml = render_calculation_toml(CalculationToml::requested(request, cache_enabled)?)?;
     Ok(CanonicalPair {
         toml,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
-        units: unit_name(request.molecule().units),
+        units: unit_name(request.molecule().units)?,
     })
 }
 
@@ -139,12 +147,12 @@ pub(crate) fn requested_calculation(
 pub(crate) fn portable_requested_calculation(
     request: &CalculationRequest,
 ) -> Result<CanonicalPair, RenderError> {
-    let mut configuration = CalculationToml::requested(request, false);
+    let mut configuration = CalculationToml::requested(request, false)?;
     configuration.cache = None;
     Ok(CanonicalPair {
         toml: render_calculation_toml(configuration)?,
         xyz: geometry_xyz(request.geometry(), "Requested geometry"),
-        units: unit_name(request.molecule().units),
+        units: unit_name(request.molecule().units)?,
     })
 }
 
@@ -175,6 +183,7 @@ pub(crate) fn calculation_summary(prepared: &PreparedCalculation, geometry_path:
         config::HfMethod::Auto => "Auto",
         config::HfMethod::Rhf => "RHF",
         config::HfMethod::Uhf => "UHF",
+        _ => "Unknown",
     };
     let method = prepared.hf_method().to_string();
     let method = if requested_method == "Auto" {
@@ -185,6 +194,7 @@ pub(crate) fn calculation_summary(prepared: &PreparedCalculation, geometry_path:
     let coordinates = match request.molecule().units {
         Units::Angstrom => "Bohr (input: Angstrom)",
         Units::Bohr => "Bohr",
+        _ => "Unknown input units",
     };
 
     format!(
@@ -222,15 +232,16 @@ pub(crate) fn resolved_calculation(
             prepared.basis_name(),
             prepared.get_basis().nbasis(),
         ),
-        configuration: render_calculation_toml(CalculationToml::resolved(prepared))?,
+        configuration: render_calculation_toml(CalculationToml::resolved(prepared)?)?,
         geometry: geometry_xyz(molecule.geometry(), "Resolved geometry"),
     })
 }
 
-fn unit_name(unit: Units) -> &'static str {
+fn unit_name(unit: Units) -> Result<&'static str, RenderError> {
     match unit {
-        Units::Bohr => "Bohr",
-        Units::Angstrom => "Angstrom",
+        Units::Bohr => Ok("Bohr"),
+        Units::Angstrom => Ok("Angstrom"),
+        _ => Err(RenderError("unsupported coordinate unit".into())),
     }
 }
 

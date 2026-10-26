@@ -14,13 +14,15 @@ fn library_runs_hf_and_mp2_with_public_types() {
         Geometry::from_reader(&include_bytes!("data/samples/h2/molecule.xyz")[..]).unwrap();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let rhf_result = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(rustiq_core::config::MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = rustiq_core::config::MoleculeConfig::default();
+            updated_config.units = Units::Angstrom;
+            updated_config
         })
-        .with_hf(HfConfig {
-            method: HfMethod::Rhf.into(),
-            ..Default::default()
+        .with_hf({
+            let mut updated_config = HfConfig::default();
+            updated_config.method = HfMethod::Rhf.into();
+            updated_config
         })
         .with_mp2(Mp2Config::default())
         .execute()
@@ -41,13 +43,15 @@ fn library_runs_hf_and_mp2_with_public_types() {
     );
 
     let uhf_result = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(rustiq_core::config::MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
+        .with_molecule_config({
+            let mut updated_config = rustiq_core::config::MoleculeConfig::default();
+            updated_config.units = Units::Angstrom;
+            updated_config
         })
-        .with_hf(HfConfig {
-            method: HfMethod::Uhf.into(),
-            ..Default::default()
+        .with_hf({
+            let mut updated_config = HfConfig::default();
+            updated_config.method = HfMethod::Uhf.into();
+            updated_config
         })
         .with_mp2(Mp2Config::default())
         .execute()

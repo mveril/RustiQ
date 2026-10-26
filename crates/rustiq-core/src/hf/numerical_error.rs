@@ -2,6 +2,7 @@ use nalgebra::DVector;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum NumericalError {
     #[error(transparent)]
     NuclearRepulsion(#[from] crate::molecules::NuclearRepulsionError),

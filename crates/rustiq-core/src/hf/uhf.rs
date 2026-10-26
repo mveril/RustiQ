@@ -1006,14 +1006,15 @@ mod tests {
 
     fn perturbed_core_guess(seed: u64, std_dev: f64) -> CoreHamiltonian {
         CoreHamiltonian::new(Some(GuessPerturbationConfig {
-            random: RandomConfig {
-                distribution: DistributionConfig::Normal {
+            random: {
+                let mut random = RandomConfig::new(DistributionConfig::Normal {
                     config: NormalDistributionConfig {
                         mean: 0.0,
                         std_dev: PositiveFiniteF64::try_new(std_dev).unwrap(),
                     },
-                },
-                seed: Some(seed),
+                });
+                random.seed = Some(seed);
+                random
             },
         }))
     }

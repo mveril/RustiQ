@@ -142,8 +142,10 @@ impl<R: HfReference, State> HfSolution<R, State> {
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # let geometry = Geometry::from_reader(&include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/samples/h2/molecule.xyz"))[..])?;
 /// # let basis = BasisFile::from_reader(&include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/sto-3g.json"))[..])?;
+/// # let mut molecule = MoleculeConfig::default();
+/// # molecule.units = Units::Angstrom;
 /// # let prepared = CalculationBuilder::new(&geometry, &basis)
-/// #     .with_molecule_config(MoleculeConfig { units: Units::Angstrom, ..Default::default() })
+/// #     .with_molecule_config(molecule)
 /// #     .prepare()?;
 /// # let hf = prepared.run_hf()?.into_converged()?.into_restricted().unwrap_or_else(|_| panic!("H2 singlet should select RHF"));
 /// inspect(hf.as_ref());

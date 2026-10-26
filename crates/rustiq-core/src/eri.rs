@@ -175,6 +175,7 @@ pub fn compute_eri_primitive(
 ///
 /// A 4D tensor containing all ERI integrals.
 #[derive(Debug, Error, PartialEq)]
+#[non_exhaustive]
 pub enum EriError {
     #[error("supplied AO ERI has {actual} values, expected {expected} for {basis_functions} basis functions")]
     InvalidValueCount {
@@ -225,6 +226,7 @@ pub(crate) fn electron_repulsion_ints_with_threshold(
     reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
 )]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct EriTimingBreakdown {
     pub basis_functions: usize,
     pub pair_count: usize,
@@ -242,6 +244,7 @@ pub struct EriTimingBreakdown {
     reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
 )]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CacheSizeStats {
     pub count: u64,
     pub total_len: u64,

@@ -25,6 +25,67 @@ use rustiq_core::{
     molecules::{Atom, Geometry, Units},
 };
 
+/// These defaults are established scientific/input conventions, not placeholders
+/// added to make non-exhaustive configuration types constructible.
+#[test]
+fn public_configuration_defaults_preserve_existing_scientific_conventions() {
+    let hf = HfConfig::default();
+    assert!(matches!(hf.method.value, HfMethod::Auto));
+    assert_eq!(hf.max_iterations.get(), 100);
+    assert_abs_diff_eq!(hf.convergence_threshold.into_inner(), 1e-8);
+    assert!(matches!(
+        hf.guess.value,
+        DensityGuessConfig::CoreHamiltonian { perturbation: None }
+    ));
+    assert!(!hf.diis.enabled);
+    assert_eq!(hf.diis.max_history.value.into_inner(), 6);
+    assert_abs_diff_eq!(
+        hf.orthogonalization
+            .linear_dependency_threshold
+            .value
+            .into_inner(),
+        1e-8
+    );
+
+    let molecule = MoleculeConfig::default();
+    assert!(matches!(molecule.units, Units::Bohr));
+    assert_eq!(molecule.charge.value, 0);
+    assert_eq!(molecule.multiplicity.value.get(), 1);
+
+    let integrals = IntegralConfig::default();
+    let threshold = integrals.schwarz_threshold.value.unwrap();
+    assert_abs_diff_eq!(threshold.into_inner(), 1e-12);
+
+    let mp2 = Mp2Config::default();
+    assert_eq!(mp2.frozen_orbitals.value, 0);
+    assert_eq!(
+        mp2.memory_limit.value,
+        rustiq_core::config::MemoryLimit::Auto
+    );
+
+    // There is intentionally no universal RandomConfig::default():
+    // the two consuming guess modes have different established distributions.
+    let random = RandomGuessConfig::default().random;
+    assert_eq!(random.seed, None);
+    match random.distribution {
+        DistributionConfig::Uniform { config } => {
+            assert_abs_diff_eq!(config.min, -1.0);
+            assert_abs_diff_eq!(config.max, 1.0);
+        }
+        _ => panic!("random initial guess must default to uniform [-1, 1]"),
+    }
+
+    let perturbation = GuessPerturbationConfig::default().random;
+    assert_eq!(perturbation.seed, None);
+    match perturbation.distribution {
+        DistributionConfig::Normal { config } => {
+            assert_abs_diff_eq!(config.mean, 0.0);
+            assert_abs_diff_eq!(config.std_dev.into_inner(), 1e-4);
+        }
+        _ => panic!("density perturbation must default to normal(0, 1e-4)"),
+    }
+}
+
 fn geometry() -> Geometry {
     let hydrogen = Element::H;
     Geometry::new(
@@ -41,21 +102,19 @@ fn builder_propagates_mp2_memory_budget_and_reports_plan() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
         let geometry = geometry();
         let file = basis_file();
-        let builder = CalculationBuilder::new(&geometry, &file).with_hf(HfConfig {
-            method: method.into(),
-            ..Default::default()
-        });
+        let mut hf = HfConfig::default();
+        hf.method = method.into();
+        let builder = CalculationBuilder::new(&geometry, &file).with_hf(hf);
         let span = Some((12, 4).into());
         let mut observer = WorkflowObserver::default();
+        let mut insufficient_memory = Mp2Config::default();
+        insufficient_memory.memory_limit = Located {
+            value: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1)),
+            span,
+        };
         let error = builder
             .clone()
-            .with_mp2(Mp2Config {
-                memory_limit: Located {
-                    value: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1)),
-                    span,
-                },
-                ..Default::default()
-            })
+            .with_mp2(insufficient_memory)
             .execute_with_events(|event| observer.on_event(event))
             .unwrap_err();
         assert!(observer.events.contains(&"hf_complete"));
@@ -70,12 +129,11 @@ fn builder_propagates_mp2_memory_budget_and_reports_plan() {
         ));
         assert_eq!(labels(&error), span.into_iter().collect::<Vec<_>>());
         let mut planned = false;
+        let mut enough_memory = Mp2Config::default();
+        enough_memory.memory_limit =
+            rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1024)).into();
         builder
-            .with_mp2(Mp2Config {
-                memory_limit: rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::b(1024))
-                    .into(),
-                ..Default::default()
-            })
+            .with_mp2(enough_memory)
             .execute_with_events(|event| {
                 if let CalculationEvent::Mp2Planned(plan) = event {
                     assert_eq!(plan.budget_bytes, 1024);
@@ -123,15 +181,13 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        let mut molecule = MoleculeConfig::default();
+        molecule.units = Units::Angstrom;
+        let mut hf = HfConfig::default();
+        hf.method = method.into();
         let builder = CalculationBuilder::new(&geometry, &file)
-            .with_molecule_config(MoleculeConfig {
-                units: Units::Angstrom,
-                ..Default::default()
-            })
-            .with_hf(HfConfig {
-                method: method.into(),
-                ..Default::default()
-            })
+            .with_molecule_config(molecule)
+            .with_hf(hf)
             .with_mp2(Mp2Config::default());
         let mut observer = WorkflowObserver::default();
         let result = builder
@@ -220,23 +276,18 @@ fn calculation_builder_normalizes_units_and_orchestrates_both_hf_methods_and_mp2
 fn prepared_calculation_resolves_missing_random_seeds_and_preserves_auto_event_config() {
     let geometry = geometry();
     let file = basis_file();
-    let mut config = HfConfig {
-        guess: DensityGuessConfig::Random {
-            config: RandomGuessConfig {
-                random: RandomConfig {
-                    distribution: DistributionConfig::Uniform {
-                        config: UniformDistributionConfig {
-                            min: -1.0,
-                            max: 1.0,
-                        },
-                    },
-                    seed: None,
-                },
-            },
-        }
-        .into(),
-        ..Default::default()
-    };
+    let mut config = HfConfig::default();
+    let mut random_guess = RandomGuessConfig::default();
+    random_guess.random = RandomConfig::new(DistributionConfig::Uniform {
+        config: UniformDistributionConfig {
+            min: -1.0,
+            max: 1.0,
+        },
+    });
+    config.guess = DensityGuessConfig::Random {
+        config: random_guess,
+    }
+    .into();
     config.method.value = HfMethod::Auto;
     let prepared = CalculationBuilder::new(&geometry, &file)
         .with_hf(config)
@@ -289,11 +340,10 @@ fn preparation_resolves_missing_perturbation_seeds_but_keeps_explicit_seeds() {
             None,
         ),
     ] {
+        let mut hf = HfConfig::default();
+        hf.guess = guess.into();
         let prepared = CalculationBuilder::new(&geometry, &file)
-            .with_hf(HfConfig {
-                guess: guess.into(),
-                ..Default::default()
-            })
+            .with_hf(hf)
             .prepare()
             .unwrap();
         let seed = |guess| match guess {
@@ -308,21 +358,18 @@ fn preparation_resolves_missing_perturbation_seeds_but_keeps_explicit_seeds() {
         assert_eq!(seed(prepared.hf_config().guess.value), resolved_seed);
     }
 
+    let mut perturbation = rustiq_core::config::GuessPerturbationConfig::default();
+    perturbation.random = RandomConfig::new(DistributionConfig::Uniform {
+        config: UniformDistributionConfig { min: 0.0, max: 1.0 },
+    });
+    perturbation.random.seed = Some(8_675_309);
     let explicit = DensityGuessConfig::CoreHamiltonian {
-        perturbation: Some(rustiq_core::config::GuessPerturbationConfig {
-            random: RandomConfig {
-                distribution: DistributionConfig::Uniform {
-                    config: UniformDistributionConfig { min: 0.0, max: 1.0 },
-                },
-                seed: Some(8_675_309),
-            },
-        }),
+        perturbation: Some(perturbation),
     };
+    let mut hf = HfConfig::default();
+    hf.guess = explicit.into();
     let prepared = CalculationBuilder::new(&geometry, &file)
-        .with_hf(HfConfig {
-            guess: explicit.into(),
-            ..Default::default()
-        })
+        .with_hf(hf)
         .prepare()
         .unwrap();
     match prepared.hf_config().guess.value {
@@ -338,17 +385,13 @@ fn builder_mutable_setters_keep_hf_mandatory_and_allow_disabling_mp2() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let mut builder = CalculationBuilder::new(&geometry, &file);
-    builder
-        .hf(HfConfig {
-            method: HfMethod::Uhf.into(),
-            ..Default::default()
-        })
-        .mp2(Mp2Config::default());
+    let mut hf = HfConfig::default();
+    hf.method = HfMethod::Uhf.into();
+    builder.hf(hf).mp2(Mp2Config::default());
     let mut observer = WorkflowObserver::default();
-    builder.clear_mp2().molecule_config(MoleculeConfig {
-        units: Units::Angstrom,
-        ..Default::default()
-    });
+    let mut molecule = MoleculeConfig::default();
+    molecule.units = Units::Angstrom;
+    builder.clear_mp2().molecule_config(molecule);
     assert_eq!(builder.get_hf().method.value, HfMethod::Uhf);
     assert!(builder.get_mp2().is_none());
     let result = builder
@@ -367,11 +410,10 @@ fn builder_mutable_setters_keep_hf_mandatory_and_allow_disabling_mp2() {
 fn builder_never_runs_mp2_after_unconverged_hf() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let mut hf = HfConfig::default();
+    hf.max_iterations = NonZeroUsize::MIN;
     let builder = CalculationBuilder::new(&geometry, &file)
-        .with_hf(HfConfig {
-            max_iterations: NonZeroUsize::MIN,
-            ..Default::default()
-        })
+        .with_hf(hf)
         .with_mp2(Mp2Config::default());
     let mut observer = WorkflowObserver::default();
     assert!(matches!(
@@ -390,19 +432,17 @@ fn builder_never_runs_mp2_after_unconverged_hf() {
 fn builder_retains_typed_method_and_basis_errors() {
     let geometry = geometry();
     let file = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
+    let mut molecule = MoleculeConfig::default();
+    molecule.charge = 1.into();
+    molecule.multiplicity = NonZeroU8::new(2).unwrap().into();
+    let mut hf = HfConfig::default();
+    hf.method = Located {
+        value: HfMethod::Rhf,
+        span: Some((8, 5).into()),
+    };
     let builder = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            charge: 1.into(),
-            multiplicity: NonZeroU8::new(2).unwrap().into(),
-            ..Default::default()
-        })
-        .with_hf(HfConfig {
-            method: Located {
-                value: HfMethod::Rhf,
-                span: Some((8, 5).into()),
-            },
-            ..Default::default()
-        });
+        .with_molecule_config(molecule)
+        .with_hf(hf);
     let error = builder.execute().unwrap_err();
     assert!(matches!(error.cause(), CalculationError::Method { .. }));
     assert_eq!(labels(&error), vec![(8, 5).into()]);
@@ -457,20 +497,16 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
         (HfMethod::Auto, ResolvedHfMethod::Rhf),
         (HfMethod::Uhf, ResolvedHfMethod::Uhf),
     ] {
-        let config = HfConfig {
-            method: method.into(),
-            diis: DiisConfig {
-                enabled: true,
-                ..Default::default()
-            },
-            convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
-            ..Default::default()
-        };
+        let mut config = HfConfig::default();
+        config.method = method.into();
+        let mut diis = DiisConfig::default();
+        diis.enabled = true;
+        config.diis = diis;
+        config.convergence_threshold = PositiveFiniteF64::try_new(1e-12).unwrap();
+        let mut molecule = MoleculeConfig::default();
+        molecule.units = Units::Angstrom;
         let result = CalculationBuilder::new(&geometry, &file)
-            .with_molecule_config(MoleculeConfig {
-                units: Units::Angstrom,
-                ..Default::default()
-            })
+            .with_molecule_config(molecule)
             .with_hf(config)
             .with_mp2(Mp2Config::default())
             .execute()
@@ -493,20 +529,17 @@ fn public_configuration_runs_rhf_and_uhf_mp2_without_a_frontend() {
         );
 
         for span in [None, Some((12, 1).into())] {
+            let mut config = HfConfig::default();
+            config.method = method.into();
+            let mut diis = DiisConfig::default();
+            diis.enabled = true;
+            config.diis = diis;
+            config.convergence_threshold = PositiveFiniteF64::try_new(1e-12).unwrap();
+            let mut mp2 = Mp2Config::default();
+            mp2.frozen_orbitals = Located { value: 2, span };
             let error = CalculationBuilder::new(&geometry, &file)
-                .with_hf(HfConfig {
-                    method: method.into(),
-                    diis: DiisConfig {
-                        enabled: true,
-                        ..Default::default()
-                    },
-                    convergence_threshold: PositiveFiniteF64::try_new(1e-12).unwrap(),
-                    ..Default::default()
-                })
-                .with_mp2(Mp2Config {
-                    frozen_orbitals: Located { value: 2, span },
-                    ..Default::default()
-                })
+                .with_hf(config)
+                .with_mp2(mp2)
                 .execute()
                 .unwrap_err();
             assert!(matches!(
@@ -531,11 +564,9 @@ fn public_api_rejects_mp2_after_unconverged_hf() {
     let geometry = geometry();
     let file = basis_file();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
-        let config = HfConfig {
-            method: method.into(),
-            max_iterations: NonZeroUsize::MIN,
-            ..Default::default()
-        };
+        let mut config = HfConfig::default();
+        config.method = method.into();
+        config.max_iterations = NonZeroUsize::MIN;
         let error = CalculationBuilder::new(&geometry, &file)
             .with_hf(config)
             .with_mp2(Mp2Config::default())
@@ -558,22 +589,17 @@ fn public_api_rejects_mp2_after_unconverged_hf() {
 
 #[test]
 fn scientific_method_errors_preserve_optional_frontend_spans() {
-    let molecule = MoleculeConfig {
-        charge: 1.into(),
-        multiplicity: NonZeroU8::new(2).unwrap().into(),
-        ..Default::default()
-    }
-    .build(geometry())
-    .unwrap();
+    let mut molecule_config = MoleculeConfig::default();
+    molecule_config.charge = 1.into();
+    molecule_config.multiplicity = NonZeroU8::new(2).unwrap().into();
+    let molecule = molecule_config.build(geometry()).unwrap();
     assert_eq!(
         HfConfig::default().resolve_method(&molecule).unwrap(),
         ResolvedHfMethod::Uhf
     );
     for span in [None, Some((7, 5).into())] {
-        let mut config = HfConfig {
-            method: HfMethod::Rhf.into(),
-            ..Default::default()
-        };
+        let mut config = HfConfig::default();
+        config.method = HfMethod::Rhf.into();
         config.method.span = span;
         let error = config.resolve_method(&molecule).unwrap_err();
         assert!(matches!(error, HfConfigError { .. }));
@@ -584,16 +610,14 @@ fn scientific_method_errors_preserve_optional_frontend_spans() {
 
 #[test]
 fn molecular_state_errors_can_label_both_related_values() {
-    let config = MoleculeConfig {
-        charge: Located {
-            value: 1,
-            span: Some((3, 1).into()),
-        },
-        multiplicity: Located {
-            value: NonZeroU8::MIN,
-            span: Some((20, 1).into()),
-        },
-        ..Default::default()
+    let mut config = MoleculeConfig::default();
+    config.charge = Located {
+        value: 1,
+        span: Some((3, 1).into()),
+    };
+    config.multiplicity = Located {
+        value: NonZeroU8::MIN,
+        span: Some((20, 1).into()),
     };
     let error: CalculationError = config.build(geometry()).err().unwrap().into();
     assert!(matches!(error, CalculationError::Molecule { .. }));
@@ -607,13 +631,12 @@ fn setup_errors_retain_threshold_and_guess_locations() {
     let file = basis_file();
     let span: SourceSpan = (30, 4).into();
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
-        let mut config = HfConfig {
-            method: method.into(),
-            orthogonalization: OrthogonalizationConfig {
-                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
-            },
-            ..Default::default()
-        };
+        let mut config = HfConfig::default();
+        config.method = method.into();
+        let mut orthogonalization = OrthogonalizationConfig::default();
+        orthogonalization.linear_dependency_threshold =
+            NonNegativeFiniteF64::try_new(1.0).unwrap().into();
+        config.orthogonalization = orthogonalization;
         config.orthogonalization.linear_dependency_threshold.span = Some(span);
         let error = CalculationBuilder::new(&geometry, &file)
             .with_hf(config.clone())
@@ -633,18 +656,16 @@ fn setup_errors_retain_threshold_and_guess_locations() {
             ));
         }
         config.orthogonalization = OrthogonalizationConfig::default();
-        config.guess.value = DensityGuessConfig::Random {
-            config: RandomGuessConfig {
-                random: RandomConfig {
-                    seed: Some(42),
-                    distribution: DistributionConfig::Uniform {
-                        config: UniformDistributionConfig {
-                            min: 1.0,
-                            max: -1.0,
-                        },
-                    },
-                },
+        let mut random_guess = RandomGuessConfig::default();
+        random_guess.random = RandomConfig::new(DistributionConfig::Uniform {
+            config: UniformDistributionConfig {
+                min: 1.0,
+                max: -1.0,
             },
+        });
+        random_guess.random.seed = Some(42);
+        config.guess.value = DensityGuessConfig::Random {
+            config: random_guess,
         };
         config.guess.span = Some(span);
         let error = CalculationBuilder::new(&geometry, &file)
@@ -662,13 +683,12 @@ fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
     let file = basis_file();
 
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
-        let config = HfConfig {
-            method: method.into(),
-            orthogonalization: OrthogonalizationConfig {
-                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1.0).unwrap().into(),
-            },
-            ..Default::default()
-        };
+        let mut config = HfConfig::default();
+        config.method = method.into();
+        let mut orthogonalization = OrthogonalizationConfig::default();
+        orthogonalization.linear_dependency_threshold =
+            NonNegativeFiniteF64::try_new(1.0).unwrap().into();
+        config.orthogonalization = orthogonalization;
         let mut setup_steps = Vec::new();
 
         let error = CalculationBuilder::new(&geometry, &file)
@@ -706,34 +726,31 @@ fn overlap_rank_failure_precedes_electron_repulsion_integrals() {
 fn configured_eri_threshold_reaches_scf_integrals() {
     let geometry = geometry();
     let file = basis_file();
+    let mut default_molecule = MoleculeConfig::default();
+    default_molecule.units = Units::Angstrom;
     let default_result = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
-        })
+        .with_molecule_config(default_molecule)
         .with_hf(HfConfig::default())
         .execute()
         .unwrap();
+    let mut screened_molecule = MoleculeConfig::default();
+    screened_molecule.units = Units::Angstrom;
+    let mut screened_integrals = IntegralConfig::default();
+    screened_integrals.schwarz_threshold = Some(PositiveFiniteF64::try_new(1.0).unwrap()).into();
     let screened_result = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
-        })
+        .with_molecule_config(screened_molecule)
         .with_hf(HfConfig::default())
-        .with_integrals(IntegralConfig {
-            schwarz_threshold: Some(PositiveFiniteF64::try_new(1.0).unwrap()).into(),
-        })
+        .with_integrals(screened_integrals)
         .execute()
         .unwrap();
+    let mut unscreened_molecule = MoleculeConfig::default();
+    unscreened_molecule.units = Units::Angstrom;
+    let mut unscreened_integrals = IntegralConfig::default();
+    unscreened_integrals.schwarz_threshold = None.into();
     let unscreened_result = CalculationBuilder::new(&geometry, &file)
-        .with_molecule_config(MoleculeConfig {
-            units: Units::Angstrom,
-            ..Default::default()
-        })
+        .with_molecule_config(unscreened_molecule)
         .with_hf(HfConfig::default())
-        .with_integrals(IntegralConfig {
-            schwarz_threshold: None.into(),
-        })
+        .with_integrals(unscreened_integrals)
         .execute()
         .unwrap();
 

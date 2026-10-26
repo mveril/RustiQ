@@ -89,18 +89,26 @@ fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() 
     let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
     let basis = BasisFile::from_reader(&include_bytes!("data/sto-3g.json")[..]).unwrap();
     let prepared = CalculationBuilder::new(&geometry, &basis)
-        .with_hf(HfConfig {
-            diis: DiisConfig {
-                enabled: true,
-                max_history: DiisSize::try_new(9).unwrap().into(),
-            },
-            orthogonalization: OrthogonalizationConfig {
-                linear_dependency_threshold: NonNegativeFiniteF64::try_new(1e-7).unwrap().into(),
-            },
-            ..Default::default()
+        .with_hf({
+            let mut updated_config = HfConfig::default();
+            updated_config.diis = {
+                let mut updated_config = DiisConfig::default();
+                updated_config.enabled = true;
+                updated_config.max_history = DiisSize::try_new(9).unwrap().into();
+                updated_config
+            };
+            updated_config.orthogonalization = {
+                let mut updated_config = OrthogonalizationConfig::default();
+                updated_config.linear_dependency_threshold =
+                    NonNegativeFiniteF64::try_new(1e-7).unwrap().into();
+                updated_config
+            };
+            updated_config
         })
-        .with_integrals(IntegralConfig {
-            schwarz_threshold: None.into(),
+        .with_integrals({
+            let mut updated_config = IntegralConfig::default();
+            updated_config.schwarz_threshold = None.into();
+            updated_config
         })
         .prepare()
         .unwrap();
@@ -227,8 +235,10 @@ fn explicit_input_rejects_missing_incompatible_and_multiple_calculations() {
     ));
     data.set_eri(CompactEri::Zeroed(2)).unwrap();
     let changed = CalculationBuilder::new(&geometry, &basis)
-        .with_integrals(IntegralConfig {
-            schwarz_threshold: None.into(),
+        .with_integrals({
+            let mut updated_config = IntegralConfig::default();
+            updated_config.schwarz_threshold = None.into();
+            updated_config
         })
         .prepare()
         .unwrap();

@@ -13,12 +13,14 @@ use rand_distr::{Normal, NormalError};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum DistributionConfig {
     Uniform { config: UniformDistributionConfig },
     Normal { config: NormalDistributionConfig },
 }
 #[derive(Debug, Error)]
 #[error("Random distribution creation error: {0}")]
+#[non_exhaustive]
 pub enum DistributionCreationError {
     #[error("Error on creation of uniform distribution {0}")]
     Uniform(#[from] UniformError),

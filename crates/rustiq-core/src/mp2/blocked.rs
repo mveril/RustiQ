@@ -6,6 +6,16 @@ use super::{ensure_finite_value, validate_denominator, CompactEri, Mp2Error, Mp2
 
 /// Estimated matrix payloads, not a bound on process RSS or allocator overhead.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+/// Memory-plan diagnostics emitted by RustiQ before its MP2 contractions.
+///
+/// These values are reported by calculation events and are intended for
+/// inspection by observers.
+///
+/// ```compile_fail
+/// use rustiq_core::calculation::Mp2MemoryPlan;
+/// let _ = Mp2MemoryPlan { ..unimplemented!() };
+/// ```
 pub struct Mp2MemoryPlan {
     pub sector: Mp2Sector,
     pub basis_functions: usize,
@@ -23,6 +33,7 @@ pub struct Mp2MemoryPlan {
 
 /// Spin sector whose workspace is described by an [`Mp2MemoryPlan`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Mp2Sector {
     Rhf,
     UhfAlphaAlpha,

@@ -46,6 +46,26 @@ pub struct Mp2Input<'a> {
 }
 
 /// MP2 correlation correction and corrected electronic energy, in Hartree.
+///
+/// This result remains constructible because [`crate::calculation::Mp2Calculation`] is a public
+/// implementation point for supported external calculations.
+///
+/// ```
+/// use rustiq_core::{
+///     calculation::{CalculationExecutionError, Mp2Calculation, Mp2Result},
+///     config::Mp2Config,
+/// };
+///
+/// struct ExternalMp2;
+/// impl Mp2Calculation for ExternalMp2 {
+///     fn mp2(&self, _: Mp2Config) -> Result<Mp2Result, CalculationExecutionError> {
+///         Ok(Mp2Result {
+///             correlation_energy: -0.01,
+///             electronic_energy: -1.0,
+///         })
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mp2Result {
     /// Second-order correction to the HF electronic energy.
@@ -56,6 +76,7 @@ pub struct Mp2Result {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Mp2Error {
     #[error("MP2 energy denominator {denominator} Hartree is too close to zero (minimum magnitude: {threshold} Hartree)")]
     NearZeroDenominator { denominator: f64, threshold: f64 },
@@ -594,6 +615,7 @@ fn mo_two_electron_integral(
 }
 
 #[cfg(feature = "bench-support")]
+#[non_exhaustive]
 pub struct Mp2BenchResult {
     pub dense_elapsed: std::time::Duration,
     pub blocked_elapsed: std::time::Duration,

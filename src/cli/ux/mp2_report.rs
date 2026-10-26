@@ -61,23 +61,7 @@ mod tests {
                         correlation_energy: -0.1,
                         electronic_energy: -1.2,
                     },
-                    &ScfResult {
-                        iterations: 1,
-                        electronic_energy: -1.1,
-                        nuclear_repulsion_energy: 0.3,
-                        total_energy: -0.8,
-                        delta_energy: 0.0,
-                        residual_norm: 0.0,
-                        spin: None,
-                        energy_details: rustiq_core::calculation::ScfEnergyDetails {
-                            kinetic_energy: 0.0,
-                            nuclear_attraction_energy: 0.0,
-                            electron_repulsion_energy: 0.0,
-                        },
-                        orthogonalization: rustiq_core::calculation::OrthogonalizationInfo::default(
-                        ),
-                        timings: rustiq_core::calculation::ScfTimings::default(),
-                    },
+                    &crate::cli::ux::test_support::scf_result(),
                 )
                 .unwrap();
         });
@@ -97,23 +81,7 @@ mod tests {
                         correlation_energy: -0.1,
                         electronic_energy: -1.2,
                     },
-                    &ScfResult {
-                        iterations: 1,
-                        electronic_energy: -1.1,
-                        nuclear_repulsion_energy: 0.3,
-                        total_energy: -0.8,
-                        delta_energy: 0.0,
-                        residual_norm: 0.0,
-                        spin: None,
-                        energy_details: rustiq_core::calculation::ScfEnergyDetails {
-                            kinetic_energy: 0.0,
-                            nuclear_attraction_energy: 0.0,
-                            electron_repulsion_energy: 0.0,
-                        },
-                        orthogonalization: rustiq_core::calculation::OrthogonalizationInfo::default(
-                        ),
-                        timings: rustiq_core::calculation::ScfTimings::default(),
-                    },
+                    &crate::cli::ux::test_support::scf_result(),
                 )
                 .unwrap();
         });

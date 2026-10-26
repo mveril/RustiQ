@@ -63,6 +63,46 @@ pub(crate) fn print_json<T: Serialize>(value: &T, pretty: bool) -> miette::Resul
     }
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "Serde callbacks receive references"
+)]
+fn serialize_hf_method<S: serde::Serializer>(
+    method: &ResolvedHfMethod,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let label = match method {
+        ResolvedHfMethod::Rhf => "RHF",
+        ResolvedHfMethod::Uhf => "UHF",
+        _ => {
+            return Err(serde::ser::Error::custom(
+                "unsupported HF method in JSON schema v1",
+            ))
+        }
+    };
+    serializer.serialize_str(label)
+}
+
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "Serde callbacks receive references"
+)]
+fn serialize_mp2_method<S: serde::Serializer>(
+    method: &ResolvedHfMethod,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let label = match method {
+        ResolvedHfMethod::Rhf => "RHF-MP2",
+        ResolvedHfMethod::Uhf => "UHF-MP2",
+        _ => {
+            return Err(serde::ser::Error::custom(
+                "unsupported MP2 reference in JSON schema v1",
+            ))
+        }
+    };
+    serializer.serialize_str(label)
+}
+
 /// Version 1 of `RustiQ`'s stable, machine-readable calculation-output contract.
 #[derive(Debug, Serialize)]
 pub(crate) struct CalculationOutput {
@@ -81,7 +121,8 @@ pub(crate) struct CalculationResultOutput {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct HfResultOutput {
-    pub method: &'static str,
+    #[serde(serialize_with = "serialize_hf_method")]
+    pub method: ResolvedHfMethod,
     pub converged: bool,
     pub iterations: usize,
     pub electronic_energy: f64,
@@ -111,7 +152,8 @@ pub(crate) struct OrthogonalizationOutput {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct Mp2ResultOutput {
-    pub method: &'static str,
+    #[serde(serialize_with = "serialize_mp2_method")]
+    pub method: ResolvedHfMethod,
     pub correlation_energy: f64,
     pub electronic_energy: f64,
     pub total_energy: f64,
@@ -124,17 +166,13 @@ impl CalculationOutput {
         converged: bool,
         mp2: Option<&Mp2Result>,
     ) -> Self {
-        let mp2_method = match method {
-            ResolvedHfMethod::Rhf => "RHF-MP2",
-            ResolvedHfMethod::Uhf => "UHF-MP2",
-        };
         Self {
             schema_version: 1,
             artifacts: None,
             calculation: CalculationResultOutput {
                 hf: HfResultOutput::from((method, hf, converged)),
                 mp2: mp2.map(|result| Mp2ResultOutput {
-                    method: mp2_method,
+                    method,
                     correlation_energy: result.correlation_energy,
                     electronic_energy: result.electronic_energy,
                     total_energy: result.electronic_energy + hf.nuclear_repulsion_energy,
@@ -210,10 +248,7 @@ pub(crate) struct BatchError {
 impl From<(ResolvedHfMethod, &ScfResult, bool)> for HfResultOutput {
     fn from((method, result, converged): (ResolvedHfMethod, &ScfResult, bool)) -> Self {
         Self {
-            method: match method {
-                ResolvedHfMethod::Rhf => "RHF",
-                ResolvedHfMethod::Uhf => "UHF",
-            },
+            method,
             converged,
             iterations: result.iterations,
             electronic_energy: result.electronic_energy,
@@ -253,30 +288,33 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     use super::*;
-    use rustiq_core::calculation::{OrthogonalizationInfo, ScfEnergyDetails, ScfTimings};
+    use rustiq_core::calculation::{
+        CalculationBuilder, CalculationExecution, OrthogonalizationInfo, ScfEnergyDetails,
+        ScfResult, ScfTimings,
+    };
 
     fn scf_result() -> ScfResult {
-        ScfResult {
-            iterations: 2,
-            electronic_energy: -1.831_863_646_477_507,
-            nuclear_repulsion_energy: 0.715_104_339_081_081,
-            total_energy: -1.116_759_307_396_426,
-            delta_energy: 0.0,
-            residual_norm: 0.0,
-            spin: None,
-            energy_details: ScfEnergyDetails {
-                kinetic_energy: 0.0,
-                nuclear_attraction_energy: 0.0,
-                electron_repulsion_energy: 0.0,
-            },
-            orthogonalization: OrthogonalizationInfo {
-                basis_dimension: 2,
-                effective_rank: 1,
-                discarded_directions: 1,
-                relative_threshold: 1e-8,
-            },
-            timings: ScfTimings::default(),
-        }
+        let mut result = crate::cli::ux::test_support::scf_result();
+        result.iterations = 2;
+        result.electronic_energy = -1.831_863_646_477_507;
+        result.nuclear_repulsion_energy = 0.715_104_339_081_081;
+        result.total_energy = -1.116_759_307_396_426;
+        result.delta_energy = 0.0;
+        result.residual_norm = 0.0;
+        result.spin = None;
+        result.energy_details = ScfEnergyDetails {
+            kinetic_energy: 0.0,
+            nuclear_attraction_energy: 0.0,
+            electron_repulsion_energy: 0.0,
+        };
+        result.orthogonalization = OrthogonalizationInfo {
+            basis_dimension: 2,
+            effective_rank: 1,
+            discarded_directions: 1,
+            relative_threshold: 1e-8,
+        };
+        result.timings = ScfTimings::default();
+        result
     }
 
     #[test]
@@ -297,9 +335,11 @@ mod tests {
             let mut collector =
                 crate::cli::commands::calculation_result::CalculationSummaryCollector::default();
             let calculation = CalculationBuilder::new(&geometry, &basis)
-                .with_hf(HfConfig {
-                    max_iterations: std::num::NonZeroUsize::new(max_iterations).unwrap(),
-                    ..HfConfig::default()
+                .with_hf({
+                    let mut updated_config = HfConfig::default();
+                    updated_config.max_iterations =
+                        std::num::NonZeroUsize::new(max_iterations).unwrap();
+                    updated_config
                 })
                 .with_mp2(mp2.then(Mp2Config::default));
             let result = calculation
@@ -404,15 +444,23 @@ mod tests {
     }
 
     fn summary(converged: bool) -> CalculationSummary {
-        CalculationSummary {
-            hf: rustiq_core::calculation::HfCalculationResult {
-                method: ResolvedHfMethod::Rhf,
-                scf: scf_result(),
-            },
-            converged,
-            mp2: None,
-            artifacts: None,
-        }
+        let geometry = rustiq_core::molecules::Geometry::from_reader(
+            &include_bytes!("../../../samples/h2/molecule.xyz")[..],
+        )
+        .unwrap();
+        let basis = rustiq_core::basis::BasisFile::from_reader(
+            &include_bytes!("../../../crates/rustiq-core/tests/data/sto-3g.json")[..],
+        )
+        .unwrap();
+        let mut collector =
+            crate::cli::commands::calculation_result::CalculationSummaryCollector::default();
+        CalculationBuilder::new(&geometry, &basis)
+            .execute_with_events(|event| collector.on_event(&event))
+            .unwrap();
+        let mut summary = collector.finish();
+        summary.hf.scf = scf_result();
+        summary.converged = converged;
+        summary
     }
 
     #[test]
