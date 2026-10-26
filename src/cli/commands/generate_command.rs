@@ -52,8 +52,32 @@ impl Runnable for ManpagesCommand {
         let mut command = application_command()?.disable_help_subcommand(true);
         std::fs::create_dir_all(&self.directory).into_diagnostic()?;
         command.build();
-        write_manpages(command, &self.directory).into_diagnostic()
+        write_manpages(command.clone(), &self.directory).into_diagnostic()?;
+        remove_obsolete_generator_pages(&command, &self.directory).into_diagnostic()
     }
+}
+
+#[cfg(feature = "manpages")]
+fn remove_obsolete_generator_pages(
+    command: &Command,
+    directory: &std::path::Path,
+) -> std::io::Result<()> {
+    // Remove only known generated pages; preserve unrelated files.
+    for name in ["manpages", "completions"] {
+        if command
+            .get_subcommands()
+            .any(|subcommand| subcommand.get_name() == name)
+        {
+            continue;
+        }
+        let path = directory.join(format!("rustiq-{name}.1"));
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
 }
 
 #[cfg(feature = "manpages")]
