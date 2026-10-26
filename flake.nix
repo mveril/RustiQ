@@ -202,7 +202,7 @@
                 ! grep -Eq 'manpages|completions' installed-help
                 test -s "$out/share/man/man1/rustiq.1.gz"
                 test -s "$out/share/man/man1/rustiq-artifact-inspect.1.gz"
-                test -s "$out/share/bash-completion/completions/rustiq"
+                test -s "$out/share/bash-completion/completions/rustiq.bash"
                 test -s "$out/share/zsh/site-functions/_rustiq"
                 test -s "$out/share/fish/vendor_completions.d/rustiq.fish"
                 for file in rustiq.nu rustiq.ps1 rustiq.elv; do
