@@ -25,6 +25,67 @@ use rustiq_core::{
     molecules::{Atom, Geometry, Units},
 };
 
+/// These defaults are established scientific/input conventions, not placeholders
+/// added to make non-exhaustive configuration types constructible.
+#[test]
+fn public_configuration_defaults_preserve_existing_scientific_conventions() {
+    let hf = HfConfig::default();
+    assert!(matches!(hf.method.value, HfMethod::Auto));
+    assert_eq!(hf.max_iterations.get(), 100);
+    assert_abs_diff_eq!(hf.convergence_threshold.into_inner(), 1e-8);
+    assert!(matches!(
+        hf.guess.value,
+        DensityGuessConfig::CoreHamiltonian { perturbation: None }
+    ));
+    assert!(!hf.diis.enabled);
+    assert_eq!(hf.diis.max_history.value.into_inner(), 6);
+    assert_abs_diff_eq!(
+        hf.orthogonalization
+            .linear_dependency_threshold
+            .value
+            .into_inner(),
+        1e-8
+    );
+
+    let molecule = MoleculeConfig::default();
+    assert!(matches!(molecule.units, Units::Bohr));
+    assert_eq!(molecule.charge.value, 0);
+    assert_eq!(molecule.multiplicity.value.get(), 1);
+
+    let integrals = IntegralConfig::default();
+    let threshold = integrals.schwarz_threshold.value.unwrap();
+    assert_abs_diff_eq!(threshold.into_inner(), 1e-12);
+
+    let mp2 = Mp2Config::default();
+    assert_eq!(mp2.frozen_orbitals.value, 0);
+    assert_eq!(
+        mp2.memory_limit.value,
+        rustiq_core::config::MemoryLimit::Auto
+    );
+
+    // There is intentionally no universal RandomConfig::default():
+    // the two consuming guess modes have different established distributions.
+    let random = RandomGuessConfig::default().random;
+    assert_eq!(random.seed, None);
+    match random.distribution {
+        DistributionConfig::Uniform { config } => {
+            assert_abs_diff_eq!(config.min, -1.0);
+            assert_abs_diff_eq!(config.max, 1.0);
+        }
+        _ => panic!("random initial guess must default to uniform [-1, 1]"),
+    }
+
+    let perturbation = GuessPerturbationConfig::default().random;
+    assert_eq!(perturbation.seed, None);
+    match perturbation.distribution {
+        DistributionConfig::Normal { config } => {
+            assert_abs_diff_eq!(config.mean, 0.0);
+            assert_abs_diff_eq!(config.std_dev.into_inner(), 1e-4);
+        }
+        _ => panic!("density perturbation must default to normal(0, 1e-4)"),
+    }
+}
+
 fn geometry() -> Geometry {
     let hydrogen = Element::H;
     Geometry::new(
