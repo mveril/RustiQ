@@ -180,7 +180,11 @@ rustiq completions nushell > rustiq.nu
 ```
 
 `manpages` creates its destination directory and replaces existing generated
-pages. It writes `rustiq.1` and pages for the subcommands, including nested
+pages. When switching between standalone and packaging modes in the same
+directory, obsolete `rustiq-manpages.1` and `rustiq-completions.1` pages are
+removed. Use a fresh directory for a completely clean generated set if other
+commands have changed between RustiQ versions. It writes `rustiq.1` and pages
+for the subcommands, including nested
 commands such as `rustiq-artifact-inspect.1`. Each page includes the
 [online manual](https://mveril.github.io/RustiQ/) in its SEE ALSO section.
 `completions` writes only the script to standard output; generation errors go
@@ -190,10 +194,10 @@ to the `SHELL` environment variable. This includes `nu` for Nushell and `pwsh`
 or `powershell` for PowerShell. If neither identifies a supported shell, the
 command asks you to provide one explicitly. Supply the argument when running
 through a launcher that obscures the calling shell.
-Both generators use the
-build's application commands and options, excluding the generation commands
-themselves. For example, offline builds omit online-only basis commands.
-By default, generated files include the generator commands too. Set
+Both generators reflect the commands and options enabled in the current
+build. For example, offline builds omit online-only basis commands. By
+default, generated files also include `manpages` and `completions` when those
+features are enabled. Set
 `RUSTIQ_PACKAGING=true` (or `1`) to omit `manpages` and `completions` from
 both manuals and shell completion scripts; `false`, `0`, or an unset variable
 keeps them. Other packagers can use this setting when installing generated
