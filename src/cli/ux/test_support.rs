@@ -2,10 +2,10 @@ use std::sync::OnceLock;
 
 use rustiq_core::{
     basis::BasisFile,
-    config::MoleculeConfig,
     calculation::{
         CalculationBuilder, CalculationEvent, CalculationExecution, CalculationResult, ScfIteration,
     },
+    config::MoleculeConfig,
     molecules::{Geometry, Units},
 };
 
