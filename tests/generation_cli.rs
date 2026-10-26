@@ -200,6 +200,47 @@ fn packaging_mode_hides_generator_commands_from_manpages() {
 
 #[cfg(feature = "manpages")]
 #[test]
+fn regenerating_manpages_removes_obsolete_generator_pages_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let destination = temp.path().join("manpages");
+    let generate = |packaging: &str| {
+        Command::new(env!("CARGO_BIN_EXE_rustiq"))
+            .arg("manpages")
+            .arg(&destination)
+            .env("RUSTIQ_PACKAGING", packaging)
+            .output()
+            .unwrap()
+    };
+
+    let standalone = generate("false");
+    assert!(standalone.status.success(), "{standalone:?}");
+    let manpages_page = destination.join("rustiq-manpages.1");
+    let completions_page = destination.join("rustiq-completions.1");
+    assert!(manpages_page.is_file());
+
+    // Simulate a page left by a build with additional features enabled.
+    if !cfg!(feature = "completions") {
+        std::fs::write(&completions_page, "obsolete").unwrap();
+    }
+    assert!(completions_page.is_file());
+    let unrelated = destination.join("notes.txt");
+    std::fs::write(&unrelated, "preserve this file").unwrap();
+
+    let packaged = generate("true");
+    assert!(packaged.status.success(), "{packaged:?}");
+    assert!(!manpages_page.exists());
+    assert!(!completions_page.exists());
+    assert_eq!(std::fs::read_to_string(&unrelated).unwrap(), "preserve this file");
+    assert!(destination.join("rustiq-run.1").is_file());
+
+    let standalone = generate("false");
+    assert!(standalone.status.success(), "{standalone:?}");
+    assert!(manpages_page.is_file());
+    assert_eq!(completions_page.is_file(), cfg!(feature = "completions"));
+}
+
+#[cfg(feature = "manpages")]
+#[test]
 fn invalid_packaging_value_does_not_create_the_destination() {
     let temp = tempfile::tempdir().unwrap();
     let destination = temp.path().join("invalid-manpages");
