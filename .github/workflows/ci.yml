@@ -71,6 +71,9 @@ jobs:
       - name: Clippy without online feature
         run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
+      - name: Test default features
+        run: cargo test --workspace --all-targets
+
       - name: Test all features
         run: cargo test --workspace --all-targets --all-features
 
