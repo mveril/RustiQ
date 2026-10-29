@@ -38,6 +38,15 @@ The generated entry point is `target/doc/rustiq_core/index.html`.
 MathJax equations require browser access to the CDN.
 The Pages site publishes the manual; rustdoc is generated separately.
 
+For book equations, use MathJax delimiters `\\( ... \\)` inline and
+`\\[ ... \\]` for display math. Markdown consumes one backslash, so
+write TeX commands with doubled backslashes as well. Avoid starting a
+continuation line with Markdown syntax such as `+`, which can split an
+equation into a list. Build the book and inspect the generated HTML and a
+browser-rendered equation, including multiline equations. MathJax requires
+JavaScript in the browser.
+
+
 [Runnable API examples](https://github.com/mveril/RustiQ/tree/main/crates/rustiq-core/examples)
 and [public API tests](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/public_api.rs)
 provide executable workflows and verification. Link to these sources instead
