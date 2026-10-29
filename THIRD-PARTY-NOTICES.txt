@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: 16315e9707dab21119a87513bd8cbfb8743f1e3a09660197fcbd9fc237065bdf
-Notice inputs SHA-256: 2386864d88d47282d7ebe75d3078b01a201a3c06bfedf4828a335d00c6ad5f21
+Cargo.lock SHA-256: 586dc8ca91e49d6cfb6686ab8c6acabfe35ec46f10751d51d02151002754f89d
+Notice inputs SHA-256: f1d99b08377fd2a017afc39f13d75cc4e409e2c5fbd2904bab6e8e7d94749d4a
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -1710,7 +1710,6 @@ Used by:
   windows-result 0.1.2 — https://github.com/microsoft/windows-rs
   windows-result 0.4.1 — https://github.com/microsoft/windows-rs
   windows-strings 0.5.1 — https://github.com/microsoft/windows-rs
-  windows-sys 0.52.0 — https://github.com/microsoft/windows-rs
   windows-sys 0.61.2 — https://github.com/microsoft/windows-rs
   windows-targets 0.52.6 — https://github.com/microsoft/windows-rs
   windows-threading 0.2.1 — https://github.com/microsoft/windows-rs
@@ -7792,6 +7791,204 @@ limitations under the License.
 Apache License 2.0 (Apache-2.0)
 
 Used by:
+  webbrowser 1.2.5 — https://github.com/amodm/webbrowser-rs
+
+                              Apache License
+                        Version 2.0, January 2004
+                     http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+   "License" shall mean the terms and conditions for use, reproduction,
+   and distribution as defined by Sections 1 through 9 of this document.
+
+   "Licensor" shall mean the copyright owner or entity authorized by
+   the copyright owner that is granting the License.
+
+   "Legal Entity" shall mean the union of the acting entity and all
+   other entities that control, are controlled by, or are under common
+   control with that entity. For the purposes of this definition,
+   "control" means (i) the power, direct or indirect, to cause the
+   direction or management of such entity, whether by contract or
+   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+   outstanding shares, or (iii) beneficial ownership of such entity.
+
+   "You" (or "Your") shall mean an individual or Legal Entity
+   exercising permissions granted by this License.
+
+   "Source" form shall mean the preferred form for making modifications,
+   including but not limited to software source code, documentation
+   source, and configuration files.
+
+   "Object" form shall mean any form resulting from mechanical
+   transformation or translation of a Source form, including but
+   not limited to compiled object code, generated documentation,
+   and conversions to other media types.
+
+   "Work" shall mean the work of authorship, whether in Source or
+   Object form, made available under the License, as indicated by a
+   copyright notice that is included in or attached to the work
+   (an example is provided in the Appendix below).
+
+   "Derivative Works" shall mean any work, whether in Source or Object
+   form, that is based on (or derived from) the Work and for which the
+   editorial revisions, annotations, elaborations, or other modifications
+   represent, as a whole, an original work of authorship. For the purposes
+   of this License, Derivative Works shall not include works that remain
+   separable from, or merely link (or bind by name) to the interfaces of,
+   the Work and Derivative Works thereof.
+
+   "Contribution" shall mean any work of authorship, including
+   the original version of the Work and any modifications or additions
+   to that Work or Derivative Works thereof, that is intentionally
+   submitted to Licensor for inclusion in the Work by the copyright owner
+   or by an individual or Legal Entity authorized to submit on behalf of
+   the copyright owner. For the purposes of this definition, "submitted"
+   means any form of electronic, verbal, or written communication sent
+   to the Licensor or its representatives, including but not limited to
+   communication on electronic mailing lists, source code control systems,
+   and issue tracking systems that are managed by, or on behalf of, the
+   Licensor for the purpose of discussing and improving the Work, but
+   excluding communication that is conspicuously marked or otherwise
+   designated in writing by the copyright owner as "Not a Contribution."
+
+   "Contributor" shall mean Licensor and any individual or Legal Entity
+   on behalf of whom a Contribution has been received by Licensor and
+   subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   copyright license to reproduce, prepare Derivative Works of,
+   publicly display, publicly perform, sublicense, and distribute the
+   Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   (except as stated in this section) patent license to make, have made,
+   use, offer to sell, sell, import, and otherwise transfer the Work,
+   where such license applies only to those patent claims licensable
+   by such Contributor that are necessarily infringed by their
+   Contribution(s) alone or by combination of their Contribution(s)
+   with the Work to which such Contribution(s) was submitted. If You
+   institute patent litigation against any entity (including a
+   cross-claim or counterclaim in a lawsuit) alleging that the Work
+   or a Contribution incorporated within the Work constitutes direct
+   or contributory patent infringement, then any patent licenses
+   granted to You under this License for that Work shall terminate
+   as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the
+   Work or Derivative Works thereof in any medium, with or without
+   modifications, and in Source or Object form, provided that You
+   meet the following conditions:
+
+   (a) You must give any other recipients of the Work or
+       Derivative Works a copy of this License; and
+
+   (b) You must cause any modified files to carry prominent notices
+       stating that You changed the files; and
+
+   (c) You must retain, in the Source form of any Derivative Works
+       that You distribute, all copyright, patent, trademark, and
+       attribution notices from the Source form of the Work,
+       excluding those notices that do not pertain to any part of
+       the Derivative Works; and
+
+   (d) If the Work includes a "NOTICE" text file as part of its
+       distribution, then any Derivative Works that You distribute must
+       include a readable copy of the attribution notices contained
+       within such NOTICE file, excluding those notices that do not
+       pertain to any part of the Derivative Works, in at least one
+       of the following places: within a NOTICE text file distributed
+       as part of the Derivative Works; within the Source form or
+       documentation, if provided along with the Derivative Works; or,
+       within a display generated by the Derivative Works, if and
+       wherever such third-party notices normally appear. The contents
+       of the NOTICE file are for informational purposes only and
+       do not modify the License. You may add Your own attribution
+       notices within Derivative Works that You distribute, alongside
+       or as an addendum to the NOTICE text from the Work, provided
+       that such additional attribution notices cannot be construed
+       as modifying the License.
+
+   You may add Your own copyright statement to Your modifications and
+   may provide additional or different license terms and conditions
+   for use, reproduction, or distribution of Your modifications, or
+   for any such Derivative Works as a whole, provided Your use,
+   reproduction, and distribution of the Work otherwise complies with
+   the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise,
+   any Contribution intentionally submitted for inclusion in the Work
+   by You to the Licensor shall be under the terms and conditions of
+   this License, without any additional terms or conditions.
+   Notwithstanding the above, nothing herein shall supersede or modify
+   the terms of any separate license agreement you may have executed
+   with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor,
+   except as required for reasonable and customary use in describing the
+   origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or
+   agreed to in writing, Licensor provides the Work (and each
+   Contributor provides its Contributions) on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+   implied, including, without limitation, any warranties or conditions
+   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+   PARTICULAR PURPOSE. You are solely responsible for determining the
+   appropriateness of using or redistributing the Work and assume any
+   risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory,
+   whether in tort (including negligence), contract, or otherwise,
+   unless required by applicable law (such as deliberate and grossly
+   negligent acts) or agreed to in writing, shall any Contributor be
+   liable to You for damages, including any direct, indirect, special,
+   incidental, or consequential damages of any character arising as a
+   result of this License or out of the use or inability to use the
+   Work (including but not limited to damages for loss of goodwill,
+   work stoppage, computer failure or malfunction, or any and all
+   other commercial damages or losses), even if such Contributor
+   has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing
+   the Work or Derivative Works thereof, You may choose to offer,
+   and charge a fee for, acceptance of support, warranty, indemnity,
+   or other liability obligations and/or rights consistent with this
+   License. However, in accepting such obligations, You may act only
+   on Your own behalf and on Your sole responsibility, not on behalf
+   of any other Contributor, and only if You agree to indemnify,
+   defend, and hold each Contributor harmless for any liability
+   incurred by, or claims asserted against, such Contributor by reason
+   of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+Copyright (c) 2015-2022 Amod Malviya
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+------------------------------------------------------------------------
+Apache License 2.0 (Apache-2.0)
+
+Used by:
   rustiq-chem 0.1.0-alpha.1 — https://github.com/mveril/RustiQ
   rustiq-chem-core 0.1.0-alpha.1 — https://github.com/mveril/RustiQ
 
@@ -9199,8 +9396,10 @@ Used by:
   miniz_oxide 0.8.9 — https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
   miniz_oxide 0.9.1 — https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
   minus 5.7.2 — https://github.com/AMythicDev/minus
+  ndk-context 0.1.1 — https://github.com/rust-windowing/android-ndk-rs
   num-cmp 0.1.0 — https://github.com/lifthrasiir/num-cmp
   num-conv 0.2.2 — https://github.com/jhpratt/num-conv
+  objc2-app-kit 0.3.2 — https://github.com/madsmtm/objc2
   objc2-core-foundation 0.3.2 — https://github.com/madsmtm/objc2
   objc2-io-kit 0.3.2 — https://github.com/madsmtm/objc2
   ouroboros 0.18.5 — https://github.com/someguynamedjosh/ouroboros
@@ -11365,36 +11564,6 @@ SOFTWARE.
 MIT License (MIT)
 
 Used by:
-  is-docker 0.2.0 — https://github.com/TheLarkInn/is-docker
-  is-wsl 0.4.0 — https://github.com/TheLarkInn/is-wsl
-
-MIT License
-
-Copyright (c) 2023 Sean Larkin
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-------------------------------------------------------------------------
-MIT License (MIT)
-
-Used by:
   unit-prefix 0.5.2 — https://codeberg.org/commons-rs/unit-prefix
 
 MIT License
@@ -11491,6 +11660,9 @@ Used by:
   npyz 0.9.1 — https://github.com/ExpHP/npyz
   nutype 0.7.0 — https://github.com/greyblake/nutype
   nutype_macros 0.7.0 — https://github.com/greyblake/nutype
+  objc2-encode 4.1.0 — https://github.com/madsmtm/objc2
+  objc2-foundation 0.3.2 — https://github.com/madsmtm/objc2
+  objc2 0.6.5 — https://github.com/madsmtm/objc2
   plotters-backend 0.3.7 — https://github.com/plotters-rs/plotters
   plotters-svg 0.3.7 — https://github.com/plotters-rs/plotters.git
   plotters 0.3.7 — https://github.com/plotters-rs/plotters
@@ -12175,39 +12347,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
-------------------------------------------------------------------------
-MIT License (MIT)
-
-Used by:
-  open 5.4.5 — https://github.com/Byron/open-rs
-
-The MIT License (MIT)
-=====================
-
-Copyright © `2015` `Sebastian Thiel`
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation
-files (the “Software”), to deal in the Software without
-restriction, including without limitation the rights to use,
-copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
 
 
 ------------------------------------------------------------------------
@@ -28537,6 +28676,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+PACKAGE: dispatch2 0.3.1
+Declared license: Zlib OR Apache-2.0 OR MIT
+Repository: https://github.com/madsmtm/objc2
+Authors: Mads Marquart <mads@marquart.dk>, Mary <mary@mary.zone>
+
 PACKAGE: displaydoc 0.2.7
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/yaahc/displaydoc
@@ -32874,45 +33018,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Copyright statements preserved from upstream files:
 Copyright (c) 2017, Juniper Networks, Inc. All rights reserved.
 
-PACKAGE: is-docker 0.2.0
-Declared license: MIT
-Repository: https://github.com/TheLarkInn/is-docker
-Authors: Sean Larkin <TheLarkInn@users.noreply.github.com>
-
-FILE: LICENSE
-MIT License
-
-Copyright (c) 2023 Sean Larkin
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-PACKAGE: is-wsl 0.4.0
-Declared license: MIT
-Repository: https://github.com/TheLarkInn/is-wsl
-Authors: Sean Larkin <TheLarkInn@users.noreply.github.com>
-
-FILE: LICENSE
-Identical text reproduced above: is-docker 0.2.0 / LICENSE
-
-Copyright statements preserved from upstream files:
-// Copyright (c) 2015 Siyu Wang
-
 PACKAGE: is_ci 1.2.0
 Declared license: ISC
 Repository: https://github.com/zkat/is_ci
@@ -35898,6 +36003,11 @@ Copyright statements preserved from upstream files:
 //! Copyright (c) 2001, 2002 Enthought, Inc.
 //! Copyright (c) 2003-2017 SciPy Developers.
 
+PACKAGE: ndk-context 0.1.1
+Declared license: MIT OR Apache-2.0
+Repository: https://github.com/rust-windowing/android-ndk-rs
+Authors: The Rust Windowing contributors
+
 PACKAGE: new_debug_unreachable 1.0.6
 Declared license: MIT
 Repository: https://github.com/mbrubeck/rust-debug-unreachable
@@ -37067,10 +37177,292 @@ Declared license: MIT
 Repository: https://github.com/greyblake/nutype
 Authors: Serhii Potapov <blake131313@gmail.com>
 
+PACKAGE: objc2 0.6.5
+Declared license: MIT
+Repository: https://github.com/madsmtm/objc2
+Authors: Mads Marquart <mads@marquart.dk>
+
+PACKAGE: objc2-app-kit 0.3.2
+Declared license: Zlib OR Apache-2.0 OR MIT
+Repository: https://github.com/madsmtm/objc2
+Authors: (not declared)
+
 PACKAGE: objc2-core-foundation 0.3.2
 Declared license: Zlib OR Apache-2.0 OR MIT
 Repository: https://github.com/madsmtm/objc2
 Authors: (not declared)
+
+PACKAGE: objc2-encode 4.1.0
+Declared license: MIT
+Repository: https://github.com/madsmtm/objc2
+Authors: Mads Marquart <mads@marquart.dk>
+
+PACKAGE: objc2-foundation 0.3.2
+Declared license: MIT
+Repository: https://github.com/madsmtm/objc2
+Authors: (not declared)
+
+FILE: src/copying.rs
+use objc2::extern_protocol;
+use objc2::rc::Retained;
+use objc2::runtime::NSZone;
+use objc2::runtime::ProtocolObject;
+use objc2::Message;
+
+/// A helper type for implementing [`NSCopying`].
+///
+/// `NSCopying` and `NSMutableCopying` do not in their signatures describe the
+/// result type from the copying operation. This is problematic, as it means
+/// that using them ends up falling back to [`AnyObject`], which makes copying
+/// much less useful and ergonomic.
+///
+/// To properly describe this, we need an associated type which describes the
+/// actual result type from a copy. The associated type can't be present
+/// directly on the protocol traits themselves, however, since we want to use
+/// them as e.g. `ProtocolObject<dyn NSCopying>`, so we introduce this helper
+/// trait instead. See [`MutableCopyingHelper`] for the mutable variant.
+///
+/// We might be able to get rid of this hack once [associated type defaults]
+/// are stabilized.
+///
+/// [`AnyObject`]: objc2::runtime::AnyObject
+/// [associated type defaults]: https://github.com/rust-lang/rust/issues/29661
+///
+///
+/// # Safety
+///
+/// The [`Result`] type must be correct.
+///
+/// [`Result`]: Self::Result
+pub unsafe trait CopyingHelper: Message {
+    /// The immutable counterpart of the type, or `Self` if the type has no
+    /// immutable counterpart.
+    ///
+    /// The implementation for `NSString` has itself (`NSString`) here, while
+    /// `NSMutableString` instead has `NSString`.
+    type Result: Message;
+}
+
+/// A helper type for implementing [`NSMutableCopying`].
+///
+/// See [`CopyingHelper`] for the immutable variant, and more details in
+/// general. These traits are split to allow implementing
+/// `MutableCopyingHelper` only when the mutable class is available.
+///
+///
+/// # Safety
+///
+/// The [`Result`] type must be correct.
+///
+/// [`Result`]: Self::Result
+pub unsafe trait MutableCopyingHelper: Message {
+    /// The mutable counterpart of the type, or `Self` if the type has no
+    /// mutable counterpart.
+    ///
+    /// The implementation for `NSString` has `NSMutableString` here, while
+    /// `NSMutableString` has itself (`NSMutableString`).
+    type Result: Message;
+}
+
+// SAFETY: Superclasses are not in general required to implement the same
+// traits as their subclasses, but we're not dealing with normal classes and
+// arbitrary protocols, we're dealing with with immutable/mutable class
+// counterparts, and the `NSCopying`/`NSMutableCopying` protocols, which
+// _will_ be implemented on superclasses.
+unsafe impl<P: ?Sized> CopyingHelper for ProtocolObject<P> {
+    type Result = Self;
+}
+
+// SAFETY: Subclasses are required to always implement the same traits as
+// their superclasses, so a mutable subclass is required to implement the same
+// traits too.
+unsafe impl<P: ?Sized> MutableCopyingHelper for ProtocolObject<P> {
+    type Result = Self;
+}
+
+extern_protocol!(
+    /// A protocol to provide functional copies of objects.
+    ///
+    /// This is similar to Rust's [`Clone`] trait, along with sharing a few
+    /// similarities to the [`std::borrow::ToOwned`] trait with regards to the
+    /// output type.
+    ///
+    /// To allow using this in a meaningful way in Rust, we have to "enrich"
+    /// the implementation by also specifying the resulting type, see
+    /// [`CopyingHelper`] for details.
+    ///
+    /// See also [Apple's documentation][apple-doc].
+    ///
+    /// [apple-doc]: https://developer.apple.com/documentation/foundation/nscopying
+    ///
+    ///
+    /// # Examples
+    ///
+    /// Implement `NSCopying` for an externally defined class.
+    ///
+    /// ```
+    /// use objc2::extern_class;
+    /// use objc2_foundation::{CopyingHelper, NSCopying, NSObject};
+    ///
+    /// extern_class!(
+    ///     #[unsafe(super(NSObject))]
+    ///     # #[name = "NSData"]
+    ///     struct ExampleClass;
+    /// );
+    ///
+    /// unsafe impl NSCopying for ExampleClass {}
+    ///
+    /// // Copying ExampleClass returns another ExampleClass.
+    /// unsafe impl CopyingHelper for ExampleClass {
+    ///     type Result = Self;
+    /// }
+    /// ```
+    ///
+    /// Implement `NSCopying` for a custom class.
+    ///
+    /// ```
+    /// use objc2::{define_class, msg_send, AnyThread, DefinedClass};
+    /// use objc2::rc::Retained;
+    /// use objc2::runtime::NSZone;
+    /// use objc2_foundation::{CopyingHelper, NSCopying, NSObject};
+    ///
+    /// define_class!(
+    ///     #[unsafe(super(NSObject))]
+    ///     struct CustomClass;
+    ///
+    ///     unsafe impl NSCopying for CustomClass {
+    ///         #[unsafe(method_id(copyWithZone:))]
+    ///         fn copyWithZone(&self, _zone: *const NSZone) -> Retained<Self> {
+    ///             // Create new class, and transfer ivars
+    ///             let new = Self::alloc().set_ivars(self.ivars().clone());
+    ///             unsafe { msg_send![super(new), init] }
+    ///         }
+    ///     }
+    /// );
+    ///
+    /// // Copying CustomClass returns another CustomClass.
+    /// unsafe impl CopyingHelper for CustomClass {
+    ///     type Result = Self;
+    /// }
+    /// ```
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe trait NSCopying {
+        /// Returns a new instance that's a copy of the receiver.
+        ///
+        /// The output type is the immutable counterpart of the object, which
+        /// is usually `Self`, but e.g. `NSMutableString` returns `NSString`.
+        #[unsafe(method(copy))]
+        #[unsafe(method_family = copy)]
+        #[optional]
+        fn copy(&self) -> Retained<Self::Result>
+        where
+            Self: CopyingHelper;
+
+        /// Returns a new instance that's a copy of the receiver.
+        ///
+        /// This is only used when implementing `NSCopying`, call
+        /// [`copy`][NSCopying::copy] instead.
+        ///
+        ///
+        /// # Safety
+        ///
+        /// The zone pointer must be valid or NULL.
+        #[unsafe(method(copyWithZone:))]
+        #[unsafe(method_family = copy)]
+        unsafe fn copyWithZone(&self, zone: *mut NSZone) -> Retained<Self::Result>
+        where
+            Self: CopyingHelper;
+    }
+);
+
+extern_protocol!(
+    /// A protocol to provide mutable copies of objects.
+    ///
+    /// Only classes that have an “immutable vs. mutable” distinction should
+    /// adopt this protocol. Use the [`MutableCopyingHelper`] trait to specify
+    /// the return type after copying.
+    ///
+    /// See [Apple's documentation][apple-doc] for details.
+    ///
+    /// [apple-doc]: https://developer.apple.com/documentation/foundation/nsmutablecopying
+    ///
+    ///
+    /// # Example
+    ///
+    /// Implement [`NSCopying`] and [`NSMutableCopying`] for a class pair like
+    /// `NSString` and `NSMutableString`.
+    ///
+    /// ```ignore
+    /// // Immutable copies return NSString
+    ///
+    /// unsafe impl NSCopying for NSString {}
+    /// unsafe impl CopyingHelper for NSString {
+    ///     type Result = NSString;
+    /// }
+    /// unsafe impl NSCopying for NSMutableString {}
+    /// unsafe impl CopyingHelper for NSMutableString {
+    ///     type Result = NSString;
+    /// }
+    ///
+    /// // Mutable copies return NSMutableString
+    ///
+    /// unsafe impl NSMutableCopying for NSString {}
+    /// unsafe impl MutableCopyingHelper for NSString {
+    ///     type Result = NSMutableString;
+    /// }
+    /// unsafe impl NSMutableCopying for NSMutableString {}
+    /// unsafe impl MutableCopyingHelper for NSMutableString {
+    ///     type Result = NSMutableString;
+    /// }
+    /// ```
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe trait NSMutableCopying {
+        /// Returns a new instance that's a mutable copy of the receiver.
+        ///
+        /// The output type is the mutable counterpart of the object. E.g. both
+        /// `NSString` and `NSMutableString` return `NSMutableString`.
+        #[unsafe(method(mutableCopy))]
+        #[unsafe(method_family = mutableCopy)]
+        #[optional]
+        fn mutableCopy(&self) -> Retained<Self::Result>
+        where
+            Self: MutableCopyingHelper;
+
+        /// Returns a new instance that's a mutable copy of the receiver.
+        ///
+        /// This is only used when implementing `NSMutableCopying`, call
+        /// [`mutableCopy`][NSMutableCopying::mutableCopy] instead.
+        ///
+        ///
+        /// # Safety
+        ///
+        /// The zone pointer must be valid or NULL.
+        #[unsafe(method(mutableCopyWithZone:))]
+        #[unsafe(method_family = mutableCopy)]
+        unsafe fn mutableCopyWithZone(&self, zone: *mut NSZone) -> Retained<Self::Result>
+        where
+            Self: MutableCopyingHelper;
+    }
+);
+
+FILE: src/tests/copying.rs
+#![cfg(feature = "NSString")]
+use objc2::{rc::Retained, runtime::ProtocolObject};
+use objc2_foundation::{NSCopying, NSMutableCopying, NSString};
+
+#[test]
+fn copy() {
+    let obj = NSString::new();
+    let protocol_object: &ProtocolObject<dyn NSCopying> = ProtocolObject::from_ref(&*obj);
+    let _: Retained<ProtocolObject<dyn NSCopying>> = protocol_object.copy();
+}
+
+#[test]
+fn copy_mutable() {
+    let obj = NSString::new();
+    let protocol_object: &ProtocolObject<dyn NSMutableCopying> = ProtocolObject::from_ref(&*obj);
+    let _: Retained<ProtocolObject<dyn NSMutableCopying>> = protocol_object.mutableCopy();
+}
 
 PACKAGE: objc2-io-kit 0.3.2
 Declared license: Zlib OR Apache-2.0 OR MIT
@@ -37284,38 +37676,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-PACKAGE: open 5.4.5
-Declared license: MIT
-Repository: https://github.com/Byron/open-rs
-Authors: Sebastian Thiel <byronimo@gmail.com>
-
-FILE: LICENSE.md
-The MIT License (MIT)
-=====================
-
-Copyright © `2015` `Sebastian Thiel`
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation
-files (the “Software”), to deal in the Software without
-restriction, including without limitation the rights to use,
-copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
 
 PACKAGE: openssl-probe 0.2.1
 Declared license: MIT OR Apache-2.0
@@ -46323,6 +46683,232 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+PACKAGE: webbrowser 1.2.5
+Declared license: MIT OR Apache-2.0
+Repository: https://github.com/amodm/webbrowser-rs
+Authors: Amod Malviya @amodm
+
+FILE: LICENSE-APACHE
+                              Apache License
+                        Version 2.0, January 2004
+                     http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+   "License" shall mean the terms and conditions for use, reproduction,
+   and distribution as defined by Sections 1 through 9 of this document.
+
+   "Licensor" shall mean the copyright owner or entity authorized by
+   the copyright owner that is granting the License.
+
+   "Legal Entity" shall mean the union of the acting entity and all
+   other entities that control, are controlled by, or are under common
+   control with that entity. For the purposes of this definition,
+   "control" means (i) the power, direct or indirect, to cause the
+   direction or management of such entity, whether by contract or
+   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+   outstanding shares, or (iii) beneficial ownership of such entity.
+
+   "You" (or "Your") shall mean an individual or Legal Entity
+   exercising permissions granted by this License.
+
+   "Source" form shall mean the preferred form for making modifications,
+   including but not limited to software source code, documentation
+   source, and configuration files.
+
+   "Object" form shall mean any form resulting from mechanical
+   transformation or translation of a Source form, including but
+   not limited to compiled object code, generated documentation,
+   and conversions to other media types.
+
+   "Work" shall mean the work of authorship, whether in Source or
+   Object form, made available under the License, as indicated by a
+   copyright notice that is included in or attached to the work
+   (an example is provided in the Appendix below).
+
+   "Derivative Works" shall mean any work, whether in Source or Object
+   form, that is based on (or derived from) the Work and for which the
+   editorial revisions, annotations, elaborations, or other modifications
+   represent, as a whole, an original work of authorship. For the purposes
+   of this License, Derivative Works shall not include works that remain
+   separable from, or merely link (or bind by name) to the interfaces of,
+   the Work and Derivative Works thereof.
+
+   "Contribution" shall mean any work of authorship, including
+   the original version of the Work and any modifications or additions
+   to that Work or Derivative Works thereof, that is intentionally
+   submitted to Licensor for inclusion in the Work by the copyright owner
+   or by an individual or Legal Entity authorized to submit on behalf of
+   the copyright owner. For the purposes of this definition, "submitted"
+   means any form of electronic, verbal, or written communication sent
+   to the Licensor or its representatives, including but not limited to
+   communication on electronic mailing lists, source code control systems,
+   and issue tracking systems that are managed by, or on behalf of, the
+   Licensor for the purpose of discussing and improving the Work, but
+   excluding communication that is conspicuously marked or otherwise
+   designated in writing by the copyright owner as "Not a Contribution."
+
+   "Contributor" shall mean Licensor and any individual or Legal Entity
+   on behalf of whom a Contribution has been received by Licensor and
+   subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   copyright license to reproduce, prepare Derivative Works of,
+   publicly display, publicly perform, sublicense, and distribute the
+   Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   (except as stated in this section) patent license to make, have made,
+   use, offer to sell, sell, import, and otherwise transfer the Work,
+   where such license applies only to those patent claims licensable
+   by such Contributor that are necessarily infringed by their
+   Contribution(s) alone or by combination of their Contribution(s)
+   with the Work to which such Contribution(s) was submitted. If You
+   institute patent litigation against any entity (including a
+   cross-claim or counterclaim in a lawsuit) alleging that the Work
+   or a Contribution incorporated within the Work constitutes direct
+   or contributory patent infringement, then any patent licenses
+   granted to You under this License for that Work shall terminate
+   as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the
+   Work or Derivative Works thereof in any medium, with or without
+   modifications, and in Source or Object form, provided that You
+   meet the following conditions:
+
+   (a) You must give any other recipients of the Work or
+       Derivative Works a copy of this License; and
+
+   (b) You must cause any modified files to carry prominent notices
+       stating that You changed the files; and
+
+   (c) You must retain, in the Source form of any Derivative Works
+       that You distribute, all copyright, patent, trademark, and
+       attribution notices from the Source form of the Work,
+       excluding those notices that do not pertain to any part of
+       the Derivative Works; and
+
+   (d) If the Work includes a "NOTICE" text file as part of its
+       distribution, then any Derivative Works that You distribute must
+       include a readable copy of the attribution notices contained
+       within such NOTICE file, excluding those notices that do not
+       pertain to any part of the Derivative Works, in at least one
+       of the following places: within a NOTICE text file distributed
+       as part of the Derivative Works; within the Source form or
+       documentation, if provided along with the Derivative Works; or,
+       within a display generated by the Derivative Works, if and
+       wherever such third-party notices normally appear. The contents
+       of the NOTICE file are for informational purposes only and
+       do not modify the License. You may add Your own attribution
+       notices within Derivative Works that You distribute, alongside
+       or as an addendum to the NOTICE text from the Work, provided
+       that such additional attribution notices cannot be construed
+       as modifying the License.
+
+   You may add Your own copyright statement to Your modifications and
+   may provide additional or different license terms and conditions
+   for use, reproduction, or distribution of Your modifications, or
+   for any such Derivative Works as a whole, provided Your use,
+   reproduction, and distribution of the Work otherwise complies with
+   the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise,
+   any Contribution intentionally submitted for inclusion in the Work
+   by You to the Licensor shall be under the terms and conditions of
+   this License, without any additional terms or conditions.
+   Notwithstanding the above, nothing herein shall supersede or modify
+   the terms of any separate license agreement you may have executed
+   with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor,
+   except as required for reasonable and customary use in describing the
+   origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or
+   agreed to in writing, Licensor provides the Work (and each
+   Contributor provides its Contributions) on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+   implied, including, without limitation, any warranties or conditions
+   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+   PARTICULAR PURPOSE. You are solely responsible for determining the
+   appropriateness of using or redistributing the Work and assume any
+   risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory,
+   whether in tort (including negligence), contract, or otherwise,
+   unless required by applicable law (such as deliberate and grossly
+   negligent acts) or agreed to in writing, shall any Contributor be
+   liable to You for damages, including any direct, indirect, special,
+   incidental, or consequential damages of any character arising as a
+   result of this License or out of the use or inability to use the
+   Work (including but not limited to damages for loss of goodwill,
+   work stoppage, computer failure or malfunction, or any and all
+   other commercial damages or losses), even if such Contributor
+   has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing
+   the Work or Derivative Works thereof, You may choose to offer,
+   and charge a fee for, acceptance of support, warranty, indemnity,
+   or other liability obligations and/or rights consistent with this
+   License. However, in accepting such obligations, You may act only
+   on Your own behalf and on Your sole responsibility, not on behalf
+   of any other Contributor, and only if You agree to indemnify,
+   defend, and hold each Contributor harmless for any liability
+   incurred by, or claims asserted against, such Contributor by reason
+   of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+Copyright (c) 2015-2022 Amod Malviya
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+FILE: LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2015-2022 Amod Malviya
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 
 PACKAGE: webpki-root-certs 1.0.10
 Declared license: CDLA-Permissive-2.0

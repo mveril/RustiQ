@@ -68,10 +68,13 @@ fn relocated_archive_and_nix_layout_resolve_without_the_working_directory() {
         let web = docs(&binary, &["--web", "--print-path"], temp.path());
         assert!(web.status.success());
         assert_eq!(web.stdout, b"https://mveril.github.io/RustiQ/\n");
-        let missing_browser = docs(&binary, &[], temp.path());
-        assert!(!missing_browser.status.success());
-        let error = String::from_utf8(missing_browser.stderr).unwrap();
-        assert!(error.contains("--print-path"), "{error}");
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            let missing_browser = docs(&binary, &[], temp.path());
+            assert!(!missing_browser.status.success());
+            let error = String::from_utf8(missing_browser.stderr).unwrap();
+            assert!(error.contains("--print-path"), "{error}");
+        }
         fs::remove_file(expected).unwrap();
         let broken = docs(&binary, &["--print-path"], temp.path());
         assert!(!broken.status.success());
@@ -88,11 +91,12 @@ fn cargo_only_installation_reports_online_url_without_claiming_a_local_manual() 
     let output = docs(&binary, &["--print-path"], temp.path());
     assert!(output.status.success());
     assert_eq!(output.stdout, b"https://mveril.github.io/RustiQ/\n");
+    #[cfg(all(unix, not(target_os = "macos")))]
     assert!(!docs(&binary, &[], temp.path()).status.success());
     assert!(!docs(&binary, &["--pdf"], temp.path()).status.success());
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn browser_receives_one_literal_target_and_failures_are_reported() {
     use std::os::unix::fs::PermissionsExt;
