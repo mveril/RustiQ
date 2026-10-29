@@ -83,10 +83,8 @@ been removed, RustiQ cannot distinguish the installation from a Cargo install
 and uses the online manual.
 
 If browser launching fails, the diagnostic includes the target and the
-`--print-path` route. `BROWSER` can select a browser executable by name or path;
-it is passed one target argument directly, with no shell expansion or embedded
-command-line arguments. Otherwise RustiQ uses the operating system's default
-opener. PDF export is future work and `--pdf` is not supported.
+`--print-path` route. RustiQ uses the operating system's default browser opener.
+PDF export is future work and `--pdf` is not supported.
 
 ## Make basis sets available
 

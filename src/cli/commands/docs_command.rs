@@ -68,22 +68,7 @@ impl Runnable for DocsCommand {
             println!("{}", target.to_string_lossy());
             return Ok(());
         }
-        // BROWSER is an executable name/path, passed directly without a shell.
-        let result = match env::var_os("BROWSER").filter(|value| !value.is_empty()) {
-            Some(browser) => std::process::Command::new(browser)
-                .arg(&target)
-                .status()
-                .and_then(|status| {
-                    if status.success() {
-                        Ok(())
-                    } else {
-                        Err(std::io::Error::other(format!(
-                            "browser exited with {status}"
-                        )))
-                    }
-                }),
-            None => webbrowser::open(&target.to_string_lossy()),
-        };
+        let result = webbrowser::open(&target.to_string_lossy());
         result.map_err(|source| {
             miette::Report::new(BrowserError {
                 target: target.to_string_lossy().into_owned(),
