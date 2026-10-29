@@ -26,14 +26,18 @@ fn install(root: &Path, nix: bool) -> std::path::PathBuf {
 }
 
 fn docs(binary: &Path, args: &[&str], cwd: &Path) -> Output {
-    Command::new(binary)
+    let mut command = Command::new(binary);
+    command
         .arg("docs")
         .args(args)
         .current_dir(cwd)
         .env("RUSTIQ_COLOR", "never")
-        .env("BROWSER", cwd.join("nonexistent-browser"))
-        .output()
-        .unwrap()
+        .env("BROWSER", cwd.join("nonexistent-browser"));
+    // Keep host-installed openers such as xdg-open from masking a missing or
+    // failing BROWSER command. The executable under test is invoked by path.
+    #[cfg(unix)]
+    command.env("PATH", cwd);
+    command.output().unwrap()
 }
 
 #[test]
@@ -97,14 +101,17 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
     let manual = binary.parent().unwrap().join("manual/html");
     fs::create_dir_all(&manual).unwrap();
     fs::write(manual.join("index.html"), "Manual").unwrap();
-    let browser = temp.path().join("test browser");
+    // webbrowser launches graphical browsers asynchronously. Naming this fake
+    // launcher `lynx` makes it use the crate's synchronous text-browser path,
+    // so the assertions can inspect its output as soon as `docs` exits.
+    let browser = temp.path().join("lynx");
     fs::write(&browser, "#!/bin/sh\nprintf '%s\\n' \"$#\" \"$1\" > \"$BROWSER_LOG\"\nexit \"${BROWSER_STATUS:-0}\"\n").unwrap();
     fs::set_permissions(&browser, fs::Permissions::from_mode(0o755)).unwrap();
     let log = temp.path().join("browser.log");
     for (args, expected) in [
         (
             vec![],
-            manual.join("index.html").to_str().unwrap().to_owned(),
+            format!("file://{}", manual.join("index.html").display()),
         ),
         (vec!["--web"], "https://mveril.github.io/RustiQ/".to_owned()),
     ] {
@@ -113,6 +120,7 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
             .args(args)
             .env("BROWSER", &browser)
             .env("BROWSER_LOG", &log)
+            .env("PATH", temp.path())
             .output()
             .unwrap();
         assert!(output.status.success(), "{output:?}");
@@ -126,6 +134,7 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
         .env("BROWSER", browser)
         .env("BROWSER_LOG", log)
         .env("BROWSER_STATUS", "1")
+        .env("PATH", temp.path())
         .output()
         .unwrap();
     assert!(!failed.status.success());
