@@ -31,7 +31,7 @@ version reference for that action, `dist-workspace.toml` sets
 out-of-date generated workflow. Keep the pin synchronized with the intended
 upload-artifact release when updating the workflow or cargo-dist. Preserve the
 custom `build-manual` job, the local-build dependency on it, and the download
-into `manual/` when regenerating the release workflow; generated defaults do
+into `manual/html/` when regenerating the release workflow; generated defaults do
 not contain this offline-manual integration.
 
 ### Release rehearsal
@@ -65,7 +65,7 @@ generated plan-only check.
 
 Each executable archive includes `rustiq` (named `rustiq.exe` on Windows),
 the README, `LICENSE-MIT`, `LICENSE-APACHE`, `COPYING`, `DISTRIBUTION.md`, and
-`THIRD-PARTY-NOTICES.txt`, and the complete offline manual in `manual/`.
+`THIRD-PARTY-NOTICES.txt`, and the complete offline manual in `manual/html/`.
 The release workflow builds the validated Nix book once and downloads that
 artifact into every native archive build. Archive rehearsals check the manual
 after relocating the extracted tree. See [documentation checks](documentation.md)
@@ -89,7 +89,7 @@ commit. Its checksum can be calculated separately when verifying distribution
 integrity.
 See [licenses and redistribution](licensing.md) for rebuild instructions and
 the requirements for package maintainers. The Nix package installs the same
-notice documents into `share/doc/rustiq`; its metadata describes RustiQ's
+notice documents into `share/doc/rustiq/manual/html`; its metadata describes RustiQ's
 MIT/Apache terms and the bundled LGPL/MPL components.
 
 To verify the assets listed in `sha256.sum` on Linux, download it and all listed

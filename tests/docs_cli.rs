@@ -42,7 +42,11 @@ fn relocated_archive_and_nix_layout_resolve_without_the_working_directory() {
         let temp = tempfile::tempdir().unwrap();
         let original = temp.path().join("original");
         let binary = install(&original, nix);
-        let manual = original.join(if nix { "share/doc/rustiq" } else { "manual" });
+        let manual = original.join(if nix {
+            "share/doc/rustiq/manual/html"
+        } else {
+            "manual/html"
+        });
         fs::create_dir_all(&manual).unwrap();
         fs::write(manual.join("index.html"), "<h1>Manual</h1>").unwrap();
         let moved = temp.path().join("moved installation with spaces");
@@ -90,8 +94,8 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
     use std::os::unix::fs::PermissionsExt;
     let temp = tempfile::tempdir().unwrap();
     let binary = install(&temp.path().join("archive"), false);
-    let manual = binary.parent().unwrap().join("manual");
-    fs::create_dir(&manual).unwrap();
+    let manual = binary.parent().unwrap().join("manual/html");
+    fs::create_dir_all(&manual).unwrap();
     fs::write(manual.join("index.html"), "Manual").unwrap();
     let browser = temp.path().join("test browser");
     fs::write(&browser, "#!/bin/sh\nprintf '%s\\n' \"$#\" \"$1\" > \"$BROWSER_LOG\"\nexit \"${BROWSER_STATUS:-0}\"\n").unwrap();

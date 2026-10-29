@@ -152,7 +152,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: offline-manual
-          path: manual
+          path: manual/html
       - name: Build artifacts
         run: |
           # Actually do builds and make zips and whatnot

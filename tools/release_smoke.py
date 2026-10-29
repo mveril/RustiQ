@@ -138,7 +138,7 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
         if not help_output.strip():
             raise ValueError("EXECUTABLE_STARTUP_FAILURE: rustiq --help produced no output")
         try:
-            manual = binary.parent / "manual"
+            manual = binary.parent / "manual/html"
             index = manual / "index.html"
             if not index.is_file() or not (manual / "mathjax/MathJax.js").is_file():
                 raise ValueError("archive lacks the complete offline manual")

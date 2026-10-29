@@ -93,7 +93,7 @@ binary, available through `nix build`.
 The default package includes manual pages for `man rustiq` and its
 subcommands, such as `man rustiq-artifact-inspect`. Every page links to the
 online book. The package also includes the complete offline HTML manual under
-`share/doc/rustiq`, including local equation and diagram resources. From the
+`share/doc/rustiq/manual/html`, including local equation and diagram resources. From the
 repository root:
 
 ```sh

@@ -103,7 +103,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: offline-manual
-          path: manual
+          path: manual/html
 
       - id: build
         name: Build target archive with dist

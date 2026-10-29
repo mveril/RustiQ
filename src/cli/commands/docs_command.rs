@@ -39,9 +39,9 @@ impl DocsCommand {
         let directory = executable.parent().ok_or_else(|| {
             miette::miette!("the RustiQ executable has no installation directory")
         })?;
-        let mut candidates = vec![directory.join("manual")];
+        let mut candidates = vec![directory.join("manual/html")];
         if let Some(prefix) = directory.parent() {
-            candidates.push(prefix.join("share/doc/rustiq"));
+            candidates.push(prefix.join("share/doc/rustiq/manual/html"));
         }
         for manual in candidates {
             // A present directory with a missing index is a damaged installation,
@@ -82,7 +82,7 @@ impl Runnable for DocsCommand {
                         )))
                     }
                 }),
-            None => open::that(&target),
+            None => webbrowser::open(&target.to_string_lossy()),
         };
         result.map_err(|source| {
             miette::Report::new(BrowserError {

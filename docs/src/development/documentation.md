@@ -70,19 +70,19 @@ unmodified CDN loader; it does not produce the distributable offline manual.
 ## Release integration and coverage
 
 The release and six-target rehearsal workflows build the Nix book once and
-supply it as `manual/` to every archive build. For a local dist build, first
+supply it as `manual/html/` to every archive build. For a local dist build, first
 prepare that directory:
 
 ```sh
 nix build .#book
-mkdir -p manual
-cp -R result/. manual/
+mkdir -p manual/html
+cp -R result/. manual/html/
 dist build --artifacts=local --target x86_64-unknown-linux-gnu
 ```
 
 Use the target for the native operating system and architecture. The generated
-`manual/` directory is ignored by Git. The Nix package installs the same book
-under `share/doc/rustiq` and checks `rustiq docs --print-path` against its
+`manual/html/` directory is ignored by Git. The Nix package installs the same book
+under `share/doc/rustiq/manual/html` and checks `rustiq docs --print-path` against its
 installed index. Cargo builds and published crates do not bundle the book.
 
 Verification coverage is explicit:

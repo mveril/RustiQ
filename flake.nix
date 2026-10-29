@@ -195,7 +195,8 @@
                 mkdir -p "$out/share/doc/rustiq"
                 cp COPYING LICENSE-MIT LICENSE-APACHE DISTRIBUTION.md THIRD-PARTY-NOTICES.txt \
                   "$out/share/doc/rustiq/"
-                cp -r ${book}/. "$out/share/doc/rustiq/"
+                mkdir -p "$out/share/doc/rustiq/manual/html"
+                cp -r ${book}/. "$out/share/doc/rustiq/manual/html/"
                 # Crane rewrites installed files while removing toolchain references.
                 chmod -R u+w "$out/share/doc/rustiq"
               '';
@@ -205,8 +206,8 @@
                 "$out/bin/rustiq" --help > installed-help
                 ! grep -Eq 'manpages|completions' installed-help
                 test -s "$out/share/man/man1/rustiq.1.gz"
-                test "$("$out/bin/rustiq" docs --print-path)" = "$out/share/doc/rustiq/index.html"
-                test -s "$out/share/doc/rustiq/mathjax/MathJax.js"
+                test "$("$out/bin/rustiq" docs --print-path)" = "$out/share/doc/rustiq/manual/html/index.html"
+                test -s "$out/share/doc/rustiq/manual/html/mathjax/MathJax.js"
                 test "$("$out/bin/rustiq" docs --web --print-path)" = "https://mveril.github.io/RustiQ/"
                 test -s "$out/share/man/man1/rustiq-artifact-inspect.1.gz"
                 test -s "$out/share/bash-completion/completions/rustiq.bash"

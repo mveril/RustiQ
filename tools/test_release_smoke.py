@@ -22,7 +22,7 @@ class ReleaseSmokeTests(unittest.TestCase):
         content = self.root / "archive-content"
         content.mkdir()
         (content / "rustiq").write_text("controlled executable placeholder")
-        manual = content / "manual"
+        manual = content / "manual/html"
         (manual / "mathjax").mkdir(parents=True)
         for name in [
             "index.html",
@@ -33,7 +33,7 @@ class ReleaseSmokeTests(unittest.TestCase):
             (manual / name).write_text("controlled manual asset")
         with tarfile.open(self.archive, "w:gz") as bundle:
             bundle.add(content / "rustiq", arcname="rustiq")
-            bundle.add(manual, arcname="manual")
+            bundle.add(manual, arcname="manual/html")
         self.checksum = self.root / "bundle.tar.gz.sha256"
         self.checksum.write_text(hashlib.sha256(self.archive.read_bytes()).hexdigest() + "  bundle.tar.gz\n")
 
@@ -48,7 +48,7 @@ class ReleaseSmokeTests(unittest.TestCase):
             if args == ["--version", "--verbose"]:
                 return "rustiq 0.1.0-alpha.1\n  Git commit                " + "a" * 40 + "\n"
             if args == ["docs", "--print-path"]:
-                return str(binary.parent / "manual/index.html") + "\n"
+                return str(binary.parent / "manual/html/index.html") + "\n"
             if args == ["docs", "--web", "--print-path"]:
                 return "https://mveril.github.io/RustiQ/\n"
             if args[0] == "run":

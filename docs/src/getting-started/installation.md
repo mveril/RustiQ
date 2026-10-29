@@ -55,10 +55,10 @@ The Cargo package is named `rustiq-chem`; the executable is named `rustiq` (or
 
 ## Consult the manual
 
-Release archives contain an offline HTML manual in `manual/` beside the
+Release archives contain an offline HTML manual in `manual/html/` beside the
 executable. Keep that directory with the executable when moving the extracted
 installation. The Nix package installs the same offline manual under
-`share/doc/rustiq`. Navigation, styling, equations, and diagrams use local
+`share/doc/rustiq/manual/html`. Navigation, styling, equations, and diagrams use local
 resources; external reference links require network access.
 
 ```sh
@@ -67,7 +67,8 @@ rustiq docs --web
 rustiq docs --print-path
 ```
 
-`rustiq docs` opens the installed manual in the default browser. `--web` forces
+`rustiq docs` opens the installed manual in the default browser using a browser-specific
+launcher, independently of HTML file associations. `--web` forces
 [the online manual](https://mveril.github.io/RustiQ/). `--print-path` prints the
 absolute local index path without starting a browser; combine it with `--web`
 to print the online URL instead. On headless machines, copy the manual tree to
