@@ -4,6 +4,8 @@ mod basis_command;
 pub(crate) mod batch_orchestration;
 mod cache_command;
 pub(crate) mod calculation_result;
+#[cfg(any(feature = "manpages", feature = "completions"))]
+mod generate_command;
 mod init_command;
 mod run_command;
 pub(crate) use run_command::{validate_run_arguments, RunCommand};
@@ -12,7 +14,6 @@ mod runnable;
 use basis_command::BasisCommands;
 use cache_command::CacheCommands;
 use clap::Subcommand;
-use delegate::delegate;
 use geometry_command::GeometryCommands;
 #[cfg(feature = "online")]
 pub(crate) use runnable::AsyncRunnable;
@@ -20,6 +21,12 @@ pub(crate) use runnable::{CommandResult, Runnable};
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Generate manual pages in a directory
+    #[cfg(feature = "manpages")]
+    Manpages(generate_command::ManpagesCommand),
+    /// Write a shell completion script to standard output
+    #[cfg(feature = "completions")]
+    Completions(generate_command::CompletionsCommand),
     /// Create a calculation TOML file from an XYZ geometry
     Init(init_command::InitCommand),
     /// Run a calculation defined in toml format
@@ -47,16 +54,18 @@ pub enum Commands {
 }
 
 impl Runnable for Commands {
-    delegate! {
-        to match self {
-            Commands::Init(command) => command,
-            Commands::Run(command) => command,
-            Commands::Basis { command } => command,
-            Commands::Cache { command } => command,
-            Commands::Artifact { command } => command,
-            Commands::Geometry { command } => command,
-        } {
-            fn run(&self) -> CommandResult;
+    fn run(&self) -> CommandResult {
+        match self {
+            #[cfg(feature = "manpages")]
+            Self::Manpages(command) => command.run(),
+            #[cfg(feature = "completions")]
+            Self::Completions(command) => command.run(),
+            Commands::Init(command) => command.run(),
+            Commands::Run(command) => command.run(),
+            Commands::Basis { command } => command.run(),
+            Commands::Cache { command } => command.run(),
+            Commands::Artifact { command } => command.run(),
+            Commands::Geometry { command } => command.run(),
         }
     }
 }

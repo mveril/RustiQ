@@ -41,7 +41,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, windows-11-arm, macos-latest, macos-15-intel]
+        os:
+          [
+            ubuntu-latest,
+            windows-latest,
+            windows-11-arm,
+            macos-latest,
+            macos-15-intel,
+          ]
 
     steps:
       - name: Checkout
@@ -65,10 +72,18 @@ jobs:
         run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
       - name: Test default features
+        run: cargo test --workspace --all-targets
+
+      - name: Test all features
         run: cargo test --workspace --all-targets --all-features
 
-      - name: Test without online feature
+      - name: Test without default features
         run: cargo test --workspace --all-targets --no-default-features
+
+      - name: Test CLI generators independently
+        run: |
+          cargo test -p rustiq-chem --test generation_cli --no-default-features --features manpages
+          cargo test -p rustiq-chem --test generation_cli --no-default-features --features completions
 
       - name: Check the standalone core
         run: |
