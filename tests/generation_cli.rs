@@ -230,7 +230,10 @@ fn regenerating_manpages_removes_obsolete_generator_pages_only() {
     assert!(packaged.status.success(), "{packaged:?}");
     assert!(!manpages_page.exists());
     assert!(!completions_page.exists());
-    assert_eq!(std::fs::read_to_string(&unrelated).unwrap(), "preserve this file");
+    assert_eq!(
+        std::fs::read_to_string(&unrelated).unwrap(),
+        "preserve this file"
+    );
     assert!(destination.join("rustiq-run.1").is_file());
 
     let standalone = generate("false");

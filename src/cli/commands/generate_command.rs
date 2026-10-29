@@ -64,7 +64,10 @@ fn remove_obsolete_generator_pages(
 ) -> std::io::Result<()> {
     // Remove only known generated pages; preserve unrelated files.
     for name in ["manpages", "completions"] {
-        if command.get_subcommands().any(|subcommand| subcommand.get_name() == name) {
+        if command
+            .get_subcommands()
+            .any(|subcommand| subcommand.get_name() == name)
+        {
             continue;
         }
         let path = directory.join(format!("rustiq-{name}.1"));
