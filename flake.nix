@@ -196,6 +196,8 @@
                 cp COPYING LICENSE-MIT LICENSE-APACHE DISTRIBUTION.md THIRD-PARTY-NOTICES.txt \
                   "$out/share/doc/rustiq/"
                 cp -r ${book}/. "$out/share/doc/rustiq/"
+                # Crane rewrites installed files while removing toolchain references.
+                chmod -R u+w "$out/share/doc/rustiq"
               '';
               doInstallCheck = true;
               installCheckPhase = ''
