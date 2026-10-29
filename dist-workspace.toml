@@ -24,7 +24,7 @@ targets = [
 ]
 checksum = "sha256"
 source-tarball = false
-include = ["COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt"]
+include = ["COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt", "manual"]
 unix-archive = ".tar.gz"
 windows-archive = ".zip"
 pr-run-mode = "plan"

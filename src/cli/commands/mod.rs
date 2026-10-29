@@ -4,6 +4,7 @@ mod basis_command;
 pub(crate) mod batch_orchestration;
 mod cache_command;
 pub(crate) mod calculation_result;
+mod docs_command;
 #[cfg(any(feature = "manpages", feature = "completions"))]
 mod generate_command;
 mod init_command;
@@ -21,6 +22,8 @@ pub(crate) use runnable::{CommandResult, Runnable};
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Open the installed manual, or the online manual for Cargo installations
+    Docs(docs_command::DocsCommand),
     /// Generate manual pages in a directory
     #[cfg(feature = "manpages")]
     Manpages(generate_command::ManpagesCommand),
@@ -56,6 +59,7 @@ pub enum Commands {
 impl Runnable for Commands {
     fn run(&self) -> CommandResult {
         match self {
+            Self::Docs(command) => command.run(),
             #[cfg(feature = "manpages")]
             Self::Manpages(command) => command.run(),
             #[cfg(feature = "completions")]

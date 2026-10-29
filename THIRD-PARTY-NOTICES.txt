@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: 865f2a50878da58249d70db4d6a0b955732889339357a385312a39a306d9326a
-Notice inputs SHA-256: a2798f029fb017dbb1fb597532c9fd7da7a0059e31ddc508e3e5690a2ebe2234
+Cargo.lock SHA-256: 16315e9707dab21119a87513bd8cbfb8743f1e3a09660197fcbd9fc237065bdf
+Notice inputs SHA-256: 2386864d88d47282d7ebe75d3078b01a201a3c06bfedf4828a335d00c6ad5f21
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -11365,6 +11365,36 @@ SOFTWARE.
 MIT License (MIT)
 
 Used by:
+  is-docker 0.2.0 — https://github.com/TheLarkInn/is-docker
+  is-wsl 0.4.0 — https://github.com/TheLarkInn/is-wsl
+
+MIT License
+
+Copyright (c) 2023 Sean Larkin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+------------------------------------------------------------------------
+MIT License (MIT)
+
+Used by:
   unit-prefix 0.5.2 — https://codeberg.org/commons-rs/unit-prefix
 
 MIT License
@@ -12145,6 +12175,39 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+------------------------------------------------------------------------
+MIT License (MIT)
+
+Used by:
+  open 5.4.5 — https://github.com/Byron/open-rs
+
+The MIT License (MIT)
+=====================
+
+Copyright © `2015` `Sebastian Thiel`
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the “Software”), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 
 
 ------------------------------------------------------------------------
@@ -32811,6 +32874,45 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Copyright statements preserved from upstream files:
 Copyright (c) 2017, Juniper Networks, Inc. All rights reserved.
 
+PACKAGE: is-docker 0.2.0
+Declared license: MIT
+Repository: https://github.com/TheLarkInn/is-docker
+Authors: Sean Larkin <TheLarkInn@users.noreply.github.com>
+
+FILE: LICENSE
+MIT License
+
+Copyright (c) 2023 Sean Larkin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+PACKAGE: is-wsl 0.4.0
+Declared license: MIT
+Repository: https://github.com/TheLarkInn/is-wsl
+Authors: Sean Larkin <TheLarkInn@users.noreply.github.com>
+
+FILE: LICENSE
+Identical text reproduced above: is-docker 0.2.0 / LICENSE
+
+Copyright statements preserved from upstream files:
+// Copyright (c) 2015 Siyu Wang
+
 PACKAGE: is_ci 1.2.0
 Declared license: ISC
 Repository: https://github.com/zkat/is_ci
@@ -37182,6 +37284,38 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+PACKAGE: open 5.4.5
+Declared license: MIT
+Repository: https://github.com/Byron/open-rs
+Authors: Sebastian Thiel <byronimo@gmail.com>
+
+FILE: LICENSE.md
+The MIT License (MIT)
+=====================
+
+Copyright © `2015` `Sebastian Thiel`
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the “Software”), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 
 PACKAGE: openssl-probe 0.2.1
 Declared license: MIT OR Apache-2.0

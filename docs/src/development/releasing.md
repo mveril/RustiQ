@@ -29,7 +29,10 @@ application. The generated workflow is `.github/workflows/release.yml`. It pins
 version reference for that action, `dist-workspace.toml` sets
 `allow-dirty = ["ci"]` so `dist plan` does not reject the exact pin as an
 out-of-date generated workflow. Keep the pin synchronized with the intended
-upload-artifact release when updating the workflow or cargo-dist.
+upload-artifact release when updating the workflow or cargo-dist. Preserve the
+custom `build-manual` job, the local-build dependency on it, and the download
+into `manual/` when regenerating the release workflow; generated defaults do
+not contain this offline-manual integration.
 
 ### Release rehearsal
 
@@ -62,7 +65,11 @@ generated plan-only check.
 
 Each executable archive includes `rustiq` (named `rustiq.exe` on Windows),
 the README, `LICENSE-MIT`, `LICENSE-APACHE`, `COPYING`, `DISTRIBUTION.md`, and
-`THIRD-PARTY-NOTICES.txt`. RustiQ-authored source retains MIT OR Apache-2.0;
+`THIRD-PARTY-NOTICES.txt`, and the complete offline manual in `manual/`.
+The release workflow builds the validated Nix book once and downloads that
+artifact into every native archive build. Archive rehearsals check the manual
+after relocating the extracted tree. See [documentation checks](documentation.md)
+for local archive preparation and the offline build process. RustiQ-authored source retains MIT OR Apache-2.0;
 Malachite and ansi_colours retain their LGPL terms. `COPYING` supplies the GPLv3
 text referenced by LGPLv3, rather than imposing GPLv3 on all RustiQ code. Unix archives use `.tar.gz`
 and Windows archives use `.zip`. Dist adds a `.sha256` file for each archive

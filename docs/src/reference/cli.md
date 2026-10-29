@@ -6,6 +6,16 @@ binary. In a source checkout without an installed executable, replace the
 `rustiq --help` and `rustiq <command> --help` show the
 options supported by the installed build.
 
+## Manual
+
+`rustiq docs` opens the offline HTML manual bundled with a release archive or
+Nix package. Cargo-only installations open the online manual. Use `--web` to
+force the online version, or `--print-path` to print the local index path or
+online URL without launching a browser. See
+[installation](../getting-started/installation.md#consult-the-manual) for
+relocation, headless use, browser selection, and incomplete-installation errors.
+PDF export is not implemented.
+
 ## Binary version and build details
 
 `rustiq --version` (or `rustiq -V`) prints the package version on one line.

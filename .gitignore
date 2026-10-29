@@ -1,5 +1,6 @@
 /target
 /docs/book/
+/manual/
 /docs/mermaid.min.js
 /docs/mermaid-init.js
 /.direnv

@@ -49,8 +49,23 @@ def test_empty_book_fails(tmp_path):
     assert len(check_links(tmp_path)) == 1
 
 
+def test_offline_rejects_runtime_cdn_assets_but_allows_reference_links(tmp_path):
+    page(
+        tmp_path,
+        "index.html",
+        '<a href="https://example.com/">Reference</a>'
+        '<script src="https://cdn.example.com/math.js"></script>'
+        '<link rel="stylesheet" href="//cdn.example.com/style.css">',
+    )
+    assert check_links(tmp_path) == []
+    errors = check_links(tmp_path, offline=True)
+    assert len(errors) == 2
+    assert all("remote runtime asset" in error for error in errors)
+
+
 def test_site_root_links_use_the_configured_pages_prefix(tmp_path):
     page(tmp_path, "index.html", '<a href="/RustiQ/">Home</a>')
     assert check_links(tmp_path, "/RustiQ/") == []
+    assert "non-relocatable" in check_links(tmp_path, "/RustiQ/", offline=True)[0]
     page(tmp_path, "index.html", '<a href="/another-site/">Outside</a>')
     assert len(check_links(tmp_path, "/RustiQ/")) == 1

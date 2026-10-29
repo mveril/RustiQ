@@ -13,7 +13,13 @@ permissions:
   contents: read
 
 jobs:
+  manual:
+    uses: ./.github/workflows/build-release-manual.yml
+    with:
+      ref: ${{ inputs.ref }}
+
   smoke:
+    needs: manual
     name: ${{ matrix.target }}
     strategy:
       fail-fast: false
@@ -93,6 +99,12 @@ jobs:
           python -c 'import re, subprocess; from pathlib import Path; v=re.search(r"cargo-dist-version\s*=\s*\"([^\"]+)\"", Path("dist-workspace.toml").read_text()).group(1); actual=subprocess.check_output(["dist", "--version"], text=True); assert v in actual, f"configured {v}, installed {actual}"'
           dist --version
 
+      - name: Download offline manual
+        uses: actions/download-artifact@v8
+        with:
+          name: offline-manual
+          path: manual
+
       - id: build
         name: Build target archive with dist
         shell: bash
@@ -154,9 +166,9 @@ jobs:
           esac
           stage=""
           if [[ "$VALIDATION_RESULT" == success ]]; then
-            checksum=verified; startup=passed; h2="RHF regression check passed"; status=PASS
+            checksum=verified; startup=passed; manual=passed; h2="RHF regression check passed"; status=PASS
           else
-            checksum="not confirmed"; startup="not confirmed"; h2="not confirmed"; status=FAIL
+            checksum="not confirmed"; startup="not confirmed"; manual="not confirmed"; h2="not confirmed"; status=FAIL
             if [[ "$INSTALL_UNIX" == failure || "$INSTALL_WINDOWS_X64" == failure || "$INSTALL_WINDOWS_ARM64" == failure ]]; then
               stage="dist installation failure"; archive="not produced"
             elif [[ "$DIST_VERSION_RESULT" == failure ]]; then
@@ -169,6 +181,7 @@ jobs:
             elif grep -q 'CHECKSUM_FAILURE' validation.log 2>/dev/null; then stage="checksum failure"
             elif grep -q 'EXTRACTION_FAILURE' validation.log 2>/dev/null; then stage="extraction failure"
             elif grep -q 'EXECUTABLE_STARTUP_FAILURE' validation.log 2>/dev/null; then stage="executable startup failure"
+            elif grep -q 'DOCUMENTATION_FAILURE' validation.log 2>/dev/null; then stage="offline manual failure"
             elif grep -q 'SCIENTIFIC_CALCULATION_FAILURE' validation.log 2>/dev/null; then stage="scientific calculation failure"
             elif grep -q 'JSON_VALIDATION_FAILURE' validation.log 2>/dev/null; then stage="JSON validation failure"
             else stage="validation failure (inspect validation.log)"
@@ -176,9 +189,9 @@ jobs:
           fi
           {
             printf '## Release rehearsal: %s\n\n' "$TARGET"
-            echo '| Target | Archive | Checksum | Executable startup | H2 calculation | Final status |'
-            echo '|---|---|---|---|---|---|'
-            printf '| `%s` | `%s` | %s | %s | %s | **%s** |\n' "$TARGET" "$archive" "$checksum" "$startup" "$h2" "$status"
+            echo '| Target | Archive | Checksum | Executable startup | Offline manual | H2 calculation | Final status |'
+            echo '|---|---|---|---|---|---|---|'
+            printf '| `%s` | `%s` | %s | %s | %s | %s | **%s** |\n' "$TARGET" "$archive" "$checksum" "$startup" "$manual" "$h2" "$status"
             if [[ "$status" == FAIL ]]; then printf '\nFailed stage: %s\n' "$stage"; fi
             echo
             echo "Built and tested on a GitHub-hosted native runner. This is not a pristine OS image."
