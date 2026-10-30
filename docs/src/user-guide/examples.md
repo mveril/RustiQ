@@ -1,13 +1,15 @@
 # Examples
 
 This curated selection introduces introductory and representative workflows; it is
-not an exhaustive catalog. See the repository’s [samples directory](https://github.com/mveril/RustiQ/tree/main/samples)
+not an exhaustive catalog. See the repository’s
+[samples directory](https://github.com/mveril/RustiQ/tree/main/samples)
 for additional molecules and advanced configurations. Those files require a source
 checkout and are not bundled with release archives.
 
 These guides use the installed `rustiq` executable. Basis sets are not distributed
 with RustiQ: download them explicitly, or import independently obtained JSON files
-with `rustiq basis import /path/to/basis.json` when offline. Automatic downloads must be enabled explicitly with `--auto-download` or
+with `rustiq basis import /path/to/basis.json` when offline. Automatic downloads
+must be enabled explicitly with `--auto-download` or
 `RUSTIQ_AUTO_DOWNLOAD`; `--no-auto-download` prevents them. See
 [basis availability](basis-sets.md) for offline and online builds.
 

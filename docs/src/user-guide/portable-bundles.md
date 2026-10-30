@@ -33,7 +33,8 @@ rustiq run h2.rustiq
 ```
 
 > [!TIP]
-> With an online-enabled build and network access, `rustiq run calculation.toml --artifact h2.rustiq --auto-download`
+> With an online-enabled build and network access,
+> `rustiq run calculation.toml --artifact h2.rustiq --auto-download`
 > fetches STO-3G if it is missing during bundle creation. Direct reruns of an
 > existing bundle need no basis download.
 

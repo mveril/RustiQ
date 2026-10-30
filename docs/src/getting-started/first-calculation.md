@@ -11,10 +11,9 @@ directory. It is the same geometry used by the checked-in sample:
 
 The explicit download is needed because `run` does not fetch missing bases
 unless `--auto-download` or `RUSTIQ_AUTO_DOWNLOAD` enables downloading.
-Use `--no-auto-download` to explicitly prevent it. The release archive contains neither
-sample inputs nor basis files. To use an existing local basis file without
+Use `--no-auto-download` to explicitly prevent it. The release archive contains
+neither sample inputs nor basis files. To use an existing local basis file without
 network access, import it with `rustiq basis import /path/to/basis.json`.
-
 
 Create an input, download STO-3G, and run the calculation:
 
@@ -25,7 +24,8 @@ rustiq run calculation.toml
 ```
 
 > [!TIP]
-> With an online-enabled build and network access, you can replace the separate download and run commands
+> With an online-enabled build and network access, you can replace the separate
+> download and run commands
 > with `rustiq run calculation.toml --auto-download` to fetch a missing basis.
 
 ## Reproducing the sample configuration without a checkout

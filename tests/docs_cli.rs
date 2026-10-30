@@ -155,15 +155,20 @@ fn standalone_manual_workflows_run_offline() {
     let root = temp.path();
     let binary = install(&root.join("installed"), false);
     let run = |args: &[&str]| {
-        let output = Command::new(&binary)
+        let mut command = Command::new(&binary);
+        command
             .current_dir(root)
             .env("RUSTIQ_DATA_HOME", root.join("data"))
+            .env_remove("RUSTIQ_DATA_BASIS")
             .env("RUSTIQ_CACHE_HOME", root.join("cache"))
             .env("RUSTIQ_AUTO_DOWNLOAD", "0")
-            .env("PATH", root)
-            .args(args)
-            .output()
-            .unwrap();
+            .env("RUSTIQ_COLOR", "never")
+            .args(args);
+        // Invoke by absolute path without external tools on Unix; Windows
+        // retains the system PATH for native dependency resolution.
+        #[cfg(unix)]
+        command.env("PATH", root);
+        let output = command.output().unwrap();
         assert!(output.status.success(), "{args:?}: {output:?}");
         String::from_utf8(output.stdout).unwrap()
     };
@@ -202,7 +207,7 @@ fn standalone_manual_workflows_run_offline() {
     let correlation = mp2["calculation"]["mp2"]["correlation_energy"]
         .as_f64()
         .unwrap();
-    assert!((correlation - -0.013138).abs() < 1e-6);
+    assert!((correlation - -0.013_138).abs() < 1e-6);
     fs::create_dir(root.join("inputs")).unwrap();
     fs::write(root.join("oh.xyz"), include_str!("../samples/oh/oh.xyz")).unwrap();
     fs::write(
@@ -217,6 +222,13 @@ fn standalone_manual_workflows_run_offline() {
         include_str!("../samples/h2/molecule.xyz"),
     )
     .unwrap();
+    fs::write(
+        root.join("inputs/h2.toml"),
+        include_str!("../samples/h2/sto-3g/calculation.toml"),
+    )
+    .unwrap();
+    let copied = run(&["run", "inputs/h2.toml", "--no-auto-download"]);
+    assert!(copied.contains("-1.116759"), "{copied}");
     fs::write(
         root.join("study.ncl"),
         include_str!("../samples/h2/study.ncl"),
