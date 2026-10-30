@@ -15,12 +15,16 @@ import other Nickel files and compute a list of related calculation records.
 The checked-in single-calculation `.ncl` input is a small starting point:
 
 ```nickel
-{{#include ../../../samples/h2/sto-3g/standalone.ncl}}
+{{#include ../../../samples/h2/sto-3g/calculation.ncl}}
 ```
 
 For the release binary, copy the H₂ geometry from the study section below to
-`molecule.xyz`, save this input as `calculation.ncl` beside it, and download
-STO-3G and run `rustiq run calculation.ncl`.
+`molecule.xyz` in your working directory. Create an `inputs` directory with
+`mkdir inputs` and save this input as `inputs/calculation.ncl`. Its
+`../molecule.xyz` path resolves without editing. Download STO-3G with
+`rustiq basis download sto-3g`, or import an independently obtained local
+JSON file with `rustiq basis import /path/to/sto-3g.json` when offline. Then
+run `rustiq run inputs/calculation.ncl`.
 
 For a source checkout, make sure STO-3G is in the local basis store, then run
 this checked-in input:

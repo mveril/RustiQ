@@ -30,12 +30,15 @@ This open-shell OH example uses neutral charge and doublet
 multiplicity, so `Auto` resolves to UHF:
 
 ```toml
-{{#include ../../../samples/oh/sto-3g/standalone.toml}}
+{{#include ../../../samples/oh/sto-3g/calculation.toml}}
 ```
 
 To run this same example with only the release binary, save the following
-geometry as `oh.xyz` and save the TOML above as `oh.toml`. Keep the neutral charge, doublet multiplicity, threshold, and DIIS settings shown above. Then
-download STO-3G and run:
+geometry as `oh.xyz` in your working directory. Create an `inputs` directory
+with `mkdir inputs` and save the TOML above as `inputs/oh.toml`. Its
+`../oh.xyz` path then resolves without editing the sample. Download STO-3G
+and run (offline, instead import an independently obtained STO-3G JSON file
+with `rustiq basis import /path/to/sto-3g.json`):
 
 ```text
 {{#include ../../../samples/oh/oh.xyz}}
@@ -43,7 +46,7 @@ download STO-3G and run:
 
 ```sh
 rustiq basis download sto-3g
-rustiq run oh.toml
+rustiq run inputs/oh.toml
 ```
 
 For a source checkout, run it after importing STO-3G:

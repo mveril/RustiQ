@@ -48,16 +48,18 @@ OH is an open-shell doublet (multiplicity 2). For this input, `Auto` selects
 UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
 
 ```toml
-{{#include ../../../samples/oh/sto-3g/standalone_mp2.toml}}
+{{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
 ```
 
 For the release binary, reuse `oh.xyz` created in the
-[HF guide](hartree-fock.md), save this input as `oh-mp2.toml`. Preserve the `1e-10` threshold and
-DIIS settings from the sample. Download STO-3G and run:
+[HF guide](hartree-fock.md), including its `inputs` directory. Save this
+input as `inputs/oh-mp2.toml`; its `../oh.xyz` path resolves to that geometry.
+Preserve the threshold and DIIS settings. Download STO-3G (or import an
+independently obtained local STO-3G JSON file when offline) and run:
 
 ```sh
 rustiq basis download sto-3g
-rustiq run oh-mp2.toml
+rustiq run inputs/oh-mp2.toml
 ```
 
 Run it from the repository root after making STO-3G available, as described in
