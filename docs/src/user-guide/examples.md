@@ -2,8 +2,9 @@
 
 These guides use the installed `rustiq` executable. Basis sets are not distributed
 with RustiQ: download them explicitly, or import independently obtained JSON files
-with `rustiq basis import /path/to/basis.json` when offline. No run downloads a
-basis implicitly unless requested with `--auto-download`.
+with `rustiq basis import /path/to/basis.json` when offline. Automatic downloads must be enabled explicitly with `--auto-download` or
+`RUSTIQ_AUTO_DOWNLOAD`; `--no-auto-download` prevents them. See
+[basis availability](basis-sets.md) for offline and online builds.
 
 | Example and objective | Basis | Guide and prerequisites |
 | --- | --- | --- |

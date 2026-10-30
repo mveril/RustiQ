@@ -136,15 +136,13 @@ the first-calculation guide. Keep its downloaded basis available for this new
 run; its geometry path resolves beside `calculation.toml`:
 
 ```sh
-rustiq run calculation.toml \
-  --reuse h2.rustiq --format json --pretty --color never
+rustiq run calculation.toml --reuse h2.rustiq --format json --pretty --color never
 ```
 
 From a source checkout, the equivalent command uses the checked-in sample:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
-  --reuse h2.rustiq --format json --pretty --color never
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --format json --pretty --color never
 ```
 
 When a runfile is executed with `--reuse` or `--artifact`, its JSON result
@@ -186,15 +184,13 @@ The archive remains read-only during reuse. To publish a new snapshot from the
 calculation, provide a new destination. For the release-binary workflow:
 
 ```sh
-rustiq run calculation.toml \
-  --reuse h2.rustiq --artifact h2-updated.rustiq
+rustiq run calculation.toml --reuse h2.rustiq --artifact h2-updated.rustiq
 ```
 
 For a source checkout, use the sample path:
 
 ```sh
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml \
-  --reuse h2.rustiq --artifact h2-updated.rustiq
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2-updated.rustiq
 ```
 
 ## What can be reused?

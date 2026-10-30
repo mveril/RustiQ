@@ -20,12 +20,14 @@ for source access, rebuilding and package redistribution requirements.
 
 ## Verify and run the executable
 
-Download the release's `sha256.sum` and all listed assets into one directory.
-On Linux or macOS, verify them before extracting:
+Download the release's `sha256.sum` beside the archive chosen for your platform.
+You do not need the archives for other platforms. Copy only the matching line
+from `sha256.sum` into a new text file named `selected.sha256`, preserving both
+the hash and filename. On Linux or macOS, verify it before extracting:
 
 ```sh
-sha256sum --check sha256.sum  # Linux
-shasum -a 256 --check sha256.sum  # macOS
+sha256sum --check selected.sha256  # Linux
+shasum -a 256 --check selected.sha256  # macOS
 ```
 
 On Windows, use PowerShell to compare the downloaded archive's computed hash
