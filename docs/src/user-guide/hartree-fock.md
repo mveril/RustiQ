@@ -49,6 +49,11 @@ rustiq basis download sto-3g
 rustiq run inputs/oh.toml
 ```
 
+> [!TIP]
+> With network access, `rustiq run inputs/oh.toml --auto-download` downloads
+> STO-3G if it is missing, then runs the calculation. You can use this instead
+> of the separate download and run commands above.
+
 For a source checkout, run it after importing STO-3G:
 
 ```sh

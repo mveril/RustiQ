@@ -23,6 +23,10 @@ First follow the local-input workflow in the
 [first-calculation guide](../getting-started/first-calculation.md). With its
 `calculation.toml` and downloaded STO-3G basis, create a bundle:
 
+STO-3G must be available for bundle creation: use
+`rustiq basis download sto-3g`, or import an independently obtained local file
+with `rustiq basis import /path/to/sto-3g.json` when offline. No additional
+basis setup is needed if you completed the first calculation.
 Choose a destination that does not already exist.
 
 ```sh
@@ -31,6 +35,11 @@ rustiq artifact inspect h2.rustiq
 rustiq artifact verify h2.rustiq
 rustiq run h2.rustiq
 ```
+
+> [!TIP]
+> With network access, `rustiq run calculation.toml --artifact h2.rustiq --auto-download`
+> fetches STO-3G if it is missing during bundle creation. Direct reruns of an
+> existing bundle need no basis download.
 
 ### Source checkout
 

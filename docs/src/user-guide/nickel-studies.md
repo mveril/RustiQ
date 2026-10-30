@@ -26,6 +26,10 @@ For the release binary, copy the H₂ geometry from the study section below to
 JSON file with `rustiq basis import /path/to/sto-3g.json` when offline. Then
 run `rustiq run inputs/calculation.ncl`.
 
+> [!TIP]
+> With network access, `rustiq run inputs/calculation.ncl --auto-download`
+> fetches STO-3G if it is missing before running the calculation.
+
 For a source checkout, make sure STO-3G is in the local basis store, then run
 this checked-in input:
 
@@ -43,7 +47,9 @@ The checked-in H₂ study maps over two basis names to produce two inputs:
 To run this study with only the release binary, save the H₂ geometry below as
 `molecule.xyz` and save the study above as `study.ncl` in the same working
 directory. The study's `molecule.geometry = "molecule.xyz"` path is relative
-to that file. Download both required bases, then run the local study:
+to that file. Both STO-3G and 6-31G must be available. Download them as shown
+below, or import independently obtained local files when offline with
+`rustiq basis import /path/to/sto-3g.json /path/to/6-31g.json`.
 
 ```text
 {{#include ../../../samples/h2/molecule.xyz}}
@@ -54,6 +60,10 @@ rustiq basis download sto-3g
 rustiq basis download 6-31g
 rustiq run study.ncl
 ```
+
+> [!TIP]
+> With network access, `rustiq run study.ncl --auto-download` fetches any
+> missing bases required by the study instead of downloading them separately.
 
 This study is sequential. For a source checkout, run it from the repository
 root after making both bases available:

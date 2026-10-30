@@ -9,6 +9,13 @@ directory. It is the same geometry used by the checked-in sample:
 {{#include ../../../samples/h2/molecule.xyz}}
 ```
 
+The explicit download is needed because `run` does not fetch missing bases
+unless `--auto-download` or `RUSTIQ_AUTO_DOWNLOAD` enables downloading.
+Use `--no-auto-download` to explicitly prevent it. The release archive contains neither
+sample inputs nor basis files. To use an existing local basis file without
+network access, import it with `rustiq basis import /path/to/basis.json`.
+
+
 Create an input, download STO-3G, and run the calculation:
 
 ```sh
@@ -17,11 +24,9 @@ rustiq basis download sto-3g
 rustiq run calculation.toml
 ```
 
-The explicit download is needed because `run` does not fetch missing bases
-unless `--auto-download` or `RUSTIQ_AUTO_DOWNLOAD` enables downloading.
-Use `--no-auto-download` to explicitly prevent it. The release archive contains neither
-sample inputs nor basis files. To use an existing local basis file without
-network access, import it with `rustiq basis import /path/to/basis.json`.
+> [!TIP]
+> With network access, you can replace the separate download and run commands
+> with `rustiq run calculation.toml --auto-download` to fetch a missing basis.
 
 ## Using the checked-in sample
 

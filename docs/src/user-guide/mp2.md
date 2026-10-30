@@ -22,12 +22,20 @@ The checked-in H₂ input requests RHF-MP2 with no frozen orbitals:
 ```
 
 With only the release binary, follow the first-calculation guide to create
-`h2.xyz` and download STO-3G. Generate and run an MP2 input with:
+`h2.xyz`. STO-3G must be available: run `rustiq basis download sto-3g`
+with network access, or import an independently obtained local file with
+`rustiq basis import /path/to/sto-3g.json` when offline. If you already ran
+that first calculation, its imported or downloaded basis is still available.
+Generate and run an MP2 input with:
 
 ```sh
 rustiq init h2.xyz --mp2 -o h2-mp2.toml
 rustiq run h2-mp2.toml
 ```
+
+> [!TIP]
+> With network access, use `rustiq run h2-mp2.toml --auto-download` to fetch
+> STO-3G if it is missing instead of downloading it separately.
 
 For a source checkout, run the checked-in sample from the repository root
 after importing STO-3G:
@@ -65,7 +73,10 @@ your working directory:
 
 Create an `inputs` directory with `mkdir inputs` if it does not already exist.
 Save the TOML above as `inputs/oh-mp2.toml`; its `../oh.xyz` path resolves to
-that geometry. Preserve the threshold and DIIS settings, then run:
+that geometry. Preserve the threshold and DIIS settings. STO-3G must be
+available before running: download it as below, or, when offline, replace the
+download command with `rustiq basis import /path/to/sto-3g.json` using an
+independently obtained local file.
 
 ```sh
 rustiq basis download sto-3g
@@ -73,12 +84,9 @@ rustiq run inputs/oh-mp2.toml
 ```
 
 > [!TIP]
-> STO-3G must be available before the calculation can run. The explicit
-> `rustiq basis download sto-3g` command above requires network access.
-> Alternatively, request the download of a missing basis explicitly with
-> `rustiq run inputs/oh-mp2.toml --auto-download`.
-> For offline use, import an independently obtained local basis first with
-> `rustiq basis import /path/to/sto-3g.json` instead of downloading it.
+> With network access, `rustiq run inputs/oh-mp2.toml --auto-download` fetches
+> STO-3G if it is missing, then runs the calculation. Use this instead of the
+> separate download and run commands above.
 
 Run it from the repository root after making STO-3G available, as described in
 the [basis-set guide](basis-sets.md):
