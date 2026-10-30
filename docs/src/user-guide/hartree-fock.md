@@ -30,24 +30,7 @@ This open-shell OH example uses neutral charge and doublet
 multiplicity, so `Auto` resolves to UHF:
 
 ```toml
-[basis]
-name = "sto-3g"
-
-[molecule]
-geometry = "oh.xyz"
-charge = 0
-multiplicity = 2
-
-[method.hf]
-method = "Auto"
-convergence_threshold = 1e-5
-
-[method.hf.guess]
-type = "CoreHamiltonian"
-
-[method.hf.diis]
-enabled = true
-max_history = 6
+{{#include ../../../samples/oh/sto-3g/standalone.toml}}
 ```
 
 To run this same example with only the release binary, save the following

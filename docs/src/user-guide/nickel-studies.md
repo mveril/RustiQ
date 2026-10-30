@@ -15,11 +15,7 @@ import other Nickel files and compute a list of related calculation records.
 The checked-in single-calculation `.ncl` input is a small starting point:
 
 ```nickel
-{
-  molecule.geometry = "molecule.xyz",
-  basis.name = "sto-3g",
-  method.hf = {},
-}
+{{#include ../../../samples/h2/sto-3g/standalone.ncl}}
 ```
 
 For the release binary, copy the H₂ geometry from the study section below to
