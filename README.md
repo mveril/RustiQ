@@ -65,8 +65,10 @@ To install from this checkout: `cargo install --locked --path .`.
 - Generate the Rust API reference with `tools/generate-rustdoc.sh --open`,
   or `.\tools\generate-rustdoc.ps1 -Open` on Windows.
 
-Build with `nix build .#book`, or preview inside `nix develop .#rust` after
-running `mdbook-mermaid install docs`, using `mdbook serve docs --open`.
-Without Nix, install `mdbook` and `mdbook-mermaid` using Cargo and run the same
-asset installation and preview commands. See
-[documentation checks](docs/src/development/documentation.md) for coverage.
+Build the offline manual with `nix build .#book`, or use
+`python tools/build-manual.py` with mdBook and mdbook-mermaid installed.
+`rustiq docs` opens the bundled manual in release archives and Nix packages;
+Cargo-only installations open the online manual. Use `rustiq docs --web` to
+force the online version, or `--print-path` for a path/URL without a browser.
+See [documentation checks](docs/src/development/documentation.md) for previewing
+and verification. PDF export is planned for later.

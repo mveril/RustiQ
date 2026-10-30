@@ -92,7 +92,20 @@ binary, available through `nix build`.
 
 The default package includes manual pages for `man rustiq` and its
 subcommands, such as `man rustiq-artifact-inspect`. Every page links to the
-online book. It also installs Bash, Zsh, and Fish completions in the standard
+online book. The package also includes the complete offline HTML manual under
+`share/doc/rustiq/manual/html`, including local equation and diagram resources. From the
+repository root:
+
+```sh
+nix build
+./result/bin/rustiq docs
+./result/bin/rustiq docs --print-path
+```
+
+Use `--web` to open the online manual. Cargo-only installations use the online
+manual by default; see [installation](../getting-started/installation.md#consult-the-manual).
+
+The package also installs Bash, Zsh, and Fish completions in the standard
 Nix locations. Shell discovery depends on your Nix profile and shell setup.
 
 Nushell, PowerShell, and Elvish scripts are provided under

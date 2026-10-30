@@ -195,6 +195,10 @@
                 mkdir -p "$out/share/doc/rustiq"
                 cp COPYING LICENSE-MIT LICENSE-APACHE DISTRIBUTION.md THIRD-PARTY-NOTICES.txt \
                   "$out/share/doc/rustiq/"
+                mkdir -p "$out/share/doc/rustiq/manual/html"
+                cp -r ${book}/. "$out/share/doc/rustiq/manual/html/"
+                # Crane rewrites installed files while removing toolchain references.
+                chmod -R u+w "$out/share/doc/rustiq"
               '';
               doInstallCheck = true;
               installCheckPhase = ''
@@ -202,6 +206,9 @@
                 "$out/bin/rustiq" --help > installed-help
                 ! grep -Eq 'manpages|completions' installed-help
                 test -s "$out/share/man/man1/rustiq.1.gz"
+                test "$("$out/bin/rustiq" docs --print-path)" = "$out/share/doc/rustiq/manual/html/index.html"
+                test -s "$out/share/doc/rustiq/manual/html/mathjax/MathJax.js"
+                test "$("$out/bin/rustiq" docs --web --print-path)" = "https://mveril.github.io/RustiQ/"
                 test -s "$out/share/man/man1/rustiq-artifact-inspect.1.gz"
                 test -s "$out/share/bash-completion/completions/rustiq.bash"
                 test -s "$out/share/zsh/site-functions/_rustiq"
@@ -366,6 +373,7 @@
                     ./samples/oh
                     ./tools/check-book-links.py
                     ./tools/test_book_links.py
+                    ./tools/build-manual.py
                   ];
                 };
                 nativeBuildInputs = [
@@ -375,19 +383,22 @@
                   pkgs.python3Packages.pytest
                   rustToolchain
                 ];
+                mathjaxArchive = pkgs.fetchurl {
+                  url = "https://registry.npmjs.org/mathjax/-/mathjax-2.7.9.tgz";
+                  sha256 = "7131e739848edc14aa661a5516995866b81a477fab8b039d7cc324930e71f786";
+                };
               }
               ''
                 cp -r "$src" source
                 chmod -R u+w source
                 cd source
-                mdbook-mermaid install docs
-                mdbook build docs
+                python tools/build-manual.py --mathjax-archive "$mathjaxArchive"
                 test -n "$(find docs/book -maxdepth 1 -name 'mermaid-*.min.js' -print -quit)"
                 test -n "$(find docs/book -maxdepth 1 -name 'mermaid-init-*.js' -print -quit)"
                 grep -q 'class="mermaid"' docs/book/user-guide/calculation-inputs.html
                 mdbook test docs
                 pytest tools/test_book_links.py
-                python tools/check-book-links.py docs/book --config docs/book.toml
+                python tools/check-book-links.py docs/book --config docs/book.toml --offline
                 mv docs/book "$out"
               '';
         in

@@ -12,6 +12,7 @@ class Page(HTMLParser):
         super().__init__()
         self.ids: set[str] = set()
         self.links: list[str] = []
+        self.remote_assets: list[str] = []
         self.feed(path.read_text(encoding="utf-8"))
 
     def handle_starttag(self, tag, attrs):
@@ -22,20 +23,35 @@ class Page(HTMLParser):
                 self.ids.add(value)
             if key in {"href", "src"}:
                 self.links.append(value)
+                if (key == "src" or tag == "link") and (
+                    urlsplit(value).scheme in {"http", "https"}
+                    or value.startswith("//")
+                ):
+                    self.remote_assets.append(value)
 
 
-def check_links(root: Path, site_url: str = "/") -> list[str]:
+def check_links(root: Path, site_url: str = "/", offline: bool = False) -> list[str]:
     root = root.resolve()
     pages = {path: Page(path) for path in root.rglob("*.html")}
     if not pages:
         return [f"No HTML pages found in {root}"]
     errors = []
     for source, page in pages.items():
+        if offline:
+            errors.extend(
+                f"{source.relative_to(root)}: remote runtime asset {link}"
+                for link in page.remote_assets
+            )
         for link in page.links:
             url = urlsplit(link)
             if url.scheme or url.netloc:
                 continue
             path = unquote(url.path)
+            if offline and path.startswith("/"):
+                errors.append(
+                    f"{source.relative_to(root)}: non-relocatable local link {link}"
+                )
+                continue
             if path.startswith("/"):
                 if not path.startswith(site_url):
                     errors.append(
@@ -66,12 +82,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("book", type=Path)
     parser.add_argument("--config", type=Path, help="mdBook configuration for site-url")
+    parser.add_argument(
+        "--offline", action="store_true", help="reject remote HTML runtime assets"
+    )
     args = parser.parse_args()
     site_url = "/"
     if args.config:
         config = tomllib.loads(args.config.read_text(encoding="utf-8"))
         site_url = config.get("output", {}).get("html", {}).get("site-url", "/")
-    errors = check_links(args.book, site_url)
+    errors = check_links(args.book, site_url, args.offline)
     if errors:
         print("\n".join(errors))
         return 1

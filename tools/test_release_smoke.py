@@ -22,8 +22,18 @@ class ReleaseSmokeTests(unittest.TestCase):
         content = self.root / "archive-content"
         content.mkdir()
         (content / "rustiq").write_text("controlled executable placeholder")
+        manual = content / "manual/html"
+        (manual / "mathjax").mkdir(parents=True)
+        for name in [
+            "index.html",
+            "mathjax/MathJax.js",
+            "mermaid-test.min.js",
+            "mermaid-init-test.js",
+        ]:
+            (manual / name).write_text("controlled manual asset")
         with tarfile.open(self.archive, "w:gz") as bundle:
             bundle.add(content / "rustiq", arcname="rustiq")
+            bundle.add(manual, arcname="manual/html")
         self.checksum = self.root / "bundle.tar.gz.sha256"
         self.checksum.write_text(hashlib.sha256(self.archive.read_bytes()).hexdigest() + "  bundle.tar.gz\n")
 
@@ -37,6 +47,10 @@ class ReleaseSmokeTests(unittest.TestCase):
                 return "usage: rustiq"
             if args == ["--version", "--verbose"]:
                 return "rustiq 0.1.0-alpha.1\n  Git commit                " + "a" * 40 + "\n"
+            if args == ["docs", "--print-path"]:
+                return str(binary.parent / "manual/html/index.html") + "\n"
+            if args == ["docs", "--web", "--print-path"]:
+                return "https://mveril.github.io/RustiQ/\n"
             if args[0] == "run":
                 if isinstance(json_output, Exception):
                     raise json_output
@@ -62,6 +76,25 @@ class ReleaseSmokeTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "lacks Git provenance"):
             self.validate(runner=execute)
+
+    def test_wrong_relocated_manual_is_rejected(self):
+        original = self.runner()
+
+        def execute(binary, args, cwd, env, log):
+            if args == ["docs", "--print-path"]:
+                return "https://mveril.github.io/RustiQ/\n"
+            return original(binary, args, cwd, env, log)
+
+        with self.assertRaisesRegex(ValueError, "DOCUMENTATION_FAILURE"):
+            self.validate(runner=execute)
+
+    def test_missing_manual_is_rejected(self):
+        binary = self.root / "archive-content/rustiq"
+        with tarfile.open(self.archive, "w:gz") as bundle:
+            bundle.add(binary, arcname="rustiq")
+        self.checksum.write_text(hashlib.sha256(self.archive.read_bytes()).hexdigest())
+        with self.assertRaisesRegex(ValueError, "lacks the complete offline manual"):
+            self.validate()
 
     def test_missing_executable(self):
         empty = self.root / "empty.tar.gz"

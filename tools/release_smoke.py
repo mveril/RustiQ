@@ -118,6 +118,9 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
             safe_extract(archive, extracted)
         except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile) as error:
             raise ValueError(f"EXTRACTION_FAILURE: {error}") from error
+        relocated = root / "relocated archive with spaces"
+        extracted.rename(relocated)
+        extracted = relocated
         binaries = [p for p in extracted.rglob("rustiq*") if p.is_file() and p.name.lower() in {"rustiq", "rustiq.exe"}]
         if len(binaries) != 1:
             raise ValueError(f"EXTRACTION_FAILURE: expected one rustiq executable in archive, found {len(binaries)}")
@@ -134,6 +137,33 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
             raise RuntimeError(f"EXECUTABLE_STARTUP_FAILURE: {error}") from error
         if not help_output.strip():
             raise ValueError("EXECUTABLE_STARTUP_FAILURE: rustiq --help produced no output")
+        try:
+            manual = binary.parent / "manual/html"
+            index = manual / "index.html"
+            if not index.is_file() or not (manual / "mathjax/MathJax.js").is_file():
+                raise ValueError("archive lacks the complete offline manual")
+            if not list(manual.glob("mermaid-*.min.js")) or not list(
+                manual.glob("mermaid-init-*.js")
+            ):
+                raise ValueError("archive lacks Mermaid assets")
+            local = command_runner(
+                binary, ["docs", "--print-path"], work, env, log_dir / "docs-local.log"
+            ).strip()
+            if Path(local) != index:
+                raise ValueError(
+                    f"relocated executable resolved the wrong manual: {local}"
+                )
+            online = command_runner(
+                binary,
+                ["docs", "--web", "--print-path"],
+                work,
+                env,
+                log_dir / "docs-web.log",
+            ).strip()
+            if online != "https://mveril.github.io/RustiQ/":
+                raise ValueError(f"unexpected online manual URL: {online}")
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+            raise ValueError(f"DOCUMENTATION_FAILURE: {error}") from error
         try:
             version_output = command_runner(binary, ["--version", "--verbose"], work, env, log_dir / "version.log")
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
