@@ -28,6 +28,16 @@ The root book-maintenance requirement applies to changes throughout the workspac
 - Keep rustdoc as the public API reference and link runnable examples and API tests. Explain architecture in the book without duplicating item-level API documentation.
 - Use `docs/src/reference/index.md` to link authoritative contracts, including Nickel defaults and validation, versioned JSON schemas, and the persistence specification. Update those contracts when required rather than redefining them only in prose.
 
+## Equations
+
+For book equations, use MathJax delimiters `\\( ... \\)` inline and
+`\\[ ... \\]` for display math. Markdown consumes one backslash, so
+write TeX commands with doubled backslashes as well. Avoid starting a
+continuation line with Markdown syntax such as `+`, which can split an
+equation into a list. Build the book and inspect the generated HTML and a
+browser-rendered equation, including multiline equations. MathJax requires
+JavaScript in the browser.
+
 ## Verification
 
 Run the documentation workflow's complete check for manual changes:

@@ -105,8 +105,7 @@ operator. The damped density is
 Because each Hartree-Fock Fock matrix is affine in the densities, the energy
 along this segment is quadratic:
 
-\\[ E(t) - E(0) = \\mathrm{slope}\\, t
-   + \\mathrm{curvature}\\, t^2. \\]
+\\[ E(t) - E(0) = \\mathrm{slope}\\, t + \\mathrm{curvature}\\, t^2. \\]
 
 \\[ \\mathrm{slope} = \\sum_\\sigma \\operatorname{Tr}
    [\\Delta P_\\sigma F_\\sigma^{(0)}], \\qquad
