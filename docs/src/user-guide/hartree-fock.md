@@ -35,7 +35,7 @@ multiplicity, so `Auto` resolves to UHF:
 
 To run this same example with only the release binary, save the following
 geometry as `oh.xyz` in your working directory. Create an `inputs` directory
-with `mkdir inputs` and save the TOML above as `inputs/oh.toml`. Its
+with `mkdir inputs` if it does not already exist, and save the TOML above as `inputs/oh.toml`. Its
 `../oh.xyz` path then resolves without editing the sample. Download STO-3G
 and run (offline, instead import an independently obtained STO-3G JSON file
 with `rustiq basis import /path/to/sto-3g.json`):
@@ -50,7 +50,7 @@ rustiq run inputs/oh.toml
 ```
 
 > [!TIP]
-> With network access, `rustiq run inputs/oh.toml --auto-download` downloads
+> With an online-enabled build and network access, `rustiq run inputs/oh.toml --auto-download` downloads
 > STO-3G if it is missing, then runs the calculation. You can use this instead
 > of the separate download and run commands above.
 

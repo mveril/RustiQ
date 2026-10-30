@@ -34,7 +34,7 @@ rustiq run h2-mp2.toml
 ```
 
 > [!TIP]
-> With network access, use `rustiq run h2-mp2.toml --auto-download` to fetch
+> With an online-enabled build and network access, use `rustiq run h2-mp2.toml --auto-download` to fetch
 > STO-3G if it is missing instead of downloading it separately.
 
 For a source checkout, run the checked-in sample from the repository root
@@ -84,7 +84,7 @@ rustiq run inputs/oh-mp2.toml
 ```
 
 > [!TIP]
-> With network access, `rustiq run inputs/oh-mp2.toml --auto-download` fetches
+> With an online-enabled build and network access, `rustiq run inputs/oh-mp2.toml --auto-download` fetches
 > STO-3G if it is missing, then runs the calculation. Use this instead of the
 > separate download and run commands above.
 

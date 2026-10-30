@@ -25,20 +25,10 @@ rustiq run calculation.toml
 ```
 
 > [!TIP]
-> With network access, you can replace the separate download and run commands
+> With an online-enabled build and network access, you can replace the separate download and run commands
 > with `rustiq run calculation.toml --auto-download` to fetch a missing basis.
 
-## Using the checked-in sample
-
-From a source checkout, run these commands from the repository root to import
-the checked-in fixture and run the example without installing RustiQ:
-
-```sh
-cargo run --locked -- basis import tests/data/sto-3g.json
-cargo run --locked -- run samples/h2/sto-3g/calculation.toml
-```
-
-CLI tests import the same fixture into an isolated store.
+## Reproducing the sample configuration without a checkout
 
 The checked-in configuration is included directly:
 
@@ -53,6 +43,20 @@ obtaining STO-3G as described above, run `rustiq run inputs/h2.toml`. The
 `../molecule.xyz` path resolves relative to the runfile directory. This is an
 alternative to the `init` workflow; keep using `calculation.toml` from that
 workflow in subsequent guides.
+
+## Using the checked-in sample
+
+From a source checkout, run these commands from the repository root to import
+the checked-in fixture and run the example without installing RustiQ:
+
+```sh
+cargo run --locked -- basis import tests/data/sto-3g.json
+cargo run --locked -- run samples/h2/sto-3g/calculation.toml
+```
+
+CLI tests import the same fixture into an isolated store.
+
+## Verifying the calculation
 
 Default input units are Angstrom; resolved coordinates are Bohr. The neutral
 singlet defaults resolve HF `Auto` to RHF. The core-Hamiltonian guess makes

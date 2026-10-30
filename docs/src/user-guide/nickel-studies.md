@@ -27,7 +27,7 @@ JSON file with `rustiq basis import /path/to/sto-3g.json` when offline. Then
 run `rustiq run inputs/calculation.ncl`.
 
 > [!TIP]
-> With network access, `rustiq run inputs/calculation.ncl --auto-download`
+> With an online-enabled build and network access, `rustiq run inputs/calculation.ncl --auto-download`
 > fetches STO-3G if it is missing before running the calculation.
 
 For a source checkout, make sure STO-3G is in the local basis store, then run
@@ -62,7 +62,7 @@ rustiq run study.ncl
 ```
 
 > [!TIP]
-> With network access, `rustiq run study.ncl --auto-download` fetches any
+> With an online-enabled build and network access, `rustiq run study.ncl --auto-download` fetches any
 > missing bases required by the study instead of downloading them separately.
 
 This study is sequential. For a source checkout, run it from the repository
