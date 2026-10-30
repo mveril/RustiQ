@@ -51,16 +51,29 @@ UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
 {{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
 ```
 
-For the release binary, reuse `oh.xyz` created in the
-[HF guide](hartree-fock.md), including its `inputs` directory. Save this
-input as `inputs/oh-mp2.toml`; its `../oh.xyz` path resolves to that geometry.
-Preserve the threshold and DIIS settings. Download STO-3G (or import an
-independently obtained local STO-3G JSON file when offline) and run:
+With only the release binary, save the following geometry as `oh.xyz` in
+your working directory:
+
+```text
+{{#include ../../../samples/oh/oh.xyz}}
+```
+
+Create an `inputs` directory with `mkdir inputs` if it does not already exist.
+Save the TOML above as `inputs/oh-mp2.toml`; its `../oh.xyz` path resolves to
+that geometry. Preserve the threshold and DIIS settings, then run:
 
 ```sh
 rustiq basis download sto-3g
 rustiq run inputs/oh-mp2.toml
 ```
+
+> [!TIP]
+> STO-3G must be available before the calculation can run. The explicit
+> `rustiq basis download sto-3g` command above requires network access.
+> Alternatively, request the download of a missing basis explicitly with
+> `rustiq run inputs/oh-mp2.toml --auto-download`.
+> For offline use, import an independently obtained local basis first with
+> `rustiq basis import /path/to/sto-3g.json` instead of downloading it.
 
 Run it from the repository root after making STO-3G available, as described in
 the [basis-set guide](basis-sets.md):
