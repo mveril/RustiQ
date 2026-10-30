@@ -48,12 +48,31 @@ OH is an open-shell doublet (multiplicity 2). For this input, `Auto` selects
 UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
 
 ```toml
-{{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
+[basis]
+name = "sto-3g"
+
+[molecule]
+geometry = "oh.xyz"
+charge = 0
+multiplicity = 2
+
+[method.hf]
+method = "Auto"
+convergence_threshold = 1e-10
+
+[method.hf.guess]
+type = "CoreHamiltonian"
+
+[method.mp2]
+frozen_orbitals = 0
+
+[method.hf.diis]
+enabled = true
+max_history = 6
 ```
 
 For the release binary, reuse `oh.xyz` created in the
-[HF guide](hartree-fock.md), save this input as `oh-mp2.toml`, and change its
-geometry path from `../oh.xyz` to `oh.xyz`. Preserve the `1e-10` threshold and
+[HF guide](hartree-fock.md), save this input as `oh-mp2.toml`. Preserve the `1e-10` threshold and
 DIIS settings from the sample. Download STO-3G and run:
 
 ```sh

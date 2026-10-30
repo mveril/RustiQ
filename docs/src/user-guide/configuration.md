@@ -8,7 +8,11 @@ shows how to create equivalent local inputs and obtain a basis.
 A TOML input describes one calculation. **TOML is the simplest choice**: you do not
 need to learn Nickel or install its executable. RustiQ embeds Nickel internally
 to supply the same defaults and validation as optional [Nickel studies](nickel-studies.md).
-Begin with the checked-in neutral H₂ example:
+For a standalone input, first create `h2.xyz` and obtain STO-3G as described in the
+[first-calculation guide](../getting-started/first-calculation.md), then run
+`rustiq init h2.xyz -o calculation.toml` and `rustiq run calculation.toml`.
+
+The checked-in neutral H₂ example below is for a source checkout:
 
 ```toml
 {{#include ../../../samples/h2/sto-3g/calculation.toml}}

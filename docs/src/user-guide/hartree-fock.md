@@ -26,17 +26,32 @@ and multiplicity; it is not a ground-state search. The user remains responsible
 for choosing the molecular state. Explicit `Rhf` or `Uhf` can also be requested
 when compatible with the electron count.
 
-This checked-in open-shell OH example uses neutral charge and doublet
+This open-shell OH example uses neutral charge and doublet
 multiplicity, so `Auto` resolves to UHF:
 
 ```toml
-{{#include ../../../samples/oh/sto-3g/calculation.toml}}
+[basis]
+name = "sto-3g"
+
+[molecule]
+geometry = "oh.xyz"
+charge = 0
+multiplicity = 2
+
+[method.hf]
+method = "Auto"
+convergence_threshold = 1e-5
+
+[method.hf.guess]
+type = "CoreHamiltonian"
+
+[method.hf.diis]
+enabled = true
+max_history = 6
 ```
 
 To run this same example with only the release binary, save the following
-geometry as `oh.xyz` and save the TOML above as `oh.toml`. In the TOML, change
-`geometry = "../oh.xyz"` to `geometry = "oh.xyz"`; keep the neutral charge,
-doublet multiplicity, `1e-5` threshold, and DIIS settings shown above. Then
+geometry as `oh.xyz` and save the TOML above as `oh.toml`. Keep the neutral charge, doublet multiplicity, threshold, and DIIS settings shown above. Then
 download STO-3G and run:
 
 ```text
@@ -55,6 +70,7 @@ rustiq basis import tests/data/sto-3g.json
 rustiq run samples/oh/sto-3g/calculation.toml
 ```
 
+The converged total HF energy is approximately `-74.362669 Hartree`.
 The open-shell CLI test and PySCF comparison are linked in
 [scientific scope](../scientific-scope.md#reference-comparisons).
 

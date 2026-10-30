@@ -91,3 +91,5 @@ These checks validate this case, not arbitrary chemistry.
 Continue with [output interpretation](output.md).
 To save and reuse the calculation's AO ERIs, continue with the
 [portable bundle guide](../user-guide/portable-bundles.md).
+
+Explore more calculations and workflows in the [examples index](../user-guide/examples.md).
