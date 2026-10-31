@@ -22,12 +22,20 @@ The checked-in H₂ input requests RHF-MP2 with no frozen orbitals:
 ```
 
 With only the release binary, follow the first-calculation guide to create
-`h2.xyz` and download STO-3G. Generate and run an MP2 input with:
+`h2.xyz`. STO-3G must be available: run `rustiq basis download sto-3g`
+with network access, or import an independently obtained local file with
+`rustiq basis import /path/to/sto-3g.json` when offline. If you already ran
+that first calculation, its imported or downloaded basis is still available.
+Generate and run an MP2 input with:
 
 ```sh
 rustiq init h2.xyz --mp2 -o h2-mp2.toml
 rustiq run h2-mp2.toml
 ```
+
+> [!TIP]
+> With an online-enabled build and network access, use `rustiq run h2-mp2.toml --auto-download` to fetch
+> STO-3G if it is missing instead of downloading it separately.
 
 For a source checkout, run the checked-in sample from the repository root
 after importing STO-3G:
@@ -36,6 +44,11 @@ after importing STO-3G:
 cargo run --locked -- basis import tests/data/sto-3g.json
 cargo run --locked -- run samples/h2/sto-3g/mp2_calculation.toml
 ```
+
+On successful completion, H₂ reports an MP2 correlation energy of approximately
+`-0.013138 Hartree`, in addition to its converged HF energy and total MP2
+energy. This is rounded output for the STO-3G case, not a general accuracy
+claim; the reference tolerances are given below.
 
 The MP2 correlation energy is the correction added to HF electronic energy.
 Total MP2 energy is HF electronic energy plus MP2 correlation energy plus
@@ -51,15 +64,29 @@ UHF, and MP2 uses the converged UHF reference. The existing OH/STO-3G input is:
 {{#include ../../../samples/oh/sto-3g/mp2_calculation.toml}}
 ```
 
-For the release binary, reuse `oh.xyz` created in the
-[HF guide](hartree-fock.md), save this input as `oh-mp2.toml`, and change its
-geometry path from `../oh.xyz` to `oh.xyz`. Preserve the `1e-10` threshold and
-DIIS settings from the sample. Download STO-3G and run:
+With only the release binary, save the following geometry as `oh.xyz` in
+your working directory:
+
+```text
+{{#include ../../../samples/oh/oh.xyz}}
+```
+
+Create an `inputs` directory with `mkdir inputs` if it does not already exist.
+Save the TOML above as `inputs/oh-mp2.toml`; its `../oh.xyz` path resolves to
+that geometry. Preserve the threshold and DIIS settings. STO-3G must be
+available before running: download it as below, or, when offline, replace the
+download command with `rustiq basis import /path/to/sto-3g.json` using an
+independently obtained local file.
 
 ```sh
 rustiq basis download sto-3g
-rustiq run oh-mp2.toml
+rustiq run inputs/oh-mp2.toml
 ```
+
+> [!TIP]
+> With an online-enabled build and network access, `rustiq run inputs/oh-mp2.toml --auto-download` fetches
+> STO-3G if it is missing, then runs the calculation. Use this instead of the
+> separate download and run commands above.
 
 Run it from the repository root after making STO-3G available, as described in
 the [basis-set guide](basis-sets.md):

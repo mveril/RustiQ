@@ -19,9 +19,16 @@ The checked-in single-calculation `.ncl` input is a small starting point:
 ```
 
 For the release binary, copy the H₂ geometry from the study section below to
-`molecule.xyz`, save this input as `calculation.ncl` beside it, and change
-`molecule.geometry` from `"../molecule.xyz"` to `"molecule.xyz"`. Download
-STO-3G and run `rustiq run calculation.ncl`.
+`molecule.xyz` in your working directory. Create an `inputs` directory with
+`mkdir inputs` and save this input as `inputs/calculation.ncl`. Its
+`../molecule.xyz` path resolves without editing. Download STO-3G with
+`rustiq basis download sto-3g`, or import an independently obtained local
+JSON file with `rustiq basis import /path/to/sto-3g.json` when offline. Then
+run `rustiq run inputs/calculation.ncl`.
+
+> [!TIP]
+> With an online-enabled build and network access, `rustiq run inputs/calculation.ncl --auto-download`
+> fetches STO-3G if it is missing before running the calculation.
 
 For a source checkout, make sure STO-3G is in the local basis store, then run
 this checked-in input:
@@ -40,7 +47,9 @@ The checked-in H₂ study maps over two basis names to produce two inputs:
 To run this study with only the release binary, save the H₂ geometry below as
 `molecule.xyz` and save the study above as `study.ncl` in the same working
 directory. The study's `molecule.geometry = "molecule.xyz"` path is relative
-to that file. Download both required bases, then run the local study:
+to that file. Both STO-3G and 6-31G must be available. Download them as shown
+below, or import independently obtained local files when offline with
+`rustiq basis import /path/to/sto-3g.json /path/to/6-31g.json`.
 
 ```text
 {{#include ../../../samples/h2/molecule.xyz}}
@@ -51,6 +60,10 @@ rustiq basis download sto-3g
 rustiq basis download 6-31g
 rustiq run study.ncl
 ```
+
+> [!TIP]
+> With an online-enabled build and network access, `rustiq run study.ncl --auto-download` fetches any
+> missing bases required by the study instead of downloading them separately.
 
 This study is sequential. For a source checkout, run it from the repository
 root after making both bases available:

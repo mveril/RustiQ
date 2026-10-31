@@ -26,7 +26,7 @@ and multiplicity; it is not a ground-state search. The user remains responsible
 for choosing the molecular state. Explicit `Rhf` or `Uhf` can also be requested
 when compatible with the electron count.
 
-This checked-in open-shell OH example uses neutral charge and doublet
+This open-shell OH example uses neutral charge and doublet
 multiplicity, so `Auto` resolves to UHF:
 
 ```toml
@@ -34,10 +34,11 @@ multiplicity, so `Auto` resolves to UHF:
 ```
 
 To run this same example with only the release binary, save the following
-geometry as `oh.xyz` and save the TOML above as `oh.toml`. In the TOML, change
-`geometry = "../oh.xyz"` to `geometry = "oh.xyz"`; keep the neutral charge,
-doublet multiplicity, `1e-5` threshold, and DIIS settings shown above. Then
-download STO-3G and run:
+geometry as `oh.xyz` in your working directory. Create an `inputs` directory
+with `mkdir inputs` if it does not already exist, and save the TOML above as `inputs/oh.toml`. Its
+`../oh.xyz` path then resolves without editing the sample. Download STO-3G
+and run (offline, instead import an independently obtained STO-3G JSON file
+with `rustiq basis import /path/to/sto-3g.json`):
 
 ```text
 {{#include ../../../samples/oh/oh.xyz}}
@@ -45,8 +46,13 @@ download STO-3G and run:
 
 ```sh
 rustiq basis download sto-3g
-rustiq run oh.toml
+rustiq run inputs/oh.toml
 ```
+
+> [!TIP]
+> With an online-enabled build and network access, `rustiq run inputs/oh.toml --auto-download` downloads
+> STO-3G if it is missing, then runs the calculation. You can use this instead
+> of the separate download and run commands above.
 
 For a source checkout, run it after importing STO-3G:
 
@@ -55,6 +61,7 @@ rustiq basis import tests/data/sto-3g.json
 rustiq run samples/oh/sto-3g/calculation.toml
 ```
 
+The converged total HF energy is approximately `-74.362669 Hartree`.
 The open-shell CLI test and PySCF comparison are linked in
 [scientific scope](../scientific-scope.md#reference-comparisons).
 

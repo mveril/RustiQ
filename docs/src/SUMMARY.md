@@ -10,6 +10,8 @@
 
 # User guides
 
+- [Examples](user-guide/examples.md)
+
 - [Calculation inputs and execution](user-guide/calculation-inputs.md)
 - [Geometry files and transformations](user-guide/geometry.md)
 - [Gaussian basis sets](user-guide/basis-sets.md)

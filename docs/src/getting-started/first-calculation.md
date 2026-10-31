@@ -9,6 +9,12 @@ directory. It is the same geometry used by the checked-in sample:
 {{#include ../../../samples/h2/molecule.xyz}}
 ```
 
+The explicit download is needed because `run` does not fetch missing bases
+unless `--auto-download` or `RUSTIQ_AUTO_DOWNLOAD` enables downloading.
+Use `--no-auto-download` to explicitly prevent it. The release archive contains
+neither sample inputs nor basis files. To use an existing local basis file without
+network access, import it with `rustiq basis import /path/to/basis.json`.
+
 Create an input, download STO-3G, and run the calculation:
 
 ```sh
@@ -17,10 +23,26 @@ rustiq basis download sto-3g
 rustiq run calculation.toml
 ```
 
-The explicit download is needed because `run` does not fetch missing bases
-unless `--auto-download` is supplied. The release archive contains neither
-sample inputs nor basis files. To use an existing local basis file without
-network access, import it with `rustiq basis import /path/to/basis.json`.
+> [!TIP]
+> With an online-enabled build and network access, you can replace the separate
+> download and run commands
+> with `rustiq run calculation.toml --auto-download` to fetch a missing basis.
+
+## Reproducing the sample configuration without a checkout
+
+The checked-in configuration is included directly:
+
+```toml
+{{#include ../../../samples/h2/sto-3g/calculation.toml}}
+```
+
+You can also copy this configuration without a checkout: save the geometry
+shown above as `molecule.xyz` in a new working directory, create an `inputs`
+directory with `mkdir inputs`, and save the TOML as `inputs/h2.toml`. After
+obtaining STO-3G as described above, run `rustiq run inputs/h2.toml`. The
+`../molecule.xyz` path resolves relative to the runfile directory. This is an
+alternative to the `init` workflow; keep using `calculation.toml` from that
+workflow in subsequent guides.
 
 ## Using the checked-in sample
 
@@ -34,15 +56,7 @@ cargo run --locked -- run samples/h2/sto-3g/calculation.toml
 
 CLI tests import the same fixture into an isolated store.
 
-The checked-in configuration is included directly:
-
-```toml
-{{#include ../../../samples/h2/sto-3g/calculation.toml}}
-```
-
-The geometry path resolves from the runfile directory. Preserve the directory
-layout if copying the sample, or copy the geometry shown above beside your
-input and update its path.
+## Verifying the calculation
 
 Default input units are Angstrom; resolved coordinates are Bohr. The neutral
 singlet defaults resolve HF `Auto` to RHF. The core-Hamiltonian guess makes
@@ -91,3 +105,5 @@ These checks validate this case, not arbitrary chemistry.
 Continue with [output interpretation](output.md).
 To save and reuse the calculation's AO ERIs, continue with the
 [portable bundle guide](../user-guide/portable-bundles.md).
+
+Explore more calculations and workflows in the [examples index](../user-guide/examples.md).

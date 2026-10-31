@@ -146,3 +146,103 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
         .unwrap()
         .contains("--print-path"));
 }
+
+// Inputs are embedded at compile time; execution needs only the relocated binary
+// and files created in this temporary directory, never a source checkout.
+#[test]
+fn standalone_manual_workflows_run_offline() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let binary = install(&root.join("installed"), false);
+    let run = |args: &[&str]| {
+        let mut command = Command::new(&binary);
+        command
+            .current_dir(root)
+            .env("RUSTIQ_DATA_HOME", root.join("data"))
+            .env_remove("RUSTIQ_DATA_BASIS")
+            .env("RUSTIQ_CACHE_HOME", root.join("cache"))
+            .env("RUSTIQ_AUTO_DOWNLOAD", "0")
+            .env("RUSTIQ_COLOR", "never")
+            .args(args);
+        // Invoke by absolute path without external tools on Unix; Windows
+        // retains the system PATH for native dependency resolution.
+        #[cfg(unix)]
+        command.env("PATH", root);
+        let output = command.output().unwrap();
+        assert!(output.status.success(), "{args:?}: {output:?}");
+        String::from_utf8(output.stdout).unwrap()
+    };
+    fs::write(root.join("sto-3g.json"), include_bytes!("data/sto-3g.json")).unwrap();
+    fs::write(
+        root.join("6-31g.json"),
+        include_bytes!("data/reference/RustiQ/basis_sets/6-31g.json"),
+    )
+    .unwrap();
+    run(&["basis", "import", "sto-3g.json", "6-31g.json"]);
+    fs::write(
+        root.join("h2.xyz"),
+        include_str!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    run(&["init", "h2.xyz", "-o", "calculation.toml"]);
+    let hf = run(&[
+        "run",
+        "calculation.toml",
+        "--no-auto-download",
+        "--artifact",
+        "h2.rustiq",
+    ]);
+    assert!(hf.contains("-1.116759"), "{hf}");
+    let verified = run(&["artifact", "verify", "h2.rustiq"]);
+    assert!(verified.contains("Verified 1 payload(s)"), "{verified}");
+    run(&["init", "h2.xyz", "--mp2", "--force"]);
+    let mp2 = run(&[
+        "run",
+        "calculation.toml",
+        "--no-auto-download",
+        "--format",
+        "json",
+    ]);
+    let mp2: serde_json::Value = serde_json::from_str(&mp2).unwrap();
+    let correlation = mp2["calculation"]["mp2"]["correlation_energy"]
+        .as_f64()
+        .unwrap();
+    assert!((correlation - -0.013_138).abs() < 1e-6);
+    fs::create_dir(root.join("inputs")).unwrap();
+    fs::write(root.join("oh.xyz"), include_str!("../samples/oh/oh.xyz")).unwrap();
+    fs::write(
+        root.join("inputs/oh.toml"),
+        include_str!("../samples/oh/sto-3g/calculation.toml"),
+    )
+    .unwrap();
+    let oh = run(&["run", "inputs/oh.toml", "--no-auto-download"]);
+    assert!(oh.contains("-74.362669"), "{oh}");
+    fs::write(
+        root.join("molecule.xyz"),
+        include_str!("../samples/h2/molecule.xyz"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("inputs/h2.toml"),
+        include_str!("../samples/h2/sto-3g/calculation.toml"),
+    )
+    .unwrap();
+    let copied = run(&["run", "inputs/h2.toml", "--no-auto-download"]);
+    assert!(copied.contains("-1.116759"), "{copied}");
+    fs::write(
+        root.join("study.ncl"),
+        include_str!("../samples/h2/study.ncl"),
+    )
+    .unwrap();
+    let study = run(&["run", "study.ncl", "--no-auto-download"]);
+    assert!(
+        study.contains("2 succeeded, 0 non-converged, 0 failed"),
+        "{study}"
+    );
+    assert!(study.contains("-1.116759"), "{study}");
+    fs::remove_dir_all(root.join("data")).unwrap();
+    fs::remove_file(root.join("h2.xyz")).unwrap();
+    fs::remove_file(root.join("calculation.toml")).unwrap();
+    let rerun = run(&["run", "h2.rustiq"]);
+    assert!(rerun.contains("-1.116759"), "{rerun}");
+}
