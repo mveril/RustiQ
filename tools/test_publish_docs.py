@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -176,6 +177,10 @@ def test_initial_migration_provenance_and_idempotence(tmp_path, capsys, seeded):
     assert not capsys.readouterr().err
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="GitHub Actions documentation publishing runs on Linux",
+)
 @pytest.mark.parametrize(
     ("tag", "on_main", "error"),
     [
