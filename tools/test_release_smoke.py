@@ -50,7 +50,7 @@ class ReleaseSmokeTests(unittest.TestCase):
             if args == ["docs", "--print-path"]:
                 return str(binary.parent / "manual/html/index.html") + "\n"
             if args == ["docs", "--web", "--print-path"]:
-                return "https://mveril.github.io/RustiQ/\n"
+                return "https://mveril.github.io/RustiQ/dev/\n"
             if args[0] == "run":
                 if isinstance(json_output, Exception):
                     raise json_output

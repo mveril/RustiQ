@@ -268,3 +268,10 @@ Cargo may time out while waiting for a published version to appear in the
 registry index even when the upload succeeded. Check the version on crates.io
 before retrying; the workflow's existence check will skip a version already
 published.
+
+Official Cargo publications embed the package version as documentation release
+metadata in the published manifest. The release manual artifact carries the
+same version to cargo-dist builds. For Nix, build `.#release` from the exact
+official release source; `.#default` is for development. Third-party packagers
+can set `RUSTIQ_DOCS_RELEASE=1` for an exact release, or `0` for development.
+The default without publication metadata is development documentation.

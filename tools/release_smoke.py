@@ -160,7 +160,10 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
                 env,
                 log_dir / "docs-web.log",
             ).strip()
-            if online != "https://mveril.github.io/RustiQ/":
+            marker = manual / "rustiq-docs-release.txt"
+            version = marker.read_text().strip() if marker.exists() else None
+            expected = f"https://mveril.github.io/RustiQ/v{version}/" if version else "https://mveril.github.io/RustiQ/dev/"
+            if online != expected:
                 raise ValueError(f"unexpected online manual URL: {online}")
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
             raise ValueError(f"DOCUMENTATION_FAILURE: {error}") from error

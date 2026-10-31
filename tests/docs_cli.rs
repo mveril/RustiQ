@@ -172,10 +172,7 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
             vec![],
             format!("file://{}", manual.join("index.html").display()),
         ),
-        (
-            vec!["--web"],
-            "https://mveril.github.io/RustiQ/dev/".to_owned(),
-        ),
+        (vec!["--web"], expected_online()),
     ] {
         let mut command = Command::new(&binary);
         command

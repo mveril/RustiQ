@@ -73,9 +73,12 @@ rustiq docs --print-path
 launcher, independently of HTML file associations. `--web` forces
 the online manual for the compiled release version; development builds use
 [the development manual](https://mveril.github.io/RustiQ/dev/). The choice is
-made at build time without a network lookup. A build without Git or Cargo
-package provenance uses development documentation; packagers can set
-`RUSTIQ_DOCS_RELEASE=1` when building an exact release source. `--print-path` prints the
+made at build time without a network lookup. Ordinary source builds use development documentation. Official release builds
+set release metadata at build time; packagers of an exact release may set
+`RUSTIQ_DOCS_RELEASE=1` to select its versioned manual. Set it to `0` to
+force development documentation. Other values are invalid. Published crates
+include release metadata, and Nix packagers can use `nix build .#release`
+for an official release source. `--print-path` prints the
 absolute local index path without starting a browser; combine it with `--web`
 to print the online URL instead. On headless machines, copy the manual tree to
 another machine and open its `index.html`, or use the printed URL in a browser
