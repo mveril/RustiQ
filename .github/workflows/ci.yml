@@ -122,7 +122,7 @@ jobs:
           uv run --locked --python ${{ matrix.python-version }} python --version
           uv run --locked --python ${{ matrix.python-version }} ruff --version
           uv run --locked --python ${{ matrix.python-version }} pytest --version
-          uv run --locked --python ${{ matrix.python-version }} pytest tools/test_book_links.py tools/test_release_smoke.py tools/benchmarks tools/reference -m "not requires_rust" -k "not reads_rust"
+          uv run --locked --python ${{ matrix.python-version }} pytest tools/test_book_links.py tools/test_publish_docs.py tools/test_release_smoke.py tools/benchmarks tools/reference -m "not requires_rust" -k "not reads_rust"
 
       - name: Test Rust and NumPy persistence interoperability on Windows
         if: matrix.os == 'windows-latest' && matrix.python-version == '3.12'
