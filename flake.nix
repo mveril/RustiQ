@@ -230,10 +230,11 @@
 
           rustiqRelease = rustiq.overrideAttrs (old: {
             RUSTIQ_DOCS_RELEASE = "1";
-            installCheckPhase = builtins.replaceStrings
-              [ "https://mveril.github.io/RustiQ/dev/" ]
-              [ "https://mveril.github.io/RustiQ/v${cargoToml.package.version}/" ]
-              old.installCheckPhase;
+            installCheckPhase =
+              builtins.replaceStrings
+                [ "https://mveril.github.io/RustiQ/dev/" ]
+                [ "https://mveril.github.io/RustiQ/v${cargoToml.package.version}/" ]
+                old.installCheckPhase;
           });
 
           pythonBase = pkgs.callPackage pyproject-nix.build.packages {
