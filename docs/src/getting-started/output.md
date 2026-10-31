@@ -12,6 +12,16 @@ The standard `run` report has three visible parts:
 - **Numerical results:** SCF convergence information, energy values, overlap
   rank, energy components, and timings. The H₂ sample's total HF energy is
   reported as `-1.116759` Hartree.
+The first sample resolves to neutral singlet H₂, RHF, STO-3G, and two basis
+functions. Input coordinates are Angstrom; resolved coordinates are Bohr.
+Energies are in Hartree.
+
+- **Electronic energy:** electronic kinetic energy, electron–nuclear attraction,
+  and electron–electron interaction at the HF level.
+- **Nuclear repulsion energy:** repulsion between the fixed nuclei.
+- **Total HF energy:** electronic energy plus nuclear repulsion.
+- **SCF convergence:** the iterative solution met its configured criterion.
+  This does not establish basis completeness or accuracy against experiment.
 
 With colors enabled, section titles are cyan, successful SCF convergence is
 green, and displayed energy values are yellow. The same energy-value styling is
@@ -26,17 +36,6 @@ the standard CLI report does not display them.
 Portable bundles can retain the scientific input snapshots and AO ERIs for
 later inspection and compatible reuse. They do not save the energies or the HF
 wavefunction; see [portable calculation bundles](../user-guide/portable-bundles.md).
-
-The first sample resolves to neutral singlet H₂, RHF, STO-3G, and two basis
-functions. Input coordinates are Angstrom; resolved coordinates are Bohr.
-Energies are in Hartree.
-
-- **Electronic energy:** electronic kinetic energy, electron–nuclear attraction,
-  and electron–electron interaction at the HF level.
-- **Nuclear repulsion energy:** repulsion between the fixed nuclei.
-- **Total HF energy:** electronic energy plus nuclear repulsion.
-- **SCF convergence:** the iterative solution met its configured criterion.
-  This does not establish basis completeness or accuracy against experiment.
 
 ## Convergence and overlap diagnostics
 

@@ -4,9 +4,11 @@
 )]
 
 use std::{
-    fs,
+    fs, io,
     path::Path,
     process::{Command, Output},
+    thread,
+    time::Duration,
 };
 
 fn install(root: &Path, nix: bool) -> std::path::PathBuf {
@@ -37,7 +39,43 @@ fn docs(binary: &Path, args: &[&str], cwd: &Path) -> Output {
     // failing BROWSER command. The executable under test is invoked by path.
     #[cfg(unix)]
     command.env("PATH", cwd);
-    command.output().unwrap()
+    run_output(&mut command)
+}
+
+fn run_output(command: &mut Command) -> Output {
+    // Linux can briefly return ETXTBSY when a freshly installed executable is
+    // still being finalized by the filesystem. Retry only that transient
+    // process-start error; preserve all other failures for the test to report.
+    let mut last_error = None;
+    for _ in 0..40 {
+        match command.output() {
+            Ok(output) => return output,
+            Err(error) if is_executable_busy(&error) => {
+                last_error = Some(error);
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(error) => return unwrap_output(Err(error)),
+        }
+    }
+    unwrap_output(Err(
+        last_error.expect("a busy executable error was observed")
+    ))
+}
+
+fn unwrap_output(output: io::Result<Output>) -> Output {
+    output.unwrap()
+}
+
+fn is_executable_busy(error: &io::Error) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        error.raw_os_error() == Some(26) // ETXTBSY
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = error;
+        false
+    }
 }
 
 #[test]
@@ -119,28 +157,28 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
         ),
         (vec!["--web"], "https://mveril.github.io/RustiQ/".to_owned()),
     ] {
-        let output = Command::new(&binary)
+        let mut command = Command::new(&binary);
+        command
             .arg("docs")
             .args(args)
             .env("BROWSER", &browser)
             .env("BROWSER_LOG", &log)
-            .env("PATH", temp.path())
-            .output()
-            .unwrap();
+            .env("PATH", temp.path());
+        let output = run_output(&mut command);
         assert!(output.status.success(), "{output:?}");
         assert_eq!(
             fs::read_to_string(&log).unwrap(),
             format!("1\n{expected}\n")
         );
     }
-    let failed = Command::new(binary)
+    let mut command = Command::new(binary);
+    command
         .arg("docs")
         .env("BROWSER", browser)
         .env("BROWSER_LOG", log)
         .env("BROWSER_STATUS", "1")
-        .env("PATH", temp.path())
-        .output()
-        .unwrap();
+        .env("PATH", temp.path());
+    let failed = run_output(&mut command);
     assert!(!failed.status.success());
     assert!(String::from_utf8(failed.stderr)
         .unwrap()
@@ -168,7 +206,7 @@ fn standalone_manual_workflows_run_offline() {
         // retains the system PATH for native dependency resolution.
         #[cfg(unix)]
         command.env("PATH", root);
-        let output = command.output().unwrap();
+        let output = run_output(&mut command);
         assert!(output.status.success(), "{args:?}: {output:?}");
         String::from_utf8(output.stdout).unwrap()
     };

@@ -101,9 +101,9 @@ import does not access the network. See the
 ## Build and install from source
 
 Contributors and users building from a checkout need Git, Rust through
-[rustup](https://rustup.rs/), a C/C++ build toolchain, and CMake. Follow the
-[manual setup](../development/manual-setup.md#install-and-build), then run
-these commands from the repository root:
+[rustup](https://rustup.rs/), a C/C++ build toolchain, and CMake. Clone from a
+parent directory, then run Cargo commands from the checkout root. For complete
+prerequisite and platform details, see the [manual setup](../development/manual-setup.md#install-and-build).
 
 ```sh
 git clone https://github.com/mveril/RustiQ.git
