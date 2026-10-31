@@ -4,9 +4,11 @@
 )]
 
 use std::{
-    fs,
+    fs, io,
     path::Path,
     process::{Command, Output},
+    thread,
+    time::Duration,
 };
 
 fn install(root: &Path, nix: bool) -> std::path::PathBuf {
@@ -37,7 +39,35 @@ fn docs(binary: &Path, args: &[&str], cwd: &Path) -> Output {
     // failing BROWSER command. The executable under test is invoked by path.
     #[cfg(unix)]
     command.env("PATH", cwd);
-    command.output().unwrap()
+    // Linux can briefly return ETXTBSY when a freshly installed executable is
+    // still being finalized by the filesystem. Retry only that transient
+    // process-start error; preserve all other failures for the test to report.
+    for attempt in 0..10 {
+        match command.output() {
+            Ok(output) => return output,
+            Err(error) if is_executable_busy(&error) && attempt < 9 => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return unwrap_output(Err(error)),
+        }
+    }
+    unreachable!("the final retry either returns or panics")
+}
+
+fn unwrap_output(output: io::Result<Output>) -> Output {
+    output.unwrap()
+}
+
+fn is_executable_busy(error: &io::Error) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        error.raw_os_error() == Some(26) // ETXTBSY
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = error;
+        false
+    }
 }
 
 #[test]
