@@ -1,10 +1,9 @@
 # Nix packages and shells
 
-The packages below are declared in [`flake.nix`](https://github.com/mveril/RustiQ/blob/main/flake.nix). The four
-shells are cumulative: `mini-rust` supplies the Rust build essentials, `rust`
-adds Rust development tools, `mini-pyscf` adds the Python reference-test
-environment to the minimal Rust shell, and `full` combines the complete Rust
-and scientific Python environments. `nix develop` selects `full` by default.
+The packages below are declared in [`flake.nix`](https://github.com/mveril/RustiQ/blob/main/flake.nix). All four
+shells share Rust build essentials. `rust` adds Rust development tools;
+`mini-pyscf` adds the Python reference-test environment to the minimal Rust
+shell; `full` combines both extensions. `nix develop` selects `full` by default.
 
 Use `nix develop .#<shell>` to enter a named shell. The `direnv` setup can
 select the same names with `RUSTIQ_DEV_SHELL`; see [Development

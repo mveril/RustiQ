@@ -52,8 +52,10 @@ claim; the reference tolerances are given below.
 
 The MP2 correlation energy is the correction added to HF electronic energy.
 Total MP2 energy is HF electronic energy plus MP2 correlation energy plus
-nuclear repulsion. The correlation energy is usually negative, but its sign
-and size depend on the system and reference.
+nuclear repulsion. For the implemented canonical RHF/UHF references with
+occupied orbitals below virtual orbitals and finite denominators, the
+second-order correction is nonpositive. A positive value should prompt
+investigation of orbital ordering, the reference, or numerical inputs.
 
 ## Open-shell UHF-MP2 example
 
@@ -127,8 +129,9 @@ available memory; explicit byte sizes such as `"500 MB"` can also be set.
 
 This workspace budget is **not a limit on total process memory**. It excludes
 already resident HF data and atomic-orbital integrals, allocator overhead, and
-other numerical-library scratch space. Even a single required block may exceed
-a very small budget. See the source for
+other numerical-library scratch space. If one required block cannot fit within
+the budget, the calculation returns an error; it does not exceed the budget to
+allocate that block. See the source for
 [`Mp2MemoryPlan`](https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/mp2/blocked.rs)
 and the authoritative Nickel defaults in the
 [input contract](../reference/index.md).

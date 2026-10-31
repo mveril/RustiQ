@@ -90,6 +90,16 @@ route, not the HF model.
 The DIIS method is associated with Pulay's extrapolation approach
 ([Pulay, 1982](https://onlinelibrary.wiley.com/doi/10.1002/jcc.540030413)).
 
+The default maximum is 100 iterations. The default `convergence_threshold` is
+\\(10^{-8}\\). Both the absolute change in electronic energy between iterations
+and the Frobenius norm of the AO commutator residual must fall below this
+threshold. The energy change is in Hartree; the residual is \\(FPS-SPF\\). For
+UHF, alpha and beta residual norms combine as
+\\(\\sqrt{r_\\alpha^2+r_\\beta^2}\\). This threshold is not a bound on final
+energy error.
+
+If SCF reaches its iteration limit, inspect the energy and residual history, then try enabling DIIS or a different initial guess. First confirm geometry units, charge, multiplicity, and basis. Treat numerical errors separately from iteration-limit outcomes, and do not interpret an unconverged result as a valid solution.
+
 Enabling DIIS also enables an energy safeguard in RHF and UHF. Once the
 density has the required electron populations, a step that raises the
 electronic energy beyond a roundoff allowance clears the DIIS history and
@@ -142,17 +152,6 @@ guarantee the global HF minimum or stability
 against spin symmetry breaking.
 For background on UHF damping, see
 [Yamamoto and Mochizuki (2014)](https://doi.org/10.1273/cbij.14.14).
-
-The default maximum is 100 iterations. The default `convergence_threshold` is
-\\(10^{-8}\\). Both the absolute change in electronic energy between iterations
-and the Frobenius norm of the AO commutator residual must fall below this
-threshold. Its energy-change part is in Hartree. The residual is
-\\(FPS-SPF\\), where \\(F\\), \\(P\\), and \\(S\\) are the Fock, density, and
-overlap matrices; it measures inconsistency between the density and its Fock
-operator. The Frobenius norm is the square root of the sum of squared matrix
-entries. For UHF, alpha and beta (the two electron spin channels) residual norms
-are combined as \\(\sqrt{r_\alpha^2+r_\beta^2}\\). The threshold is applied to
-both diagnostics; it is not a bound on the final energy error.
 
 The AO basis functions overlap. RustiQ diagonalizes their overlap matrix and
 discards directions whose eigenvalues are at or below the configured relative

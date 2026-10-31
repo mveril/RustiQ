@@ -1,7 +1,9 @@
 # Scientific scope and limitations
 
 RustiQ is experimental software for molecular electronic energies at a fixed
-geometry. A successful run or reference comparison does not establish
+geometry. The implemented model uses the nonrelativistic, clamped point-nucleus
+electronic Hamiltonian: nuclei do not move, and relativistic corrections are
+not included. A successful run or reference comparison does not establish
 research-grade correctness. Independently validate the method, basis, molecular
 state, convergence, and quantities relevant to your research against established
 packages before drawing chemical conclusions.
