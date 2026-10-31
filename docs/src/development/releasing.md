@@ -113,6 +113,34 @@ The archive target identifies the operating system and CPU architecture; it
 does not guarantee compatibility with every Linux distribution or older
 system library. The Linux GNU archives require a compatible glibc runtime.
 
+## Maintaining the changelog
+
+Maintain the repository-root [CHANGELOG.md](https://github.com/mveril/RustiQ/blob/main/CHANGELOG.md)
+by hand using Keep a Changelog categories and concise, user-facing entries.
+
+1. Add notable implemented changes under `Unreleased` during development.
+2. Review and edit the entries before each release, checking capabilities and
+   limitations against the current code, tests, and documentation.
+3. During release preparation, move the relevant entries into a versioned
+   section, such as `## [0.1.0-beta.1] - YYYY-MM-DD`.
+4. Replace `YYYY-MM-DD` with the actual release date and update the changelog's
+   version and comparison links.
+5. Leave an empty `## [Unreleased]` section for future changes, omitting empty
+   categories.
+6. After updating package versions as described below, run
+   `dist plan --tag v0.1.0-beta.1 --output-format=json` (substitute the intended
+   tag). Check that `announcement_github_body` contains the intended version's
+   changelog entries and limitations, rather than only artifact download notes.
+7. Finalize and commit the changelog with the release preparation changes
+   before creating the release tag.
+
+Dist 0.33.0 has [built-in changelog support](https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html).
+It discovers the root changelog and selects the matching version section for
+release notes. It can also use `Unreleased` for prereleases, but release
+preparation should still finalize a dated version section. The existing
+workflow passes dist's `announcement_github_body` to `gh release create`;
+no separate release-note generator or workflow change is needed.
+
 ## Preparing a release
 
 From the repository root, update the version in both package manifests and
