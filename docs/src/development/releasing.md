@@ -134,6 +134,34 @@ by hand using Keep a Changelog categories and concise, user-facing entries.
 7. Finalize and commit the changelog with the release preparation changes
    before creating the release tag.
 
+The first public beta should document the capabilities available at launch.
+For subsequent beta releases, describe incremental changes instead of repeating
+the complete feature inventory.
+
+Before the first release, preserve the existing `Unreleased` link to the main
+branch's commit history: no beta release tag exists yet. When preparing
+`v0.1.0-beta.1`, finalize the entries under a dated version heading and leave
+`Unreleased` ready for future changes:
+
+```markdown
+## [Unreleased]
+
+## [0.1.0-beta.1] - YYYY-MM-DD
+```
+
+Replace `YYYY-MM-DD` with the actual publication date. As part of that release
+preparation, set the reference links to the following convention, which applies
+after the first release:
+
+```markdown
+[Unreleased]: https://github.com/mveril/RustiQ/compare/v0.1.0-beta.1...HEAD
+[0.1.0-beta.1]: https://github.com/mveril/RustiQ/releases/tag/v0.1.0-beta.1
+```
+
+For each subsequent release, add its version link and update the `Unreleased`
+comparison to start from the latest published version. Until release preparation
+begins, do not finalize the beta section or add links to an unpublished release.
+
 Dist 0.33.0 has [built-in changelog support](https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html).
 It discovers the root changelog and selects the matching version section for
 release notes. It can also use `Unreleased` for prereleases, but release
@@ -164,7 +192,7 @@ cargo install cargo-about --version 0.9.2 --locked
 python3 tools/distribution.py notices
 python3 tools/distribution.py check
 cargo deny --locked --workspace --all-features check
-git add Cargo.toml crates/rustiq-core/Cargo.toml Cargo.lock THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.sha256
+git add CHANGELOG.md Cargo.toml crates/rustiq-core/Cargo.toml Cargo.lock THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.sha256
 git commit -m "Prepare release X.Y.Z"
 ```
 
@@ -221,7 +249,9 @@ if the Nixpkgs package differs:
 cargo install cargo-dist --version 0.33.0 --locked
 ```
 
-Commit and push the version changes, then create and push the matching tag:
+Finalize the dated changelog section and its reference links, and commit it with
+the release preparation changes above before creating the matching tag. Push
+the release commit and tag:
 
 ```sh
 git tag vX.Y.Z
