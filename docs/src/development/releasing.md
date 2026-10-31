@@ -213,6 +213,12 @@ and requires its commit to be an ancestor of `main` before artifact builds can
 proceed. This accepts prerelease suffixes such as `-alpha.1`. A failed
 validation blocks the build and therefore the publishing jobs.
 
+After pushing the tag, check the Publish documentation workflow and open the
+matching `/RustiQ/vX.Y.Z/` manual. Check `versions.json` for the tag and its
+source commit, and verify the appropriate `beta/` or `stable/` alias. Historical
+version directories remain unchanged when later releases are published; see
+[documentation checks](documentation.md#published-versions).
+
 ## crates.io publication
 
 Nickel 0.19's published dependency graph currently includes

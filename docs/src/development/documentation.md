@@ -108,6 +108,39 @@ Verification coverage is explicit:
   its numerical reference, tolerance, and reproduction command.
 
 The Documentation workflow validates pull requests and supports manual runs.
-Publish documentation runs on pushes to `main` and deploys the validated book
+Publish documentation runs on pushes to `main` and release tags and deploys the validated book
 to GitHub Pages. Set the repository's Pages source to **GitHub Actions**.
 PR builds have no Pages write permission.
+
+### Published versions
+
+Pushes to `main` publish the current book at `/RustiQ/dev/`. Version tags
+publish immutable snapshots at `/RustiQ/vX.Y.Z/`, for example
+`/RustiQ/v0.1.0-beta.1/`; a retry fails if the stored
+commit or generated content differs. The `gh-pages` branch stores the complete
+assembled site, including earlier snapshots. GitHub Pages must remain configured
+to deploy using **GitHub Actions**, not from that branch. Publication is
+serialized, and pull requests only validate the book.
+
+`/RustiQ/beta/` points to the highest published beta and
+`/RustiQ/stable/` to the highest stable release; the stable alias appears only
+when a stable release exists. The root serves the highest release, or development
+before the first release, and retains older root paths for existing links.
+`/RustiQ/versions.json` lists releases in descending SemVer order, their URLs,
+channels and source commit IDs, along with the latest aliases and development URL.
+The index is static and does not require an API. The offline book remains separate.
+
+For a local assembly test, run `python tools/publish-docs.py result SITE COMMIT
+--development`, or replace `--development` with `--version v0.1.0-beta.1`.
+`COMMIT` is the full source commit ID and `SITE` is a writable directory. For
+example, the index contains entries of this form (the commit is abbreviated
+here for readability):
+
+```json
+{
+  "development": "/RustiQ/dev/",
+  "latest_beta": "v0.1.0-beta.1",
+  "latest_stable": null,
+  "versions": [{"version": "v0.1.0-beta.1", "url": "/RustiQ/v0.1.0-beta.1/", "channel": "beta", "commit": "..."}]
+}
+```
