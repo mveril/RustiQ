@@ -8,6 +8,7 @@ mod provenance;
 fn main() -> Result<(), Box<dyn Error>> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
     emit_build_info(&manifest_dir)?;
+    emit_docs_release(&manifest_dir);
     let source_dir = manifest_dir.join("assets");
     let target_dir = PathBuf::from(env::var("OUT_DIR")?).join("bat-assets");
 
@@ -25,6 +26,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     Ok(())
+}
+
+fn emit_docs_release(manifest_dir: &std::path::Path) {
+    use std::process::Command;
+
+    println!("cargo:rerun-if-env-changed=RUSTIQ_DOCS_RELEASE");
+    let explicit = env::var("RUSTIQ_DOCS_RELEASE").ok();
+    let tag = format!("v{}", env!("CARGO_PKG_VERSION"));
+    let git_dir = manifest_dir.join(".git");
+    let released = explicit.map_or_else(
+        || {
+            if !git_dir.exists() {
+                return manifest_dir.join(".cargo_vcs_info.json").is_file();
+            }
+            println!("cargo:rerun-if-changed={}", git_dir.join("HEAD").display());
+            Command::new("git")
+                .args(["describe", "--exact-match", "--tags", "--dirty"])
+                .current_dir(manifest_dir)
+                .output()
+                .is_ok_and(|output| {
+                    output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == tag
+                })
+        },
+        |value| value == "1",
+    );
+    println!("cargo:rustc-env=RUSTIQ_DOCS_RELEASE={released}");
 }
 
 fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
