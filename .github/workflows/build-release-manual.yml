@@ -21,8 +21,25 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3
       - name: Build and validate offline manual
         run: nix build .#book
+      - name: Prepare release artifact
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cp -rL result manual-artifact
+          chmod -R u+w manual-artifact
+          if [ "$REF_TYPE" = tag ]; then
+            python3 - "$RELEASE_TAG" <<'PYCODE'
+          import pathlib, sys, tomllib
+          with open('Cargo.toml', 'rb') as f:
+              version = tomllib.load(f)['package']['version']
+          if sys.argv[1] != 'v' + version:
+              raise SystemExit('release tag does not match package version')
+          pathlib.Path('manual-artifact/rustiq-docs-release.txt').write_text(version + '\n')
+          PYCODE
+          fi
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: offline-manual
-          path: result/
+          path: manual-artifact/
           if-no-files-found: error

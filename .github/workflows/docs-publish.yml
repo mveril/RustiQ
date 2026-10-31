@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: docs-pages
-  cancel-in-progress: false
+  queue: max
 
 jobs:
   build:
@@ -70,10 +70,14 @@ jobs:
             git -C /tmp/rustiq-pages commit -m 'Update published documentation'
             git -C /tmp/rustiq-pages push origin HEAD:gh-pages
           fi
+      - name: Prepare Pages artifact
+        run: |
+          mkdir -p /tmp/rustiq-site
+          rsync -a --exclude=/.git /tmp/rustiq-pages/ /tmp/rustiq-site/
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: /tmp/rustiq-pages
+          path: /tmp/rustiq-site
 
   deploy:
     name: Publish the manual

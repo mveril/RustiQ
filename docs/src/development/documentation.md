@@ -124,10 +124,14 @@ serialized, and pull requests only validate the book.
 
 `/RustiQ/beta/` points to the highest published beta and
 `/RustiQ/stable/` to the highest stable release; the stable alias appears only
-when a stable release exists. The root serves the highest release, or development
-before the first release, and retains older root paths for existing links.
+when a stable release exists. The root redirects to development. On the first publication, existing root HTML
+paths become redirects to the corresponding development pages; a page removed
+from development will lead to its 404 page. Root assets are removed during this
+one-time migration, and future publications do not overlay root files. The first publication also creates redirects for current book pages. To preserve
+paths removed from the book before migration, seed `gh-pages` with the existing
+published root tree before the first publication.
 `/RustiQ/versions.json` lists releases in descending SemVer order, their URLs,
-channels and source commit IDs, along with the latest aliases and development URL.
+channels and source commit IDs, along with the latest aliases and development URL. URLs in the index are relative to the site root.
 The index is static and does not require an API. The offline book remains separate.
 
 For a local assembly test, run `python tools/publish-docs.py result SITE COMMIT
@@ -138,9 +142,20 @@ here for readability):
 
 ```json
 {
-  "development": "/RustiQ/dev/",
+  "legacy_redirects": true,
+  "development": "dev/",
   "latest_beta": "v0.1.0-beta.1",
   "latest_stable": null,
-  "versions": [{"version": "v0.1.0-beta.1", "url": "/RustiQ/v0.1.0-beta.1/", "channel": "beta", "commit": "..."}]
+  "versions": [{"version": "v0.1.0-beta.1", "url": "v0.1.0-beta.1/", "channel": "beta", "commit": "..."}]
 }
 ```
+
+### Repository rename
+
+The current public Pages base remains `https://mveril.github.io/RustiQ/`.
+After renaming the repository to `mveril/rustiq`, configure Pages to deploy via
+GitHub Actions, update the documentation base URL and the site-specific 404
+base, then publish and verify the new site and release links. GitHub repository
+redirects do not guarantee redirects for the old Pages URL: arrange and verify
+a separate redirect for the old Pages site before relying on existing links.
+Previously published binary URLs cannot be changed.
