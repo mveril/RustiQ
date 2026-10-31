@@ -30,6 +30,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           python3 - "$RELEASE_TAG" <<'PY'
           import importlib.util, sys, tomllib
           spec = importlib.util.spec_from_file_location('publisher', 'tools/publish-docs.py')
@@ -41,6 +42,11 @@ jobs:
           if sys.argv[1] != 'v' + version:
               raise SystemExit(f'tag {sys.argv[1]} does not match package version {version}')
           PY
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$(git rev-parse HEAD)" FETCH_HEAD; then
+            echo "release tags must point to a commit on main" >&2
+            exit 1
+          fi
       - name: Build offline manual
         run: nix build .#book
       - name: Assemble and store site

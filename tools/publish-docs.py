@@ -119,6 +119,7 @@ def publish(book, site, revision, version=None):
         # Migrate existing root pages once into redirects to dev. Existing assets
         # are discarded; subsequent publications never overlay the root.
         legacy = {page.relative_to(prepared) for page in prepared.rglob("*.html")}
+        historical = set()
         if not metadata.get("legacy_redirects") and site.exists():
             for page in site.rglob("*.html"):
                 relative = page.relative_to(site)
@@ -128,7 +129,18 @@ def publish(book, site, revision, version=None):
                     "beta",
                     "stable",
                 } and not PATTERN.fullmatch(relative.parts[0]):
-                    legacy.add(relative)
+                    historical.add(relative)
+            legacy.update(historical)
+        migration_source = metadata.get("legacy_source")
+        if not metadata.get("legacy_redirects"):
+            migration_source = "existing-root" if historical else "current-book-only"
+            if not historical:
+                print(
+                    "warning: no historical root HTML files found; only current book "
+                    "paths receive redirects. Seed gh-pages before initial publication "
+                    "to preserve removed historical paths.",
+                    file=sys.stderr,
+                )
         site.mkdir(parents=True, exist_ok=True)
         if not metadata.get("legacy_redirects"):
             for child in site.iterdir():
@@ -143,7 +155,7 @@ def publish(book, site, revision, version=None):
                     else:
                         child.unlink()
             for relative in legacy:
-                if relative != Path("index.html"):
+                if relative not in {Path("index.html"), Path("404.html")}:
                     redirect(
                         site / relative,
                         "../" * (len(relative.parts) - 1)
@@ -159,8 +171,15 @@ def publish(book, site, revision, version=None):
                     shutil.rmtree(alias_dir)
                 redirect(alias_dir / "index.html", f"../{entry['version']}/")
         redirect(site / "index.html", "dev/")
+        # Pages serves this file at arbitrary missing URLs. Never resolve its
+        # destination relative to the requested path, or redirect to another 404.
+        fallback = (
+            "dev" if (site / "dev/index.html").is_file() else entries[0]["version"]
+        )
+        redirect(site / "404.html", f"/RustiQ/{fallback}/")
         output = {
             "legacy_redirects": True,
+            "legacy_source": migration_source,
             "development": "dev/",
             "latest_beta": beta["version"] if beta else None,
             "latest_stable": stable["version"] if stable else None,
