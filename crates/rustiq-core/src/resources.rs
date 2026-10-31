@@ -26,13 +26,10 @@ fn automatic_mp2_memory_limit() -> ByteSize {
 }
 
 fn available_memory() -> Option<u64> {
-    if !sysinfo::IS_SUPPORTED_SYSTEM {
-        return None;
-    }
-
     let mut system = System::new_with_specifics(
         RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()),
-    );
+    )
+    .ok()?;
     let host_available = system.available_memory();
 
     let cgroup_available = get_current_pid().ok().and_then(|pid| {

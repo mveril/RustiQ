@@ -38,7 +38,7 @@ relative-path.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"], optional = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 serde.workspace = true
-sha2 = "0.11.0"
+sha2 = "0.11.1"
 delegate.workspace = true
 bounded-vec-deque = "0.1.1"
 thiserror.workspace = true
@@ -48,7 +48,7 @@ petname = { version = "3.1", default-features = false }
 rand_distr = "0.6"
 special = { version = "0.14", default-features = false, features = ["std"] }
 factorial = "0.4.0"
-nutype = "0.7"
+nutype = "0.8"
 const_format = "0.2"
 smallvec = "1"
 tempfile.workspace = true

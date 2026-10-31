@@ -42,11 +42,11 @@ proptest = "1"
 rand = "0.10"
 rayon = "1"
 relative-path = { version = "2", features = ["serde"] }
-rstest = "0.27"
+rstest = "0.28"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.*"
 supports-hyperlinks = "3"
-sysinfo = { version = "0.39.6", default-features = false, features = [
+sysinfo = { version = "0.40.1", default-features = false, features = [
   "system",
 ] }
 temp-env = "0.3"
@@ -115,7 +115,7 @@ webbrowser = "1"
 vergen-gix = { version = "10", features = ["cargo", "rustc"] }
 approx.workspace = true
 criterion = "0.8"
-jsonschema = { version = "0.29", default-features = false }
+jsonschema = { version = "0.60", default-features = false }
 rstest.workspace = true
 proptest.workspace = true
 temp-env.workspace = true

@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: 586dc8ca91e49d6cfb6686ab8c6acabfe35ec46f10751d51d02151002754f89d
-Notice inputs SHA-256: f1d99b08377fd2a017afc39f13d75cc4e409e2c5fbd2904bab6e8e7d94749d4a
+Cargo.lock SHA-256: 8430f098f4265f70862bfb13fb51dc69355bcf95795549bbe6b14455750c5c07
+Notice inputs SHA-256: c76bb452a0a910d8743d26c58175297d1864ab015089a26358e50b70038ca3aa
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -1078,8 +1078,8 @@ Used by:
 Apache License 2.0 (Apache-2.0)
 
 Used by:
-  rstest 0.27.0 — https://github.com/la10736/rstest
-  rstest_macros 0.27.0 — https://github.com/la10736/rstest
+  rstest 0.28.0 — https://github.com/la10736/rstest
+  rstest_macros 0.28.0 — https://github.com/la10736/rstest
 
 
                                  Apache License
@@ -2352,8 +2352,8 @@ Used by:
 Apache License 2.0 (Apache-2.0)
 
 Used by:
-  zerocopy-derive 0.8.56 — https://github.com/google/zerocopy
-  zerocopy 0.8.56 — https://github.com/google/zerocopy
+  zerocopy-derive 0.8.63 — https://github.com/google/zerocopy
+  zerocopy 0.8.63 — https://github.com/google/zerocopy
 
                                  Apache License
                            Version 2.0, January 2004
@@ -3620,6 +3620,10 @@ Apache License 2.0 (Apache-2.0)
 
 Used by:
   clap_complete 4.6.11 — https://github.com/clap-rs/clap
+  toml_datetime 1.1.2+spec-1.1.0 — https://github.com/toml-rs/toml
+  toml_edit 0.25.17+spec-1.1.0 — https://github.com/toml-rs/toml
+  toml_parser 1.1.5+spec-1.1.0 — https://github.com/toml-rs/toml
+  toml_writer 1.1.3+spec-1.1.0 — https://github.com/toml-rs/toml
 
                                  Apache License
                            Version 2.0, January 2004
@@ -3830,6 +3834,7 @@ Apache License 2.0 (Apache-2.0)
 
 Used by:
   bytecount 0.6.9 — https://github.com/llogiq/bytecount
+  unicode-general-category 1.1.0 — https://github.com/yeslogic/unicode-general-category
   winapi 0.3.9 — https://github.com/retep998/winapi-rs
 
                                  Apache License
@@ -4065,10 +4070,6 @@ Used by:
   toml 0.9.12+spec-1.1.0 — https://github.com/toml-rs/toml
   toml 1.1.6+spec-1.1.0 — https://github.com/toml-rs/toml
   toml_datetime 0.7.5+spec-1.1.0 — https://github.com/toml-rs/toml
-  toml_datetime 1.1.1+spec-1.1.0 — https://github.com/toml-rs/toml
-  toml_edit 0.25.15+spec-1.1.0 — https://github.com/toml-rs/toml
-  toml_parser 1.1.3+spec-1.1.0 — https://github.com/toml-rs/toml
-  toml_writer 1.1.2+spec-1.1.0 — https://github.com/toml-rs/toml
 
                                  Apache License
                            Version 2.0, January 2004
@@ -6803,12 +6804,12 @@ Used by:
   backtrace 0.3.76 — https://github.com/rust-lang/backtrace-rs
   base64 0.22.1 — https://github.com/marshallpierce/rust-base64
   base64 0.23.1 — https://github.com/marshallpierce/rust-base64
-  bitflags 2.13.1 — https://github.com/bitflags/bitflags
+  bitflags 2.13.2 — https://github.com/bitflags/bitflags
   bstr 1.13.1 — https://github.com/BurntSushi/bstr
   bumpalo 3.20.3 — https://github.com/fitzgen/bumpalo
   cast 0.3.0 — https://github.com/japaric/cast.rs
   cc 1.4.5 — https://github.com/rust-lang/cc-rs
-  cfg-if 1.0.4 — https://github.com/rust-lang/cfg-if
+  cfg-if 1.0.5 — https://github.com/rust-lang/cfg-if
   cmake 0.1.58 — https://github.com/rust-lang/cmake-rs
   core-foundation-sys 0.8.7 — https://github.com/servo/core-foundation-rs
   core-foundation 0.10.1 — https://github.com/servo/core-foundation-rs
@@ -6821,7 +6822,7 @@ Used by:
   displaydoc 0.2.7 — https://github.com/yaahc/displaydoc
   either 1.18.0 — https://github.com/rayon-rs/either
   ena 0.14.4 — https://github.com/rust-lang/ena
-  equivalent 1.0.2 — https://github.com/indexmap-rs/equivalent
+  equivalent 1.0.3 — https://github.com/indexmap-rs/equivalent
   errno 0.3.14 — https://github.com/lambda-fairy/rust-errno
   fastrand 2.5.0 — https://github.com/smol-rs/fastrand
   filetime 0.2.29 — https://github.com/alexcrichton/filetime
@@ -6830,7 +6831,7 @@ Used by:
   flate2 1.1.10 — https://github.com/rust-lang/flate2-rs
   fnv 1.0.7 — https://github.com/servo/rust-fnv
   form_urlencoded 1.2.2 — https://github.com/servo/rust-url
-  fraction 0.15.4 — https://github.com/dnsl48/fraction.git
+  fraction 0.17.0 — https://github.com/dnsl48/fraction.git
   futures-timer 3.0.4 — https://github.com/async-rs/futures-timer
   gimli 0.32.3 — https://github.com/gimli-rs/gimli
   gix-imara-diff 0.2.5 — https://github.com/GitoxideLabs/gitoxide
@@ -6856,7 +6857,6 @@ Used by:
   js-sys 0.3.105 — https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
   lalrpop-util 0.23.1 — https://github.com/lalrpop/lalrpop
   lalrpop 0.23.1 — https://github.com/lalrpop/lalrpop
-  lazy_static 1.5.1 — https://github.com/rust-lang-nursery/lazy-static.rs
   linux-raw-sys 0.12.1 — https://github.com/sunfishcode/linux-raw-sys
   lock_api 0.4.14 — https://github.com/Amanieu/parking_lot
   log 0.4.34 — https://github.com/rust-lang/log
@@ -6908,7 +6908,7 @@ Used by:
   signal-hook 0.3.18 — https://github.com/vorner/signal-hook
   signal-hook 0.4.5 — https://github.com/vorner/signal-hook
   simd_cesu8 1.2.0 — https://github.com/seancroach/simd_cesu8
-  smallvec 1.16.0 — https://github.com/servo/rust-smallvec
+  smallvec 1.16.4 — https://github.com/servo/rust-smallvec
   socket2 0.6.5 — https://github.com/rust-lang/socket2
   stable_deref_trait 1.2.1 — https://github.com/storyyeller/stable_deref_trait
   string_cache 0.9.0 — https://github.com/servo/string-cache
@@ -6923,7 +6923,6 @@ Used by:
   unicode-width 0.2.2 — https://github.com/unicode-rs/unicode-width
   unicode-xid 0.2.6 — https://github.com/unicode-rs/unicode-xid
   url 2.5.8 — https://github.com/servo/rust-url
-  uuid 1.27.0 — https://github.com/uuid-rs/uuid
   version_check 0.9.5 — https://github.com/SergioBenitez/version_check
   wait-timeout 0.2.1 — https://github.com/alexcrichton/wait-timeout
   wasi 0.11.1+wasi-snapshot-preview1 — https://github.com/bytecodealliance/wasi
@@ -7581,7 +7580,7 @@ Used by:
   sha1-checked 0.10.0 — https://github.com/RustCrypto/hashes
   sha1 0.10.7 — https://github.com/RustCrypto/hashes
   sha1 0.11.0 — https://github.com/RustCrypto/hashes
-  sha2 0.11.0 — https://github.com/RustCrypto/hashes
+  sha2 0.11.1 — https://github.com/RustCrypto/hashes
   sha3 0.10.9 — https://github.com/RustCrypto/hashes
 
                               Apache License
@@ -9391,7 +9390,7 @@ Used by:
   jni-macros 0.22.4 — https://github.com/jni-rs/jni-rs
   jni-sys-macros 0.4.1 — https://github.com/jni-rs/jni-sys
   jni 0.22.4 — https://github.com/jni-rs/jni-rs
-  libc 0.2.189 — https://github.com/rust-lang/libc
+  libc 0.2.191 — https://github.com/rust-lang/libc
   litrs 1.0.0 — https://github.com/LukasKalbertodt/litrs
   miniz_oxide 0.8.9 — https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
   miniz_oxide 0.9.1 — https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
@@ -9431,20 +9430,20 @@ Used by:
   serde 1.0.229 — https://github.com/serde-rs/serde
   serde_core 1.0.229 — https://github.com/serde-rs/serde
   serde_derive 1.0.229 — https://github.com/serde-rs/serde
-  serde_json 1.0.151 — https://github.com/serde-rs/json
+  serde_json 1.0.154 — https://github.com/serde-rs/json
   serde_yaml 0.9.34+deprecated — https://github.com/dtolnay/serde-yaml
   shlex 2.0.1 — https://github.com/comex/rust-shlex
   simdutf8 0.1.5 — https://github.com/rusticstuff/simdutf8
   special 0.14.1 — https://github.com/stainless-steel/special
   syn 2.0.119 — https://github.com/dtolnay/syn
-  syn 3.0.5 — https://github.com/dtolnay/syn
+  syn 3.0.9 — https://github.com/dtolnay/syn
   sync_wrapper 1.0.2 — https://github.com/Actyx/sync_wrapper
   thiserror-impl 2.0.20 — https://github.com/dtolnay/thiserror
   thiserror 2.0.20 — https://github.com/dtolnay/thiserror
   time-core 0.1.9 — https://github.com/time-rs/time
   time 0.3.55 — https://github.com/time-rs/time
   typed-path 0.12.3 — https://github.com/chipsenkbeil/typed-path
-  unicode-ident 1.0.24 — https://github.com/dtolnay/unicode-ident
+  unicode-ident 1.0.27 — https://github.com/dtolnay/unicode-ident
   utf8parse 0.2.2 — https://github.com/alacritty/vte
   vte 0.14.1 — https://github.com/alacritty/vte
   winapi-i686-pc-windows-gnu 0.4.0 — https://github.com/retep998/winapi-rs
@@ -10972,6 +10971,33 @@ THE SOFTWARE.
 MIT License (MIT)
 
 Used by:
+  micromap 0.3.0 — https://github.com/yegor256/micromap
+
+Copyright (c) 2023-2026 Yegor Bugayenko
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+------------------------------------------------------------------------
+MIT License (MIT)
+
+Used by:
   synstructure 0.13.2 — https://github.com/mystor/synstructure
 
 Copyright 2016 Nika Layzell
@@ -11341,6 +11367,36 @@ SOFTWARE.
 MIT License (MIT)
 
 Used by:
+  strum 0.28.0 — https://github.com/Peternator7/strum
+  strum_macros 0.28.0 — https://github.com/Peternator7/strum
+
+MIT License
+
+Copyright (c) 2019 Peter Glotfelty
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+------------------------------------------------------------------------
+MIT License (MIT)
+
+Used by:
   email_address 0.2.9 — https://github.com/johnstonskj/rust-email_address.git
 
 MIT License
@@ -11416,12 +11472,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 MIT License (MIT)
 
 Used by:
-  jsonschema 0.29.1 — https://github.com/Stranger6667/jsonschema
-  referencing 0.29.1 — https://github.com/Stranger6667/jsonschema
+  jsonschema 0.60.2 — https://github.com/Stranger6667/jsonschema
+  referencing 0.60.2 — https://github.com/Stranger6667/jsonschema
 
 MIT License
 
-Copyright (c) 2020-2025 Dmitry Dygalo
+Copyright (c) 2020-2026 Dmitry Dygalo
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -11593,7 +11649,7 @@ SOFTWARE.
 MIT License (MIT)
 
 Used by:
-  fluent-uri 0.3.2 — https://github.com/yescallop/fluent-uri-rs
+  fluent-uri 0.4.1 — https://github.com/yescallop/fluent-uri-rs
 
 MIT License
 
@@ -11651,6 +11707,8 @@ MIT License (MIT)
 
 Used by:
   factorial 0.4.0 — https://github.com/thomwiggers/factorial/
+  jsonschema-regex 0.60.2 — https://github.com/Stranger6667/jsonschema
+  jsonschema-value 0.60.2 — https://github.com/Stranger6667/jsonschema
   kinded 0.5.1 — https://github.com/greyblake/kinded
   kinded_macros 0.5.1 — https://github.com/greyblake/kinded
   libm 0.2.16 — https://github.com/rust-lang/compiler-builtins
@@ -11658,8 +11716,8 @@ Used by:
   nickel-lang-parser 0.4.0 — https://github.com/tweag/nickel
   nickel-lang-vector 0.2.0 — https://github.com/tweag/nickel
   npyz 0.9.1 — https://github.com/ExpHP/npyz
-  nutype 0.7.0 — https://github.com/greyblake/nutype
-  nutype_macros 0.7.0 — https://github.com/greyblake/nutype
+  nutype 0.8.0 — https://github.com/greyblake/nutype
+  nutype_macros 0.8.0 — https://github.com/greyblake/nutype
   objc2-encode 4.1.0 — https://github.com/madsmtm/objc2
   objc2-foundation 0.3.2 — https://github.com/madsmtm/objc2
   objc2 0.6.5 — https://github.com/madsmtm/objc2
@@ -11840,7 +11898,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 MIT License (MIT)
 
 Used by:
-  fancy-regex 0.14.0 — https://github.com/fancy-regex/fancy-regex
+  fancy-regex 0.19.2 — https://github.com/fancy-regex/fancy-regex
 
 The MIT License
 
@@ -12025,7 +12083,7 @@ SOFTWARE.
 MIT License (MIT)
 
 Used by:
-  sysinfo 0.39.6 — https://github.com/GuillaumeGomez/sysinfo
+  sysinfo 0.40.1 — https://github.com/GuillaumeGomez/sysinfo
 
 The MIT License (MIT)
 
@@ -12079,6 +12137,36 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+
+
+------------------------------------------------------------------------
+MIT License (MIT)
+
+Used by:
+  data-encoding 2.11.1 — https://github.com/ia0/data-encoding
+
+The MIT License (MIT)
+
+Copyright (c) 2015-2020 Julien Cretin
+Copyright (c) 2017-2020 Google Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 
 ------------------------------------------------------------------------
@@ -13299,7 +13387,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 Unicode License v3 (Unicode-3.0)
 
 Used by:
-  unicode-ident 1.0.24 — https://github.com/dtolnay/unicode-ident
+  unicode-ident 1.0.27 — https://github.com/dtolnay/unicode-ident
   unicode-normalization 0.1.26 — https://github.com/unicode-rs/unicode-normalization
 
 UNICODE LICENSE V3
@@ -24395,7 +24483,7 @@ DEALINGS IN THE SOFTWARE.
 Copyright statements preserved from upstream files:
 // Copyright 2014 The Rust Project Developers. See the COPYRIGHT
 
-PACKAGE: bitflags 2.13.1
+PACKAGE: bitflags 2.13.2
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/bitflags/bitflags
 Authors: The Rust Project Developers
@@ -26331,7 +26419,7 @@ Identical text reproduced above: addr2line 0.25.1 / LICENSE-APACHE
 FILE: LICENSE-MIT
 Identical text reproduced above: backtrace 0.3.76 / LICENSE-MIT
 
-PACKAGE: cfg-if 1.0.4
+PACKAGE: cfg-if 1.0.5
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/rust-lang/cfg-if
 Authors: Alex Crichton <alex@alexcrichton.com>
@@ -28041,6 +28129,35 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+PACKAGE: data-encoding 2.11.1
+Declared license: MIT
+Repository: https://github.com/ia0/data-encoding
+Authors: (not declared)
+
+FILE: LICENSE
+The MIT License (MIT)
+
+Copyright (c) 2015-2020 Julien Cretin
+Copyright (c) 2017-2020 Google Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 PACKAGE: defmt 0.3.101
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/knurling-rs/defmt
@@ -29176,7 +29293,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Copyright statements preserved from upstream files:
 // Copyright © WHATWG (Apple, Google, Mozilla, Microsoft).
 
-PACKAGE: equivalent 1.0.2
+PACKAGE: equivalent 1.0.3
 Declared license: Apache-2.0 OR MIT
 Repository: https://github.com/indexmap-rs/equivalent
 Authors: (not declared)
@@ -29255,10 +29372,10 @@ Declared license: MIT
 Repository: https://github.com/thomwiggers/factorial/
 Authors: Thom Wiggers <thom@thomwiggers.nl>
 
-PACKAGE: fancy-regex 0.14.0
+PACKAGE: fancy-regex 0.19.2
 Declared license: MIT
 Repository: https://github.com/fancy-regex/fancy-regex
-Authors: Raph Levien <raph@google.com>, Robin Stocker <robin@nibor.org>
+Authors: Raph Levien <raph@google.com>, Robin Stocker <robin@nibor.org>, Keith Hall <keith.hall@available.systems>
 
 FILE: LICENSE
 The MIT License
@@ -29286,6 +29403,8 @@ THE SOFTWARE.
 Copyright statements preserved from upstream files:
 * Copyright (c) 2019  K.Kosako
 // Copyright 2016 The Fancy Regex Authors.
+// Copyright 2025 The Fancy Regex Authors.
+// Copyright 2026 The Fancy Regex Authors.
 Copyright (c) 2002-2019  K.Kosako  <kkosako0@gmail.com>
 
 PACKAGE: faster-hex 0.10.1
@@ -29427,7 +29546,7 @@ DEALINGS IN THE SOFTWARE.
 Copyright statements preserved from upstream files:
 // Copyright 2013 The Rust Project Developers. See the COPYRIGHT
 
-PACKAGE: fluent-uri 0.3.2
+PACKAGE: fluent-uri 0.4.1
 Declared license: MIT
 Repository: https://github.com/yescallop/fluent-uri-rs
 Authors: Scallop Ye <yescallop@gmail.com>
@@ -29562,7 +29681,7 @@ DEALINGS IN THE SOFTWARE.
 Copyright statements preserved from upstream files:
 // Copyright 2013-2016 The rust-url developers.
 
-PACKAGE: fraction 0.15.4
+PACKAGE: fraction 0.17.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/dnsl48/fraction.git
 Authors: dnsl48 <dnsl48@gmail.com>
@@ -33271,7 +33390,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-PACKAGE: jsonschema 0.29.1
+PACKAGE: jsonschema 0.60.2
 Declared license: MIT
 Repository: https://github.com/Stranger6667/jsonschema
 Authors: Dmitry Dygalo <dmitry@dygalo.dev>
@@ -33279,7 +33398,7 @@ Authors: Dmitry Dygalo <dmitry@dygalo.dev>
 FILE: LICENSE
 MIT License
 
-Copyright (c) 2020-2025 Dmitry Dygalo
+Copyright (c) 2020-2026 Dmitry Dygalo
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -33298,6 +33417,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+PACKAGE: jsonschema-regex 0.60.2
+Declared license: MIT
+Repository: https://github.com/Stranger6667/jsonschema
+Authors: Dmitry Dygalo <dmitry@dygalo.dev>
+
+PACKAGE: jsonschema-value 0.60.2
+Declared license: MIT
+Repository: https://github.com/Stranger6667/jsonschema
+Authors: Dmitry Dygalo <dmitry@dygalo.dev>
 
 PACKAGE: keccak 0.1.6
 Declared license: Apache-2.0 OR MIT
@@ -33632,21 +33761,7 @@ SOFTWARE.
 Copyright statements preserved from upstream files:
 // Copyright 2024-2026 Johanna Sörngård
 
-PACKAGE: lazy_static 1.5.1
-Declared license: MIT OR Apache-2.0
-Repository: https://github.com/rust-lang-nursery/lazy-static.rs
-Authors: Marvin Löbel <loebel.marvin@gmail.com>
-
-FILE: LICENSE-APACHE
-Identical text reproduced above: addr2line 0.25.1 / LICENSE-APACHE
-
-FILE: LICENSE-MIT
-Identical text reproduced above: adler2 2.0.1 / LICENSE-MIT
-
-Copyright statements preserved from upstream files:
-// Copyright 2016 lazy-static.rs Developers
-
-PACKAGE: libc 0.2.189
+PACKAGE: libc 0.2.191
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/rust-lang/libc
 Authors: (not declared)
@@ -35161,6 +35276,38 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+PACKAGE: micromap 0.3.0
+Declared license: MIT
+Repository: https://github.com/yegor256/micromap
+Authors: (not declared)
+
+FILE: LICENSE.txt
+Copyright (c) 2023-2026 Yegor Bugayenko
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Copyright statements preserved from upstream files:
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 Yegor Bugayenko
+// SPDX-FileCopyrightText: Copyright (c) 2023-2026 Yegor Bugayenko
+// SPDX-FileCopyrightText: Copyright (c) 2025 owtotwo
+Copyright (c) 2023-2026 Yegor Bugayenko
 
 PACKAGE: miette 7.6.0
 Declared license: Apache-2.0
@@ -37167,12 +37314,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-PACKAGE: nutype 0.7.0
+PACKAGE: nutype 0.8.0
 Declared license: MIT
 Repository: https://github.com/greyblake/nutype
 Authors: Serhii Potapov <blake131313@gmail.com>
 
-PACKAGE: nutype_macros 0.7.0
+PACKAGE: nutype_macros 0.8.0
 Declared license: MIT
 Repository: https://github.com/greyblake/nutype
 Authors: Serhii Potapov <blake131313@gmail.com>
@@ -40609,13 +40756,13 @@ Identical text reproduced above: allocator-api2 0.2.21 / LICENSE-APACHE
 FILE: LICENSE-MIT
 Identical text reproduced above: adler2 2.0.1 / LICENSE-MIT
 
-PACKAGE: referencing 0.29.1
+PACKAGE: referencing 0.60.2
 Declared license: MIT
 Repository: https://github.com/Stranger6667/jsonschema
 Authors: Dmitry Dygalo <dmitry@dygalo.dev>
 
 FILE: LICENSE
-Identical text reproduced above: jsonschema 0.29.1 / LICENSE
+Identical text reproduced above: jsonschema 0.60.2 / LICENSE
 
 PACKAGE: regex 1.13.1
 Declared license: MIT OR Apache-2.0
@@ -41412,7 +41559,7 @@ Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
 FILE: LICENSE-MIT
 Identical text reproduced above: anstream 1.0.0 / LICENSE-MIT
 
-PACKAGE: rstest 0.27.0
+PACKAGE: rstest 0.28.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/la10736/rstest
 Authors: Michele d'Amico <michele.damico@gmail.com>
@@ -41641,16 +41788,16 @@ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTIO
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-PACKAGE: rstest_macros 0.27.0
+PACKAGE: rstest_macros 0.28.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/la10736/rstest
 Authors: Michele d'Amico <michele.damico@gmail.com>
 
 FILE: LICENSE-APACHE
-Identical text reproduced above: rstest 0.27.0 / LICENSE-APACHE
+Identical text reproduced above: rstest 0.28.0 / LICENSE-APACHE
 
 FILE: LICENSE-MIT
-Identical text reproduced above: rstest 0.27.0 / LICENSE-MIT
+Identical text reproduced above: rstest 0.28.0 / LICENSE-MIT
 
 PACKAGE: rustc-demangle 0.1.28
 Declared license: MIT/Apache-2.0
@@ -42580,10 +42727,10 @@ Identical text reproduced above: allocator-api2 0.2.21 / LICENSE-APACHE
 FILE: LICENSE-MIT
 Identical text reproduced above: adler2 2.0.1 / LICENSE-MIT
 
-PACKAGE: serde_json 1.0.151
+PACKAGE: serde_json 1.0.154
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/serde-rs/json
-Authors: Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>
+Authors: (not declared)
 
 FILE: LICENSE-APACHE
 Identical text reproduced above: allocator-api2 0.2.21 / LICENSE-APACHE
@@ -42718,7 +42865,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-PACKAGE: sha2 0.11.0
+PACKAGE: sha2 0.11.1
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/RustCrypto/hashes
 Authors: RustCrypto Developers
@@ -43455,7 +43602,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-PACKAGE: smallvec 1.16.0
+PACKAGE: smallvec 1.16.4
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/servo/rust-smallvec
 Authors: The Servo Project Developers
@@ -43736,6 +43883,42 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+PACKAGE: strum 0.28.0
+Declared license: MIT
+Repository: https://github.com/Peternator7/strum
+Authors: Peter Glotfelty <peter.glotfelty@microsoft.com>
+
+FILE: LICENSE
+MIT License
+
+Copyright (c) 2019 Peter Glotfelty
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+PACKAGE: strum_macros 0.28.0
+Declared license: MIT
+Repository: https://github.com/Peternator7/strum
+Authors: Peter Glotfelty <peter.glotfelty@microsoft.com>
+
+FILE: LICENSE
+Identical text reproduced above: strum 0.28.0 / LICENSE
+
 PACKAGE: subtle 2.6.1
 Declared license: BSD-3-Clause
 Repository: https://github.com/dalek-cryptography/subtle
@@ -43821,7 +44004,7 @@ Identical text reproduced above: allocator-api2 0.2.21 / LICENSE-APACHE
 FILE: LICENSE-MIT
 Identical text reproduced above: adler2 2.0.1 / LICENSE-MIT
 
-PACKAGE: syn 3.0.5
+PACKAGE: syn 3.0.9
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/dtolnay/syn
 Authors: David Tolnay <dtolnay@gmail.com>
@@ -43888,7 +44071,7 @@ SOFTWARE.
 Copyright statements preserved from upstream files:
 // Copyright 2013 The Rust Project Developers. See the COPYRIGHT
 
-PACKAGE: sysinfo 0.39.6
+PACKAGE: sysinfo 0.40.1
 Declared license: MIT
 Repository: https://github.com/GuillaumeGomez/sysinfo
 Authors: Guillaume Gomez <guillaume1.gomez@gmail.com>
@@ -45071,46 +45254,46 @@ Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
 FILE: LICENSE-MIT
 Identical text reproduced above: anstream 1.0.0 / LICENSE-MIT
 
-PACKAGE: toml_datetime 1.1.1+spec-1.1.0
+PACKAGE: toml_datetime 1.1.2+spec-1.1.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/toml-rs/toml
 Authors: (not declared)
 
 FILE: LICENSE-APACHE
-Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
+Identical text reproduced above: clap_complete 4.6.11 / LICENSE-APACHE
 
 FILE: LICENSE-MIT
 Identical text reproduced above: anstream 1.0.0 / LICENSE-MIT
 
-PACKAGE: toml_edit 0.25.15+spec-1.1.0
+PACKAGE: toml_edit 0.25.17+spec-1.1.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/toml-rs/toml
 Authors: (not declared)
 
 FILE: LICENSE-APACHE
-Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
+Identical text reproduced above: clap_complete 4.6.11 / LICENSE-APACHE
 
 FILE: LICENSE-MIT
 Identical text reproduced above: anstream 1.0.0 / LICENSE-MIT
 
-PACKAGE: toml_parser 1.1.3+spec-1.1.0
+PACKAGE: toml_parser 1.1.5+spec-1.1.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/toml-rs/toml
 Authors: (not declared)
 
 FILE: LICENSE-APACHE
-Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
+Identical text reproduced above: clap_complete 4.6.11 / LICENSE-APACHE
 
 FILE: LICENSE-MIT
 Identical text reproduced above: anstream 1.0.0 / LICENSE-MIT
 
-PACKAGE: toml_writer 1.1.2+spec-1.1.0
+PACKAGE: toml_writer 1.1.3+spec-1.1.0
 Declared license: MIT OR Apache-2.0
 Repository: https://github.com/toml-rs/toml
 Authors: (not declared)
 
 FILE: LICENSE-APACHE
-Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
+Identical text reproduced above: clap_complete 4.6.11 / LICENSE-APACHE
 
 FILE: LICENSE-MIT
 Identical text reproduced above: anstream 1.0.0 / LICENSE-MIT
@@ -45814,7 +45997,15 @@ Apache License
 Copyright statements preserved from upstream files:
 // Copyright © 2018 Phil Booth
 
-PACKAGE: unicode-ident 1.0.24
+PACKAGE: unicode-general-category 1.1.0
+Declared license: Apache-2.0
+Repository: https://github.com/yeslogic/unicode-general-category
+Authors: YesLogic Pty. Ltd. <info@yeslogic.com>
+
+FILE: LICENSE
+Identical text reproduced above: bytecount 0.6.9 / LICENSE.Apache2
+
+PACKAGE: unicode-ident 1.0.27
 Declared license: (MIT OR Apache-2.0) AND Unicode-3.0
 Repository: https://github.com/dtolnay/unicode-ident
 Authors: David Tolnay <dtolnay@gmail.com>
@@ -45895,7 +46086,7 @@ FILE: LICENSE-MIT
 Identical text reproduced above: gimli 0.32.3 / LICENSE-MIT
 
 FILE: LICENSE-UNICODE
-Identical text reproduced above: unicode-ident 1.0.24 / LICENSE-UNICODE
+Identical text reproduced above: unicode-ident 1.0.27 / LICENSE-UNICODE
 
 Copyright statements preserved from upstream files:
 # Copyright 2011-2018 The Rust Project Developers. See the COPYRIGHT
@@ -46173,48 +46364,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-
-PACKAGE: uuid 1.27.0
-Declared license: Apache-2.0 OR MIT
-Repository: https://github.com/uuid-rs/uuid
-Authors: Ashley Mannix<ashleymannix@live.com.au>, Dylan DPC<dylan.dpc@gmail.com>, Hunar Roop Kahlon<hunar.roop@gmail.com>
-
-FILE: LICENSE-APACHE
-Identical text reproduced above: addr2line 0.25.1 / LICENSE-APACHE
-
-FILE: LICENSE-MIT
-Copyright (c) 2014 The Rust Project Developers
-Copyright (c) 2018 Ashley Mannix, Christopher Armstrong, Dylan DPC, Hunar Roop Kahlon
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-Copyright statements preserved from upstream files:
-// Copyright 2013-2014 The Rust Project Developers.
-// Copyright 2018 The Uuid Project Developers.
-Copyright (c) 2014 The Rust Project Developers
-Copyright (c) 2018-2024 The rust-random Project Developers
 
 PACKAGE: uuid-simd 0.8.0
 Declared license: MIT
@@ -48152,7 +48301,7 @@ Authors: Manish Goregaokar <manishsmail@gmail.com>
 FILE: LICENSE
 Identical text reproduced above: icu_collections 2.3.0 / LICENSE
 
-PACKAGE: zerocopy 0.8.56
+PACKAGE: zerocopy 0.8.63
 Declared license: BSD-2-Clause OR Apache-2.0 OR MIT
 Repository: https://github.com/google/zerocopy
 Authors: (not declared)
@@ -48428,19 +48577,19 @@ Copyright statements preserved from upstream files:
 <!-- Copyright 2024 The Fuchsia Authors
 <!-- Copyright 2025 The Fuchsia Authors
 
-PACKAGE: zerocopy-derive 0.8.56
+PACKAGE: zerocopy-derive 0.8.63
 Declared license: BSD-2-Clause OR Apache-2.0 OR MIT
 Repository: https://github.com/google/zerocopy
 Authors: (not declared)
 
 FILE: LICENSE-APACHE
-Identical text reproduced above: zerocopy 0.8.56 / LICENSE-APACHE
+Identical text reproduced above: zerocopy 0.8.63 / LICENSE-APACHE
 
 FILE: LICENSE-BSD
-Identical text reproduced above: zerocopy 0.8.56 / LICENSE-BSD
+Identical text reproduced above: zerocopy 0.8.63 / LICENSE-BSD
 
 FILE: LICENSE-MIT
-Identical text reproduced above: zerocopy 0.8.56 / LICENSE-MIT
+Identical text reproduced above: zerocopy 0.8.63 / LICENSE-MIT
 
 Copyright statements preserved from upstream files:
 // Copyright 2019 The Fuchsia Authors

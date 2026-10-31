@@ -136,7 +136,11 @@ impl Shell {
     fn current() -> Option<Self> {
         use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
-        let mut system = System::new();
+        let Ok(mut system) = System::new() else {
+            return std::env::var_os("SHELL")
+                .as_deref()
+                .and_then(Self::from_executable);
+        };
         let refresh = ProcessRefreshKind::nothing()
             .without_tasks()
             .with_exe(UpdateKind::Always);
