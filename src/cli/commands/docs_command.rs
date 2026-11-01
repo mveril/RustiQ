@@ -5,7 +5,14 @@ use miette::{Context, IntoDiagnostic};
 
 use super::{CommandResult, Runnable};
 
-const ONLINE_MANUAL: &str = "https://mveril.github.io/RustiQ/";
+fn online_manual(version: &str, released: bool) -> String {
+    let path = if released {
+        format!("v{version}")
+    } else {
+        "dev".to_owned()
+    };
+    format!("https://mveril.github.io/RustiQ/{path}/")
+}
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[error("failed to open the manual at {target}")]
@@ -31,7 +38,11 @@ pub struct DocsCommand {
 impl DocsCommand {
     fn target(&self) -> miette::Result<std::ffi::OsString> {
         if self.web {
-            return Ok(ONLINE_MANUAL.into());
+            return Ok(online_manual(
+                env!("CARGO_PKG_VERSION"),
+                env!("RUSTIQ_DOCS_RELEASE") == "true",
+            )
+            .into());
         }
         let executable = env::current_exe()
             .into_diagnostic()
@@ -57,7 +68,11 @@ impl DocsCommand {
                 return Ok(index.into_os_string());
             }
         }
-        Ok(ONLINE_MANUAL.into())
+        Ok(online_manual(
+            env!("CARGO_PKG_VERSION"),
+            env!("RUSTIQ_DOCS_RELEASE") == "true",
+        )
+        .into())
     }
 }
 
@@ -75,5 +90,26 @@ impl Runnable for DocsCommand {
                 source,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::online_manual;
+
+    #[test]
+    fn online_urls_follow_package_versions() {
+        assert_eq!(
+            online_manual("0.1.0-alpha.1", false),
+            "https://mveril.github.io/RustiQ/dev/"
+        );
+        assert_eq!(
+            online_manual("0.1.0-beta.1", true),
+            "https://mveril.github.io/RustiQ/v0.1.0-beta.1/"
+        );
+        assert_eq!(
+            online_manual("0.1.0", true),
+            "https://mveril.github.io/RustiQ/v0.1.0/"
+        );
     }
 }

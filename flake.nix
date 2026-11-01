@@ -208,7 +208,7 @@
                 test -s "$out/share/man/man1/rustiq.1.gz"
                 test "$("$out/bin/rustiq" docs --print-path)" = "$out/share/doc/rustiq/manual/html/index.html"
                 test -s "$out/share/doc/rustiq/manual/html/mathjax/MathJax.js"
-                test "$("$out/bin/rustiq" docs --web --print-path)" = "https://mveril.github.io/RustiQ/"
+                test "$("$out/bin/rustiq" docs --web --print-path)" = "https://mveril.github.io/RustiQ/dev/"
                 test -s "$out/share/man/man1/rustiq-artifact-inspect.1.gz"
                 test -s "$out/share/bash-completion/completions/rustiq.bash"
                 test -s "$out/share/zsh/site-functions/_rustiq"
@@ -227,6 +227,15 @@
               ];
             }
           );
+
+          rustiqRelease = rustiq.overrideAttrs (old: {
+            RUSTIQ_DOCS_RELEASE = "1";
+            installCheckPhase =
+              builtins.replaceStrings
+                [ "https://mveril.github.io/RustiQ/dev/" ]
+                [ "https://mveril.github.io/RustiQ/v${cargoToml.package.version}/" ]
+                old.installCheckPhase;
+          });
 
           pythonBase = pkgs.callPackage pyproject-nix.build.packages {
             python = pkgs.python314;
@@ -405,6 +414,7 @@
         {
           packages = {
             default = rustiq;
+            release = rustiqRelease;
             inherit book;
             cargo-artifacts = cargoArtifacts;
             pyscf-environment = pythonPyscf;

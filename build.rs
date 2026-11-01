@@ -2,12 +2,16 @@ use std::{env, error::Error, path::PathBuf};
 
 use vergen_gix::{Cargo, Emitter, Rustc};
 
+#[path = "build/docs_release.rs"]
+mod docs_release;
+
 #[path = "build/provenance.rs"]
 mod provenance;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
     emit_build_info(&manifest_dir)?;
+    emit_docs_release(&manifest_dir)?;
     let source_dir = manifest_dir.join("assets");
     let target_dir = PathBuf::from(env::var("OUT_DIR")?).join("bat-assets");
 
@@ -24,6 +28,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         env!("CARGO_PKG_VERSION"),
     )?;
 
+    Ok(())
+}
+
+fn emit_docs_release(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
+    println!("cargo:rerun-if-env-changed=RUSTIQ_DOCS_RELEASE");
+    let marker = manifest_dir.join("manual/html/rustiq-docs-release.txt");
+    println!("cargo:rerun-if-changed={}", marker.display());
+    let manifest = manifest_dir.join("Cargo.toml");
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    let manifest = std::fs::read_to_string(manifest)?;
+    let marker_version = std::fs::read_to_string(marker).ok();
+    let explicit = env::var("RUSTIQ_DOCS_RELEASE").ok();
+    let release = docs_release::is_release(
+        explicit.as_deref(),
+        &manifest,
+        marker_version.as_deref(),
+        env!("CARGO_PKG_VERSION"),
+    )?;
+    println!("cargo:rustc-env=RUSTIQ_DOCS_RELEASE={release}");
     Ok(())
 }
 

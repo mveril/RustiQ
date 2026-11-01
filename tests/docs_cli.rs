@@ -27,6 +27,17 @@ fn install(root: &Path, nix: bool) -> std::path::PathBuf {
     binary
 }
 
+fn expected_online() -> String {
+    if env!("RUSTIQ_DOCS_RELEASE") == "true" {
+        format!(
+            "https://mveril.github.io/RustiQ/v{}/",
+            env!("CARGO_PKG_VERSION")
+        )
+    } else {
+        "https://mveril.github.io/RustiQ/dev/".to_owned()
+    }
+}
+
 fn docs(binary: &Path, args: &[&str], cwd: &Path) -> Output {
     let mut command = Command::new(binary);
     command
@@ -105,7 +116,10 @@ fn relocated_archive_and_nix_layout_resolve_without_the_working_directory() {
         );
         let web = docs(&binary, &["--web", "--print-path"], temp.path());
         assert!(web.status.success());
-        assert_eq!(web.stdout, b"https://mveril.github.io/RustiQ/\n");
+        assert_eq!(
+            String::from_utf8(web.stdout).unwrap().trim(),
+            expected_online()
+        );
         #[cfg(all(unix, not(target_os = "macos")))]
         {
             let missing_browser = docs(&binary, &[], temp.path());
@@ -128,7 +142,10 @@ fn cargo_only_installation_reports_online_url_without_claiming_a_local_manual() 
     let binary = install(&temp.path().join("cargo/bin"), false);
     let output = docs(&binary, &["--print-path"], temp.path());
     assert!(output.status.success());
-    assert_eq!(output.stdout, b"https://mveril.github.io/RustiQ/\n");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        expected_online()
+    );
     #[cfg(all(unix, not(target_os = "macos")))]
     assert!(!docs(&binary, &[], temp.path()).status.success());
     assert!(!docs(&binary, &["--pdf"], temp.path()).status.success());
@@ -155,7 +172,7 @@ fn browser_receives_one_literal_target_and_failures_are_reported() {
             vec![],
             format!("file://{}", manual.join("index.html").display()),
         ),
-        (vec!["--web"], "https://mveril.github.io/RustiQ/".to_owned()),
+        (vec!["--web"], expected_online()),
     ] {
         let mut command = Command::new(&binary);
         command

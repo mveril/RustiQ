@@ -108,6 +108,133 @@ Verification coverage is explicit:
   its numerical reference, tolerance, and reproduction command.
 
 The Documentation workflow validates pull requests and supports manual runs.
-Publish documentation runs on pushes to `main` and deploys the validated book
+Publish documentation runs on pushes to `main` and release tags and deploys the validated book
 to GitHub Pages. Set the repository's Pages source to **GitHub Actions**.
 PR builds have no Pages write permission.
+
+### Published versions
+
+Pushes to `main` publish the current book at `/RustiQ/dev/`. Version tags
+publish immutable snapshots at `/RustiQ/vX.Y.Z/`, for example
+`/RustiQ/v0.1.0-beta.1/`; a retry fails if the stored
+commit or generated content differs. The `gh-pages` branch stores the complete
+assembled site, including earlier snapshots. GitHub Pages must remain configured
+to deploy using **GitHub Actions**, not from that branch. Publication is
+serialized, and pull requests only validate the book.
+
+`/RustiQ/beta/` points to the highest published beta and
+`/RustiQ/stable/` to the highest stable release; the stable alias appears only
+when a stable release exists. The root redirects to development. Release tags
+must match the package version and point to an ancestor of `main`; publication
+fetches `main` and rejects tags outside its history.
+
+The root `404.html` redirects to the absolute site path `/RustiQ/dev/`,
+independent of the missing URL's nesting depth. If a release is published before
+development exists, it redirects to the highest published version instead. Versioned 404 pages
+retain their version-specific asset base. These changes apply only to the
+published website; the offline manual remains relocatable.
+
+#### Initial migration
+
+Before enabling the first publication, choose one of these procedures. Keep
+Pages configured for **GitHub Actions** in both cases. In the repository's Actions tab, select **Publish documentation** and disable
+the workflow using its menu; wait for any active run to finish before preparing
+the branch so a run cannot migrate an incomplete seed. Re-enable it after
+seeding. Re-enabling alone does not publish: the next push to `main` or a valid
+release tag triggers publication.
+
+**Existing populated `gh-pages` branch:** inspect its root tree and confirm that
+it contains the old published HTML paths, including pages removed from the
+current book. If it does, leave those files in place and enable publication.
+The first run inventories their HTML paths, replaces them with redirects to
+the corresponding `dev/` paths, removes old root assets, and records
+`"legacy_source": "existing-root"` in `versions.json`. A removed development
+page ultimately reaches the site-wide 404 fallback.
+
+**Fresh or empty `gh-pages` branch:** previous Actions deployments do not
+automatically populate this branch. To preserve their paths, obtain the complete
+HTML tree from the last successful deployment's retained Pages artifact or an
+archived copy before migration. Extract the artifact so `index.html` and the
+chapter directories are directly in a local directory, for example
+`/tmp/previous-manual`. If the downloaded artifact is a ZIP containing
+`artifact.tar`, unpack both layers:
+
+```sh
+mkdir -p /tmp/previous-pages-artifact /tmp/previous-manual
+unzip /path/to/github-pages.zip -d /tmp/previous-pages-artifact
+tar -xf /tmp/previous-pages-artifact/artifact.tar -C /tmp/previous-manual
+test -f /tmp/previous-manual/index.html
+```
+
+Inspect the extracted paths and contents before proceeding. In a separate clone,
+seed the branch as follows:
+
+```sh
+git clone https://github.com/mveril/RustiQ.git /tmp/rustiq-pages-seed
+cd /tmp/rustiq-pages-seed
+git switch --orphan gh-pages
+git rm -rf --ignore-unmatch .
+cp -R /tmp/previous-manual/. .
+git add -A
+git commit -m "Seed previously published manual for migration"
+git push origin gh-pages
+```
+
+Use this orphan procedure only when the remote branch does not exist. If an
+empty branch already exists, use the following in the separate clone instead
+of the orphan sequence:
+
+```sh
+git switch --track origin/gh-pages
+cp -R /tmp/previous-manual/. .
+git add -A
+git commit -m "Seed previously published manual for migration"
+git push origin gh-pages
+```
+
+Inspect the seeded tree before enabling publication; then follow
+the populated-branch procedure above. Do not replace an already versioned site
+or delete its `versions.json` or snapshots.
+
+If no archive is available, publication can start from the fresh branch, but
+only paths in the current book receive legacy redirects. The script emits a
+warning and records `"legacy_source": "current-book-only"`; it cannot recover
+removed historical paths. No live website is downloaded or scraped. The
+`legacy_redirects` flag records completion of redirect generation, not proof
+that all historical paths were available.
+
+Migration runs once. Subsequent runs retain its provenance and legacy redirects,
+refresh the root 404 fallback, and leave existing release snapshots immutable.
+Identical release retries succeed; conflicting content or source commits fail
+before modifying the site.
+
+`/RustiQ/versions.json` lists releases in descending SemVer order, their URLs,
+channels and source commit IDs, along with the latest aliases and development URL. URLs in the index are relative to the site root.
+The index is static and does not require an API. The offline book remains separate.
+
+For a local assembly test, run `python tools/publish-docs.py result SITE COMMIT
+--development`, or replace `--development` with `--version v0.1.0-beta.1`.
+`COMMIT` is the full source commit ID and `SITE` is a writable directory. For
+example, the index contains entries of this form (the commit is abbreviated
+here for readability):
+
+```json
+{
+  "legacy_redirects": true,
+  "legacy_source": "existing-root",
+  "development": "dev/",
+  "latest_beta": "v0.1.0-beta.1",
+  "latest_stable": null,
+  "versions": [{"version": "v0.1.0-beta.1", "url": "v0.1.0-beta.1/", "channel": "beta", "commit": "..."}]
+}
+```
+
+### Repository rename
+
+The current public Pages base remains `https://mveril.github.io/RustiQ/`.
+After renaming the repository to `mveril/rustiq`, configure Pages to deploy via
+GitHub Actions, update the documentation base URL and the site-specific 404
+base, then publish and verify the new site and release links. GitHub repository
+redirects do not guarantee redirects for the old Pages URL: arrange and verify
+a separate redirect for the old Pages site before relying on existing links.
+Previously published binary URLs cannot be changed.

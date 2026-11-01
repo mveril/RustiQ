@@ -95,6 +95,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           EXCLUDED_PACKAGES: ${{ steps.packages.outputs.excluded }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
           if [[ -z "$CARGO_REGISTRY_TOKEN" ]]; then
@@ -105,5 +106,8 @@ jobs:
           for package in $EXCLUDED_PACKAGES; do
             exclusions+=(--exclude "$package")
           done
-          cargo publish --workspace --locked "${exclusions[@]}" \
+          RELEASE_VERSION="$RELEASE_TAG"
+          RELEASE_VERSION="${RELEASE_VERSION#v}"
+          printf '\n[package.metadata.rustiq]\ndocs-release = "%s"\n' "$RELEASE_VERSION" >> Cargo.toml
+          cargo publish --workspace --locked --allow-dirty "${exclusions[@]}" \
             --token "$CARGO_REGISTRY_TOKEN"
