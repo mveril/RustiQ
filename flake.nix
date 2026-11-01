@@ -188,7 +188,8 @@
                   ${cliGenerators}/bin/rustiq completions "$shell" > "completions/$shell"
                 done
                 installShellCompletion --cmd rustiq \
-                  --bash completions/bash --zsh completions/zsh --fish completions/fish
+                  --bash completions/bash --zsh completions/zsh --fish completions/fish \
+                  --nushell completions/nushell
                 cp completions/nushell "$out/share/rustiq/completions/rustiq.nu"
                 cp completions/powershell "$out/share/rustiq/completions/rustiq.ps1"
                 cp completions/elvish "$out/share/rustiq/completions/rustiq.elv"
@@ -213,6 +214,8 @@
                 test -s "$out/share/bash-completion/completions/rustiq.bash"
                 test -s "$out/share/zsh/site-functions/_rustiq"
                 test -s "$out/share/fish/vendor_completions.d/rustiq.fish"
+                test -s "$out/share/nushell/vendor/autoload/rustiq.nu"
+                cmp "$out/share/nushell/vendor/autoload/rustiq.nu" "$out/share/rustiq/completions/rustiq.nu"
                 for file in rustiq.nu rustiq.ps1 rustiq.elv; do
                   test -s "$out/share/rustiq/completions/$file"
                 done
