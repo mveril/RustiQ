@@ -107,9 +107,14 @@ manual by default; see [installation](../getting-started/installation.md#consult
 The package also installs Bash, Zsh, and Fish completions in the standard
 Nix locations. Shell discovery depends on your Nix profile and shell setup.
 
-Nushell, PowerShell, and Elvish scripts are provided under
-`share/rustiq/completions/`. From the repository root, build the package with
-`nix build`, then load the script in the matching shell:
+Nushell also loads the completion automatically at interactive startup when
+the profile exposes `share/nushell/vendor/autoload` through its data directories.
+On NixOS, enabling `programs.nushell` exposes `share/nushell` from the system
+profile. Other profiles may need their `share` directory in `XDG_DATA_DIRS`.
+
+Nushell, PowerShell, and Elvish scripts are also provided under
+`share/rustiq/completions/` for manual loading. From the repository root, build
+the package with `nix build`, then load the script in the matching shell:
 
 ```nu
 use ./result/share/rustiq/completions/rustiq.nu *
