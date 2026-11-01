@@ -1,0 +1,729 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Command-line reference - RustiQ Manual</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A guide to the experimental RustiQ quantum chemistry application.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+        <!-- MathJax -->
+        <script async src="../mathjax/MathJax.js?config=TeX-AMS-MML_SVG"></script>
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-bc687f60.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-234b4cca.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">RustiQ Manual</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/mveril/RustiQ" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/mveril/RustiQ/edit/main/docs/src/reference/cli.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="command-line-reference"><a class="header" href="#command-line-reference">Command-line reference</a></h1>
+<p>Run these commands from any working directory with the installed <code>rustiq</code>
+binary. In a source checkout without an installed executable, replace the
+<code>rustiq</code> command prefix with <code>cargo run --locked --</code>.
+<code>rustiq --help</code> and <code>rustiq &lt;command&gt; --help</code> show the
+options supported by the installed build.</p>
+<h2 id="manual"><a class="header" href="#manual">Manual</a></h2>
+<p><code>rustiq docs</code> opens the offline HTML manual bundled with a release archive or
+Nix package. Cargo-only installations open the online manual. Use <code>--web</code> to
+force the online version, or <code>--print-path</code> to print the local index path or
+online URL without launching a browser. See
+<a href="../getting-started/installation.html#consult-the-manual">installation</a> for
+relocation, headless use, browser selection, and incomplete-installation errors.
+PDF export is not implemented.</p>
+<h2 id="binary-version-and-build-details"><a class="header" href="#binary-version-and-build-details">Binary version and build details</a></h2>
+<p><code>rustiq --version</code> (or <code>rustiq -V</code>) prints the package version on one line.
+Use <code>rustiq --version --verbose</code> (or <code>rustiq -V -v</code>) for grouped build details;
+the two flags can also appear in reverse order. These requests return exit code
+zero and write plain text to standard output. The top-level <code>--verbose</code> flag
+requires <code>--version</code>; <code>basis list --verbose</code> retains its existing meaning.</p>
+<p>The detailed output groups source, compiler, CPU target, and build
+configuration metadata.
+It includes the full Git commit and status, compilation
+target, Rust compiler and LLVM versions, Cargo optimization level, exact
+profile when supplied by the build, declared debug-information, LTO,
+codegen-unit, debug-assertion, and integer overflow-check settings, target
+architecture and explicitly requested target CPU
+when available, enabled target features, and enabled Cargo features. The
+architecture is displayed whenever Cargo provides it, independently of
+whether a target CPU was explicitly requested. No named ISA classification
+is inferred from the features.
+Cargo’s synthetic <code>default</code> feature marker is omitted. Values that Cargo or
+the build system cannot establish are generally omitted from text output.
+The integer overflow-check row explicitly shows <code>unknown</code> when unavailable;
+without a declared value, debug assertions are read from the CLI’s compiled
+<code>cfg(debug_assertions)</code>. Cargo’s
+<code>PROFILE</code> variable does not identify custom profiles reliably, so the profile
+is shown only when the build supplies its exact name. Release artifacts built
+by <code>cargo-dist</code> declare <code>dist</code> in their workflow; Nix package builds declare
+<code>release</code>.</p>
+<p>Configuration declared in the selected package profile in <code>Cargo.toml</code> is
+labeled as declared. Profile inheritance is followed. Cargo does not expose
+effective LTO, codegen-unit, overflow-check, debug-assertion, or
+debug-information settings to build scripts. Declared values are reported when
+the selected profile declares them; debug assertions otherwise use the
+compiled cfg value and integer overflow checks show <code>unknown</code>. Cargo’s optimization value is supplied to
+build scripts; a separate compiler flag can override it. Target CPU is
+populated only from an explicit RustiQ build override or a recognized
+<code>target-cpu</code> option in Cargo’s encoded rustflags or <code>RUSTFLAGS</code>. The target
+feature list comes from Cargo’s target cfg for the final target; it does not
+describe runtime CPU support. Observed rustflags are not a complete record of
+compiler arguments or Cargo configuration.</p>
+<p>LTO and codegen units are labeled as declared because Cargo does not expose
+their effective compiler values to build scripts. Target features describe
+compile-time target settings, not instructions supported by the machine at
+runtime. The architecture and globally enabled features come from Cargo’s
+final compilation target, including during cross-compilation. The display
+does not hard-code CPU families, instruction sets, ISA levels, or reference
+feature lists. This allows the same code to report targets supported by
+different compiler toolchains without assuming their naming conventions.
+Rust’s target cfg does not establish the minimum compatible processor for
+the entire linked executable, particularly if native dependencies or
+specialized kernels use additional instructions. RustiQ does not guess
+the concrete build-host CPU.</p>
+<p>For example, the grouped output has this shape (unknown optional fields are
+omitted and the values depend on the build):</p>
+<pre><code class="language-text">rustiq 0.1.0-alpha.1
+
+SOURCE
+  Git commit          &lt;full commit hash&gt;
+  Status              dirty
+
+COMPILER
+  Rust                &lt;compiler version&gt;
+  Channel             &lt;stable, beta, nightly, or dev&gt;
+  Rust commit         &lt;full hash, only for nightly when available&gt;
+  LLVM                &lt;LLVM version&gt;
+  Target              &lt;target triple&gt;
+
+CPU TARGET
+  Architecture        &lt;target architecture, when available&gt;
+  Target CPU          &lt;explicit CPU request, when available&gt;
+  Target features     &lt;features enabled for the compilation target, when available&gt;
+
+BUILD CONFIGURATION
+  Profile             &lt;exact profile, if supplied&gt;
+  Optimization        &lt;Cargo value&gt;
+  Debug information   &lt;profile value, if declared&gt;
+  LTO                 &lt;profile value (declared)&gt;
+  Codegen units       &lt;profile value (declared)&gt;
+  Debug assertions    &lt;profile value (declared), or compiled cfg value&gt;
+  Integer overflow checks &lt;profile value (declared), or unknown&gt;
+  Cargo features      &lt;enabled features, excluding the default marker&gt;
+
+NUMERICAL LIBRARIES
+  Linear algebra      nalgebra &lt;version&gt;
+  Parallelism         rayon &lt;version&gt;
+  Special functions   special &lt;version&gt;
+
+CHEMICAL DATA
+  Periodic table      mendeleev &lt;version&gt;
+  Bohr radius         CODATA 2018
+</code></pre>
+<p>The numerical libraries section identifies nalgebra for linear algebra,
+Rayon for parallelism, and special for special functions used by the Boys
+function implementation. Their versions are read at build time from <code>Cargo.lock</code>
+when it contains a single distinct version of each crate; otherwise the
+corresponding version is shown as <code>version unknown</code>. When terminal hyperlinks
+are enabled, each backend name and version links to that exact version on
+crates.io. Unknown versions have no link. The parallelism row does not report
+the active thread count.</p>
+<p>The chemical data section identifies the <code>mendeleev</code> crate used for
+chemical element properties; its resolved version is read from <code>Cargo.lock</code>
+during the build, using the same fallback and crates.io hyperlink behavior
+as the numerical libraries. The Bohr-to-ångström conversion factor in the
+core uses the <strong>CODATA 2018</strong> Bohr radius from NIST. Its revision and NIST
+reference URL are defined alongside the conversion constant in
+<code>rustiq-core</code>, not duplicated in the CLI. With terminal hyperlinks enabled,
+the revision links to the <a href="https://physics.nist.gov/cuu/pdf/all_2018.pdf">NIST CODATA 2018 table</a>.
+This does <strong>not</strong> claim that all chemical constants, atomic masses, or basis
+sets use CODATA 2018. Basis sets and their own revisions are specific to
+individual calculations and are not reported in this binary-version output.</p>
+<p>Integer overflow checks concern integer arithmetic, not floating-point NaN,
+infinity, or SCF convergence.</p>
+<p>Text calculation banners show a 12-character commit abbreviation and its
+source state. When Git provenance is unknown, they show <code>Build: unknown</code>.
+OSC 8 links, when enabled, target the complete commit hash. JSON calculation
+output remains free of banners and retains its existing schema.</p>
+<p>All fields are embedded during compilation and remain available when the
+executable is copied elsewhere, without Git or Rust installed. The source
+state is <code>clean</code> or <code>dirty</code> according to changes to tracked files at build
+time; untracked files do not affect this Git dirty flag. The <code>Status</code> row
+displays <code>clean</code>, <code>dirty</code>, or <code>unknown</code>; a missing commit is displayed as
+<code>unknown</code>, as can happen when compiling an unpacked source archive without Git
+metadata. When stdout is a terminal that supports hyperlinks, the Git commit
+hash links to that commit in the RustiQ repository.
+The target feature list links to the Rust Reference’s explanation and tables
+of processor features.
+Redirected output stays plain text unless <code>FORCE_HYPERLINK</code> explicitly enables
+links.
+These fields describe build provenance, not a cryptographic identity of the
+executable or proof that two builds are identical. The compiler commit is shown
+only for nightly toolchains, when available; stable, beta, and dev builds still
+show their compiler channel.</p>
+<p>Packagers may set <code>RUSTIQ_BUILD_GIT_COMMIT</code> to a full Git hash (or <code>unknown</code>)
+and <code>RUSTIQ_BUILD_GIT_STATE</code> to <code>clean</code>, <code>dirty</code>, or <code>unknown</code> <strong>at compilation
+time</strong> to override Git discovery. An injected commit without an injected state
+uses state <code>unknown</code>. <code>RUSTIQ_BUILD_PROFILE</code>, <code>RUSTIQ_BUILD_SYSTEM</code>, and
+<code>RUSTIQ_BUILD_TARGET_CPU</code> can supply exact build-system metadata when known;
+the profile, system name, and CPU values are validated before embedding. Nix
+supplies its profile, build-system name, and flake revision, while the
+cargo-dist release workflow supplies its profile and build-system name. The
+Nix source revision is the Git revision passed by the flake, not a Nix store
+path. Setting these variables when running an already built binary has no
+effect.</p>
+<h2 id="commands"><a class="header" href="#commands">Commands</a></h2>
+<h3 id="manual-pages-and-shell-completions"><a class="header" href="#manual-pages-and-shell-completions">Manual pages and shell completions</a></h3>
+<p>Cargo builds enable the independent <code>manpages</code> and <code>completions</code> features by
+default. They provide these commands:</p>
+<pre><code class="language-sh">rustiq manpages ./manpages
+rustiq completions &gt; current-shell-completion
+rustiq completions bash &gt; rustiq.bash
+rustiq completions zsh &gt; _rustiq
+rustiq completions fish &gt; rustiq.fish
+rustiq completions elvish &gt; rustiq.elv
+rustiq completions powershell &gt; rustiq.ps1
+rustiq completions nushell &gt; rustiq.nu
+</code></pre>
+<p><code>manpages</code> creates its destination directory and replaces existing generated
+pages. When switching between standalone and packaging modes in the same
+directory, obsolete <code>rustiq-manpages.1</code> and <code>rustiq-completions.1</code> pages are
+removed. Use a fresh directory for a completely clean generated set if other
+commands have changed between RustiQ versions. It writes <code>rustiq.1</code> and pages
+for the subcommands, including nested
+commands such as <code>rustiq-artifact-inspect.1</code>. Each page includes the
+<a href="https://mveril.github.io/RustiQ/">online manual</a> in its SEE ALSO section.
+<code>completions</code> writes only the script to standard output; generation errors go
+to standard error and return a failing exit status. Its shell argument is
+optional: RustiQ recognizes the calling process’s shell first, then falls back
+to the <code>SHELL</code> environment variable. This includes <code>nu</code> for Nushell and <code>pwsh</code>
+or <code>powershell</code> for PowerShell. If neither identifies a supported shell, the
+command asks you to provide one explicitly. Supply the argument when running
+through a launcher that obscures the calling shell.
+Both generators reflect the commands and options enabled in the current
+build. For example, offline builds omit online-only basis commands. By
+default, generated files also include <code>manpages</code> and <code>completions</code> when those
+features are enabled. Set
+<code>RUSTIQ_PACKAGING=true</code> (or <code>1</code>) to omit <code>manpages</code> and <code>completions</code> from
+both manuals and shell completion scripts; <code>false</code>, <code>0</code>, or an unset variable
+keeps them. Other packagers can use this setting when installing generated
+files alongside a binary built without the generator features. Values other
+than <code>true</code>, <code>false</code>, <code>1</code>, and <code>0</code> produce an error.</p>
+<p>Load the generated file in the matching shell: <code>source ./rustiq.bash</code> in Bash,
+<code>source ./rustiq.fish</code> in Fish, or <code>source ./rustiq.elv</code> in Elvish. For Zsh,
+place <code>_rustiq</code> in a directory on <code>$fpath</code> before running <code>autoload -Uz compinit; compinit</code>. In PowerShell, dot-source the script with <code>. ./rustiq.ps1</code>; it
+registers native argument completion without adding a command wrapper or
+<code>Get-Help</code> integration. In Nushell, load it with <code>use ./rustiq.nu *</code>.
+Add the appropriate loading command to your shell configuration to retain it
+in future sessions.</p>
+<p>To select features explicitly from a checkout, use, for example:</p>
+<pre><code class="language-sh">cargo run --locked --no-default-features --features manpages -- manpages ./manpages
+cargo run --locked --no-default-features --features completions -- completions nushell
+</code></pre>
+<p>These examples omit <code>online</code>; add it to the feature list if needed. A build
+without a generator’s feature omits that command and its dependency. The
+<a href="../development/nix-packages.html#installed-manual-and-completions">Nix package</a>
+installs the generated assets but disables both generators in its executable.</p>
+<h3 id="application-commands"><a class="header" href="#application-commands">Application commands</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>rustiq init &lt;XYZ&gt;</code></td><td>Create a TOML calculation input that refers to an XYZ geometry.</td></tr>
+<tr><td><code>rustiq run [INPUT]</code></td><td>Run TOML or Nickel input, or rerun calculations from a <code>.rustiq</code> bundle. With no path, read TOML from standard input. Multi-entry inputs run as batches.</td></tr>
+<tr><td><code>rustiq basis import &lt;PATH&gt;...</code></td><td>Import basis JSON files into the local basis store.</td></tr>
+<tr><td><code>rustiq basis list [--online] [--verbose]</code></td><td>List locally stored bases; online listing is available in builds with the <code>online</code> feature.</td></tr>
+<tr><td><code>rustiq basis download &lt;NAME&gt;</code></td><td>Download a basis in builds with the <code>online</code> feature.</td></tr>
+<tr><td><code>rustiq basis remove &lt;NAME&gt;...</code> / <code>--all</code></td><td>Remove selected bases or the local basis store contents.</td></tr>
+<tr><td><code>rustiq cache list [--cache-dir DIR]</code></td><td>Inspect AO ERI cache entries and their validation status.</td></tr>
+<tr><td><code>rustiq cache remove &lt;NAME-OR-FINGERPRINT&gt; [--cache-dir DIR]</code> / <code>--all</code></td><td>Remove selected or all AO ERI cache entries.</td></tr>
+<tr><td><code>rustiq artifact inspect &lt;PATH&gt; [--format FORMAT]</code></td><td>Inspect portable <code>.rustiq</code> calculation snapshots and artifact metadata.</td></tr>
+<tr><td><code>rustiq artifact verify &lt;PATH&gt;</code></td><td>Check hashes and decode supported numerical payloads in a portable <code>.rustiq</code> bundle.</td></tr>
+<tr><td><code>rustiq geometry info [XYZ]</code></td><td>Print basic geometry information; read XYZ from standard input when no path is given.</td></tr>
+<tr><td><code>rustiq geometry rotate</code>, <code>translate</code>, <code>center</code>, <code>oriente</code>, <code>isometry</code></td><td>Transform a geometry and write the result; each subcommand has its own help.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The geometry tools and basis storage are utilities around a calculation; they
+do not create a <code>.rustiq</code> portable artifact. See the
+<a href="../user-guide/geometry.html">geometry guide</a> and <a href="existing-workflows.html">existing workflows</a>
+for examples of geometry, <code>init</code>, and basis management commands.</p>
+<p><code>init</code> options include <code>--output</code> (<code>calculation.toml</code> by default), <code>--force</code>,
+<code>--basis</code> (<code>sto-3g</code>), <code>--charge</code> (zero), <code>--multiplicity</code>, <code>--units</code>
+(<code>angstrom</code> by default, or <code>bohr</code>), <code>--hf</code> (<code>auto</code>, <code>rhf</code>, or <code>uhf</code>), and
+<code>--mp2</code>. Without an explicit multiplicity, it selects singlet for an even
+electron count and doublet for an odd count. This is a starting convention;
+choose the physical state appropriate to the molecule. The <a href="existing-workflows.html">existing
+workflows</a> documents path and overwrite behavior.</p>
+<h2 id="run-options-and-input-selection"><a class="header" href="#run-options-and-input-selection"><code>run</code> options and input selection</a></h2>
+<p>The input filename extension selects TOML, Nickel (<code>.ncl</code>), or a portable
+<code>.rustiq</code> bundle. TOML describes a single calculation. Nickel can describe one
+calculation or an ordered array; an array of one uses the single-calculation
+output contract, while a larger array uses the batch contract. A <code>.rustiq</code>
+input reconstructs and reruns its archived resolved calculation(s); multi-entry
+bundles use the batch contract. Nickel imports resolve relative to the importing
+file. Geometry paths resolve relative to the top-level input file; for TOML
+read from standard input, they resolve from the current working directory.
+Direct archive reruns cannot be combined with <code>--reuse</code>, <code>--artifact</code>,
+<code>--cache-dir</code>, <code>--auto-download</code>, or <code>--no-auto-download</code>; the source bundle is
+read-only and provides its resolved basis and inputs. Archive reruns do not use
+the local ERI cache or basis-download settings. Text output shows SCF progress;
+JSON output suppresses progress and writes only the result document.</p>
+<p>Important options:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--format FORMAT</code> (<code>text</code> or <code>json</code>)</td><td>Select text output (default) or versioned JSON. JSON result data is written to standard output.</td></tr>
+<tr><td><code>--pretty</code></td><td>Pretty-print single-calculation or batch JSON, optionally with syntax highlighting. Requires <code>--format json</code>.</td></tr>
+<tr><td><code>--color MODE</code> (<code>auto</code>, <code>always</code>, or <code>never</code>)</td><td>Control ANSI colors globally; also accepts <code>RUSTIQ_COLOR</code>. Use <code>--color never</code> when redirecting pretty JSON.</td></tr>
+<tr><td><code>--auto-download</code> / <code>--no-auto-download</code></td><td>In online builds, allow or disable fetching a missing basis for this run. These override <code>RUSTIQ_AUTO_DOWNLOAD</code>; without either flag, <code>1</code> or <code>true</code> (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases.</td></tr>
+<tr><td><code>--cache-dir DIR</code></td><td>Choose the AO ERI cache root for this run. The input must also set <code>[cache].enabled = true</code>; this option does not enable caching.</td></tr>
+<tr><td><code>--reuse PATH</code></td><td>Read a portable <code>.rustiq</code> bundle and reuse the first compatible AO ERI for each calculation.</td></tr>
+<tr><td><code>--artifact PATH</code></td><td>Write the current calculation or batch as a portable <code>.rustiq</code> bundle, independently of text or JSON output.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Output presentation is selected exclusively by the CLI <code>--format text|json</code> option.
+The TOML and Nickel calculation contracts do not accept an <code>output</code> section.
+Scientific execution emits a completion event after all requested stages complete.
+An HF-only result can be unconverged and still be a completed execution.
+The CLI consumes it to retain a lightweight summary, then selects text or JSON
+presentation after execution. JSON retains its single versioned result document
+(including the existing batch envelope), without streaming intermediate events.
+The campaign runner returns ordered outcomes directly; recoverable failures remain
+in that result and fatal orchestration failures stop the campaign before rendering.</p>
+<p>The cache directory path is resolved from the caller’s current working
+directory. Pass the same <code>--cache-dir</code> to <code>cache list</code> or <code>cache remove</code> to
+manage entries from a run that used a custom cache root.</p>
+<p>The CLI reports input, basis, preparation, and calculation errors as diagnostics.
+Exit codes follow the Unix convention: zero means complete success; any nonzero
+code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>0</code></td><td>All requested calculations succeeded. Help and version requests also return zero.</td></tr>
+<tr><td><code>1</code></td><td>General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error.</td></tr>
+<tr><td><code>2</code></td><td>Invalid command-line arguments.</td></tr>
+<tr><td><code>3</code></td><td>No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.</td></tr>
+<tr><td><code>4</code></td><td>A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.</td></tr>
+</tbody>
+</table>
+</div>
+<p>These codes apply to TOML, Nickel, and <code>.rustiq</code> inputs, with text or JSON output.
+A calculation succeeds only when the complete requested method succeeds: converged
+HF followed by an MP2 error is not a successful calculation. MP2 blocked by HF
+non-convergence counts as non-convergence, so a single such run returns <code>3</code>.
+Input validation before execution returns <code>1</code>; CLI argument validation returns <code>2</code>.
+Fatal infrastructure errors during execution or output writing return <code>1</code> and can
+prevent result JSON from being produced. Artifact publication happens after
+successful scientific execution. If publication then fails, the CLI still writes
+the completed calculation or campaign JSON before returning <code>1</code>; this behavior is
+covered by <code>publication_error_keeps_complete_calculation_and_batch_json</code>.</p>
+<p>A single HF-only calculation that reaches its iteration limit still returns its
+final-iteration result, with <code>converged: false</code> in JSON, but exits with <code>3</code>.
+MP2 requires converged HF; a single MP2 run blocked by non-convergence reports a
+diagnostic without result JSON. Recoverable per-entry errors in a batch do not
+prevent later entries from running. The batch JSON records each outcome, and a
+valid JSON document can accompany a nonzero exit code. Output fields remain
+defined by the <a href="index.html#authoritative-references">versioned schemas</a>.
+Convergence alone does not establish the physical validity of a result.</p>
+<p>From the repository root, capture the status even when the calculation fails
+(the conditional also works in shells using <code>set -e</code>):</p>
+<pre><code class="language-sh">status=0
+cargo run -- run samples/h2/sto-3g/calculation.toml --format json &gt; result.json || status=$?
+printf 'Exit code: %s\n' "$status"
+</code></pre>
+<p>When using the installed binary, replace <code>cargo run --</code> with <code>rustiq</code>. In scripts,
+inspect the exit code and, when available, individual JSON outcomes; see the
+<a href="../user-guide/json-output.html">JSON guide</a>.</p>
+<h2 id="feature-availability"><a class="header" href="#feature-availability">Feature availability</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Capability</th><th>Available behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>TOML</td><td>One calculation per input; see the checked-in <a href="../user-guide/configuration.html">H₂ input</a>.</td></tr>
+<tr><td>Nickel</td><td>One calculation or an ordered study/batch; see the checked-in <a href="../user-guide/nickel-studies.html">study example</a>.</td></tr>
+<tr><td>JSON</td><td>Versioned single-calculation and batch results, selected with <code>run --format json</code>; schemas are linked below.</td></tr>
+<tr><td>AO ERI cache</td><td>Optional local reuse through <code>[cache].enabled</code> and <code>--cache-dir</code>; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral.</td></tr>
+<tr><td>Portable <code>.rustiq</code> bundle</td><td>Create with <code>run --artifact</code>, rerun with <code>run FILE.rustiq</code>, reuse artifacts with <code>run INPUT --reuse FILE.rustiq</code>, inspect with <code>artifact inspect</code>, and validate stored AO ERIs with <code>artifact verify</code>. Reruns start a fresh HF calculation. See the <a href="../user-guide/portable-bundles.html">portable bundle guide</a>.</td></tr>
+<tr><td>Scientific status</td><td>Experimental; selected checks do not establish research-grade correctness. See <a href="../scientific-scope.html">scientific scope and limitations</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Basis downloads and online basis listing require a build with the <code>online</code>
+feature. The standard CLI enables it; offline builds provide import, local
+listing, and removal. Geometry transformations are CLI utilities, not
+calculation input transformations unless their output file is then used as an
+input.</p>
+<p>These examples use files shipped in the repository and must be run from its
+root after checkout. The release archive contains neither fixtures nor sample
+inputs. With only the binary, use <code>rustiq basis import /path/to/basis.json</code>
+for a separately obtained basis file, or <code>rustiq basis download sto-3g</code> in an
+online build; provide your own input file to <code>rustiq run</code>.</p>
+<p>From the repository root, import the checked-in STO-3G and 6-31G basis
+fixtures before running these examples:</p>
+<pre><code class="language-sh">rustiq basis import tests/data/sto-3g.json tests/data/reference/RustiQ/basis_sets/6-31g.json
+rustiq run samples/h2/sto-3g/calculation.toml
+rustiq run samples/h2/study.ncl --format json --pretty --color never
+rustiq run samples/h2/sto-3g/calculation-cache.toml --cache-dir ./rustiq-cache
+rustiq cache list --cache-dir ./rustiq-cache
+</code></pre>
+<p>The Nickel study uses <strong>both STO-3G and 6-31G</strong>; importing only STO-3G is
+insufficient unless basis auto-download is enabled in an online build.
+The TOML and cache examples require only STO-3G. See the
+<a href="../user-guide/nickel-studies.html">Nickel studies guide</a> for the individual
+import commands. The relative <code>./rustiq-cache</code> directory is resolved from
+the caller’s working directory on Windows, Linux, and macOS.</p>
+<p>The H₂ TOML and Nickel examples are exercised by
+<a href="https://github.com/mveril/RustiQ/blob/main/tests/cli_samples.rs"><code>tests/cli_samples.rs</code></a>,
+<a href="https://github.com/mveril/RustiQ/blob/main/tests/nickel_cli.rs"><code>tests/nickel_cli.rs</code></a>,
+and <a href="https://github.com/mveril/RustiQ/blob/main/tests/json_output_cli.rs"><code>tests/json_output_cli.rs</code></a>.
+The JSON tests also check pretty-printing of Nickel batches. The
+cache-enabled input is <code>samples/h2/sto-3g/calculation-cache.toml</code>; its
+store-then-hit behavior is covered by
+<code>test_cli_h2_sample_uses_eri_cache_when_enabled_in_runfile</code> in
+<a href="https://github.com/mveril/RustiQ/blob/main/tests/cli_samples.rs"><code>tests/cli_samples.rs</code></a>,
+in addition to the Rust core persistence tests.</p>
+<h2 id="calculation-input-contracts"><a class="header" href="#calculation-input-contracts">Calculation input contracts</a></h2>
+<p>TOML and Nickel inputs use the same calculation settings. The embedded Nickel
+contracts are authoritative for defaults, allowed fields, types, and
+validation; the CLI does not define a separate TOML-only set of defaults.
+Consult the <a href="../user-guide/configuration.html">TOML guide</a> for sections and
+checked-in examples, then the <a href="../user-guide/geometry.html">geometry</a>,
+<a href="../user-guide/hartree-fock.html">Hartree–Fock</a>, and
+<a href="../user-guide/mp2.html">MP2</a> guides for the corresponding scientific settings.
+The Nickel contracts and their validation are linked from the
+<a href="index.html#authoritative-references">reference index</a>.</p>
+<p>The following settings are accepted by both TOML and Nickel. This is a
+navigation aid, not a second schema: exact defaults, value constraints, and
+cross-field validation remain defined by the linked Nickel contract.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Section</th><th>Supported settings</th></tr>
+</thead>
+<tbody>
+<tr><td><code>[molecule]</code></td><td><code>geometry</code>, <code>charge</code>, <code>multiplicity</code>, <code>units</code> (<code>Angstrom</code> or <code>Bohr</code>)</td></tr>
+<tr><td><code>[basis]</code></td><td><code>name</code></td></tr>
+<tr><td><code>[method.hf]</code></td><td><code>method</code> (<code>Auto</code>, <code>Rhf</code>, <code>Uhf</code>), <code>max_iterations</code>, <code>convergence_threshold</code>, <code>guess</code>, <code>diis.enabled</code>, <code>diis.max_history</code>, <code>orthogonalization.linear_dependency_threshold</code></td></tr>
+<tr><td><code>[method.mp2]</code></td><td><code>frozen_orbitals</code>, <code>memory_limit</code></td></tr>
+<tr><td><code>[integrals]</code></td><td><code>schwarz_threshold</code> for integral screening</td></tr>
+<tr><td><code>[cache]</code></td><td><code>enabled</code> for the disposable local AO ERI cache</td></tr>
+</tbody>
+</table>
+</div>
+<p>The accepted density guesses and their fields are defined in the Nickel
+contract; see the HF guide for their use. The cache stores AO ERI data only; it
+does not store Hartree–Fock or MP2 results, and a cache hit does not guarantee
+that every calculation will run faster.</p>
+<h2 id="cache-and-portable-bundles"><a class="header" href="#cache-and-portable-bundles">Cache and portable bundles</a></h2>
+<p>The local AO ERI cache (atomic-orbital electron-repulsion integrals) is a
+disposable optimization for deterministic two-electron integrals. It is
+disabled by default in the calculation input;
+<code>--cache-dir</code> only selects where enabled cache entries are stored. Use
+<code>cache list</code> and <code>cache remove</code> to inspect or remove entries. Missing, invalid,
+or incompatible entries are recomputed. The local cache is not a deliverable
+or a portable calculation file.</p>
+<p>Portable <code>.rustiq</code> bundles use the V1 ZIP/ZIP64 format described by the
+<a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md">authoritative persistence specification</a>.
+The format is conceptually inspired by <a href="https://gitlab.com/scemama/EZFIO">EZFIO</a>
+in <a href="https://github.com/QuantumPackage/qp2">Quantum Package 2 (<code>qp2</code>)</a>, but uses
+an independent archive structure and APIs; see the
+<a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#relationship-to-ezfio">comparison</a>.
+For a guided create, inspect, and reuse workflow, see the
+<a href="../user-guide/portable-bundles.html">portable bundle guide</a>.
+Bundles are separate from the disposable local AO ERI cache. Reuse opens its source
+read-only. For each requested calculation, RustiQ selects the first compatible,
+supported AO ERI in bundle order; when none is available, an enabled local cache
+is checked before recomputation. A corrupt selected payload is an error. A
+source entry can supply data to multiple calculations in a Nickel batch.</p>
+<pre><code class="language-sh">rustiq run samples/h2/sto-3g/calculation.toml --artifact h2.rustiq
+rustiq run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact next.rustiq --format json
+rustiq artifact inspect h2.rustiq --format json
+rustiq artifact verify h2.rustiq
+rustiq run h2.rustiq
+# Replace the source bundle after all requested calculations produce results:
+rustiq run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.rustiq
+</code></pre>
+<p>Publication captures the current requested calculation collection and its
+compatible known artifacts. It does not append history. An existing destination
+is accepted only when it resolves to the explicit <code>--reuse</code> source; otherwise
+the command fails without replacing it. Publication happens after every requested
+calculation produces a result. Preparation or execution errors prevent
+publication of the collection and leave the destination unchanged. An HF-only
+non-converged result can contribute its AO ERI. A Nickel batch containing only
+non-converged HF-only results can publish its bundle even though the command
+exits unsuccessfully. If MP2 was requested but HF does not converge, execution
+fails and the bundle is not published. HF orbitals, SCF restart state, DIIS
+history, and MP2 results are not persisted.</p>
+<p>When <code>--reuse</code> or <code>--artifact</code> is used, JSON calculation results include an
+optional <code>artifacts</code> array. <code>decision</code> reports archive selection (<code>reused</code>,
+<code>missing</code>, or <code>incompatible</code>); <code>origin</code> reports the ERI actually used
+(<code>archive</code>, <code>cache</code>, or <code>computation</code>). A reused item includes its zero-based
+<code>source_index</code>. Without these options the existing JSON result shape is retained.
+<code>run FILE.rustiq --format json</code> uses the regular single-calculation or batch
+result schema but does not include this reuse-decision array: the bundle is the
+implicit artifact source for that mode.
+Publication failures are reported on stderr and return a failing exit status.
+Since publication follows scientific execution, JSON for the completed calculation
+or campaign is written before that publication error is returned.</p>
+<p><code>artifact inspect PATH</code> displays requested and resolved scientific snapshots,
+producer details, artifact representations, and captured source names and sizes.
+In text mode, canonical TOML and XYZ are syntax-highlighted when color is
+enabled by <code>--color</code> or <code>RUSTIQ_COLOR</code>; JSON output remains structured JSON.
+It validates the archive index, provenance, snapshots, and declared artifact
+sizes, but does not hash or decode numeric payloads. Use <code>artifact verify</code> to
+check supported payloads eagerly; otherwise, execution checks a payload when
+its scientific stage selects and reads it. Inspection does not execute
+calculations or establish scientific validity. JSON output follows the
+<a href="https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json">artifact inspection V1 schema</a>.
+<code>artifact verify PATH</code> eagerly reads and validates supported numerical
+payloads. It currently checks compact AO ERI payload hashes, NPY encoding,
+array dimensions, and consistency with the declared AO basis. It reports an
+error for an invalid payload or unsupported representation. Verification does
+not run a calculation or establish scientific validity.
+The archive captures exact bytes of the main input and geometry files as shared
+provenance; it does not capture Nickel’s full import graph. See the
+<a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md">persistence specification</a>
+for the archive contract and API details.</p>
+<h2 id="output-contracts"><a class="header" href="#output-contracts">Output contracts</a></h2>
+<p><code>run --format json</code> selects one of two versioned contracts: the single
+calculation schema or the batch schema. <code>schema_version</code> identifies the
+contract; schemas, rather than this manual, define the complete field sets.
+The <a href="../user-guide/json-output.html">JSON guide</a> describes output selection,
+standard output behavior, failure cases, and the existing automated checks.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../glossary.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../reference/existing-workflows.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../glossary.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../reference/existing-workflows.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-eefea253.min.js"></script>
+        <script src="../mermaid-init-53b67c53.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

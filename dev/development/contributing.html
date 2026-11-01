@@ -1,0 +1,735 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Contributing and the Rust API - RustiQ Manual</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A guide to the experimental RustiQ quantum chemistry application.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+        <!-- MathJax -->
+        <script async src="../mathjax/MathJax.js?config=TeX-AMS-MML_SVG"></script>
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-bc687f60.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-234b4cca.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">RustiQ Manual</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/mveril/RustiQ" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/mveril/RustiQ/edit/main/docs/src/development/contributing.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="contributing-and-the-rust-api"><a class="header" href="#contributing-and-the-rust-api">Contributing and the Rust API</a></h1>
+<p><a href="https://github.com/mveril/RustiQ/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>
+owns branch naming, lint policy, and verification commands.
+See <a href="environments.html">development environments</a> for setup.</p>
+<p>Run <code>cargo deny check</code> from the workspace root to check dependency advisories,
+licenses, duplicate versions, and dependency sources. The same check runs in a
+dedicated GitHub Actions job; its policy is defined in <code>deny.toml</code>.</p>
+<p>The distribution script requires Python with <code>tarfile</code> extraction filters
+(Python 3.12+, or patched 3.10.12+/3.11.4+). The <code>rust</code> and <code>full</code> Nix shells
+provide cargo-about. Outside Nix, install cargo-about 0.9.2. After dependency
+or notice-generation changes, run <code>python3 tools/distribution.py notices</code>, then
+<code>python3 tools/distribution.py check</code>. Commit the generated notice text and its
+checksum with the change. See <a href="licensing.html">licenses and redistribution</a> for
+the distribution policy and Nickel’s dependency advisories.</p>
+<p>The workspace keeps CLI parsing and presentation in the root package and
+scientific configuration and calculations in <code>rustiq-chem-core</code>. The core’s
+<code>calculation</code> module orchestrates work in <code>molecules</code>, <code>basis</code>, <code>eri</code>,
+<code>hf</code>, and <code>mp2</code>.</p>
+<p>Rustdoc remains the canonical public API reference. Generate and open it with
+MathJax support:</p>
+<pre><code class="language-sh">tools/generate-rustdoc.sh --open
+</code></pre>
+<p>On Windows:</p>
+<pre><code class="language-powershell">.\tools\generate-rustdoc.ps1 -Open
+</code></pre>
+<p>The generated entry point is <code>target/doc/rustiq_core/index.html</code>.
+MathJax equations require browser access to the CDN.
+The Pages site publishes the manual; rustdoc is generated separately.</p>
+<p>For book equations, use MathJax delimiters <code>\\( ... \\)</code> inline and
+<code>\\[ ... \\]</code> for display math. Markdown consumes one backslash, so
+write TeX commands with doubled backslashes as well. Avoid starting a
+continuation line with Markdown syntax such as <code>+</code>, which can split an
+equation into a list. Build the book and inspect the generated HTML and a
+browser-rendered equation, including multiline equations. MathJax requires
+JavaScript in the browser.</p>
+<p><a href="https://github.com/mveril/RustiQ/tree/main/crates/rustiq-core/examples">Runnable API examples</a>
+and <a href="https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/public_api.rs">public API tests</a>
+provide executable workflows and verification. Link to these sources instead
+of duplicating item-level documentation in the book.</p>
+<h2 id="public-api-imports"><a class="header" href="#public-api-imports">Public API imports</a></h2>
+<p>Use <code>rustiq_core::prelude::*</code> for direct calculations. It includes
+<code>CalculationExecution</code>, the trait providing <code>execute()</code> and
+<code>execute_with_events()</code> for builders and prepared calculations. With explicit
+imports, bring <code>rustiq_core::calculation::CalculationExecution</code> into scope to
+call those methods. The builder supports mutable setters such as <code>hf(...)</code>,
+accessors such as <code>get_hf()</code>, and consuming <code>with_hf(...)</code> variants.</p>
+<p>Explicit imports use <code>molecules</code> for molecular inputs, <code>config</code> for options,
+random distributions and validated scalars, <code>basis</code> for basis data, and
+<code>calculation</code> for execution and results. <code>Located&lt;T&gt;</code> remains available from
+<code>config</code> and the prelude for optional frontend source positions.</p>
+<p>Extensible option structs, including HF, DIIS, orthogonalization, molecular,
+integral, MP2, random-guess, and guess-perturbation configurations, are
+<code>#[non_exhaustive]</code>. Create them with <code>Default::default()</code> and then assign the
+public fields you want to customize. External Rust callers cannot use struct
+literals or <code>..Default::default()</code> to construct these types. See the core
+<code>config</code> module’s Rustdoc for executable examples.</p>
+<p><code>RandomConfig</code> is also non-exhaustive, but has no <code>Default</code> implementation
+because no distribution is appropriate for every calculation. Start with
+<code>RandomConfig::new(distribution)</code> and assign <code>seed</code> when reproducible sampling
+is required. An absent seed continues to initialize sampling from system
+randomness.</p>
+<p>New options must have defaults that preserve the previous behavior when the
+option is omitted. Maintain this contract in both the core’s <code>Default</code>
+implementations and the input frontend’s defaults. Non-exhaustiveness protects
+Rust source compatibility when fields are added; preserving default behavior
+also requires checking the existing calculation and input regression tests.</p>
+<p>The core produces <code>ScfResult</code>, <code>ScfIteration</code>, SCF timings,
+<code>HfCalculationResult</code>, and <code>Mp2MemoryPlan</code>; these are non-exhaustive inspection
+records, not extension points for constructing scientific output. Public
+fields remain readable, while new diagnostics can be added without requiring
+downstream struct literals to change. <code>Mp2Result</code> remains constructible because
+the public <code>Mp2Calculation</code> trait lets downstream implementations return the
+same result type.</p>
+<p>Enums are non-exhaustive when callers select among evolving configurations or
+consume results that may gain another variant, such as <code>HfMethod</code>,
+<code>ResolvedHfMethod</code>, density guesses, random distributions, and MP2 sectors.
+<code>HfOutcome</code> remains exhaustive because a completed HF run has exactly two
+convergence states; setup and calculation failures are returned as errors.
+<code>RestrictedMethod</code> and <code>UnrestrictedMethod</code> also remain exhaustive and name
+only the currently implemented method for each reference. Adding a supported
+method is an explicit API change, rather than an open-ended configuration
+choice.</p>
+<p>For portable archives and raw AO ERIs, import <code>RustiQData</code>, <code>RustiQBundle</code>, and <code>CompactEri</code> explicitly from
+<code>rustiq_core::persistence</code>. Import <code>ArtifactReuseDecision</code> and
+<code>ArtifactReuseEvent</code> from <code>rustiq_core::calculation</code>; these advanced types
+require explicit imports. The portable examples linked above demonstrate the
+persistence imports, and the
+<a href="https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/prelude_portable.rs">portable prelude test</a>
+shows how to combine them with the calculation prelude.</p>
+<h2 id="architecture-and-calculation-lifecycle"><a class="header" href="#architecture-and-calculation-lifecycle">Architecture and calculation lifecycle</a></h2>
+<p>The root CLI package owns terminal reports, application directories, and
+<code>src/runfile/</code>, which resolves TOML/Nickel through the embedded Nickel schema.
+The library owns scientific configuration and calculations without a Nickel
+dependency. This boundary lets a different frontend supply scientific options
+without embedding its input syntax or terminal behavior into numerical code.</p>
+<p>Within the core, <code>molecules</code> owns geometry, units, charge and electron counts;
+<code>basis</code> constructs Gaussian functions; <code>eri</code> computes and stores electron
+repulsion integrals; <code>hf</code> solves RHF/UHF; and <code>mp2</code> consumes HF orbitals.
+Rust makes ownership and mutation explicit for matrices, integral storage, and
+shared results. Enums model choices such as the HF method, while Cargo brings
+dependency locking, feature selection, and tests into one workflow. These
+engineering tools help make assumptions inspectable; they do not establish
+numerical correctness or a performance advantage over other languages.</p>
+<p>UHF builds the alpha and beta Fock matrices in one pass over AO pairs. Each
+pair shares the Coulomb contribution from the total density and the integral
+loads, while retaining a separate exchange contribution for each spin density.
+The independent scalar contraction regression covers unequal spin densities,
+equal spin densities, and an empty beta density across different Rayon pools:
+<code>cargo test -p rustiq-chem-core spin_fock_matrices_match_independent_contractions</code>.</p>
+<p>Typed errors distinguish invalid input from numerical failures. Optional source
+locations let the CLI attach diagnostics to input text without making the
+library own that text or its presentation.</p>
+<p><code>CalculationBuilder</code> accepts geometry, basis data, and scientific options.
+<code>prepare()</code> validates the state, converts coordinates to Bohr, constructs the
+basis, and resolves RHF/UHF. A prepared calculation can execute repeatedly.
+<code>run_hf()</code> distinguishes converged and unconverged outcomes; only the converged
+solution exposes <code>mp2()</code>. This type boundary prevents accidental MP2 execution
+on unconverged orbitals. Cloned solutions share immutable scientific data;
+execution errors retain completed HF outcomes when available.</p>
+<p>The core emits <code>CalculationCompleted</code> once after all requested stages complete.
+An HF-only run emits it even when the returned HF outcome is unconverged; execution
+completion and convergence are separate facts. A failing requested MP2 stage leaves
+the earlier HF notification available but emits no calculation completion. Callbacks
+borrow results synchronously; retaining them requires copying.
+The CLI copies only numerical summaries and artifact reports for batch presentation,
+so collecting a campaign does not retain orbital matrices or AO integrals.
+Campaign execution returns one ordered <code>CampaignResult</code> directly, including
+recoverable errors. Fatal errors stop execution before presentation. The CLI then
+derives the campaign summary, publishes artifacts when allowed, and renders the
+complete text or versioned JSON document. Publication failure after successful
+scientific execution still leaves the completed JSON on stdout while returning a
+failing process status. Portable bundle reruns use the same result presentation.</p>
+<p>The normalized <code>CalculationRequest</code> records scientific input without geometry
+paths or frontend source spans. Canonical TOML/XYZ rendering belongs to CLI
+adapters. Core consumers supply explicit paths to <code>BasisStore::new</code>; application
+storage environment variables are CLI policy. The core has no default features;
+its optional <code>online</code> feature enables online basis support. See the runnable
+examples and public API tests above for complete construction and error handling.</p>
+<h3 id="data-preparation-execution-and-reuse"><a class="header" href="#data-preparation-execution-and-reuse">Data preparation, execution, and reuse</a></h3>
+<p>The lifecycle is:</p>
+<pre><code class="language-text">CLI TOML/Nickel adapter or another frontend
+    -&gt; geometry + basis data + scientific options
+    -&gt; CalculationBuilder::prepare()
+       molecule in Bohr, Gaussian basis, resolved HF method and random seeds
+    -&gt; PreparedCalculation::run_hf()
+       one-electron integrals, overlap orthogonalization, AO ERI acquisition
+       -&gt; iterative SCF; final canonicalization if converged
+       -&gt; HfOutcome::Converged or HfOutcome::Unconverged
+    -&gt; extract the typed converged RHF/UHF solution
+    -&gt; Mp2Calculation::mp2()
+       blocked AO-to-MO integral transformation and MP2 correlation-energy evaluation
+</code></pre>
+<p><code>HfOutcome</code> records whether HF converged and contains an
+<code>AnyHfSolution&lt;State&gt;</code> whose <code>Restricted</code> or <code>Unrestricted</code> variant retains the
+reference-specific solution. <code>HfSolution&lt;R, State&gt;</code> carries both the reference
+and convergence state in its type; the <code>RhfSolution</code> and <code>UhfSolution</code> aliases
+name the common profiles. <code>AnyHfSolution</code> does not expose MP2. For HF followed
+by MP2, call <code>prepared.run_hf()?.into_converged()?</code>, match the runtime variant,
+then call <code>mp2(config)</code> on the resulting typed RHF or UHF solution. Both typed
+solutions implement the <code>Mp2Calculation</code> capability trait, exported in the
+prelude; unconverged and generic runtime solutions do not. The conversion
+returns an execution error retaining the unconverged outcome, recoverable with
+<code>into_hf()</code>. Typed/runtime conversions preserve state and return a typed
+<code>HfReferenceMismatch</code> error that retains the original solution when the requested
+reference does not match.</p>
+<p>The owned-output implementation lives in
+<code>crates/rustiq-core/src/calculation/solution/</code>, with separate modules for generic
+results, HF adaptation, runtime dispatch, outcomes and execution errors. The
+<code>calculation/solution.rs</code> facade preserves the existing public exports through
+<code>rustiq_core::calculation</code> and the prelude. Convergence markers stay together,
+and private shared storage stays with the result that owns it.</p>
+<p><code>HfSolution&lt;R, State&gt;</code> wraps <code>ScfSolution&lt;HfMethodDescriptor&lt;R&gt;, State&gt;</code>.
+The following conversions preserve the physical method, reference, convergence
+state and shared scientific allocation:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Source</th><th>Target</th><th>Conversion</th></tr>
+</thead>
+<tbody>
+<tr><td><code>HfSolution&lt;R, State&gt;</code></td><td><code>ScfSolution&lt;HfMethodDescriptor&lt;R&gt;, State&gt;</code></td><td><code>From</code> / <code>Into</code>, or <code>into_scf()</code></td></tr>
+<tr><td><code>ScfSolution&lt;HfMethodDescriptor&lt;R&gt;, State&gt;</code></td><td><code>HfSolution&lt;R, State&gt;</code></td><td><code>From</code> / <code>Into</code>, or <code>from_scf()</code></td></tr>
+<tr><td><code>&amp;HfSolution&lt;R, State&gt;</code></td><td><code>&amp;ScfSolution&lt;HfMethodDescriptor&lt;R&gt;, State&gt;</code></td><td><code>AsRef</code>, or <code>as_scf()</code></td></tr>
+<tr><td>Restricted or unrestricted generic HF output</td><td><code>AnyHfSolution&lt;State&gt;</code></td><td><code>From</code> / <code>Into</code></td></tr>
+<tr><td><code>AnyHfSolution&lt;State&gt;</code></td><td>Restricted or unrestricted generic HF output</td><td><code>TryFrom</code> / <code>TryInto</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The checked runtime extraction returns <code>HfReferenceMismatch&lt;State&gt;</code> on a
+reference mismatch. It reports the expected and actual HF references and retains
+the original <code>AnyHfSolution&lt;State&gt;</code>, recoverable with <code>into_solution()</code>. These
+conversions transfer or borrow existing ownership; they do not clone scientific
+data or allocate another result. The named methods delegate to the standard
+traits. The HF wrapper keeps its explicit interface, including
+<code>occupied_orbitals()</code>; existing HF callers need no migration.</p>
+<p><code>ScfSolution&lt;M, State&gt;</code> owns scientific output; <code>ScfResult</code> contains numerical
+metrics. The public <code>ScfMethod</code> trait associates independent coefficient,
+energy, occupation, summary and <code>RetainedData</code> types. It describes output rather
+than an executable SCF algorithm. The implementing descriptor type identifies
+the physical method separately from those representations. The generic <code>occupations()</code> accessor
+borrows method-specific occupations, which need not be integer orbital counts.
+<code>retained_data()</code> borrows scientific artifacts retained after execution; the
+generic contract requires neither an HF summary nor AO ERIs.</p>
+<p>Implementing this trait does not provide an SCF engine or a public solution
+constructor: the library establishes the method-specific convergence state.
+For HF, <code>HfMethodDescriptor&lt;R&gt;</code> identifies the compatible method, with an
+<code>HfCalculationResult</code> summary and retained AO ERIs. Its <code>ScfSolution</code>
+specialization exposes <code>scf_result()</code> to borrow metrics from the summary.
+Only compatible converged HF wrappers implement <code>Mp2Calculation</code>; generic HF
+output can be restored through <code>Into</code> or <code>from_scf()</code>. <code>AnyHfSolution</code> itself
+does not imply that MP2 is available for every contained or future HF reference.
+Supported converged HF implementations also guarantee final canonicalization;
+this is an HF guarantee, rather than a universal requirement on every SCF
+method.</p>
+<p>The sealed <code>HfReference</code> contract associates a compatible HF method, coefficient
+representation, orbital energies, and occupations. Generic code converts the
+associated method into <code>ResolvedHfMethod</code>; conversion into the input selector
+<code>HfMethod</code> is not required by the trait. RHF has one shared
+coefficient matrix and energy vector with one doubly occupied spatial-orbital
+count. UHF has separate alpha and beta coefficients, energies, and electron
+counts, represented by <code>Spin&lt;T&gt;</code>. Read-only accessors expose these values;
+energies are in Hartree, and each occupation count selects a prefix of its
+coefficient columns. Cloning a solution shares retained scientific data. An
+unconverged solution keeps diagnostic orbitals, while final canonical orbitals
+are guaranteed only after convergence.</p>
+<p>Initial guesses use the same reference markers through <code>DensityGuess&lt;R&gt;</code> and
+<code>OrbitalGuess&lt;R&gt;</code>. Reference-specific Fock-like inputs contain one matrix for
+<code>Restricted</code> and a <code>Spin</code> pair for <code>Unrestricted</code>, using the same <code>HfReference</code>
+component contract as <code>HfSolution</code>. The zero startup sentinel is available for
+both. Unperturbed guesses retain one core matrix for RHF or duplicate it for
+UHF. Random and perturbed guesses generate one matrix for RHF or two ordered
+alpha/beta matrices for UHF without constructing a discarded beta matrix;
+the seeded alpha sequence is preserved across references.</p>
+<p>Only converged solutions expose MP2. Method dispatch is exhaustive, so each
+supported reference has an explicit correlation implementation. An MP2 error
+retains the completed HF result for inspection or retry. See the
+<a href="https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/examples/hf_solution.rs"><code>hf_solution</code> example</a>
+and <a href="https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/tests/hf_solution.rs">API tests</a>
+for executable workflows.</p>
+<p>The complete offline example in <code>crates/rustiq-core/examples/hf_solution.rs</code>
+is also included directly in the <code>HfOutcome</code> API documentation. Run it from the
+repository root:</p>
+<pre><code class="language-sh">cargo run -p rustiq-chem-core --example hf_solution --no-default-features
+</code></pre>
+<p>It embeds the checked-in STO-3G basis and the H2 singlet and OH doublet geometries,
+with coordinates interpreted in Angstrom. It prints reference-specific occupied
+counts, total HF energies and MP2 correlation energies in Hartree. A deliberately
+invalid frozen-orbital count demonstrates error recovery: the example drops the
+original HF handle, extracts the retained output from the error using the standard
+conversion traits, and retries MP2 without rerunning HF. Unexpected failures
+propagate as errors. The example illustrates API ownership and error handling;
+the independent scientific comparisons remain separate verification procedures.</p>
+<p><code>prepare()</code> constructs reusable input data; it does not compute integrals or
+solve HF. Each normal <code>run_hf()</code> call builds a new HF execution state, including
+one-electron integrals and the orthogonalizer. Without an explicit reuse source,
+AO ERIs are recomputed too. Repeated execution of a prepared calculation does
+not itself memoize these numerical arrays. Random seeds resolved at preparation
+are retained for repeated executions.</p>
+<p>An optional <code>EriCache</code> can load compatible AO ERIs from a directory or store
+newly computed ones. It is disposable local storage. A supplied <code>CompactEri</code>
+through <code>run_hf_with_eri()</code> bypasses AO ERI computation and cache lookup, but
+the raw tensor API checks its expected element count rather than proving its
+scientific provenance. The caller must supply ERIs for the prepared geometry,
+AO ordering, and screening policy. Use the persistence APIs’ compatibility
+checks when reusing an archive. HF solutions retain their AO ERIs, and cloned
+solutions share immutable result data; these retained results are distinct from
+the prepared input data.</p>
+<p>Portable <code>.rustiq</code> bundles can be read and written through the core persistence
+APIs and through the CLI’s <code>run --reuse</code>, <code>run --artifact</code>, <code>artifact inspect</code>,
+and <code>artifact verify</code> commands. <code>run INPUT --reuse BUNDLE</code> resolves the supplied
+runfile’s geometry and basis as usual, then uses bundle compatibility to select
+AO ERIs. <code>run BUNDLE.rustiq</code> reconstructs the archived resolved calculations
+without the original inputs or local basis store. The Rust API can also reconstruct
+a calculation from those scientific snapshots. These workflows start fresh HF
+executions; HF solutions and SCF restart state are not persisted. Neither workflow turns
+a local cache directory into a portable artifact. See the
+<a href="../user-guide/portable-bundles.html">portable bundle guide</a>, the
+<a href="../reference/index.html">persistence contract</a>, and the runnable API examples
+for details.
+Portable NPY ERI payloads stream directly into the final shared compact storage
+through an exact-size iterator, avoiding a temporary full-size <code>Vec&lt;f64&gt;</code>.</p>
+<p>This distinction matters for performance: compact AO ERI storage still grows
+as the fourth power of basis dimension, and the MP2 workspace budget covers
+additional transformation buffers rather than the full HF data or process
+memory. See <a href="../reference/existing-workflows.html#mp2-and-its-memory-budget">MP2 memory policy</a>.</p>
+<h2 id="build-profiles-and-performance-investigation"><a class="header" href="#build-profiles-and-performance-investigation">Build profiles and performance investigation</a></h2>
+<p>Cargo’s default development and test builds favor development speed. Release
+builds optimize execution using thin link-time optimization and one codegen unit,
+and strip symbols. The custom <code>profiling</code> profile retains release optimizations
+with debug information and symbols:</p>
+<pre><code class="language-sh">cargo build --locked --release
+cargo build --locked --profile profiling
+</code></pre>
+<p>The profiling executable is under <code>target/profiling/</code>. For optimization specific
+to the build machine’s CPU, use <code>RUSTFLAGS="-C target-cpu=native" cargo build --locked --release</code>; that binary may require instructions absent on another CPU.
+In PowerShell, set <code>$env:RUSTFLAGS = "-C target-cpu=native"</code>, build, then remove
+it with <code>Remove-Item Env:RUSTFLAGS</code>. There is no separate <code>native</code> Cargo profile.</p>
+<p>Coulomb integrals cache Boys function values by order. When the requested
+maximum order is nonzero, positive arguments up to 20 use a positive-term series
+to seed the highest order, followed by downward recurrence; larger arguments
+retain the gamma-function seed. An order-zero cache uses the error-function
+expression. This changes numerical evaluation rather than the integral
+definition or screening policy. The unit tests in
+<a href="https://github.com/mveril/RustiQ/blob/main/crates/rustiq-core/src/math_utils/boys.rs"><code>boys.rs</code></a>
+compare the cache against independent quadrature, including the series boundary.
+Run <code>cargo test -p rustiq-chem-core math_utils::boys</code> and the affected
+<a href="https://github.com/mveril/RustiQ/blob/main/tools/reference/README.md">PySCF comparisons</a> after changing this path.</p>
+<p>The <code>eri_timings</code> and <code>mp2_timings</code> benchmarks use Criterion and require
+<code>bench-support</code>:</p>
+<pre><code class="language-sh">cargo bench --bench mp2_timings --features bench-support
+cargo bench --bench eri_timings --features bench-support
+cargo bench --bench eri_storage_allocation --features bench-support
+cargo bench --bench eri_storage_memory --features bench-support
+</code></pre>
+<p>The MP2 benchmark compares the dense AO-to-MO transformation and correlation
+energy evaluation with the production memory-blocked path on deterministic
+synthetic RHF inputs. Each blocked case is constrained to process occupied
+orbitals in at least two blocks, even when the requested memory budget could fit
+one block. <code>RUSTIQ_MP2_MEMORY</code> sets an upper cap; each case may use a smaller
+budget to force multiple blocks. AO dimensions must be at least 6. It checks that
+both paths produce matching energies before timing
+them, and records the selected block size, block count, workspace budget, and
+estimated temporary workspace. Input and ERI construction remain outside the
+measured iterations. These synthetic inputs benchmark the contraction code;
+they are not molecular calculations or scientific accuracy validation.
+<code>RUSTIQ_MP2_MEMORY</code>, <code>RUSTIQ_MP2_SIZES</code> (comma-separated AO dimensions), and
+<code>RAYON_NUM_THREADS</code> select the memory budget, AO dimensions, and thread count.
+The ERI benchmark times repeated integral construction for the checked-in
+molecular cases. By default it skips the larger ethanol and cholesterol cases;
+set <code>RUSTIQ_BENCH_HEAVY=1</code> to include them. <code>RUSTIQ_BENCH_FILTER</code> selects cases
+by name or geometry path, and <code>RUSTIQ_BENCH_BASIS_STORE</code> selects a basis store.
+It reports compact ERI storage elements processed per second. This count is the
+size of the compact representation; Schwarz screening may skip evaluations or
+leave stored elements zero, so it is not a count of integrals evaluated per
+second.</p>
+<p>The <code>eri_storage_allocation</code> benchmark compares Vec-then-Arc construction with
+the exact-size-iterator Arc initialization path for identical compact tensor
+sizes. It measures storage allocation and initialization only, not ERI
+evaluation. Compare the same Criterion benchmark and compiler settings on both
+revisions. The Miri
+workflow targets a sequential unit test for the shared in-place initialization
+helper, checking its initialization safety independently of Rayon scheduling.
+Run the same check locally with nightly Rust:</p>
+<pre><code class="language-sh">rustup +nightly component add miri rust-src
+cargo +nightly miri setup
+cargo +nightly miri test -p rustiq-chem-core --lib test_in_place_storage_initialization_miri
+</code></pre>
+<p>The <code>eri_storage_memory</code> benchmark uses a counting global allocator in a
+separate executable to report peak live heap bytes attributable to each
+construction. It includes requested allocation sizes, not allocator overhead
+or process RSS. It compares the same Vec-then-Arc and in-place storage paths.</p>
+<p>The standard cases use 30 samples, a 2-second warm-up, and a 5-second
+measurement target. Heavy ERI cases and MP2 cases with 48 or more AOs use
+Criterion’s minimum of 10 samples, a 1-second warm-up, and a 2-second target.
+These are targets: Criterion may take longer to collect the requested samples,
+especially when each calculation is expensive. Heavy ERI cases remain disabled
+unless <code>RUSTIQ_BENCH_HEAVY=1</code> is set. Measurements are saved under
+<code>target/criterion</code>.</p>
+<p>Criterion baselines can be compared only between revisions that both use
+Criterion and the same benchmark workload. The multiblock MP2 workload has a
+new Criterion identifier, so its first run establishes a new starting point;
+do not compare it with the previous single-block <code>mp2/blocked</code> measurements.
+Legacy timing results also cannot be compared directly with Criterion measurements.
+MP2 input construction is excluded from measured iterations. Keep CPU
+architecture, Rayon thread count, build flags, enabled features, MP2 memory
+budget, power settings, and benchmark environment variables consistent. Save a
+baseline on the reference revision with the same workload, then compare from
+the revision under test:</p>
+<pre><code class="language-sh">cargo bench --bench mp2_timings --features bench-support -- --save-baseline before
+cargo bench --bench mp2_timings --features bench-support -- --baseline before
+</code></pre>
+<p>See the <a href="https://github.com/mveril/RustiQ/blob/main/benches/mp2_timings.rs">MP2 benchmark source</a>
+and <a href="https://github.com/mveril/RustiQ/blob/main/benches/eri_timings.rs">ERI benchmark source</a>.
+Benchmarks provide performance measurements, not scientific validation.</p>
+<h3 id="generate-reproducible-reports"><a class="header" href="#generate-reproducible-reports">Generate reproducible reports</a></h3>
+<p>From the repository root, the scientific report reuses the canonical PySCF
+reference cases and their absolute tolerances:</p>
+<pre><code class="language-sh">uv run --locked python tools/reference/report.py --output-dir target/scientific-report
+</code></pre>
+<p>It writes full precision results to <code>validation.json</code> and readable tables to
+<code>validation.md</code>. In addition to the cases run by <code>pytest tools/reference</code>, it
+includes the frozen-core MP2 variants exercised by those tests at 32 KiB and
+512 MiB workspace budgets. Total HF energies and MP2 correlation energies are
+reported separately. A case fails if either implementation does not converge,
+an energy comparison exceeds its existing tolerance, or the UHF spin expectation
+value misses its tolerance. Failed cases remain in the report, and the command
+returns a nonzero status. The report records software versions, commit and
+platform metadata so results can be compared across revisions.</p>
+<p>Generate Criterion measurements and their report with:</p>
+<pre><code class="language-sh">cargo bench --features bench-support --bench eri_timings
+cargo bench --features bench-support --bench mp2_timings
+uv run --locked python tools/benchmarks/report.py
+</code></pre>
+<p>The report is written to <code>target/performance-report/benchmarks.json</code> and
+<code>benchmarks.md</code>. To produce both reports on GitHub, open <strong>Actions → Scientific
+and performance report → Run workflow</strong> on the selected branch or commit. The
+workflow uploads <code>rustiq-scientific-performance-reports</code>; download that artifact
+from the completed workflow run to inspect the Markdown and JSON files.</p>
+<p>Criterion stores structured estimates in <code>target/criterion</code>; the benchmark
+executables also write the case dimensions and configuration used by the report
+generator there. The default runs include the small ERI cases and MP2 AO sizes
+12, 24, and 48. To select a smaller local run or opt into the expensive ERI
+cases, set <code>RUSTIQ_BENCH_FILTER</code>, <code>RUSTIQ_MP2_SIZES</code>, <code>RUSTIQ_MP2_MEMORY</code>, and
+<code>RUSTIQ_BENCH_HEAVY</code> as described above. The report includes Criterion means
+and confidence intervals. Its configured MP2 workspace is not measured peak
+RSS, and synthetic MP2 cases do not model complete molecular calculations.
+Results are machine-dependent; the on-demand GitHub Actions workflow starts
+with one small ERI case and AO sizes 12 and 24. To run heavy ERI cases, select
+<strong>Include the heavy ERI cases</strong> and choose an ERI filter that matches those cases.
+The checkbox enables <code>RUSTIQ_BENCH_HEAVY=1</code>; it is disabled by default.</p>
+<p>These reports provide numerical regression checks for selected cases. They do
+not establish general chemical accuracy; see the <a href="../scientific-scope.html">scientific scope</a>
+for the limits of HF, MP2, and numerical agreement. Equal numeric convergence
+thresholds do not mean that RustiQ and PySCF use identical convergence tests.</p>
+<h3 id="independent-ao-integral-validation"><a class="header" href="#independent-ao-integral-validation">Independent AO integral validation</a></h3>
+<p>The parameterized Cargo tests
+<code>integral_reference_tests::export_integral_validation::case_N</code> compare
+production overlap (S), kinetic (T), nuclear attraction (V), and
+Hcore = T + V matrices with versioned PySCF 2.14.0 fixtures. It compares every
+matrix entry and every unique unscreened electron-repulsion integral (ERI),
+in chemists’ notation. No Python installation is needed for Cargo tests.
+The cases are H2/STO-3G (2 AOs), H2O/STO-3G (7), H2O/6-31G (13), and
+H2O/cc-pVDZ with spherical 5D (24) and Cartesian 6D (25) functions. The
+Cartesian cc-pVDZ water case is also rotated by 0.37 radians around the
+normalized (1, 2, 3) axis with RustiQ’s <code>Geometry::rotate</code>; its independently
+generated PySCF reference uses the same Rodrigues rotation. This checks the
+Cartesian integrals with coordinates spanning all three Cartesian axes.</p>
+<p>All families use an absolute tolerance of 1e-10 in each family’s units, with no relative
+acceptance criterion. Measured maxima on these cases are below 9e-14; the
+threshold leaves margin for floating-point accumulation and platform differences
+in contracted Hermite/Boys evaluation while remaining below the 1e-8 scale that
+would require investigation. Relative errors are diagnostic only and are reported
+for reference magnitudes at least 1e-8. Reports include dimensions, counts, RMS
+and maximum absolute error, exceedance counts, and the five largest discrepancies
+with zero-based AO indices and full precision values. For S the units are
+dimensionless; T, V, Hcore, and ERIs are in atomic units of energy.</p>
+<p>The fixtures are generated independently by PySCF/libcint from the same raw
+checked-in Basis Set Exchange (BSE) JSON exponents and contraction coefficients,
+not from RustiQ’s normalized primitives. PySCF interprets and normalizes those
+coefficients independently. This avoids differences in rounded packaged basis
+sets. Geometry is converted from the checked-in Angstrom XYZ files to Bohr using
+0.529177210903 Angstrom/Bohr (CODATA 2018), then supplied explicitly in Bohr.
+The JSON metadata records source hashes, PySCF version, AO permutation, units,
+layout, and each numerical array hash. Cargo rejects changed source inputs or
+array contents; pytest also regenerates every reference array and checks it
+within 1e-13 absolute units. Regeneration never reads RustiQ integral values.</p>
+<p>RustiQ retains atom, BSE shell, and contraction order; PySCF stably sorts shells
+by angular momentum. Within each p shell RustiQ uses z,y,x versus PySCF x,y,z.
+The real spherical d order and phases agree: xy, yz, (2zz−xx−yy), xz, (xx−yy),
+with normalized polynomial combinations. Cartesian order is reversed:
+RustiQ zz,yz,yy,xz,xy,xx versus PySCF xx,xy,xz,yy,yz,zz. The mapping is constructed
+from these conventions, never fitted to integral values. PySCF’s Cartesian d
+functions have radial normalization: multiply its xx,yy,zz functions by
+sqrt(5/(4π)) and xy,xz,yz by sqrt(15/(4π)) to obtain unit-normalized monomials.
+These factors follow from angular integrals of squared monomials, 4π/5 and
+4π/15, respectively. The reference generator checks the resulting unit overlap
+diagonals. A separate analytic coefficient test compares the spherical d
+polynomials with PySCF’s Cartesian-to-spherical transformation, checking phases
+that the planar water geometry alone cannot distinguish. This positive diagonal scaling has condition number sqrt(3); there
+is no fitted rotation or phase adjustment. The Cartesian extension changes only
+the in-memory shell representation, preserving every source exponent and
+coefficient and leaving fixtures and production defaults unchanged.
+See the authoritative <a href="https://pyscf.org/_modules/pyscf/gto/mole.html">PySCF basis construction source</a>
+and <a href="https://pyscf.org/_modules/pyscf/gto/moleintor.html">integral interface</a>.</p>
+<p>Reproduce the independent comparisons and verify the fixtures:</p>
+<pre><code class="language-sh">cargo test -p rustiq-chem-core --lib integral_reference_tests
+nix develop .#mini-pyscf --command pytest tools/reference
+# Equivalent non-Nix workflow:
+uv run --locked pytest tools/reference
+# Intentionally regenerate versioned NumPy arrays and provenance:
+uv run --locked python tools/reference/integrals.py --regenerate
+# Write the detailed integral-only machine-readable report:
+uv run --locked python tools/reference/integrals.py --report target/integrals.json
+</code></pre>
+<p>NumPy writes individual <code>.npy</code> fixtures; Rust reads them directly
+through the existing persistence readers backed by <code>npyz</code>. Matrices have
+two-dimensional shapes and Fortran (column-major) storage. ERIs use lower triangular AO pairs i≥j, followed by lower
+triangular pairs of pairs p≥q, with pair index i(i+1)/2+j. No full four-index
+tensor is allocated. The scientific report above includes an independent AO
+integral section and full precision JSON diagnostics. Harness failures are
+reported as failures, not omitted.</p>
+<p>Three forms of evidence remain distinct: independent integral comparisons
+check agreement with libcint; internal eightfold compact reconstruction checks
+validate storage symmetry; end-to-end HF/MP2 comparisons validate selected
+calculations. The compact reconstruction check is algebraic and does not
+independently recompute eight permutations. Existing Schwarz screening tests
+remain separate; this accuracy test passes <code>None</code> to the production threshold
+interface and does not change default screening. Successful checks establish
+agreement only for these geometries, contractions, s/p functions, and spherical
+and Cartesian d functions. They do not establish correctness for higher angular
+momenta, extreme exponents, arbitrary geometries, or basis completeness.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../development/licensing.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../development/documentation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../development/licensing.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../development/documentation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-eefea253.min.js"></script>
+        <script src="../mermaid-init-53b67c53.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

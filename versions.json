@@ -1,0 +1,8 @@
+{
+  "legacy_redirects": true,
+  "legacy_source": "current-book-only",
+  "development": "dev/",
+  "latest_beta": null,
+  "latest_stable": null,
+  "versions": []
+}
