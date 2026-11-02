@@ -77,8 +77,9 @@ made at build time without a network lookup. Ordinary source builds use developm
 set release metadata at build time; packagers of an exact release may set
 `RUSTIQ_DOCS_RELEASE=1` to select its versioned manual. Set it to `0` to
 force development documentation. Other values are invalid. Published crates
-include release metadata, and Nix packagers can use `nix build .#release`
-for an official release source. `--print-path` prints the
+include release metadata. The default Nix package uses the flake's
+`officialRelease` flag, enabled automatically in official release tags.
+No `#release` package selector is needed. `--print-path` prints the
 absolute local index path without starting a browser; combine it with `--web`
 to print the online URL instead. On headless machines, copy the manual tree to
 another machine and open its `index.html`, or use the printed URL in a browser

@@ -251,13 +251,20 @@ cargo install cargo-dist --version 0.33.0 --locked
 
 Finalize the dated changelog section and its reference links, and commit it with
 the release preparation changes above before creating the matching tag. Push
-the release commit and tag:
+the release commits and tag. On a clean `main` checkout, run:
 
 ```sh
-git tag vX.Y.Z
-git push origin HEAD
-git push origin vX.Y.Z
+python3 tools/prepare-release.py vX.Y.Z
+git push --atomic origin main refs/tags/vX.Y.Z
 ```
+
+The preparation command requires Python 3.11 or later and checks that the tag
+matches both package versions and the core dependency requirement. It creates
+a commit enabling `officialRelease` in `flake.nix`, followed by a commit
+disabling it for continued development, then tags the release commit. It does
+not push. The atomic push publishes both commits and the tag together. If a
+Git command fails, inspect the local commits and working tree before retrying;
+the command does not automatically undo partial preparation.
 
 Release tags must match `vX.Y.Z` or `vX.Y.Z-prerelease`, such as `v1.2.3` or
 `v0.1.0-beta.1`. For a prerelease, include the same suffix in both package
@@ -329,7 +336,10 @@ published.
 
 Official Cargo publications embed the package version as documentation release
 metadata in the published manifest. The release manual artifact carries the
-same version to cargo-dist builds. For Nix, build `.#release` from the exact
-official release source; `.#default` is for development. Third-party packagers
+same version to cargo-dist builds. For Nix, the default package reads
+`officialRelease` from the flake. The release preparation command enables it
+in the tagged commit and disables it in the following development commit.
+Build a tagged release with `nix build github:mveril/RustiQ/vX.Y.Z`;
+no package selector is required. Third-party packagers
 can set `RUSTIQ_DOCS_RELEASE=1` for an exact release, or `0` for development.
 The default without publication metadata is development documentation.
