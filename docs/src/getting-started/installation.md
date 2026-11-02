@@ -55,6 +55,40 @@ and open a new terminal.
 The Cargo package is named `rustiq-chem`; the executable is named `rustiq` (or
 `rustiq.exe` on Windows).
 
+## Install with Cargo
+
+Install the exact beta version from crates.io from any directory. This builds
+RustiQ from source and requires Rust and Cargo, a C/C++
+toolchain, and CMake; see [manual setup](../development/manual-setup.md#install-and-build)
+for platform prerequisites.
+
+```sh
+cargo install --locked rustiq-chem --version '=0.1.0-beta.1'
+rustiq --help
+```
+
+Ensure Cargo's binary directory is on `PATH`. Cargo-only installations use the
+online manual, as described below.
+
+## Install with Nix
+
+Install the beta directly from the RustiQ flake, without a checkout. Nix must
+have flakes and the `nix-command`
+experimental feature enabled. The flake supports Linux x86_64, Linux ARM64,
+and Apple Silicon macOS. It does not currently support Intel macOS or Windows.
+
+```sh
+nix profile install 'github:mveril/RustiQ/v0.1.0-beta.1#release'
+rustiq --help
+```
+
+The `release` package includes the offline manual, manpages, and shell
+completions. `rustiq docs` opens the offline manual; `rustiq docs --web` uses
+the versioned online manual. The flake's default package is
+for development builds. Nix builds the package from source when no suitable
+binary substitute is available. On Nix versions where `nix profile install` is
+deprecated, `nix profile add` accepts the same flake reference.
+
 ## Consult the manual
 
 Release archives contain an offline HTML manual in `manual/html/` beside the
@@ -129,7 +163,5 @@ cargo install --locked --path .
 rustiq --help
 ```
 
-The registry package is also named `rustiq-chem`; install from crates.io only
-when the relevant version has been published. See the
-[development environments](../development/environments.md) page for Nix,
+See the [development environments](../development/environments.md) page for Nix,
 Docker, and other supported contributor setups.

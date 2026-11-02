@@ -30,6 +30,12 @@ and [the first H₂ calculation](https://mveril.github.io/RustiQ/getting-started
 Release archives contain the executable and licenses; obtain basis data and
 create calculation inputs as shown in those guides.
 
+Install the beta from crates.io with
+`cargo install --locked rustiq-chem --version '=0.1.0-beta.1'`, or install the
+release flake with
+`nix profile install 'github:mveril/RustiQ/v0.1.0-beta.1#release'`.
+See the installation guide for prerequisites and supported Nix platforms.
+
 To build from source, install Git, Rust through [rustup](https://rustup.rs/), a
 C/C++ build toolchain, and CMake; see [manual setup](docs/src/development/manual-setup.md).
 Alternatively, enter `nix develop .#rust` after cloning:

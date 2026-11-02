@@ -58,7 +58,7 @@ tokio = { version = "1", default-features = false }
 name = "rustiq-chem"
 description = "The modern rust quantum chemistry software"
 authors = ["Mickaël Véril"]
-version = "0.1.0-alpha.1"
+version = "0.1.0-beta.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mveril/RustiQ"
@@ -78,7 +78,7 @@ completions = ["dep:clap_complete", "dep:clap_complete_nushell", "dep:sysinfo"]
 
 [dependencies]
 bytesize.workspace = true
-rustiq-core = { package = "rustiq-chem-core", path = "crates/rustiq-core", version = "0.1.0-alpha.1", default-features = false }
+rustiq-core = { package = "rustiq-chem-core", path = "crates/rustiq-core", version = "0.1.0-beta.1", default-features = false }
 directories = "6"
 miette = { workspace = true, features = ["fancy"] }
 clap = { version = "4.6", features = ["cargo", "derive", "env"] }
