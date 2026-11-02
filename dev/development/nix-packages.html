@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-53d67c58.js";
+            window.path_to_searchindex_js = "../searchindex-085c3e7c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-234b4cca.js"></script>
@@ -276,7 +276,10 @@ RustiQ binary. For example:</p>
 <code>nix build .#cargo-artifacts</code> for cached Cargo dependency artifacts, and
 <code>nix build .#pyscf-environment</code> for the base PySCF environment. These are build
 outputs rather than development shells. The default package is the RustiQ CLI
-binary, available through <code>nix build</code>.</p>
+binary, available through <code>nix build</code>. The <code>officialRelease</code> flag in the flake
+selects the versioned online manual for release tags and the development
+manual for development commits. Release preparation updates this flag
+automatically; see <a href="releasing.html#preparing-a-release">releasing</a>.</p>
 <h2 id="installed-manual-and-completions"><a class="header" href="#installed-manual-and-completions">Installed manual and completions</a></h2>
 <p>The default package includes manual pages for <code>man rustiq</code> and its
 subcommands, such as <code>man rustiq-artifact-inspect</code>. Every page links to the

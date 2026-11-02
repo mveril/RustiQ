@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-53d67c58.js";
+            window.path_to_searchindex_js = "searchindex-085c3e7c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-234b4cca.js"></script>
@@ -291,8 +291,9 @@ made at build time without a network lookup. Ordinary source builds use developm
 set release metadata at build time; packagers of an exact release may set
 <code>RUSTIQ_DOCS_RELEASE=1</code> to select its versioned manual. Set it to <code>0</code> to
 force development documentation. Other values are invalid. Published crates
-include release metadata, and Nix packagers can use <code>nix build .#release</code>
-for an official release source. <code>--print-path</code> prints the
+include release metadata. The default Nix package uses the flake’s
+<code>officialRelease</code> flag, enabled automatically in official release tags.
+No <code>#release</code> package selector is needed. <code>--print-path</code> prints the
 absolute local index path without starting a browser; combine it with <code>--web</code>
 to print the online URL instead. On headless machines, copy the manual tree to
 another machine and open its <code>index.html</code>, or use the printed URL in a browser
@@ -3098,7 +3099,10 @@ RustiQ binary. For example:</p>
 <code>nix build .#cargo-artifacts</code> for cached Cargo dependency artifacts, and
 <code>nix build .#pyscf-environment</code> for the base PySCF environment. These are build
 outputs rather than development shells. The default package is the RustiQ CLI
-binary, available through <code>nix build</code>.</p>
+binary, available through <code>nix build</code>. The <code>officialRelease</code> flag in the flake
+selects the versioned online manual for release tags and the development
+manual for development commits. Release preparation updates this flag
+automatically; see <a href="#preparing-a-release">releasing</a>.</p>
 <h2 id="installed-manual-and-completions"><a class="header" href="#installed-manual-and-completions">Installed manual and completions</a></h2>
 <p>The default package includes manual pages for <code>man rustiq</code> and its
 subcommands, such as <code>man rustiq-artifact-inspect</code>. Every page links to the
@@ -3418,11 +3422,17 @@ if the Nixpkgs package differs:</p>
 </code></pre>
 <p>Finalize the dated changelog section and its reference links, and commit it with
 the release preparation changes above before creating the matching tag. Push
-the release commit and tag:</p>
-<pre><code class="language-sh">git tag vX.Y.Z
-git push origin HEAD
-git push origin vX.Y.Z
+the release commits and tag. On a clean <code>main</code> checkout, run:</p>
+<pre><code class="language-sh">python3 tools/prepare-release.py vX.Y.Z
+git push --atomic origin main refs/tags/vX.Y.Z
 </code></pre>
+<p>The preparation command requires Python 3.11 or later and checks that the tag
+matches both package versions and the core dependency requirement. It creates
+a commit enabling <code>officialRelease</code> in <code>flake.nix</code>, followed by a commit
+disabling it for continued development, then tags the release commit. It does
+not push. The atomic push publishes both commits and the tag together. If a
+Git command fails, inspect the local commits and working tree before retrying;
+the command does not automatically undo partial preparation.</p>
 <p>Release tags must match <code>vX.Y.Z</code> or <code>vX.Y.Z-prerelease</code>, such as <code>v1.2.3</code> or
 <code>v0.1.0-beta.1</code>. For a prerelease, include the same suffix in both package
 versions and the tag. Dist recognizes the suffix and marks the GitHub Release
@@ -3483,8 +3493,11 @@ before retrying; the workflow’s existence check will skip a version already
 published.</p>
 <p>Official Cargo publications embed the package version as documentation release
 metadata in the published manifest. The release manual artifact carries the
-same version to cargo-dist builds. For Nix, build <code>.#release</code> from the exact
-official release source; <code>.#default</code> is for development. Third-party packagers
+same version to cargo-dist builds. For Nix, the default package reads
+<code>officialRelease</code> from the flake. The release preparation command enables it
+in the tagged commit and disables it in the following development commit.
+Build a tagged release with <code>nix build github:mveril/RustiQ/vX.Y.Z</code>;
+no package selector is required. Third-party packagers
 can set <code>RUSTIQ_DOCS_RELEASE=1</code> for an exact release, or <code>0</code> for development.
 The default without publication metadata is development documentation.</p>
 <div style="break-before: page; page-break-before: always;"></div>

@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-53d67c58.js";
+            window.path_to_searchindex_js = "../searchindex-085c3e7c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-234b4cca.js"></script>
@@ -244,8 +244,9 @@ made at build time without a network lookup. Ordinary source builds use developm
 set release metadata at build time; packagers of an exact release may set
 <code>RUSTIQ_DOCS_RELEASE=1</code> to select its versioned manual. Set it to <code>0</code> to
 force development documentation. Other values are invalid. Published crates
-include release metadata, and Nix packagers can use <code>nix build .#release</code>
-for an official release source. <code>--print-path</code> prints the
+include release metadata. The default Nix package uses the flake’s
+<code>officialRelease</code> flag, enabled automatically in official release tags.
+No <code>#release</code> package selector is needed. <code>--print-path</code> prints the
 absolute local index path without starting a browser; combine it with <code>--web</code>
 to print the online URL instead. On headless machines, copy the manual tree to
 another machine and open its <code>index.html</code>, or use the printed URL in a browser
