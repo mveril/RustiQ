@@ -12,7 +12,7 @@ git = MODULE["git"]
 
 @pytest.fixture
 def repository(tmp_path):
-    git(tmp_path, "init", "-b", "main")
+    git(tmp_path, "init", "-b", "chore/prepare-version")
     git(tmp_path, "config", "user.email", "test@example.com")
     git(tmp_path, "config", "user.name", "Release test")
     (tmp_path / "crates/rustiq-core").mkdir(parents=True)
@@ -63,3 +63,29 @@ def test_existing_tag_is_preserved(repository):
     with pytest.raises(ValueError, match="already exists"):
         prepare(repository, "v1.2.3")
     assert git(repository, "rev-parse", "HEAD") == initial
+
+
+def test_task_branch_release(repository, capsys):
+    git(repository, "switch", "-c", "chore/prepare-release")
+    prepare(repository, "v1.2.3")
+    assert git(repository, "branch", "--show-current") == "chore/prepare-release"
+    assert git(repository, "rev-parse", "HEAD^") == git(repository, "rev-parse", "v1.2.3")
+    output = capsys.readouterr().out
+    assert "git push -u origin chore/prepare-release" in output
+    assert "gh pr create --base main --head chore/prepare-release" in output
+    assert "no squash or rebase" in output
+    assert "git push --atomic origin main" not in output
+
+
+@pytest.mark.parametrize("branch", ["main", "legacy", "chore/Invalid", None])
+def test_invalid_branch_leaves_repository_unchanged(repository, branch):
+    if branch is None:
+        git(repository, "checkout", "--detach")
+    else:
+        git(repository, "switch", "-c", branch)
+    initial = git(repository, "rev-parse", "HEAD")
+    with pytest.raises(ValueError, match="branch"):
+        prepare(repository, "v1.2.3")
+    assert git(repository, "rev-parse", "HEAD") == initial
+    assert git(repository, "tag", "--list") == ""
+    assert git(repository, "status", "--porcelain") == ""
