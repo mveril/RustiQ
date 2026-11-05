@@ -93,11 +93,14 @@ impl Geometry {
     /// # Errors
     ///
     /// Returns an error if two atoms occupy the same position.
+    #[allow(
+        deprecated,
+        reason = "tuple_combinations avoids the allocation required by array_combinations"
+    )]
     pub fn nucl_repulsion(&self) -> Result<f64, NuclearRepulsionError> {
-        self.atoms
-            .iter()
-            .array_combinations::<2>()
-            .try_fold(0.0, |energy, [atom_i, atom_j]| {
+        self.atoms.iter().tuple_combinations::<(_, _)>().try_fold(
+            0.0,
+            |energy, (atom_i, atom_j)| {
                 let r_ij = distance(&atom_i.position, &atom_j.position);
                 if r_ij == 0.0 {
                     return Err(NuclearRepulsionError::CoincidentAtoms);
@@ -105,7 +108,8 @@ impl Geometry {
                 let z_i = f64::from(atom_i.element.atomic_number());
                 let z_j = f64::from(atom_j.element.atomic_number());
                 Ok(energy + z_i * z_j / r_ij)
-            })
+            },
+        )
     }
 
     #[must_use]
