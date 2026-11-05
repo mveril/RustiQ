@@ -9,11 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The following capabilities are intended for the first public beta, `v0.1.0-beta.1`.
 
-### Changed
-
-- Refresh Rust, Python, and Nix dependency locks for beta preparation, and
-  remove the core’s direct itertools dependency with allocation-free pair iteration.
-
 ### Added
 
 - Restricted Hartree–Fock (RHF) and unrestricted Hartree–Fock (UHF), with
