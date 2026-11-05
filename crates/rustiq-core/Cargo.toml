@@ -23,7 +23,7 @@ online = ["dep:reqwest", "dep:tokio"]
 bench-support = []
 
 [dependencies]
-itertools = { version = "0.14", default-features = false }
+itertools = { version = "0.15", default-features = false }
 miette.workspace = true
 reqwest = { version = "0.13", default-features = false, optional = true, features = [
   "json",
@@ -44,7 +44,7 @@ bounded-vec-deque = "0.1.1"
 thiserror.workspace = true
 rand.workspace = true
 rand_chacha = "0.10"
-petname = { version = "3.1", default-features = false }
+petname = { version = "3.2", default-features = false }
 rand_distr = "0.6"
 special = { version = "0.14", default-features = false, features = ["std"] }
 factorial = "0.4.0"

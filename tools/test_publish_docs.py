@@ -107,8 +107,8 @@ def site_tree(site):
 
 
 def redirect_url(page, requested):
-    from html import unescape
     import re
+    from html import unescape
     from urllib.parse import urljoin
 
     target = re.search(r'content="0; url=([^"]+)"', page.read_text()).group(1)
@@ -229,6 +229,7 @@ def test_workflow_release_validation(tmp_path, tag, on_main, error):
         git("commit", "-m", "Prerelease")
     result = subprocess.run(
         ["bash", "-c", script],
+        check=False,
         cwd=tmp_path,
         env={**os.environ, "RELEASE_TAG": tag},
         capture_output=True,
