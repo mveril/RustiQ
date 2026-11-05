@@ -89,16 +89,15 @@ def publish(book, site, revision, version=None):
             if version
             else None
         )
-        if version and (old or dest.exists()):  # noqa: SIM102 - keep conflict checks grouped
-            if (
-                not old
-                or old["commit"] != revision
-                or not dest.is_dir()
-                or not same_tree(prepared, dest)
-            ):
-                raise ValueError(
-                    f"version conflict for {version}: existing commit or content differs"
-                )
+        if version and (old or dest.exists()) and (
+            not old
+            or old["commit"] != revision
+            or not dest.is_dir()
+            or not same_tree(prepared, dest)
+        ):
+            raise ValueError(
+                f"version conflict for {version}: existing commit or content differs"
+            )
         if version and not old:
             entries.append(
                 {
