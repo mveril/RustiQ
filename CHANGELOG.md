@@ -12,7 +12,7 @@ The following capabilities are intended for the first public beta, `v0.1.0-beta.
 ### Changed
 
 - Refresh Rust, Python, and Nix dependency locks for beta preparation, and
-  align the core itertools requirement to reduce duplicate crate versions.
+  remove the core’s direct itertools dependency with allocation-free pair iteration.
 
 ### Added
 
