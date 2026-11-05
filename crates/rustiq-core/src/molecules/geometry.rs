@@ -2,7 +2,6 @@ use super::nuclear_repulsion_error::NuclearRepulsionError;
 use super::{atom::Atom, geometry_parse_error::GeometryParseError, xyz_parser::parse_xyz};
 use core::iter::Iterator;
 use delegate::delegate;
-use itertools::Itertools;
 #[cfg(test)]
 use mendeleev::Element;
 use nalgebra::{distance, Isometry3, Matrix3, Point3, Rotation3, Translation3, Vector3};
@@ -93,14 +92,16 @@ impl Geometry {
     /// # Errors
     ///
     /// Returns an error if two atoms occupy the same position.
-    #[allow(
-        deprecated,
-        reason = "tuple_combinations avoids the allocation required by array_combinations"
-    )]
     pub fn nucl_repulsion(&self) -> Result<f64, NuclearRepulsionError> {
-        self.atoms.iter().tuple_combinations::<(_, _)>().try_fold(
-            0.0,
-            |energy, (atom_i, atom_j)| {
+        self.atoms
+            .iter()
+            .enumerate()
+            .flat_map(|(i, atom_i)| {
+                self.atoms[i + 1..]
+                    .iter()
+                    .map(move |atom_j| [atom_i, atom_j])
+            })
+            .try_fold(0.0, |energy, [atom_i, atom_j]| {
                 let r_ij = distance(&atom_i.position, &atom_j.position);
                 if r_ij == 0.0 {
                     return Err(NuclearRepulsionError::CoincidentAtoms);
@@ -108,8 +109,7 @@ impl Geometry {
                 let z_i = f64::from(atom_i.element.atomic_number());
                 let z_j = f64::from(atom_j.element.atomic_number());
                 Ok(energy + z_i * z_j / r_ij)
-            },
-        )
+            })
     }
 
     #[must_use]

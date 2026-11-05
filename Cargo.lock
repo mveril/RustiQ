@@ -4727,7 +4727,6 @@ dependencies = [
  "const_format",
  "delegate",
  "factorial",
- "itertools 0.15.0",
  "mendeleev",
  "miette",
  "nalgebra",
