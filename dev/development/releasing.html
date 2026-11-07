@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-085c3e7c.js";
+            window.path_to_searchindex_js = "../searchindex-f4f196c2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-234b4cca.js"></script>
@@ -387,15 +387,29 @@ if the Nixpkgs package differs:</p>
 </code></pre>
 <p>Finalize the dated changelog section and its reference links, and commit it with
 the release preparation changes above before creating the matching tag. Push
-the release commits and tag. On a clean <code>main</code> checkout, run:</p>
+the preparation branch first. On a clean task branch such as
+<code>chore/prepare-release</code>, run:</p>
 <pre><code class="language-sh">python3 tools/prepare-release.py vX.Y.Z
-git push --atomic origin main refs/tags/vX.Y.Z
+git push -u origin chore/prepare-release
+gh pr create --base main --head chore/prepare-release
 </code></pre>
 <p>The preparation command requires Python 3.11 or later and checks that the tag
 matches both package versions and the core dependency requirement. It creates
 a commit enabling <code>officialRelease</code> in <code>flake.nix</code>, followed by a commit
 disabling it for continued development, then tags the release commit. It does
-not push. The atomic push publishes both commits and the tag together. If a
+not push. It requires a task branch named <code>type/description</code>, with a
+lowercase alphabetic type and a lowercase, hyphen-separated alphanumeric
+description. Protected <code>main</code> and detached HEAD are rejected before any changes.
+Merge the preparation pull request into
+<code>main</code> preserving its commits: do not squash or rebase, because the local tag
+points to the original release commit. After merging, verify ancestry before
+pushing the tag:</p>
+<pre><code class="language-sh">git fetch origin main
+git merge-base --is-ancestor refs/tags/vX.Y.Z origin/main
+# Run only if the ancestry check succeeds:
+git push origin refs/tags/vX.Y.Z
+</code></pre>
+<p>Do not push release commits directly to protected <code>main</code>. If a
 Git command fails, inspect the local commits and working tree before retrying;
 the command does not automatically undo partial preparation.</p>
 <p>Release tags must match <code>vX.Y.Z</code> or <code>vX.Y.Z-prerelease</code>, such as <code>v1.2.3</code> or
