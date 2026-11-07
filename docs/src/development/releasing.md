@@ -251,18 +251,35 @@ cargo install cargo-dist --version 0.33.0 --locked
 
 Finalize the dated changelog section and its reference links, and commit it with
 the release preparation changes above before creating the matching tag. Push
-the release commits and tag. On a clean `main` checkout, run:
+the preparation branch first. On a clean task branch such as
+`chore/prepare-release`, run:
 
 ```sh
 python3 tools/prepare-release.py vX.Y.Z
-git push --atomic origin main refs/tags/vX.Y.Z
+git push -u origin chore/prepare-release
+gh pr create --base main --head chore/prepare-release
 ```
 
 The preparation command requires Python 3.11 or later and checks that the tag
 matches both package versions and the core dependency requirement. It creates
 a commit enabling `officialRelease` in `flake.nix`, followed by a commit
 disabling it for continued development, then tags the release commit. It does
-not push. The atomic push publishes both commits and the tag together. If a
+not push. It requires a task branch named `type/description`, with a
+lowercase alphabetic type and a lowercase, hyphen-separated alphanumeric
+description. Protected `main` and detached HEAD are rejected before any changes.
+Merge the preparation pull request into
+`main` preserving its commits: do not squash or rebase, because the local tag
+points to the original release commit. After merging, verify ancestry before
+pushing the tag:
+
+```sh
+git fetch origin main
+git merge-base --is-ancestor refs/tags/vX.Y.Z origin/main
+# Run only if the ancestry check succeeds:
+git push origin refs/tags/vX.Y.Z
+```
+
+Do not push release commits directly to protected `main`. If a
 Git command fails, inspect the local commits and working tree before retrying;
 the command does not automatically undo partial preparation.
 

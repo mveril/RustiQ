@@ -18,8 +18,11 @@ def git(root, *args):
 def prepare(root, tag):
     if not re.fullmatch(TAG_PATTERN, tag):
         raise ValueError("release tag must match vX.Y.Z or vX.Y.Z-prerelease")
-    if git(root, "branch", "--show-current") != "main":
-        raise ValueError("prepare releases on main")
+    branch = git(root, "branch", "--show-current")
+    if not re.fullmatch(r"[a-z]+/[a-z0-9]+(?:-[a-z0-9]+)*", branch):
+        raise ValueError(
+            "prepare releases on a type/lowercase-description branch; main is protected"
+        )
     if git(root, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("commit or stash local changes before preparing a release")
     if git(root, "tag", "--list", tag):
@@ -48,8 +51,14 @@ def prepare(root, tag):
     git(root, "add", "flake.nix")
     git(root, "commit", "-m", f"Resume Nix development builds after {tag}")
     git(root, "tag", tag, release_commit)
-    print(f"Created local tag {tag}; main has resumed development mode.")
-    print(f"Publish with: git push --atomic origin main refs/tags/{tag}")
+    print(f"Created local tag {tag}; {branch} has resumed development mode.")
+    print(f"Push the preparation branch: git push -u origin {branch}")
+    print(f"Open a pull request: gh pr create --base main --head {branch}")
+    print("Merge the pull request preserving commits (no squash or rebase).")
+    print("After the merge, fetch main and verify the tagged commit is included:")
+    print("git fetch origin main")
+    print(f"git merge-base --is-ancestor refs/tags/{tag} origin/main")
+    print(f"Only after verification succeeds, publish: git push origin refs/tags/{tag}")
 
 
 def main():
