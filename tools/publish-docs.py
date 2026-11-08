@@ -171,12 +171,12 @@ def publish(book, site, revision, version=None):
                     shutil.rmtree(alias_dir)
                 redirect(alias_dir / "index.html", f"../{entry['version']}/")
         preferred = stable or (entries[0] if entries else None)
-        redirect(site / "index.html", f"{preferred["version"]}/" if preferred else "dev/")
+        redirect(
+            site / "index.html", f"{preferred['version']}/" if preferred else "dev/"
+        )
         # Pages serves this file at arbitrary missing URLs. Never resolve its
         # destination relative to the requested path, or redirect to another 404.
-        fallback = (
-            preferred["version"] if preferred else "dev"
-        )
+        fallback = preferred["version"] if preferred else "dev"
         redirect(site / "404.html", f"/RustiQ/{fallback}/")
         output = {
             "legacy_redirects": True,
