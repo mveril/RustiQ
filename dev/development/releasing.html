@@ -15,8 +15,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-e96d0476.css">
-        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4f196c2.js";
+            window.path_to_searchindex_js = "../searchindex-f775fb7d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-234b4cca.js"></script>
+        <script src="../toc-f7a86d7f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -190,11 +190,11 @@ Neither workflow creates a release from a GitHub Release event; both are
 triggered directly by a version tag, and crates.io publication can also be
 started manually for an existing tag.</p>
 <h2 id="binary-releases"><a class="header" href="#binary-releases">Binary releases</a></h2>
-<p>The repository-root <code>dist-workspace.toml</code> pins dist 0.33.0, selects only the
+<p>The repository-root <code>dist-workspace.toml</code> pins dist 0.34.0, selects only the
 <code>rustiq-chem</code> CLI package, and lists the six supported targets. Pull requests
 run <code>dist plan</code>; this checks the release plan without building or publishing
 artifacts. The generated workflow also runs on non-main pull requests because
-dist 0.33.0 does not expose a pull-request base-branch filter. A pull request
+dist 0.34.0 does not expose a pull-request base-branch filter. A pull request
 cannot enter the publishing jobs.</p>
 <p>All six target builds use native GitHub-hosted runners: Linux x64 on
 <code>ubuntu-22.04</code>, Linux ARM64 on <code>ubuntu-24.04-arm</code>, macOS Intel on
@@ -317,7 +317,7 @@ after the first release:</p>
 <p>For each subsequent release, add its version link and update the <code>Unreleased</code>
 comparison to start from the latest published version. Until release preparation
 begins, do not finalize the beta section or add links to an unpublished release.</p>
-<p>Dist 0.33.0 has <a href="https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html">built-in changelog support</a>.
+<p>Dist 0.34.0 has <a href="https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html">built-in changelog support</a>.
 It discovers the root changelog and selects the matching version section for
 release notes. It can also use <code>Unreleased</code> for prereleases, but release
 preparation should still finalize a dated version section. The existing
@@ -383,7 +383,7 @@ dist generate --mode ci --check
 generated workflow installs the exact dist version recorded in
 <code>dist-workspace.toml</code>. Before regenerating locally, install that same version
 if the Nixpkgs package differs:</p>
-<pre><code class="language-sh">cargo install cargo-dist --version 0.33.0 --locked
+<pre><code class="language-sh">cargo install cargo-dist --version 0.34.0 --locked
 </code></pre>
 <p>Finalize the dated changelog section and its reference links, and commit it with
 the release preparation changes above before creating the matching tag. Push
@@ -524,11 +524,11 @@ The default without publication metadata is development documentation.</p>
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-09f2665d.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-609e4cb8.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="../mermaid-eefea253.min.js"></script>
