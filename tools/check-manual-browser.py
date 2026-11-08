@@ -30,7 +30,7 @@ def check(book: Path) -> None:
             ),
         )
         page = context.new_page()
-        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on("pageerror", lambda error: errors.append(error.stack))
         page.goto((book / "index.html").as_uri())
         assert page.locator("h1").first.is_visible(), "manual index did not render"
         assert page.evaluate("document.styleSheets.length") > 0, "styles are missing"
@@ -38,6 +38,11 @@ def check(book: Path) -> None:
         page.wait_for_selector(".MathJax_SVG svg")
         page.goto((book / "user-guide/calculation-inputs.html").as_uri())
         page.wait_for_selector(".mermaid svg")
+        for theme in ("navy", "light"):
+            page.locator("#mdbook-theme-toggle").click()
+            with page.expect_navigation():
+                page.locator(f"#mdbook-theme-{theme}").click()
+            page.wait_for_selector(f"html.{theme} .mermaid svg")
         assert not remote_requests, f"remote runtime requests: {remote_requests}"
         assert not failed_requests, f"failed local resource requests: {failed_requests}"
         assert not errors, f"browser JavaScript errors: {errors}"
