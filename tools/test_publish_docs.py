@@ -219,8 +219,12 @@ def test_workflow_release_validation(tmp_path, tag, on_main, error):
     shutil.copy(root / "tools/check-release.py", tmp_path / "tools")
     (tmp_path / "crates/rustiq-core").mkdir(parents=True)
     release_version = "1.0.0-beta.1" if tag == "v1.0.0-beta.1" else "1.0.0"
-    (tmp_path / "Cargo.toml").write_text(f'[package]\nversion = "{release_version}"\n[dependencies]\nrustiq-core = {{version = "{release_version}"}}\n')
-    (tmp_path / "crates/rustiq-core/Cargo.toml").write_text(f'[package]\nversion = "{release_version}"\n')
+    (tmp_path / "Cargo.toml").write_text(
+        f'[package]\nversion = "{release_version}"\n[dependencies]\nrustiq-core = {{version = "{release_version}"}}\n'
+    )
+    (tmp_path / "crates/rustiq-core/Cargo.toml").write_text(
+        f'[package]\nversion = "{release_version}"\n'
+    )
 
     git("add", ".")
     git("commit", "-m", "Initial main")
@@ -230,7 +234,9 @@ def test_workflow_release_validation(tmp_path, tag, on_main, error):
         git("checkout", "-b", "side")
         git("commit", "--allow-empty", "-m", "Outside main")
     if tag == "v1.0.0-beta.1":
-        (tmp_path / "Cargo.toml").write_text('[package]\nversion = "1.0.0-beta.1"\n[dependencies]\nrustiq-core = {version = "1.0.0-beta.1"}\n')
+        (tmp_path / "Cargo.toml").write_text(
+            '[package]\nversion = "1.0.0-beta.1"\n[dependencies]\nrustiq-core = {version = "1.0.0-beta.1"}\n'
+        )
         git("add", "Cargo.toml")
         git("commit", "--allow-empty", "-m", "Prerelease")
     result = subprocess.run(
