@@ -2,8 +2,8 @@ name: Publish documentation
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
+    branches: [develop]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -42,6 +42,7 @@ jobs:
           if sys.argv[1] != 'v' + version:
               raise SystemExit(f'tag {sys.argv[1]} does not match package version {version}')
           PY
+          python3 tools/check-release.py --tag "$RELEASE_TAG"
           git fetch origin main
           if ! git merge-base --is-ancestor "$(git rev-parse HEAD)" FETCH_HEAD; then
             echo "release tags must point to a commit on main" >&2

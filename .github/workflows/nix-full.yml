@@ -39,7 +39,7 @@ jobs:
         with:
           primary-key: nix-${{ matrix.system }}-${{ hashFiles('flake.lock', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock') }}
           restore-prefixes-first-match: nix-${{ matrix.system }}-
-          save: ${{ github.ref == 'refs/heads/main' }}
+          save: ${{ github.ref == 'refs/heads/develop' }}
           gc-max-store-size-linux: 1G
 
       - name: Evaluate every declared system

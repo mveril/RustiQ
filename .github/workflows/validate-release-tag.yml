@@ -27,10 +27,7 @@ jobs:
             exit 1
           fi
 
-          grep -Fxq '      officialRelease = true;' flake.nix || {
-            echo "release tags must enable officialRelease; use tools/prepare-release.py" >&2
-            exit 1
-          }
+          python3 tools/check-release.py --tag "$RELEASE_TAG"
 
           git fetch --no-tags origin main
           tagged_commit=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")

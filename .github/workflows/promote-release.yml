@@ -1,0 +1,39 @@
+name: Promote release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: promote-release
+  queue: max
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate and rehearse publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/check-release.py --check-availability --dry-run
+      - name: Create immutable tag and start publications
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag=$(python3 tools/check-release.py --check-availability)
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$RELEASE_COMMIT"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"
+          gh workflow run publish-crates.yml --repo "$GITHUB_REPOSITORY" --ref "$tag" -f tag="$tag"
+          gh workflow run docs-publish.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"

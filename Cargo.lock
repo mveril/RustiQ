@@ -4675,7 +4675,7 @@ dependencies = [
 
 [[package]]
 name = "rustiq-chem"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.1.dev"
 dependencies = [
  "anstream",
  "anstyle",
@@ -4719,7 +4719,7 @@ dependencies = [
 
 [[package]]
 name = "rustiq-chem-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.1.dev"
 dependencies = [
  "approx",
  "bounded-vec-deque",

@@ -22,32 +22,46 @@ def verify_checksum(archive: Path, checksum_file: Path) -> None:
     # cargo-dist may insert blank separator lines into .sha256 sidecars.
     # Ignore only empty/whitespace-only lines; malformed nonempty lines must
     # continue to fail the strict checksum validation below.
-    lines = [line for line in checksum_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in checksum_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     if not lines:
-        raise ValueError(f"SHA-256 checksum file contains no entries: {checksum_file.name}")
+        raise ValueError(
+            f"SHA-256 checksum file contains no entries: {checksum_file.name}"
+        )
     entries: list[tuple[str, str]] = []
     digest_only = len(lines) == 1 and re.fullmatch(r"[0-9a-fA-F]{64}", lines[0])
     if digest_only:
         if checksum_file.resolve() != Path(str(archive) + ".sha256").resolve():
-            raise ValueError("digest-only checksum is only valid in the archive's .sha256 sidecar")
+            raise ValueError(
+                "digest-only checksum is only valid in the archive's .sha256 sidecar"
+            )
         entries.append((lines[0].lower(), archive.name))
     else:
         for line in lines:
             # dist's sha256.sum uses the standard sha256sum format.
             match = re.fullmatch(r"([0-9a-fA-F]{64}) ([ *])(.+)", line)
             if not match or "\\" in match.group(3):
-                raise ValueError(f"malformed SHA-256 checksum entry in {checksum_file.name}: {line!r}")
+                raise ValueError(
+                    f"malformed SHA-256 checksum entry in {checksum_file.name}: {line!r}"
+                )
             entries.append((match.group(1).lower(), match.group(3)))
 
     matching = [(value, name) for value, name in entries if name == archive.name]
     if len(matching) != 1:
-        raise ValueError(f"expected one exact checksum entry for {archive.name} in {checksum_file.name}, found {len(matching)}")
+        raise ValueError(
+            f"expected one exact checksum entry for {archive.name} in {checksum_file.name}, found {len(matching)}"
+        )
     digest = hashlib.sha256()
     with archive.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     if digest.hexdigest() != matching[0][0]:
-        raise ValueError(f"SHA-256 mismatch for {archive.name} using {checksum_file.name}")
+        raise ValueError(
+            f"SHA-256 mismatch for {archive.name} using {checksum_file.name}"
+        )
 
 
 def safe_extract(archive: Path, destination: Path) -> None:
@@ -63,25 +77,49 @@ def safe_extract(archive: Path, destination: Path) -> None:
         with tarfile.open(archive, "r:*") as bundle:
             for member in bundle.getmembers():
                 target = (destination / member.name).resolve()
-                if not target.is_relative_to(destination.resolve()) or member.issym() or member.islnk():
+                if (
+                    not target.is_relative_to(destination.resolve())
+                    or member.issym()
+                    or member.islnk()
+                ):
                     raise ValueError(f"unsafe archive member: {member.name}")
             bundle.extractall(destination, filter="data")
         return
     raise ValueError(f"unsupported or invalid archive: {archive}")
 
 
-def run(binary: Path, args: list[str], cwd: Path, env: dict[str, str], log: Path) -> str:
-    result = subprocess.run([str(binary), *args], cwd=cwd, env=env, text=True,
-                            capture_output=True, check=False)
-    log.write_text(f"$ {binary.name} {' '.join(args)}\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}\nexit={result.returncode}\n", encoding="utf-8")
+def run(
+    binary: Path, args: list[str], cwd: Path, env: dict[str, str], log: Path
+) -> str:
+    result = subprocess.run(
+        [str(binary), *args],
+        cwd=cwd,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    log.write_text(
+        f"$ {binary.name} {' '.join(args)}\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}\nexit={result.returncode}\n",
+        encoding="utf-8",
+    )
     if result.returncode:
-        raise RuntimeError(f"{binary.name} {' '.join(args)} failed ({result.returncode}); see {log.name}: {result.stderr.strip()}")
+        raise RuntimeError(
+            f"{binary.name} {' '.join(args)} failed ({result.returncode}); see {log.name}: {result.stderr.strip()}"
+        )
     return result.stdout
 
 
-def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Path, log_dir: Path,
-             checksum: Path | None = None, expected_energy: float | None = None,
-             command_runner=run) -> dict[str, object]:
+def validate(
+    archive: Path,
+    fixture: Path,
+    geometry: Path,
+    reference_source: Path,
+    log_dir: Path,
+    checksum: Path | None = None,
+    expected_energy: float | None = None,
+    command_runner=run,
+) -> dict[str, object]:
     archive = archive.resolve()
     fixture = fixture.resolve()
     geometry = geometry.resolve()
@@ -100,10 +138,15 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
     except (OSError, ValueError) as error:
         raise ValueError(f"CHECKSUM_FAILURE: {error}") from error
 
-    match = re.search(r"PYSCF_TOTAL_ENERGY:\s*f64\s*=\s*(-?[0-9._]+)", reference_source.read_text(encoding="utf-8"))
+    match = re.search(
+        r"PYSCF_TOTAL_ENERGY:\s*f64\s*=\s*(-?[0-9._]+)",
+        reference_source.read_text(encoding="utf-8"),
+    )
     if expected_energy is None:
         if not match:
-            raise ValueError("could not read H2/STO-3G reference from regression source")
+            raise ValueError(
+                "could not read H2/STO-3G reference from regression source"
+            )
         expected_energy = float(match.group(1).replace("_", ""))
 
     with tempfile.TemporaryDirectory(prefix="rustiq-release-smoke-") as temporary:
@@ -121,22 +164,50 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
         relocated = root / "relocated archive with spaces"
         extracted.rename(relocated)
         extracted = relocated
-        binaries = [p for p in extracted.rglob("rustiq*") if p.is_file() and p.name.lower() in {"rustiq", "rustiq.exe"}]
+        binaries = [
+            p
+            for p in extracted.rglob("rustiq*")
+            if p.is_file() and p.name.lower() in {"rustiq", "rustiq.exe"}
+        ]
         if len(binaries) != 1:
-            raise ValueError(f"EXTRACTION_FAILURE: expected one rustiq executable in archive, found {len(binaries)}")
+            raise ValueError(
+                f"EXTRACTION_FAILURE: expected one rustiq executable in archive, found {len(binaries)}"
+            )
         binary = binaries[0]
         if os.name != "nt":
             binary.chmod(binary.stat().st_mode | 0o111)
-        clean_path = os.pathsep.join([str(Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32") if os.name == "nt" else "/usr/bin", "/bin"])
-        env = {"PATH": clean_path, "HOME": str(root), "USERPROFILE": str(root), "APPDATA": str(root / "appdata"), "XDG_CACHE_HOME": str(root / "cache"), "RUSTIQ_DATA_BASIS": str(basis), "RUSTIQ_CACHE_HOME": str(root / "cache"), "RUSTIQ_AUTO_DOWNLOAD": "0", "RUSTIQ_COLOR": "never", "NO_COLOR": "1"}
+        clean_path = os.pathsep.join(
+            [
+                str(Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32")
+                if os.name == "nt"
+                else "/usr/bin",
+                "/bin",
+            ]
+        )
+        env = {
+            "PATH": clean_path,
+            "HOME": str(root),
+            "USERPROFILE": str(root),
+            "APPDATA": str(root / "appdata"),
+            "XDG_CACHE_HOME": str(root / "cache"),
+            "RUSTIQ_DATA_BASIS": str(basis),
+            "RUSTIQ_CACHE_HOME": str(root / "cache"),
+            "RUSTIQ_AUTO_DOWNLOAD": "0",
+            "RUSTIQ_COLOR": "never",
+            "NO_COLOR": "1",
+        }
         if os.name == "nt":
             env["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
         try:
-            help_output = command_runner(binary, ["--help"], work, env, log_dir / "help.log")
+            help_output = command_runner(
+                binary, ["--help"], work, env, log_dir / "help.log"
+            )
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             raise RuntimeError(f"EXECUTABLE_STARTUP_FAILURE: {error}") from error
         if not help_output.strip():
-            raise ValueError("EXECUTABLE_STARTUP_FAILURE: rustiq --help produced no output")
+            raise ValueError(
+                "EXECUTABLE_STARTUP_FAILURE: rustiq --help produced no output"
+            )
         try:
             manual = binary.parent / "manual/html"
             index = manual / "index.html"
@@ -160,53 +231,111 @@ def validate(archive: Path, fixture: Path, geometry: Path, reference_source: Pat
                 env,
                 log_dir / "docs-web.log",
             ).strip()
-            marker = manual / "rustiq-docs-release.txt"
-            version = marker.read_text().strip() if marker.exists() else None
-            expected = f"https://mveril.github.io/RustiQ/v{version}/" if version else "https://mveril.github.io/RustiQ/dev/"
+            version_line = command_runner(
+                binary, ["--version"], work, env, log_dir / "docs-version.log"
+            ).strip()
+            version = version_line.split()[-1]
+            development = "dev" in version.partition("-")[2].split("+", 1)[0].split(".")
+            channel = "dev" if development else f"v{version}"
+            expected = f"https://mveril.github.io/RustiQ/{channel}/"
             if online != expected:
                 raise ValueError(f"unexpected online manual URL: {online}")
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
             raise ValueError(f"DOCUMENTATION_FAILURE: {error}") from error
         try:
-            version_output = command_runner(binary, ["--version", "--verbose"], work, env, log_dir / "version.log")
+            version_output = command_runner(
+                binary, ["--version", "--verbose"], work, env, log_dir / "version.log"
+            )
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             raise RuntimeError(f"EXECUTABLE_STARTUP_FAILURE: {error}") from error
-        if not re.search(r"^  Git commit\s+(?:[0-9a-f]{40}|[0-9a-f]{64})(?: \(dirty\))?$", version_output, re.MULTILINE):
-            raise ValueError("EXECUTABLE_STARTUP_FAILURE: packaged executable lacks Git provenance")
+        if not re.search(
+            r"^  Git commit\s+(?:[0-9a-f]{40}|[0-9a-f]{64})(?: \(dirty\))?$",
+            version_output,
+            re.MULTILINE,
+        ):
+            raise ValueError(
+                "EXECUTABLE_STARTUP_FAILURE: packaged executable lacks Git provenance"
+            )
         try:
-            command_runner(binary, ["basis", "import", str(fixture)], work, env, log_dir / "basis-import.log")
+            command_runner(
+                binary,
+                ["basis", "import", str(fixture)],
+                work,
+                env,
+                log_dir / "basis-import.log",
+            )
             shutil.copyfile(geometry, work / "h2.xyz")
-            command_runner(binary, ["init", "h2.xyz", "--output", "calculation.toml", "--hf", "rhf"], work, env, log_dir / "init.log")
+            command_runner(
+                binary,
+                ["init", "h2.xyz", "--output", "calculation.toml", "--hf", "rhf"],
+                work,
+                env,
+                log_dir / "init.log",
+            )
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             raise RuntimeError(f"EXECUTABLE_STARTUP_FAILURE: {error}") from error
         try:
-            output = command_runner(binary, ["run", "calculation.toml", "--format", "json", "--no-auto-download", "--color", "never"], work, env, log_dir / "calculation.log")
+            output = command_runner(
+                binary,
+                [
+                    "run",
+                    "calculation.toml",
+                    "--format",
+                    "json",
+                    "--no-auto-download",
+                    "--color",
+                    "never",
+                ],
+                work,
+                env,
+                log_dir / "calculation.log",
+            )
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             raise RuntimeError(f"SCIENTIFIC_CALCULATION_FAILURE: {error}") from error
         if "\x1b[" in output:
-            raise ValueError("JSON_VALIDATION_FAILURE: ANSI escape sequence found in JSON output")
+            raise ValueError(
+                "JSON_VALIDATION_FAILURE: ANSI escape sequence found in JSON output"
+            )
         try:
             result = json.loads(output)
             hf = result["calculation"]["hf"]
         except (json.JSONDecodeError, KeyError, TypeError) as error:
-            raise ValueError(f"JSON_VALIDATION_FAILURE: invalid calculation JSON: {error}") from error
+            raise ValueError(
+                f"JSON_VALIDATION_FAILURE: invalid calculation JSON: {error}"
+            ) from error
         if result.get("schema_version") != 1:
-            raise ValueError(f"JSON_VALIDATION_FAILURE: unexpected schema version: {result.get('schema_version')}")
+            raise ValueError(
+                f"JSON_VALIDATION_FAILURE: unexpected schema version: {result.get('schema_version')}"
+            )
         if hf.get("converged") is not True:
-            raise ValueError("SCIENTIFIC_CALCULATION_FAILURE: HF calculation did not converge")
+            raise ValueError(
+                "SCIENTIFIC_CALCULATION_FAILURE: HF calculation did not converge"
+            )
         if hf.get("method") != "RHF":
-            raise ValueError(f"JSON_VALIDATION_FAILURE: expected RHF, got {hf.get('method')}")
+            raise ValueError(
+                f"JSON_VALIDATION_FAILURE: expected RHF, got {hf.get('method')}"
+            )
         try:
             energy = float(hf["total_energy"])
         except (KeyError, TypeError, ValueError) as error:
-            raise ValueError("JSON_VALIDATION_FAILURE: HF total_energy is missing or nonnumeric") from error
+            raise ValueError(
+                "JSON_VALIDATION_FAILURE: HF total_energy is missing or nonnumeric"
+            ) from error
         if not math.isfinite(energy):
             raise ValueError("JSON_VALIDATION_FAILURE: HF total_energy must be finite")
         if not math.isfinite(expected_energy):
-            raise ValueError("JSON_VALIDATION_FAILURE: expected regression reference energy must be finite")
+            raise ValueError(
+                "JSON_VALIDATION_FAILURE: expected regression reference energy must be finite"
+            )
         if abs(energy - expected_energy) > 1e-5:
-            raise ValueError(f"SCIENTIFIC_CALCULATION_FAILURE: HF energy {energy:.12f} differs from regression reference {expected_energy:.12f} by more than 1e-5 Eh")
-        return {"checksum": "verified", "startup": "passed", "h2": f"RHF converged; {energy:.12f} Eh"}
+            raise ValueError(
+                f"SCIENTIFIC_CALCULATION_FAILURE: HF energy {energy:.12f} differs from regression reference {expected_energy:.12f} by more than 1e-5 Eh"
+            )
+        return {
+            "checksum": "verified",
+            "startup": "passed",
+            "h2": f"RHF converged; {energy:.12f} Eh",
+        }
 
 
 def main() -> int:
@@ -219,7 +348,14 @@ def main() -> int:
     parser.add_argument("--logs", type=Path, default=Path("release-smoke-logs"))
     args = parser.parse_args()
     try:
-        status = validate(args.archive, args.fixture, args.geometry, args.reference_source, args.logs, args.checksum)
+        status = validate(
+            args.archive,
+            args.fixture,
+            args.geometry,
+            args.reference_source,
+            args.logs,
+            args.checksum,
+        )
         print(f"PASS: {args.archive.name}: {status['h2']}; SHA-256 verified")
         return 0
     except Exception as error:  # noqa: BLE001 - diagnostic boundary for CI

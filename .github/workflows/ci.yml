@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [develop, main]
   pull_request:
   workflow_dispatch:
 
@@ -154,7 +154,7 @@ jobs:
         with:
           primary-key: nix-${{ matrix.system }}-${{ hashFiles('flake.lock', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock') }}
           restore-prefixes-first-match: nix-${{ matrix.system }}-
-          save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
           gc-max-store-size-linux: 1G
 
       - name: Evaluate flake outputs

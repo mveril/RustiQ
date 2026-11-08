@@ -111,13 +111,13 @@ Verification coverage is explicit:
   its numerical reference, tolerance, and reproduction command.
 
 The Documentation workflow validates pull requests and supports manual runs.
-Publish documentation runs on pushes to `main` and release tags and deploys the validated book
+Publish documentation runs on pushes to `develop` and explicit release dispatches and deploys the validated book
 to GitHub Pages. Set the repository's Pages source to **GitHub Actions**.
 PR builds have no Pages write permission.
 
 ### Published versions
 
-Pushes to `main` publish the current book at `/RustiQ/dev/`. Version tags
+Pushes to `develop` publish the current book at `/RustiQ/dev/`. Release workflow dispatches at version tags
 publish immutable snapshots at `/RustiQ/vX.Y.Z/`, for example
 `/RustiQ/v0.1.0-beta.1/`; a retry fails if the stored
 commit or generated content differs. The `gh-pages` branch stores the complete
@@ -127,13 +127,12 @@ serialized, and pull requests only validate the book.
 
 `/RustiQ/beta/` points to the highest published beta and
 `/RustiQ/stable/` to the highest stable release; the stable alias appears only
-when a stable release exists. The root redirects to development. Release tags
+when a stable release exists. The root redirects to the highest stable release, otherwise the highest prerelease, otherwise development. Release tags
 must match the package version and point to an ancestor of `main`; publication
 fetches `main` and rejects tags outside its history.
 
-The root `404.html` redirects to the absolute site path `/RustiQ/dev/`,
-independent of the missing URL's nesting depth. If a release is published before
-development exists, it redirects to the highest published version instead. Versioned 404 pages
+The root `404.html` uses the same release preference as the homepage, with an
+absolute site path independent of the missing URL's nesting depth. Versioned 404 pages
 retain their version-specific asset base. These changes apply only to the
 published website; the offline manual remains relocatable.
 
@@ -143,8 +142,8 @@ Before enabling the first publication, choose one of these procedures. Keep
 Pages configured for **GitHub Actions** in both cases. In the repository's Actions tab, select **Publish documentation** and disable
 the workflow using its menu; wait for any active run to finish before preparing
 the branch so a run cannot migrate an incomplete seed. Re-enable it after
-seeding. Re-enabling alone does not publish: the next push to `main` or a valid
-release tag triggers publication.
+seeding. Re-enabling alone does not publish: the next push to `develop` or a valid
+release dispatch triggers publication.
 
 **Existing populated `gh-pages` branch:** inspect its root tree and confirm that
 it contains the old published HTML paths, including pages removed from the

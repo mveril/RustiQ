@@ -50,8 +50,6 @@
       ...
     }:
     let
-      # tools/prepare-release.py enables this only in the tagged release commit.
-      officialRelease = false;
 
       pythonWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
 
@@ -187,7 +185,6 @@
               # exact profile name because PROFILE is only debug/release-like.
               RUSTIQ_BUILD_PROFILE = "release";
               RUSTIQ_BUILD_SYSTEM = "Nix";
-              RUSTIQ_DOCS_RELEASE = if officialRelease then "1" else "0";
               RUSTIQ_BUILD_GIT_COMMIT = pkgs.lib.removeSuffix "-dirty" (
                 inputs.self.rev or inputs.self.dirtyRev or "unknown"
               );
@@ -229,7 +226,18 @@
                 test "$("$out/bin/rustiq" docs --print-path)" = "$out/share/doc/rustiq/manual/html/index.html"
                 test -s "$out/share/doc/rustiq/manual/html/mathjax/MathJax.js"
                 test "$("$out/bin/rustiq" docs --web --print-path)" = "https://mveril.github.io/RustiQ/${
-                  if officialRelease then "v${cargoToml.package.version}" else "dev"
+                  if
+                    builtins.elem "dev" (
+                      pkgs.lib.splitString "." (
+                        pkgs.lib.last (
+                          pkgs.lib.splitString "-" (builtins.head (pkgs.lib.splitString "+" cargoToml.package.version))
+                        )
+                      )
+                    )
+                  then
+                    "dev"
+                  else
+                    "v${cargoToml.package.version}"
                 }/"
                 test -s "$out/share/man/man1/rustiq-artifact-inspect.1.gz"
                 test -s "$out/share/bash-completion/completions/rustiq.bash"

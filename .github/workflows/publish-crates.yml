@@ -1,9 +1,6 @@
 name: Publish crates.io packages
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -45,6 +42,7 @@ jobs:
             echo "release tag must match vX.Y.Z or vX.Y.Z-prerelease" >&2
             exit 1
           }
+          python3 tools/check-release.py --tag "$RELEASE_TAG"
           git fetch origin main
           if ! git merge-base --is-ancestor "$(git rev-parse HEAD)" FETCH_HEAD; then
             echo "release tags must point to a commit on main" >&2
@@ -108,6 +106,5 @@ jobs:
           done
           RELEASE_VERSION="$RELEASE_TAG"
           RELEASE_VERSION="${RELEASE_VERSION#v}"
-          printf '\n[package.metadata.rustiq]\ndocs-release = "%s"\n' "$RELEASE_VERSION" >> Cargo.toml
-          cargo publish --workspace --locked --allow-dirty "${exclusions[@]}" \
+          cargo publish --workspace --locked "${exclusions[@]}" \
             --token "$CARGO_REGISTRY_TOKEN"

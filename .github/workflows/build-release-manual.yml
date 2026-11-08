@@ -28,16 +28,6 @@ jobs:
         run: |
           cp -rL result manual-artifact
           chmod -R u+w manual-artifact
-          if [ "$REF_TYPE" = tag ]; then
-            python3 - "$RELEASE_TAG" <<'PYCODE'
-          import pathlib, sys, tomllib
-          with open('Cargo.toml', 'rb') as f:
-              version = tomllib.load(f)['package']['version']
-          if sys.argv[1] != 'v' + version:
-              raise SystemExit('release tag does not match package version')
-          pathlib.Path('manual-artifact/rustiq-docs-release.txt').write_text(version + '\n')
-          PYCODE
-          fi
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: offline-manual
