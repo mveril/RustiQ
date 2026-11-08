@@ -43,6 +43,8 @@ class ReleaseSmokeTests(unittest.TestCase):
     def runner(self, *, json_output=None):
         def execute(binary, args, cwd, env, log):
             log.write_text("controlled\n")
+            if args == ["--version"]:
+                return "rustiq 0.1.0-alpha.1.dev\n"
             if args == ["--help"]:
                 return "usage: rustiq"
             if args == ["--version", "--verbose"]:

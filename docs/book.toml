@@ -16,4 +16,4 @@ additional-js = ["mermaid.min.js", "mermaid-init.js"]
 mathjax-support = true
 site-url = "/RustiQ/"
 git-repository-url = "https://github.com/mveril/RustiQ"
-edit-url-template = "https://github.com/mveril/RustiQ/edit/main/docs/{path}"
+edit-url-template = "https://github.com/mveril/RustiQ/edit/develop/docs/{path}"

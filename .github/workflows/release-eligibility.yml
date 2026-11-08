@@ -1,0 +1,22 @@
+name: Release eligibility
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  eligibility:
+    name: Release eligibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate candidate and rehearse workspace publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/check-release.py --check-availability --dry-run

@@ -91,10 +91,10 @@ The flake also exposes `nix build .#book` to build this manual,
 `nix build .#cargo-artifacts` for cached Cargo dependency artifacts, and
 `nix build .#pyscf-environment` for the base PySCF environment. These are build
 outputs rather than development shells. The default package is the RustiQ CLI
-binary, available through `nix build`. The `officialRelease` flag in the flake
-selects the versioned online manual for release tags and the development
-manual for development commits. Release preparation updates this flag
-automatically; see [releasing](releasing.md#preparing-a-release).
+binary, available through `nix build`. Its online manual follows the Cargo
+version: a `dev` prerelease identifier selects development documentation;
+other versions select the matching versioned manual. No release flag is needed.
+See [releasing](releasing.md#preparing-a-release).
 
 ## Installed manual and completions
 

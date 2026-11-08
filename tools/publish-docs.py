@@ -57,7 +57,7 @@ def prepare(book, target, name, release):
         content = page.read_text(encoding="utf-8")
         if release:
             content = content.replace(
-                "https://github.com/mveril/RustiQ/edit/main/docs/",
+                "https://github.com/mveril/RustiQ/edit/develop/docs/",
                 f"https://github.com/mveril/RustiQ/edit/{name}/docs/",
             )
         if page.name == "404.html" and page.parent == target:
@@ -170,11 +170,12 @@ def publish(book, site, revision, version=None):
                 if alias_dir.exists():
                     shutil.rmtree(alias_dir)
                 redirect(alias_dir / "index.html", f"../{entry['version']}/")
-        redirect(site / "index.html", "dev/")
+        preferred = stable or (entries[0] if entries else None)
+        redirect(site / "index.html", f"{preferred["version"]}/" if preferred else "dev/")
         # Pages serves this file at arbitrary missing URLs. Never resolve its
         # destination relative to the requested path, or redirect to another 404.
         fallback = (
-            "dev" if (site / "dev/index.html").is_file() else entries[0]["version"]
+            preferred["version"] if preferred else "dev"
         )
         redirect(site / "404.html", f"/RustiQ/{fallback}/")
         output = {

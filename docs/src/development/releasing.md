@@ -2,9 +2,10 @@
 
 RustiQ uses [dist](https://axodotdev.github.io/cargo-dist/) to build and
 publish binary archives to GitHub Releases. crates.io publication runs in a
-separate workflow, so a registry outage does not block a binary release.
+separate workflow. Registry lookup or dry-run failures block promotion; once
+promoted, a registry publishing failure does not block the binary workflow.
 Neither workflow creates a release from a GitHub Release event; both are
-triggered directly by a version tag, and crates.io publication can also be
+explicitly dispatched by promotion after a merge into `main`, and crates.io publication can also be
 started manually for an existing tag.
 
 ## Binary releases
@@ -59,7 +60,7 @@ a published release.
 The rehearsal has read-only repository permissions and only a
 `workflow_dispatch` trigger. It does not run dist's `host` command, upload
 release assets, create a GitHub Release, create tags, or publish crates. It
-complements `.github/workflows/release.yml`, whose tagged-release path builds
+complements `.github/workflows/release.yml`, whose dispatched release path builds
 and publishes the release assets; ordinary pull requests continue to use the
 generated plan-only check.
 
@@ -115,7 +116,7 @@ system library. The Linux GNU archives require a compatible glibc runtime.
 
 ## Maintaining the changelog
 
-Maintain the repository-root [CHANGELOG.md](https://github.com/mveril/RustiQ/blob/main/CHANGELOG.md)
+Maintain the repository-root [CHANGELOG.md](https://github.com/mveril/RustiQ/blob/develop/CHANGELOG.md)
 by hand using Keep a Changelog categories and concise, user-facing entries.
 
 1. Add notable implemented changes under `Unreleased` during development.
@@ -138,7 +139,7 @@ The first public beta should document the capabilities available at launch.
 For subsequent beta releases, describe incremental changes instead of repeating
 the complete feature inventory.
 
-Before the first release, preserve the existing `Unreleased` link to the main
+Before the first release, preserve the existing `Unreleased` link to the develop
 branch's commit history: no beta release tag exists yet. When preparing
 `v0.1.0-beta.1`, finalize the entries under a dated version heading and leave
 `Unreleased` ready for future changes:
@@ -170,6 +171,13 @@ workflow passes dist's `announcement_github_body` to `gh release create`;
 no separate release-note generator or workflow change is needed.
 
 ## Preparing a release
+
+Start from `develop` on a task branch:
+
+```sh
+git switch -c chore/prepare-version develop
+```
+
 
 From the repository root, update the version in both package manifests and
 update the CLI's `rustiq-chem-core` dependency requirement to that same
@@ -204,7 +212,7 @@ change, build the workspace:
 cargo check --workspace --locked
 ```
 
-A binary release does not require registry publication readiness.
+Promotion requires registry availability and a successful workspace publication dry run.
 There is currently no local Nickel patch or corresponding crates.io
 publication block. Before publishing crates, review the acknowledged
 upstream advisories described in [crates.io publication](#cratesio-publication)
@@ -249,57 +257,45 @@ if the Nixpkgs package differs:
 cargo install cargo-dist --version 0.34.0 --locked
 ```
 
-Finalize the dated changelog section and its reference links, and commit it with
-the release preparation changes above before creating the matching tag. Push
-the preparation branch first. On a clean task branch such as
-`chore/prepare-release`, run:
+Development takes place on the default `develop` branch. Use a version ending
+in `.dev`, keeping both crate versions and the internal dependency synchronized.
+Prepare a release on a `chore/*` task branch from `develop`: remove the development
+identifier, finalize the dated changelog, and update `Cargo.lock`.
+
+Push the task branch and open a pull request targeting `main`:
 
 ```sh
-python3 tools/prepare-release.py vX.Y.Z
-git push -u origin chore/prepare-release
-gh pr create --base main --head chore/prepare-release
+git push -u origin chore/prepare-version
+gh pr create --base main --head chore/prepare-version
 ```
 
-The preparation command requires Python 3.11 or later and checks that the tag
-matches both package versions and the core dependency requirement. It creates
-a commit enabling `officialRelease` in `flake.nix`, followed by a commit
-disabling it for continued development, then tags the release commit. It does
-not push. It requires a task branch named `type/description`, with a
-lowercase alphabetic type and a lowercase, hyphen-separated alphanumeric
-description. Protected `main` and detached HEAD are rejected before any changes.
-Merge the preparation pull request into
-`main` preserving its commits: do not squash or rebase, because the local tag
-points to the original release commit. After merging, verify ancestry before
-pushing the tag:
+The required Release eligibility check
+rejects development versions, mismatched package versions, and versions already
+present as a tag, GitHub Release, crates.io package, or published manual. Lookup
+failures block release eligibility. The check also runs:
 
 ```sh
-git fetch origin main
-git merge-base --is-ancestor refs/tags/vX.Y.Z origin/main
-# Run only if the ancestry check succeeds:
-git push origin refs/tags/vX.Y.Z
+cargo publish --workspace --locked --dry-run
 ```
 
-Do not push release commits directly to protected `main`. If a
-Git command fails, inspect the local commits and working tree before retrying;
-the command does not automatically undo partial preparation.
+Cargo packages and compiles both crates, including the unpublished core dependency.
+Keep package verification enabled. A failure blocks the merge. Update the branch
+with `main` before merging so checks apply to the prospective merged result.
+Every merge into `main`, including documentation changes, requires a fresh version.
+Alpha and beta versions are allowed; a complete `dev` prerelease identifier is not.
 
-Release tags must match `vX.Y.Z` or `vX.Y.Z-prerelease`, such as `v1.2.3` or
-`v0.1.0-beta.1`. For a prerelease, include the same suffix in both package
-versions and the tag. Dist recognizes the suffix and marks the GitHub Release
-as a prerelease. Do not reuse an existing tag or a crates.io package version.
+After merging, Promote release repeats validation and the publication dry run,
+creates `vVERSION` at the merged commit, and explicitly dispatches the binary,
+crates.io, and documentation workflows at that tag. Do not create or push tags
+manually. Tag creation with the Actions token does not itself start push workflows.
+The three publications run independently; inspect each workflow for completion.
+The registry publication still requires `CARGO_REGISTRY_TOKEN`.
 
-The tag starts dist's generated workflow, which builds the configured
-platform archives, creates their checksums, and publishes the assets to
-GitHub Releases. A dist `plan-jobs` reusable workflow validates the tag format
-and requires its commit to be an ancestor of `main` before artifact builds can
-proceed. This accepts prerelease suffixes such as `-alpha.1`. A failed
-validation blocks the build and therefore the publishing jobs.
-
-After pushing the tag, check the Publish documentation workflow and open the
-matching `/RustiQ/vX.Y.Z/` manual. Check `versions.json` for the tag and its
-source commit, and verify the appropriate `beta/` or `stable/` alias. Historical
-version directories remain unchanged when later releases are published; see
-[documentation checks](documentation.md#published-versions).
+Resume development with the next intended version ending in `.dev` on `develop`.
+No `release/*` branches are used. Check the matching `/RustiQ/vVERSION/` manual
+and `versions.json` after publication. Versioned manuals remain immutable.
+The documentation homepage opens the latest stable version, otherwise the latest
+prerelease, otherwise `/dev/`. Pushes to `develop` update only `/dev/`.
 
 ## crates.io publication
 
@@ -313,13 +309,13 @@ it does **not** fork Nickel or backport its transitive dependencies.
 Review these exceptions and upstream fixes before each release; see
 [dependency review](licensing.md#dependency-review).
 
-The crates.io workflow is **not blocked** by these exceptions. A version tag
+The crates.io workflow is **not blocked** by these exceptions. A merge into `main`
 can trigger publication of both crates while the upstream vulnerability remains
 present. Decide whether to publish that version with the documented risk or
-hold the tag until Nickel publishes a compatible fix.
+hold the release pull request until Nickel publishes a compatible fix.
 
 `.github/workflows/publish-crates.yml` publishes both workspace crates when a
-`v*` tag on `main` is pushed. Cargo publishes workspace members in dependency
+release is promoted from `main`. Cargo publishes workspace members in dependency
 order, so
 `rustiq-chem-core` is available before `rustiq-chem`. Before publishing, the
 workflow uses the crates.io API to exclude package versions that already
@@ -351,12 +347,29 @@ registry index even when the upload succeeded. Check the version on crates.io
 before retrying; the workflow's existence check will skip a version already
 published.
 
-Official Cargo publications embed the package version as documentation release
-metadata in the published manifest. The release manual artifact carries the
-same version to cargo-dist builds. For Nix, the default package reads
-`officialRelease` from the flake. The release preparation command enables it
-in the tagged commit and disables it in the following development commit.
-Build a tagged release with `nix build github:mveril/RustiQ/vX.Y.Z`;
-no package selector is required. Third-party packagers
-can set `RUSTIQ_DOCS_RELEASE=1` for an exact release, or `0` for development.
-The default without publication metadata is development documentation.
+All package formats derive their online documentation channel from the Cargo
+version. Build a tagged release with `nix build github:mveril/RustiQ/vX.Y.Z`;
+no package selector or release flag is required.
+
+If tag creation succeeds but a dispatch fails, run the missing publication workflow
+manually at that existing tag. Do not rerun promotion to create the tag again.
+Rerun failed publication jobs for the same tag; never move the tag. Cargo skips
+already published crates, and the documentation publisher checks immutable content.
+For binaries, inspect an existing GitHub Release and its assets before retrying.
+
+Resume development through a task pull request to `develop`. Port any release-only
+fixes or changelog changes, then synchronize both crate versions, the internal
+dependency, and `Cargo.lock` with the next version ending in `.dev`. Do not merge
+release versions back without restoring the development suffix.
+
+For an existing release tag, explicitly select that tag when retrying:
+
+```sh
+gh workflow run release.yml --ref vVERSION
+gh workflow run docs-publish.yml --ref vVERSION
+gh workflow run publish-crates.yml --ref vVERSION -f tag=vVERSION
+```
+
+Dispatch only the missing publication. A default-branch dispatch does not select
+the release revision. Rerun failed jobs in the original binary workflow when
+some assets already exist; do not create a competing GitHub Release.
