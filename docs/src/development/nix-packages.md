@@ -20,6 +20,12 @@ environments](environments.md).
 
 ## Rust development tools
 
+The flake pins a NixOS 26.05 nixpkgs revision and uses its development tools
+directly, without local package overrides.
+Its `cargo-dist` package is version 0.31.0; before regenerating release workflows,
+install the version required by `dist-workspace.toml` as described in
+[Releasing](releasing.md).
+
 | Package                         | Purpose                                                                 | Shells                  |
 | ------------------------------- | ----------------------------------------------------------------------- | ----------------------- |
 | `rust-analyzer`                 | Rust language server for editor completion, diagnostics, and navigation | `rust`, `full`          |
