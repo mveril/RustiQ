@@ -72,7 +72,7 @@ def safe_extract(archive: Path, destination: Path) -> None:
 
 def run(binary: Path, args: list[str], cwd: Path, env: dict[str, str], log: Path) -> str:
     result = subprocess.run([str(binary), *args], cwd=cwd, env=env, text=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                            capture_output=True, check=False)
     log.write_text(f"$ {binary.name} {' '.join(args)}\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}\nexit={result.returncode}\n", encoding="utf-8")
     if result.returncode:
         raise RuntimeError(f"{binary.name} {' '.join(args)} failed ({result.returncode}); see {log.name}: {result.stderr.strip()}")
@@ -222,7 +222,7 @@ def main() -> int:
         status = validate(args.archive, args.fixture, args.geometry, args.reference_source, args.logs, args.checksum)
         print(f"PASS: {args.archive.name}: {status['h2']}; SHA-256 verified")
         return 0
-    except Exception as error:  # diagnostic boundary for CI
+    except Exception as error:  # noqa: BLE001 - diagnostic boundary for CI
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
 

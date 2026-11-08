@@ -4,11 +4,11 @@
 import argparse
 import filecmp
 import html
-import tempfile
 import json
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 PATTERN = re.compile(
@@ -89,7 +89,7 @@ def publish(book, site, revision, version=None):
             if version
             else None
         )
-        if version and (old or dest.exists()):
+        if version and (old or dest.exists()):  # noqa: SIM102 - preserve the existing validation structure
             if (
                 not old
                 or old["commit"] != revision

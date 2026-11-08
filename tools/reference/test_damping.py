@@ -8,10 +8,9 @@ import pytest
 
 pytest.importorskip("pyscf", reason="damping references require PySCF")
 
+from compare_pyscf import CASES, bse_basis, run_command
 from pyscf import gto, lib, scf
 from scipy.optimize import minimize_scalar
-
-from compare_pyscf import CASES, bse_basis, run_command
 
 pytestmark = pytest.mark.requires_rust
 

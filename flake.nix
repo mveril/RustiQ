@@ -2,7 +2,7 @@
   description = "RustiQ development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/c56a87d8e41ce69bd2af57eb35dcc117a9dfca33";
 
     crane.url = "github:ipetkov/crane";
 
@@ -65,7 +65,6 @@
         "aarch64-linux"
         "aarch64-darwin"
       ];
-      # nixpkgs unstable 26.11 no longer supports x86_64-darwin.
 
       perSystem =
         { system, ... }:
@@ -75,6 +74,22 @@
 
             overlays = [
               rust-overlay.overlays.default
+              (final: prev: {
+                # 0.17.1 fixes theme button IDs for mdBook 0.5.
+                mdbook-mermaid = prev.mdbook-mermaid.overrideAttrs (old: rec {
+                  version = "0.17.1";
+                  src = final.fetchFromGitHub {
+                    owner = "badboy";
+                    repo = "mdbook-mermaid";
+                    tag = "v${version}";
+                    hash = "sha256-hcvX664QoM1wo7oHM68O7rmH+KAkrQZvtXQiwWmm+e8=";
+                  };
+                  cargoDeps = final.rustPlatform.fetchCargoVendor {
+                    inherit src;
+                    hash = "sha256-9uE3Xb4LhzGoB9lcusvyKm28X0uvgYVRzIju+Ozlc6A=";
+                  };
+                });
+              })
             ];
           };
 

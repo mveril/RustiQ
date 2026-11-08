@@ -22,8 +22,8 @@ packages, and provide Python 3.12 or later with `pytest` installed (see the
 [Python tooling setup](manual-setup.md)):
 
 ```sh
-cargo install mdbook
-cargo install mdbook-mermaid
+cargo install mdbook --version 0.5.2 --locked
+cargo install mdbook-mermaid --version 0.17.1 --locked
 python tools/build-manual.py
 mdbook test docs
 pytest tools/test_book_links.py tools/test_release_smoke.py
@@ -36,6 +36,9 @@ npm archive, verifies its SHA-256 digest, installs Mermaid resources, and builds
 the HTML. It replaces mdBook's CDN loader with relative local MathJax paths,
 using SVG equations so reading local files does not require web fonts.
 MathJax's license is preserved in `mathjax/LICENSE` in the output.
+Use mdbook-mermaid 0.17.1 with mdBook 0.5: it fixes the theme button
+identifiers used by the diagram initializer. The browser check also exercises
+light and dark theme changes with networking disabled.
 The local installation follows [MathJax's installation guidance](https://docs.mathjax.org/en/v2.7/installation.html).
 
 To build with networking disabled, supply the already downloaded, matching

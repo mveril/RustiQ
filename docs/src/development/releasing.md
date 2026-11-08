@@ -9,11 +9,11 @@ started manually for an existing tag.
 
 ## Binary releases
 
-The repository-root `dist-workspace.toml` pins dist 0.33.0, selects only the
+The repository-root `dist-workspace.toml` pins dist 0.34.0, selects only the
 `rustiq-chem` CLI package, and lists the six supported targets. Pull requests
 run `dist plan`; this checks the release plan without building or publishing
 artifacts. The generated workflow also runs on non-main pull requests because
-dist 0.33.0 does not expose a pull-request base-branch filter. A pull request
+dist 0.34.0 does not expose a pull-request base-branch filter. A pull request
 cannot enter the publishing jobs.
 
 All six target builds use native GitHub-hosted runners: Linux x64 on
@@ -162,7 +162,7 @@ For each subsequent release, add its version link and update the `Unreleased`
 comparison to start from the latest published version. Until release preparation
 begins, do not finalize the beta section or add links to an unpublished release.
 
-Dist 0.33.0 has [built-in changelog support](https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html).
+Dist 0.34.0 has [built-in changelog support](https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html).
 It discovers the root changelog and selects the matching version section for
 release notes. It can also use `Unreleased` for prereleases, but release
 preparation should still finalize a dated version section. The existing
@@ -246,7 +246,7 @@ generated workflow installs the exact dist version recorded in
 if the Nixpkgs package differs:
 
 ```sh
-cargo install cargo-dist --version 0.33.0 --locked
+cargo install cargo-dist --version 0.34.0 --locked
 ```
 
 Finalize the dated changelog section and its reference links, and commit it with
