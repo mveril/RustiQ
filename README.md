@@ -1,6 +1,10 @@
 # RustiQ
 
-[![CI](https://github.com/mveril/RustiQ/actions/workflows/ci.yml/badge.svg)](https://github.com/mveril/RustiQ/actions/workflows/ci.yml)
+[![CI](https://github.com/mveril/RustiQ/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mveril/RustiQ/actions/workflows/ci.yml?query=branch%3Amain)
+[![GitHub release](https://img.shields.io/github/v/release/mveril/RustiQ?include_prereleases)](https://github.com/mveril/RustiQ/releases)
+[![crates.io](https://img.shields.io/crates/v/rustiq-chem)](https://crates.io/crates/rustiq-chem)
+[![Manual](https://img.shields.io/badge/docs-manual-blue)](https://mveril.github.io/RustiQ/)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](DISTRIBUTION.md)
 
 RustiQ is an experimental Rust quantum chemistry application and reusable
 `rustiq-chem-core` library. RustiQ-authored source is licensed under MIT OR
