@@ -30,7 +30,7 @@
       ],
       "rotation": null,
       "basis_sha256": "6e9edeb7ae5ee1c4155dbc84b8bad9b74f07077f8136c7531f86d7f0d358b638",
-      "geometry_sha256": "7d00f0a54ca909dd51534e6ec97c532b4a5070382a6a10d2c6613f692a62c08e",
+      "geometry_sha256": "d00228efce5d72638f7e5bf15b7e0327790a79b10b183676f6878dbffa3efcad",
       "arrays": {
         "S": "h2-sto-3g/S",
         "T": "h2-sto-3g/T",
