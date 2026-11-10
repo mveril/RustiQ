@@ -14,6 +14,12 @@ checked-in H₂ example:
 {{#include ../../../samples/h2/molecule.xyz}}
 ```
 
+> [!TIP]
+> **Element symbols and atomic numbers are interchangeable.**
+> Each atom line may use either an element symbol, such as `H`, or its atomic
+> number, such as `1`. Both forms identify hydrogen; this book uses symbols
+> consistently for readability.
+
 The atom count must not exceed the number of atom lines present in the file.
 RustiQ reports a geometry parse error when the count and available lines do
 not match, including when the count is too large to represent the supplied
