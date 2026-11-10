@@ -40,7 +40,7 @@ build = ["python3", "tools/distribution.py", "source"]
 runner = "ubuntu-24.04-arm"
 
 [dist.github-custom-runners.aarch64-apple-darwin]
-runner = "macos-14"
+runner = "macos-latest"
 
 [dist.github-custom-runners.aarch64-pc-windows-msvc]
 runner = "windows-11-arm"
