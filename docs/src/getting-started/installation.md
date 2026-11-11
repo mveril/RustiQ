@@ -1,5 +1,10 @@
 # Installation
 
+## Install with Nix
+
+See [installing with Nix](installation-nix.md) for the supported platforms,
+profile installation, and CPU-specific builds.
+
 ## Install a prebuilt release binary
 
 When a release is available, ordinary users can download the archive for their

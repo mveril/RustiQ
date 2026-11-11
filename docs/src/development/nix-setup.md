@@ -73,7 +73,15 @@ Choose the case that matches your machine:
   instructions](https://nixos.org/download/) for your platform, restart the
   shell if requested, and verify the installation with `nix --version`. The
   official page recommends a multi-user installation when the platform supports
-  it.
+  it. To enable the commands used here, add the following line to your user
+  configuration file, `~/.config/nix/nix.conf` (create the directory and file
+  if needed):
+
+  ```text
+  experimental-features = nix-command flakes
+  ```
+
+  Merge these features with any existing `experimental-features` setting.
 
 In either case, Nix reads `flake.nix` and `flake.lock` from this repository to
 create the same project-specific toolchain without installing those development

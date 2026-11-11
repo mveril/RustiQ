@@ -5,6 +5,7 @@
 # Getting started
 
 - [Installation](getting-started/installation.md)
+  - [Installing with Nix](getting-started/installation-nix.md)
 - [First H₂ calculation](getting-started/first-calculation.md)
 - [Interpreting output](getting-started/output.md)
 

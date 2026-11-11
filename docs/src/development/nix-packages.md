@@ -1,5 +1,10 @@
 # Nix packages and shells
 
+The flake also exposes `legacyPackages.<system>.cpuTarget`, a function accepting
+an LLVM CPU name and returning a CPU-specific RustiQ package. See the
+[installation guide](../getting-started/installation.md#install-with-nix) for
+commands and portability considerations. The default package remains portable.
+
 The packages below are declared in [`flake.nix`](https://github.com/mveril/RustiQ/blob/main/flake.nix). All four
 shells share Rust build essentials. `rust` adds Rust development tools;
 `mini-pyscf` adds the Python reference-test environment to the minimal Rust
