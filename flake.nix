@@ -442,6 +442,17 @@
             pyscf-environment = pythonPyscf;
           };
 
+          legacyPackages.cpuTarget =
+            cpu:
+            let
+              cpuFlags = "-C target-cpu=${cpu}";
+              cpuArtifacts = craneLib.buildDepsOnly (commonCargoArgs // { RUSTFLAGS = cpuFlags; });
+            in
+            rustiq.overrideAttrs (_: {
+              RUSTFLAGS = cpuFlags;
+              cargoArtifacts = cpuArtifacts;
+            });
+
           apps = {
             pyscf-check = {
               type = "app";
