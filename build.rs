@@ -56,7 +56,7 @@ fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>>
         .add_instructions(&rustc)?
         .emit()?;
 
-    provenance::git_instructions(manifest_dir)?.emit()?;
+    emit_git_provenance(manifest_dir)?;
 
     for name in [
         "RUSTIQ_BUILD_GIT_COMMIT",
@@ -92,6 +92,22 @@ fn emit_build_info(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>>
         "cargo:rustc-env=RUSTIQ_RUSTFLAGS_OBSERVED={}",
         !flags.is_empty()
     );
+
+    Ok(())
+}
+
+fn emit_git_provenance(manifest_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
+    let sha = env::var("VERGEN_GIT_SHA").unwrap_or_default();
+    let dirty = env::var("VERGEN_GIT_DIRTY").unwrap_or_default();
+
+    if !sha.is_empty() && !dirty.is_empty() {
+        println!("cargo:rerun-if-env-changed=VERGEN_GIT_SHA");
+        println!("cargo:rerun-if-env-changed=VERGEN_GIT_DIRTY");
+        println!("cargo:rustc-env=VERGEN_GIT_SHA={sha}");
+        println!("cargo:rustc-env=VERGEN_GIT_DIRTY={dirty}");
+    } else {
+        provenance::git_instructions(manifest_dir)?.emit()?;
+    }
 
     Ok(())
 }
