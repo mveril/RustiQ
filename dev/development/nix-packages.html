@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-769c1cb6.js";
+            window.path_to_searchindex_js = "../searchindex-e8f6298b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f7a86d7f.js"></script>
+        <script src="../toc-de272c4b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -183,6 +183,10 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="nix-packages-and-shells"><a class="header" href="#nix-packages-and-shells">Nix packages and shells</a></h1>
+<p>The flake also exposes <code>legacyPackages.&lt;system&gt;.cpuTarget</code>, a function accepting
+an LLVM CPU name and returning a CPU-specific RustiQ package. See the
+<a href="../getting-started/installation.html#install-with-nix">installation guide</a> for
+commands and portability considerations. The default package remains portable.</p>
 <p>The packages below are declared in <a href="https://github.com/mveril/RustiQ/blob/main/flake.nix"><code>flake.nix</code></a>. All four
 shells share Rust build essentials. <code>rust</code> adds Rust development tools;
 <code>mini-pyscf</code> adds the Python reference-test environment to the minimal Rust

@@ -38,10 +38,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-769c1cb6.js";
+            window.path_to_searchindex_js = "searchindex-e8f6298b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-f7a86d7f.js"></script>
+        <script src="toc-de272c4b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -230,6 +230,9 @@ The <a href="#authoritative-references">authoritative references</a> page links 
 for plans and to the files that define existing contracts.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<h2 id="install-with-nix"><a class="header" href="#install-with-nix">Install with Nix</a></h2>
+<p>See <a href="#installing-with-nix">installing with Nix</a> for the supported platforms,
+profile installation, and CPU-specific builds.</p>
 <h2 id="install-a-prebuilt-release-binary"><a class="header" href="#install-a-prebuilt-release-binary">Install a prebuilt release binary</a></h2>
 <p>When a release is available, ordinary users can download the archive for their
 operating system and CPU from the <a href="https://github.com/mveril/RustiQ/releases">GitHub Releases page</a>.
@@ -334,6 +337,135 @@ rustiq --help
 when the relevant version has been published. See the
 <a href="#development-environments">development environments</a> page for Nix,
 Docker, and other supported contributor setups.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="installing-with-nix"><a class="header" href="#installing-with-nix">Installing with Nix</a></h1>
+<p>Install <a href="https://nixos.org/download/">Nix</a> and enable the <code>nix-command</code> and
+<code>flakes</code> experimental features. The flake supports x86-64 Linux, ARM64 Linux,
+and Apple Silicon macOS. On Windows, use Nix inside WSL2 to run the Linux
+package. See <a href="#getting-nix">Nix setup</a> for enabling
+flakes and platform prerequisites. The first install needs network access and
+may compile dependencies. Install the standard package from any directory with:</p>
+<pre><code class="language-sh">nix profile install github:mveril/RustiQ
+rustiq --version
+</code></pre>
+<h2 id="home-manager-without-a-configuration-flake"><a class="header" href="#home-manager-without-a-configuration-flake">Home Manager without a configuration flake</a></h2>
+<p>If your Home Manager configuration uses <code>home.nix</code> directly, create a
+<code>rustiq.nix</code> file beside it:</p>
+<pre><code class="language-nix">{ pkgs, ... }:
+let
+  rustiq = builtins.getFlake "github:mveril/RustiQ";
+in
+{
+  home.packages = [
+    (rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+  ];
+}
+</code></pre>
+<p>Add the module to the imports in <code>home.nix</code>, keeping any existing imports:</p>
+<pre><code class="language-nix">imports = [ ./rustiq.nix ];
+</code></pre>
+<p>Apply the configuration using your usual command. For Home Manager integrated
+as a NixOS module, run <code>sudo nixos-rebuild switch --impure</code>; for standalone Home
+Manager, run <code>home-manager switch --impure</code>. The unlocked GitHub reference
+requires impure evaluation. Check <code>rustiq --version</code> afterward. The reference tracks the default branch
+and is not pinned by a configuration <code>flake.lock</code>; use a revision in the URL
+for a fixed version. See the <a href="#optional-cpu-specific-build">CPU-specific build</a>
+caveats before using <code>native</code>. To use the standard package, replace the entry
+in <code>home.packages</code> with <code>rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default</code>.</p>
+<h2 id="home-manager-and-nixos"><a class="header" href="#home-manager-and-nixos">Home Manager and NixOS</a></h2>
+<p>The following snippets extend an existing <strong>flake-based</strong> configuration. Add
+RustiQ as an input to your configuration’s <code>flake.nix</code>:</p>
+<pre><code class="language-nix">inputs.rustiq.url = "github:mveril/RustiQ";
+</code></pre>
+<p>The configuration’s <code>flake.lock</code> pins that input. To update it later, run
+<code>nix flake update rustiq</code> in the configuration directory, then apply the
+configuration again. Keep your existing inputs, modules, and state version.
+If the configuration is a Git flake, add any newly created module files to Git
+before applying it so that Nix can see them.</p>
+<h3 id="home-manager"><a class="header" href="#home-manager">Home Manager</a></h3>
+<p>In the existing <code>outputs</code> function, bind the inputs as <code>inputs@{ ... }</code>, and
+pass them to your existing <code>home-manager.lib.homeManagerConfiguration</code>:</p>
+<pre><code class="language-nix">extraSpecialArgs = { inherit inputs; };
+</code></pre>
+<p>Merge this with any existing <code>extraSpecialArgs</code>. In your <code>home.nix</code>, add
+<code>inputs</code> to the module arguments and add RustiQ to <code>home.packages</code>:</p>
+<pre><code class="language-nix">{ pkgs, inputs, ... }:
+{
+  home.packages = [
+    inputs.rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
+  ];
+}
+</code></pre>
+<p>Merge the list with your existing packages. From your configuration directory,
+apply it with <code>home-manager switch --flake .#YOUR_USER</code> and check
+<code>rustiq --version</code>. Replace <code>YOUR_USER</code> with your Home Manager configuration
+name. See the <a href="https://nix-community.github.io/home-manager/nix-flakes/standalone.html">Home Manager flake guide</a>.
+For Home Manager as a NixOS module, pass the inputs through
+<code>home-manager.extraSpecialArgs</code> instead.</p>
+<h3 id="nixos-configurationnix"><a class="header" href="#nixos-configurationnix">NixOS configuration.nix</a></h3>
+<p>In the existing <code>outputs</code> function, bind the inputs as <code>inputs@{ ... }</code>, and
+pass them to your existing <code>nixpkgs.lib.nixosSystem</code>:</p>
+<pre><code class="language-nix">specialArgs = { inherit inputs; };
+</code></pre>
+<p>Merge this with any existing <code>specialArgs</code>. Create <code>rustiq.nix</code> beside your
+<code>configuration.nix</code>. This complete NixOS module installs a RustiQ build
+optimized for the build machine’s CPU:</p>
+<pre><code class="language-nix"># NixOS module: provide the RustiQ flake through specialArgs.inputs.
+{ pkgs, inputs, ... }:
+{
+  environment.systemPackages = [
+    (inputs.rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+  ];
+}
+</code></pre>
+<p>Then import it in the existing <code>configuration.nix</code>, preserving any other imports:</p>
+<pre><code class="language-nix">{ ... }:
+{
+  imports = [ ./rustiq.nix ];
+}
+</code></pre>
+<p>Alternatively, add <code>./rustiq.nix</code> to the <code>modules</code> list in <code>nixosSystem</code>.
+See the CPU caveats below before using <code>native</code>. To use the standard package,
+replace the expression inside the list with:</p>
+<pre><code class="language-nix">inputs.rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
+</code></pre>
+<p>From the configuration directory, apply it with
+<code>sudo nixos-rebuild switch --flake .#YOUR_HOST</code> and check <code>rustiq --version</code>.
+Replace <code>YOUR_HOST</code> with your NixOS configuration name. See the
+<a href="https://nixos.org/manual/nixos/stable/#sec-declarative-package-management">NixOS package management guide</a>.</p>
+<h2 id="optional-cpu-specific-build"><a class="header" href="#optional-cpu-specific-build">Optional CPU-specific build</a></h2>
+<p>The NixOS module above uses this expression. For Home Manager, you can also
+replace the standard package entry in <code>home.packages</code> with it:</p>
+<pre><code class="language-nix">(inputs.rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+</code></pre>
+<p>For a profile installation from any directory, use one command instead:</p>
+<pre><code class="language-sh">nix profile install --impure --expr '(builtins.getFlake "github:mveril/RustiQ").legacyPackages.${builtins.currentSystem}.cpuTarget "native"'
+</code></pre>
+<p>List compiler CPU names with <code>rustc --print target-cpus</code> (for example inside
+<code>nix develop github:mveril/RustiQ#rust</code>). <code>native</code> selects the <strong>build machine’s CPU</strong>, which may differ from the machine
+running RustiQ when using remote builders. Its detected CPU is not recorded in
+the Nix build identity: cached results may have been built for a different CPU.
+For reproducible builds or deployment across machines, replace <code>native</code> with a
+compatible explicit CPU name such as <code>znver3</code>. A binary may fail on machines
+with fewer processor features. This setting applies to Rust-compiled code and
+does not promise optimization of every native dependency. The <code>--impure</code> flag
+allows the command-line expression to obtain the current system and resolve the
+unlocked GitHub reference.</p>
+<h2 id="build-from-a-checkout"><a class="header" href="#build-from-a-checkout">Build from a checkout</a></h2>
+<p>From the root of a RustiQ checkout, build the default package and run it
+without adding it to your profile:</p>
+<pre><code class="language-sh">nix build
+./result/bin/rustiq --version
+</code></pre>
+<p>The package includes the offline manual and shell completions. Run <code>rustiq docs</code>
+after installing, or <code>./result/bin/rustiq docs</code> from the checkout. See the
+<a href="#consult-the-manual">manual instructions</a> and the
+<a href="#installed-manual-and-completions">Nix package guide</a>.</p>
+<p>The package enables online basis downloads but does not bundle sample inputs or basis sets.
+Download or import a basis before running a calculation; see
+<a href="#make-basis-sets-available">make basis sets available</a> and the
+<a href="#first-h₂-calculation">first calculation</a>. For development shells, see
+<a href="#nix-setup">Nix setup</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="first-h₂-calculation"><a class="header" href="#first-h₂-calculation">First H₂ calculation</a></h1>
 <h2 id="using-only-the-release-binary"><a class="header" href="#using-only-the-release-binary">Using only the release binary</a></h2>
@@ -2867,7 +2999,12 @@ Follow the official <a href="https://nixos.org/download/">Nix download and insta
 instructions</a> for your platform, restart the
 shell if requested, and verify the installation with <code>nix --version</code>. The
 official page recommends a multi-user installation when the platform supports
-it.</p>
+it. To enable the commands used here, add the following line to your user
+configuration file, <code>~/.config/nix/nix.conf</code> (create the directory and file
+if needed):</p>
+<pre><code class="language-text">experimental-features = nix-command flakes
+</code></pre>
+<p>Merge these features with any existing <code>experimental-features</code> setting.</p>
 </li>
 </ul>
 <p>In either case, Nix reads <code>flake.nix</code> and <code>flake.lock</code> from this repository to
@@ -3012,6 +3149,10 @@ rustiq --help
 directory is on <code>PATH</code>. Keep the checkout for the tutorial’s sample files.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="nix-packages-and-shells"><a class="header" href="#nix-packages-and-shells">Nix packages and shells</a></h1>
+<p>The flake also exposes <code>legacyPackages.&lt;system&gt;.cpuTarget</code>, a function accepting
+an LLVM CPU name and returning a CPU-specific RustiQ package. See the
+<a href="#install-with-nix">installation guide</a> for
+commands and portability considerations. The default package remains portable.</p>
 <p>The packages below are declared in <a href="https://github.com/mveril/RustiQ/blob/main/flake.nix"><code>flake.nix</code></a>. All four
 shells share Rust build essentials. <code>rust</code> adds Rust development tools;
 <code>mini-pyscf</code> adds the Python reference-test environment to the minimal Rust
