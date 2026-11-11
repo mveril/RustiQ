@@ -157,6 +157,13 @@
             src = cargoSource;
             strictDeps = true;
             cargoExtraArgs = "--locked --workspace --no-default-features --features online";
+            # Crane builds from a filtered source tree without .git. Supply
+            # the same flake provenance used by the installed package so
+            # vergen-gix does not warn or emit placeholder Git metadata.
+            VERGEN_GIT_SHA = pkgs.lib.removeSuffix "-dirty" (
+              inputs.self.rev or inputs.self.dirtyRev or "unknown"
+            );
+            VERGEN_GIT_DIRTY = if inputs.self ? rev then "false" else "true";
           };
 
           cargoArtifacts = craneLib.buildDepsOnly commonCargoArgs;
