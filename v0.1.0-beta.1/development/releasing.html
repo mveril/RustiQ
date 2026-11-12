@@ -1,0 +1,559 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Releasing RustiQ - RustiQ Manual</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A guide to the experimental RustiQ quantum chemistry application.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+        <!-- MathJax -->
+        <script async src="../mathjax/MathJax.js?config=TeX-AMS-MML_SVG"></script>
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-f46be16c.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-de272c4b.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">RustiQ Manual</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/mveril/RustiQ" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/mveril/RustiQ/edit/v0.1.0-beta.1/docs/src/development/releasing.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="releasing-rustiq"><a class="header" href="#releasing-rustiq">Releasing RustiQ</a></h1>
+<p>RustiQ uses <a href="https://axodotdev.github.io/cargo-dist/">dist</a> to build and
+publish binary archives to GitHub Releases. crates.io publication runs in a
+separate workflow. Registry lookup or dry-run failures block promotion; once
+promoted, a registry publishing failure does not block the binary workflow.
+Neither workflow creates a release from a GitHub Release event; both are
+explicitly dispatched by promotion after a merge into <code>main</code>, and crates.io publication can also be
+started manually for an existing tag.</p>
+<h2 id="binary-releases"><a class="header" href="#binary-releases">Binary releases</a></h2>
+<p>The repository-root <code>dist-workspace.toml</code> pins dist 0.34.0, selects only the
+<code>rustiq-chem</code> CLI package, and lists the six supported targets. Pull requests
+run <code>dist plan</code>; this checks the release plan without building or publishing
+artifacts. The generated workflow also runs on non-main pull requests because
+dist 0.34.0 does not expose a pull-request base-branch filter. A pull request
+cannot enter the publishing jobs.</p>
+<p>All six target builds use native GitHub-hosted runners: Linux x64 on
+<code>ubuntu-22.04</code>, Linux ARM64 on <code>ubuntu-24.04-arm</code>, macOS Intel on
+<code>macos-15-intel</code>, Apple Silicon on <code>macos-latest</code>, Windows x64 on <code>windows-2025</code>,
+and Windows ARM64 on <code>windows-11-arm</code>. The configuration explicitly selects
+the ARM runners and preserves the native Windows runners.</p>
+<p>The
+<code>rustiq-chem-core</code> library remains a build dependency and is not packaged as an
+application. The generated workflow is <code>.github/workflows/release.yml</code>. It pins
+<code>actions/upload-artifact</code> to an exact version. Because cargo-dist emits a major
+version reference for that action, <code>dist-workspace.toml</code> sets
+<code>allow-dirty = ["ci"]</code> so <code>dist plan</code> does not reject the exact pin as an
+out-of-date generated workflow. Keep the pin synchronized with the intended
+upload-artifact release when updating the workflow or cargo-dist. Preserve the
+custom <code>build-manual</code> job, the local-build dependency on it, and the download
+into <code>manual/html/</code> when regenerating the release workflow; generated defaults do
+not contain this offline-manual integration. Preserve the static local-build job
+name, <code>Build platform artifacts</code>, so pull requests that skip artifact builds
+display a readable name before the target matrix is expanded.</p>
+<h3 id="release-rehearsal"><a class="header" href="#release-rehearsal">Release rehearsal</a></h3>
+<p>The <strong>Release artifact smoke test</strong> workflow runs automatically on pull requests
+targeting <code>main</code>, testing the prospective merge commit. To rehearse another
+revision, run <strong>Actions → Release artifact smoke test → Run workflow</strong> and select
+the commit, branch, or tag. New runs cancel older rehearsals for the same pull
+request or selected workflow ref. The workflow builds the configured target archive with the pinned dist version on each target’s native
+GitHub-hosted runner. It extracts that archive, verifies its dist-generated
+SHA-256 checksum, starts the packaged <code>rustiq</code> executable, checks <code>--help</code>,
+and runs the checked-in H2/STO-3G regression with a copied local basis fixture
+and JSON output. Per-target results appear in the job summary; archives, dist
+manifests, and command logs are uploaded as workflow artifacts. Successful targets also
+publish a separate <code>rustiq-packages-&lt;target&gt;</code> artifact containing the distributable
+archive and checksums. Follow the download link in the run summary, then unzip
+the GitHub Actions artifact to obtain the original release archive. Downloads
+require a GitHub login and remain available until the workflow artifacts expire.
+After all six native builds pass, a global job runs <code>dist build --artifacts=global</code>,
+just as publication does. This builds the corresponding source archive and combined
+checksums. Download <code>rustiq-release-packages</code> from its summary link to obtain
+all native archives and global assets together. Only after this upload do the
+six native smoke jobs download that same artifact and test their target archive
+against its combined <code>sha256.sum</code>. Thus the downloadable final packages are
+the packages exercised by the smoke tests. The source archive requires a
+clean committed checkout; commit local changes before rehearsing them in CI.
+The Apple Silicon smoke job uses the native <code>macos-latest</code> runner.</p>
+<p>This checks archive integrity and basic executable operation for the six
+configured targets. The H2 energy comparison reuses the regression reference
+and is a packaging smoke test, not broad scientific validation, independent
+platform validation, or proof of compatibility with every supported operating
+system. The runs use GitHub-hosted runners, which are not pristine operating
+system installations. The rehearsal requires the combined <code>sha256.sum</code> generated by the global
+dist build and verifies each tested archive against it. A checksum made during a rehearsal does not independently validate
+a published release.</p>
+<p>The rehearsal has read-only repository permissions and supports <code>pull_request</code>
+events targeting <code>main</code> and manual <code>workflow_dispatch</code> runs. It does not run dist’s <code>host</code> command, upload
+release assets, create a GitHub Release, create tags, or publish crates. It
+complements <code>.github/workflows/release.yml</code>, whose dispatched release path builds
+and publishes the release assets. Pull requests targeting <code>develop</code> continue
+to use the generated plan-only check without the six-target rehearsal.</p>
+<p>Each executable archive includes <code>rustiq</code> (named <code>rustiq.exe</code> on Windows),
+the README, <code>LICENSE-MIT</code>, <code>LICENSE-APACHE</code>, <code>COPYING</code>, <code>DISTRIBUTION.md</code>, and
+<code>THIRD-PARTY-NOTICES.txt</code>, and the complete offline manual in <code>manual/html/</code>.
+The release workflow builds the validated Nix book once and downloads that
+artifact into every native archive build. Archive rehearsals check the manual
+after relocating the extracted tree. See <a href="documentation.html">documentation checks</a>
+for local archive preparation and the offline build process. RustiQ-authored source retains MIT OR Apache-2.0;
+Malachite and ansi_colours retain their LGPL terms. <code>COPYING</code> supplies the GPLv3
+text referenced by LGPLv3, rather than imposing GPLv3 on all RustiQ code. Unix archives use <code>.tar.gz</code>
+and Windows archives use <code>.zip</code>. Dist adds a <code>.sha256</code> file for each archive
+and a <code>sha256.sum</code> manifest. Installers are disabled. Archives do not include
+calculation samples or basis data.</p>
+<p>Each release also includes <code>rustiq-corresponding-source.tar.gz</code>, generated by
+the dist extra-artifact command <code>python3 tools/distribution.py source</code> before
+publication. This supplies the committed repository tree and all locked
+dependency sources. The generated Cargo configuration allows registry-free
+rebuilding. Dist’s repository-only source tarball is disabled because it would
+omit the dependency sources.
+Dist treats this file as an extra artifact; it does not emit a separate
+checksum for it in the release plan. Before publishing, verify that the source
+archive is actually present in the release assets and corresponds to the tagged
+commit. Its checksum can be calculated separately when verifying distribution
+integrity.
+See <a href="licensing.html">licenses and redistribution</a> for rebuild instructions and
+the requirements for package maintainers. The Nix package installs the same
+notice documents into <code>share/doc/rustiq/manual/html</code>; its metadata describes RustiQ’s
+MIT/Apache terms and the bundled LGPL/MPL components.</p>
+<p>To verify the assets listed in <code>sha256.sum</code> on Linux, download it and all listed
+assets into one directory, then run:</p>
+<pre><code class="language-sh">sha256sum --check sha256.sum
+</code></pre>
+<p>On macOS, use the built-in <code>shasum</code> command:</p>
+<pre><code class="language-sh">shasum -a 256 --check sha256.sum
+</code></pre>
+<p>On Windows PowerShell, use the explicit manifest comparison in the
+<a href="../getting-started/installation.html#verify-and-run-the-executable">installation guide</a>,
+replacing its example archive filename with the archive for your target.</p>
+<p>The archive target identifies the operating system and CPU architecture; it
+does not guarantee compatibility with every Linux distribution or older
+system library. The Linux GNU archives require a compatible glibc runtime.</p>
+<h2 id="maintaining-the-changelog"><a class="header" href="#maintaining-the-changelog">Maintaining the changelog</a></h2>
+<p>Maintain the repository-root <a href="https://github.com/mveril/RustiQ/blob/develop/CHANGELOG.md">CHANGELOG.md</a>
+by hand using Keep a Changelog categories and concise, user-facing entries.</p>
+<ol>
+<li>Add notable implemented changes under <code>Unreleased</code> during development.</li>
+<li>Review and edit the entries before each release, checking capabilities and
+limitations against the current code, tests, and documentation.</li>
+<li>During release preparation, move the relevant entries into a versioned
+section, such as <code>## [0.1.0-beta.1] - YYYY-MM-DD</code>.</li>
+<li>Replace <code>YYYY-MM-DD</code> with the actual release date and update the changelog’s
+version and comparison links.</li>
+<li>Leave an empty <code>## [Unreleased]</code> section for future changes, omitting empty
+categories.</li>
+<li>After updating package versions as described below, run
+<code>dist plan --tag v0.1.0-beta.1 --output-format=json</code> (substitute the intended
+tag). Check that <code>announcement_github_body</code> contains the intended version’s
+changelog entries and limitations, rather than only artifact download notes.</li>
+<li>Finalize and commit the changelog with the release preparation changes
+before creating the release tag.</li>
+</ol>
+<p>The first public beta should document the capabilities available at launch.
+For subsequent beta releases, describe incremental changes instead of repeating
+the complete feature inventory.</p>
+<p>Before the first release, preserve the existing <code>Unreleased</code> link to the develop
+branch’s commit history: no beta release tag exists yet. When preparing
+<code>v0.1.0-beta.1</code>, finalize the entries under a dated version heading and leave
+<code>Unreleased</code> ready for future changes:</p>
+<pre><code class="language-markdown">## [Unreleased]
+
+## [0.1.0-beta.1] - YYYY-MM-DD
+</code></pre>
+<p>Replace <code>YYYY-MM-DD</code> with the actual publication date. As part of that release
+preparation, set the reference links to the following convention, which applies
+after the first release:</p>
+<pre><code class="language-markdown">[Unreleased]: https://github.com/mveril/RustiQ/compare/v0.1.0-beta.1...HEAD
+[0.1.0-beta.1]: https://github.com/mveril/RustiQ/releases/tag/v0.1.0-beta.1
+</code></pre>
+<p>For each subsequent release, add its version link and update the <code>Unreleased</code>
+comparison to start from the latest published version. Until release preparation
+begins, do not finalize the beta section or add links to an unpublished release.</p>
+<p>Dist 0.34.0 has <a href="https://axodotdev.github.io/cargo-dist/book/workspaces/simple-guide.html">built-in changelog support</a>.
+It discovers the root changelog and selects the matching version section for
+release notes. It can also use <code>Unreleased</code> for prereleases, but release
+preparation should still finalize a dated version section. The existing
+workflow passes dist’s <code>announcement_github_body</code> to <code>gh release create</code>;
+no separate release-note generator or workflow change is needed.</p>
+<h2 id="preparing-a-release"><a class="header" href="#preparing-a-release">Preparing a release</a></h2>
+<p>Start from <code>develop</code> on a task branch:</p>
+<pre><code class="language-sh">git switch -c chore/prepare-version develop
+</code></pre>
+<p>From the repository root, update the version in both package manifests and
+update the CLI’s <code>rustiq-chem-core</code> dependency requirement to that same
+version:</p>
+<ul>
+<li><code>Cargo.toml</code> (<code>rustiq-chem</code>)</li>
+<li><code>crates/rustiq-core/Cargo.toml</code> (<code>rustiq-chem-core</code>)</li>
+<li><code>Cargo.toml</code>’s <code>rustiq-core</code> dependency</li>
+</ul>
+<p>After editing the manifests, regenerate <code>Cargo.lock</code> and the corresponding
+notices. The distribution script needs Python with <code>tarfile</code> extraction filters:
+Python 3.12 or later, or the backported filters in Python 3.10.12+/3.11.4+.
+This is independent of the optional PySCF environment. Enter the Nix <code>rust</code> or
+<code>full</code> shell for the pinned notice generator, or install cargo-about 0.9.2
+outside Nix, then run:</p>
+<pre><code class="language-sh">cargo check --workspace
+cargo install cargo-about --version 0.9.2 --locked
+python3 tools/distribution.py notices
+python3 tools/distribution.py check
+cargo deny --locked --workspace --all-features check
+git add CHANGELOG.md Cargo.toml crates/rustiq-core/Cargo.toml Cargo.lock THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.sha256
+git commit -m "Prepare release X.Y.Z"
+</code></pre>
+<p>The publishing workflow checks both package versions and the CLI dependency
+requirement against the tag using Cargo metadata. After committing the version
+change, build the workspace:</p>
+<pre><code class="language-sh">cargo check --workspace --locked
+</code></pre>
+<p>Promotion requires registry availability and a successful workspace publication dry run.
+There is currently no local Nickel patch or corresponding crates.io
+publication block. Before publishing crates, review the acknowledged
+upstream advisories described in <a href="#cratesio-publication">crates.io publication</a>
+and run <code>cargo publish --dry-run --workspace --locked</code>.</p>
+<p>Regenerate and commit notices after changing dependencies, license
+configuration, the notice template or generator. Review supplemental upstream
+notices when updating crates whose published packages omit their licenses.
+CI checks their package inventory, input hashes and generated-file integrity.
+This catches stale or accidentally edited output; it does not independently
+verify every license clause or certify legal compliance. Review generated
+notices and supplemental attribution when changing dependencies.
+To rehearse the complete source delivery from a clean committed checkout:</p>
+<pre><code class="language-sh">python3 tools/distribution.py source
+</code></pre>
+<p>The command rejects source changes and untracked files, except the dist
+workflow’s generated JSON manifests. It verifies offline Cargo resolution from
+the archive staging tree. Before a release, also extract the source artifact
+and run the reconstruction command documented in <a href="licensing.html">licensing</a>.</p>
+<p>Review the dist release plan and regenerate the workflow after changing the
+dist configuration or updating dist. The <code>allow-dirty = ["ci"]</code> setting means
+the generator does not check whether the checked-in release workflow matches
+its current template. Preserve the exact upload-artifact pin if you regenerate
+the workflow:</p>
+<pre><code class="language-sh">dist plan
+dist generate --mode ci
+dist generate --mode ci --check
+</code></pre>
+<p>The Rust development shell includes the Nixpkgs <code>cargo-dist</code> package. The
+generated workflow installs the exact dist version recorded in
+<code>dist-workspace.toml</code>. Before regenerating locally, install that same version
+if the Nixpkgs package differs:</p>
+<pre><code class="language-sh">cargo install cargo-dist --version 0.34.0 --locked
+</code></pre>
+<p>Development takes place on the <code>develop</code> branch. Use a version ending
+in <code>.dev</code>, keeping both crate versions and the internal dependency synchronized.
+Prepare a release on a <code>chore/*</code> task branch from <code>develop</code>: remove the development
+identifier, finalize the dated changelog, and update <code>Cargo.lock</code>.</p>
+<p>Push the task branch and open a pull request targeting <code>main</code>:</p>
+<pre><code class="language-sh">git push -u origin chore/prepare-version
+gh pr create --base main --head chore/prepare-version
+</code></pre>
+<p>The required Release eligibility check
+rejects development versions, mismatched package versions, and versions already
+present as a tag, GitHub Release, crates.io package, or published manual. Lookup
+failures block release eligibility. The check also runs:</p>
+<pre><code class="language-sh">cargo publish --workspace --locked --dry-run
+</code></pre>
+<p>Cargo packages and compiles both crates, including the unpublished core dependency.
+Keep package verification enabled. A failure blocks the merge. Update the branch
+with <code>main</code> before merging so checks apply to the prospective merged result.
+Every merge into <code>main</code>, including documentation changes, requires a fresh version.
+Alpha and beta versions are allowed; a complete <code>dev</code> prerelease identifier is not.</p>
+<p>After merging, Promote release repeats validation and the publication dry run,
+creates <code>vVERSION</code> at the merged commit, and explicitly dispatches the binary,
+crates.io, and documentation workflows at that tag. Do not create or push tags
+manually. Tag creation with the Actions token does not itself start push workflows.
+The three publications run independently; inspect each workflow for completion.
+The registry publication still requires <code>CARGO_REGISTRY_TOKEN</code>.</p>
+<p>Resume development with the next intended version ending in <code>.dev</code> on <code>develop</code>.
+No <code>release/*</code> branches are used. Check the matching <code>/RustiQ/vVERSION/</code> manual
+and <code>versions.json</code> after publication. Versioned manuals remain immutable.
+The documentation homepage opens the latest stable version, otherwise the latest
+prerelease, otherwise <code>/dev/</code>. Pushes to <code>develop</code> update only <code>/dev/</code>.</p>
+<h2 id="cratesio-publication"><a class="header" href="#cratesio-publication">crates.io publication</a></h2>
+<p>Nickel 0.19’s published dependency graph currently includes
+<code>imbl-sized-chunks</code> 0.1.3, affected by the <strong>unfixed security advisory</strong>
+RUSTSEC-2026-0292, and the unmaintained <code>bitmaps</code> 3.2.1
+(RUSTSEC-2026-0247). RustiQ intentionally uses Nickel’s published releases:
+it does <strong>not</strong> fork Nickel or backport its transitive dependencies.
+<code>deny.toml</code> records explicit exceptions for these advisories. Passing
+<code>cargo deny check</code> does not indicate that the vulnerability is fixed.
+Review these exceptions and upstream fixes before each release; see
+<a href="licensing.html#dependency-review">dependency review</a>.</p>
+<p>The crates.io workflow is <strong>not blocked</strong> by these exceptions. A merge into <code>main</code>
+can trigger publication of both crates while the upstream vulnerability remains
+present. Decide whether to publish that version with the documented risk or
+hold the release pull request until Nickel publishes a compatible fix.</p>
+<p><code>.github/workflows/publish-crates.yml</code> publishes both workspace crates when a
+release is promoted from <code>main</code>. Cargo publishes workspace members in dependency
+order, so
+<code>rustiq-chem-core</code> is available before <code>rustiq-chem</code>. Before publishing, the
+workflow uses the crates.io API to exclude package versions that already
+exist. If a run publishes the core crate and then fails while publishing the
+CLI, rerunning the same tag skips the existing core version and retries the
+CLI. For a retry, open <strong>Actions → Publish crates.io packages → Run
+workflow</strong>, enter the existing <code>v…</code> tag, and start the workflow.
+This workflow remains separate from the dist binary release workflow and can
+also be run manually for an existing tag.</p>
+<p>The workflow currently authenticates with the Actions secret
+<code>CARGO_REGISTRY_TOKEN</code>. Create it from a crates.io API token with only package
+publishing permissions, then add it under the repository’s Actions secrets
+before the first release. Keep the token out of repository files and do not
+grant permissions to yank crates.</p>
+<p>Crates.io Trusted Publishing uses GitHub OIDC and avoids a long-lived token,
+but crates.io requires each crate to have an initial token-authenticated
+publication before a Trusted Publisher can be configured. For RustiQ’s first
+publication, use <code>CARGO_REGISTRY_TOKEN</code> to publish both packages through the
+tag workflow or its manual execution for an existing tag. After both crates
+exist, configure a Trusted Publisher for each crate in crates.io to trust this
+repository and the publishing workflow. A follow-up change can then replace
+the token authentication with OIDC; the binary release workflow does not use
+or depend on the crates.io token.</p>
+<p>Cargo may time out while waiting for a published version to appear in the
+registry index even when the upload succeeded. Check the version on crates.io
+before retrying; the workflow’s existence check will skip a version already
+published.</p>
+<p>All package formats derive their online documentation channel from the Cargo
+version. Build a tagged release with <code>nix build github:mveril/RustiQ/vX.Y.Z</code>;
+no package selector or release flag is required.</p>
+<p>If tag creation succeeds but a dispatch fails, run the missing publication workflow
+manually at that existing tag. Do not rerun promotion to create the tag again.
+Rerun failed publication jobs for the same tag; never move the tag. Cargo skips
+already published crates, and the documentation publisher checks immutable content.
+For binaries, inspect an existing GitHub Release and its assets before retrying.</p>
+<p>Resume development through a task pull request to <code>develop</code>. Port any release-only
+fixes or changelog changes, then synchronize both crate versions, the internal
+dependency, and <code>Cargo.lock</code> with the next version ending in <code>.dev</code>. Do not merge
+release versions back without restoring the development suffix.</p>
+<p>For an existing release tag, explicitly select that tag when retrying:</p>
+<pre><code class="language-sh">gh workflow run release.yml --ref vVERSION
+gh workflow run docs-publish.yml --ref vVERSION
+gh workflow run publish-crates.yml --ref vVERSION -f tag=vVERSION
+</code></pre>
+<p>Dispatch only the missing publication. A default-branch dispatch does not select
+the release revision. Rerun failed jobs in the original binary workflow when
+some assets already exist; do not create a competing GitHub Release.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../development/platforms.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../development/licensing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../development/platforms.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../development/licensing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-eefea253.min.js"></script>
+        <script src="../mermaid-init-53b67c53.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

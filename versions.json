@@ -2,7 +2,14 @@
   "legacy_redirects": true,
   "legacy_source": "current-book-only",
   "development": "dev/",
-  "latest_beta": null,
+  "latest_beta": "v0.1.0-beta.1",
   "latest_stable": null,
-  "versions": []
+  "versions": [
+    {
+      "version": "v0.1.0-beta.1",
+      "url": "v0.1.0-beta.1/",
+      "channel": "beta",
+      "commit": "dd39cb4f44e91df9a9c9149d0cdd1b9dca1ded2b"
+    }
+  ]
 }
