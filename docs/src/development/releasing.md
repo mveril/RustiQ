@@ -33,13 +33,17 @@ out-of-date generated workflow. Keep the pin synchronized with the intended
 upload-artifact release when updating the workflow or cargo-dist. Preserve the
 custom `build-manual` job, the local-build dependency on it, and the download
 into `manual/html/` when regenerating the release workflow; generated defaults do
-not contain this offline-manual integration.
+not contain this offline-manual integration. Preserve the static local-build job
+name, `Build platform artifacts`, so pull requests that skip artifact builds
+display a readable name before the target matrix is expanded.
 
 ### Release rehearsal
 
-Run **Actions → Release artifact smoke test → Run workflow** and select the
-commit, branch, or tag to rehearse. The manually triggered workflow builds the
-configured target archive with the pinned dist version on each target's native
+The **Release artifact smoke test** workflow runs automatically on pull requests
+targeting `main`, testing the prospective merge commit. To rehearse another
+revision, run **Actions → Release artifact smoke test → Run workflow** and select
+the commit, branch, or tag. New runs cancel older rehearsals for the same pull
+request or selected workflow ref. The workflow builds the configured target archive with the pinned dist version on each target's native
 GitHub-hosted runner. It extracts that archive, verifies its dist-generated
 SHA-256 checksum, starts the packaged `rustiq` executable, checks `--help`,
 and runs the checked-in H2/STO-3G regression with a copied local basis fixture
@@ -68,12 +72,12 @@ system installations. The rehearsal requires the combined `sha256.sum` generated
 dist build and verifies each tested archive against it. A checksum made during a rehearsal does not independently validate
 a published release.
 
-The rehearsal has read-only repository permissions and only a
-`workflow_dispatch` trigger. It does not run dist's `host` command, upload
+The rehearsal has read-only repository permissions and supports `pull_request`
+events targeting `main` and manual `workflow_dispatch` runs. It does not run dist's `host` command, upload
 release assets, create a GitHub Release, create tags, or publish crates. It
 complements `.github/workflows/release.yml`, whose dispatched release path builds
-and publishes the release assets; ordinary pull requests continue to use the
-generated plan-only check.
+and publishes the release assets. Pull requests targeting `develop` continue
+to use the generated plan-only check without the six-target rehearsal.
 
 Each executable archive includes `rustiq` (named `rustiq.exe` on Windows),
 the README, `LICENSE-MIT`, `LICENSE-APACHE`, `COPYING`, `DISTRIBUTION.md`, and
@@ -268,7 +272,7 @@ if the Nixpkgs package differs:
 cargo install cargo-dist --version 0.34.0 --locked
 ```
 
-Development takes place on the default `develop` branch. Use a version ending
+Development takes place on the `develop` branch. Use a version ending
 in `.dev`, keeping both crate versions and the internal dependency synchronized.
 Prepare a release on a `chore/*` task branch from `develop`: remove the development
 identifier, finalize the dated changelog, and update `Cargo.lock`.

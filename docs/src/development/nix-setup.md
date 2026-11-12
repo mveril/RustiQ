@@ -94,7 +94,7 @@ Install Nix with flakes enabled, clone the repository, and enter the development
 shell manually:
 
 ```sh
-git clone https://github.com/mveril/RustiQ.git
+git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 nix develop
 ```
@@ -144,7 +144,7 @@ nix build
 Install both Nix and `direnv`, enable the direnv hook for your shell, then run:
 
 ```sh
-git clone https://github.com/mveril/RustiQ.git
+git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 direnv allow
 ```
