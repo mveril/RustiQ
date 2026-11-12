@@ -3,9 +3,8 @@ name = "rustiq-reference-tools"
 version = "0.0.0"
 description = "Python tooling used to validate RustiQ against reference implementations"
 requires-python = ">=3.12,<3.15"
-# PySCF 2.14.0 predates upstream Windows-wheel publishing; PR #3424 adds Windows wheels to PyPI releases.
-# Recheck this marker when upgrading PySCF: https://github.com/pyscf/pyscf/pull/3424
-dependencies = ["pyscf==2.14.0; sys_platform != 'win32'"]
+# PySCF publishes native Windows wheels for x86-64; Windows ARM64 still requires WSL2.
+dependencies = ["pyscf==2.15.0; sys_platform != 'win32' or platform_machine == 'AMD64' or platform_machine == 'x86_64'"]
 
 [dependency-groups]
 test = ["numpy", "pytest"]

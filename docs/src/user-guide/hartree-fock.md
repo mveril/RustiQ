@@ -165,7 +165,7 @@ The electronic HF energy includes electronic kinetic, electron–nuclear, and
 electron–electron terms. Total HF energy adds nuclear repulsion. Energies are
 in Hartree; input Angstrom coordinates are converted to Bohr internally.
 Terminal energies are rounded for display. The H₂/STO-3G example is checked
-against a PySCF 2.14.0 reference in the project comparison suite with an
+against a PySCF 2.15.0 reference in the project comparison suite with an
 absolute energy tolerance of \\(2\times10^{-10}\\) Hartree; the CLI test checks
 the rounded value. See [reference comparison coverage](../scientific-scope.md#reference-comparisons)
 and the [output guide](../getting-started/output.md).

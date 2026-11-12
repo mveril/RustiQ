@@ -50,10 +50,10 @@ uv run --locked pytest tools/reference
 
 This uses the cross-platform lock for Python 3.12 through 3.14 and requires
 compatible binary wheels; it does not build Python packages from source. PySCF
-supports Linux, macOS, and WSL2, but the pinned release has no native Windows
-wheel. The lock excludes PySCF on native Windows. Windows uv jobs still run the
-PySCF-independent report and helper tests; the PySCF comparison and AO
-integral suites run in the Nix PySCF environment or WSL2. Cargo must remain on
+2.15.0 provides binary wheels for Linux, macOS, and native Windows x86-64.
+Windows ARM64 remains excluded; use WSL2 there. The native PySCF CI job runs
+the full reference suite, including energy and AO integral comparisons, on
+supported Linux, macOS, and Windows x86-64 runners. Cargo must remain on
 `PATH` when using the default `cargo run` invocation.
 Set `RUSTIQ_BIN` to an absolute executable path to compare a specific build
 instead; `nix run .#pyscf-check` supplies its Nix-built executable this way.
@@ -265,7 +265,7 @@ reference, not a correlated MP2 spin expectation.
 
 ### Absolute tolerances
 
-Measured errors with pinned PySCF 2.14.0 and single-thread BLAS/OpenMP are below.
+Measured errors with PySCF 2.14.0 and single-thread BLAS/OpenMP are below.
 The tolerances leave a numerical margin over the observed errors for independent
 SCF termination and platform-dependent floating-point reductions; they do not
 represent physical error bars. No existing tolerance is increased.

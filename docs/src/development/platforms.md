@@ -42,9 +42,9 @@ Windows troubleshooting, and the configured VS Code extensions.
 
 The optional scientific Python tools have their own platform requirements.
 The project configures `uv` for Linux, macOS, and native Windows. The locked
-PySCF release is excluded on native Windows; the remaining Python tools and
-tests run there. The Nix environment provides PySCF on every declared Nix
-system. For PySCF comparisons on Windows, use WSL2 or the Linux Dev Container.
+PySCF 2.15.0 release includes native Windows x86-64 wheels; Windows ARM64
+remains excluded. The Nix environment provides PySCF on every declared Nix
+system. For PySCF comparisons on Windows ARM64, use WSL2 or the Linux Dev Container.
 
 ## How compatibility is checked
 
@@ -61,7 +61,9 @@ provides ongoing evidence for this support:
   and PySCF comparisons. Separate Windows and macOS host integrations are not
   exercised by these checks.
 - The standalone `uv` environment is checked on Linux and Windows x86_64 with
-  Python 3.12 and 3.14. Windows skips the PySCF comparison modules and also checks
+  Python 3.12 and 3.14. A native PySCF job runs the reference suite on Linux
+  x86-64 and ARM64, macOS Intel and Apple Silicon, and Windows x86-64.
+  Windows also checks
   Rust/NumPy persistence interoperability with Python 3.12.
 
 The [scheduled full Nix workflow](https://github.com/mveril/RustiQ/actions/workflows/nix-full.yml)

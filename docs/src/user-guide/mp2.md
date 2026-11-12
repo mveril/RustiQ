@@ -159,7 +159,7 @@ budget resolution follows the shared [resource policy](https://github.com/mveril
 
 The H₂/STO-3G RHF-MP2 comparison checks the HF energy within \\(2\times10^{-10}\\)
 Hartree and MP2 correlation energy within \\(10^{-10}\\) Hartree against PySCF
-2.14.0. The OH/STO-3G UHF-MP2 case checks HF energy within \\(5\times10^{-8}\\),
+2.15.0. The OH/STO-3G UHF-MP2 case checks HF energy within \\(5\times10^{-8}\\),
 correlation energy within \\(5\times10^{-9}\\) Hartree, and spin expectation
 within \\(2\times10^{-5}\\). These are agreement tolerances for those inputs,
 not a measure of general chemical accuracy. See the

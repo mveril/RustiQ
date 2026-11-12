@@ -107,6 +107,6 @@ for readability. Do not compare a rounded terminal value against a tight
 numerical tolerance. Existing JSON CLI tests validate both schemas and
 full-precision H₂ output in
 [`tests/json_output_cli.rs`](https://github.com/mveril/RustiQ/blob/main/tests/json_output_cli.rs).
-The checked-in reference tests compare JSON values against PySCF 2.14.0 for
+The checked-in reference tests compare JSON values against PySCF 2.15.0 for
 selected systems; see [scientific scope](../scientific-scope.md#reference-comparisons).
 For terminology used in result fields, see the [glossary](../glossary.md).
