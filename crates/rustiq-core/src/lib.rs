@@ -89,7 +89,7 @@ pub(crate) mod resources;
 #[deny(clippy::doc_markdown)]
 pub(crate) mod test_utils;
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 #[deny(clippy::doc_markdown)]
 pub mod bench_support {
     pub use crate::basis::BasisStore;

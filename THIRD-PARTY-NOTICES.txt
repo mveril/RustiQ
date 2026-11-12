@@ -1,5 +1,5 @@
 Cargo.lock SHA-256: 7f274ca9e7f738d58ec0e46d03be9802569df0512ec91892f4ccd1edbd90ad02
-Notice inputs SHA-256: 8c276309486abfbe214c47d6d52b2f5b63cf45bb0ecdf95bb6a8610d04ff929f
+Notice inputs SHA-256: f3b7a59fa3633c0574f9c0f0b1c6a0b767056d57307cba53913adf72ef06f236
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1.dev/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
