@@ -166,7 +166,7 @@ mod tests {
 
             let mat_non_sym = DMatrix::from_row_slice(2, 2, &[1.0, 3.0, 2.0, 1.0]); // Corrected to make it non-symmetric
             let result = std::panic::catch_unwind(|| {
-                crate::math_utils::debug_assert_is_symmetric!(&mat_non_sym, 1e-12)
+                crate::math_utils::debug_assert_is_symmetric!(&mat_non_sym, 1e-12);
             });
             assert!(result.is_err(), "The matrix should not be symmetric");
         }
