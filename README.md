@@ -34,12 +34,18 @@ and [the first H₂ calculation](https://mveril.github.io/RustiQ/getting-started
 Release archives contain the executable and licenses; obtain basis data and
 create calculation inputs as shown in those guides.
 
+Once the beta is published, install it from crates.io with
+`cargo install --locked rustiq-chem --version '=0.1.0-beta.1'`, or install the
+tagged flake’s default package with
+`nix profile install 'github:mveril/RustiQ/v0.1.0-beta.1'`.
+See the installation guide for prerequisites and supported Nix platforms.
+
 To build from source, install Git, Rust through [rustup](https://rustup.rs/), a
 C/C++ build toolchain, and CMake; see [manual setup](docs/src/development/manual-setup.md).
 Alternatively, enter `nix develop .#rust` after cloning:
 
 ```sh
-git clone https://github.com/mveril/RustiQ.git
+git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 cargo build --locked
 cargo run --locked -- basis import tests/data/sto-3g.json

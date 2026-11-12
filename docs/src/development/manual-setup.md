@@ -27,7 +27,7 @@ Install Git and Rust through [`rustup`](https://rustup.rs/), then use Cargo
 directly on Linux, macOS, or Windows:
 
 ```sh
-git clone https://github.com/mveril/RustiQ.git
+git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 rustup show
 cargo build --locked
