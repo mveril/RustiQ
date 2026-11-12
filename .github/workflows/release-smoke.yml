@@ -1,6 +1,8 @@
 name: Release artifact smoke test
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -11,6 +13,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: release-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   manual:

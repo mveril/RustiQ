@@ -4675,7 +4675,7 @@ dependencies = [
 
 [[package]]
 name = "rustiq-chem"
-version = "0.1.0-alpha.1.dev"
+version = "0.1.0-beta.1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -4719,7 +4719,7 @@ dependencies = [
 
 [[package]]
 name = "rustiq-chem-core"
-version = "0.1.0-alpha.1.dev"
+version = "0.1.0-beta.1"
 dependencies = [
  "approx",
  "bounded-vec-deque",
@@ -4727,6 +4727,7 @@ dependencies = [
  "const_format",
  "delegate",
  "factorial",
+ "itertools 0.14.0",
  "mendeleev",
  "miette",
  "nalgebra",

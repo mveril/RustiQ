@@ -33,9 +33,13 @@ class ReleaseSmokeTests(unittest.TestCase):
             "mermaid-init-test.js",
         ]:
             (manual / name).write_text("controlled manual asset")
+        for name in ("LICENSE-MIT", "LICENSE-APACHE", "COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt"):
+            (content / name).write_text("document")
         with tarfile.open(self.archive, "w:gz") as bundle:
             bundle.add(content / "rustiq", arcname="rustiq")
             bundle.add(manual, arcname="manual/html")
+            for name in ("LICENSE-MIT", "LICENSE-APACHE", "COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt"):
+                bundle.add(content / name, arcname=name)
         self.checksum = self.root / "bundle.tar.gz.sha256"
         self.checksum.write_text(
             hashlib.sha256(self.archive.read_bytes()).hexdigest() + "  bundle.tar.gz\n"
@@ -119,6 +123,8 @@ class ReleaseSmokeTests(unittest.TestCase):
         binary = self.root / "archive-content/rustiq"
         with tarfile.open(self.archive, "w:gz") as bundle:
             bundle.add(binary, arcname="rustiq")
+            for name in ("LICENSE-MIT", "LICENSE-APACHE", "COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt"):
+                bundle.add(binary.parent / name, arcname=name)
         self.checksum.write_text(hashlib.sha256(self.archive.read_bytes()).hexdigest())
         with self.assertRaisesRegex(ValueError, "lacks the complete offline manual"):
             self.validate()
@@ -276,6 +282,18 @@ class ReleaseSmokeTests(unittest.TestCase):
                 expected_energy=float("nan"),
                 command_runner=self.runner(),
             )
+
+    def test_missing_distribution_documents(self):
+        for missing in ("LICENSE-MIT", "LICENSE-APACHE", "COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt"):
+            with self.subTest(missing=missing):
+                content = self.root / "archive-content"
+                with tarfile.open(self.archive, "w:gz") as bundle:
+                    for path in content.iterdir():
+                        if path.name != missing:
+                            bundle.add(path, arcname=path.name)
+                self.checksum.write_text(hashlib.sha256(self.archive.read_bytes()).hexdigest() + "  bundle.tar.gz\n")
+                with self.assertRaisesRegex(ValueError, missing):
+                    self.validate()
 
     def test_success(self):
         result = self.validate()

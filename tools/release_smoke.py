@@ -174,6 +174,9 @@ def validate(
                 f"EXTRACTION_FAILURE: expected one rustiq executable in archive, found {len(binaries)}"
             )
         binary = binaries[0]
+        for name in ("LICENSE-MIT", "LICENSE-APACHE", "COPYING", "DISTRIBUTION.md", "THIRD-PARTY-NOTICES.txt"):
+            if not any(p.is_file() for p in extracted.rglob(name)):
+                raise ValueError(f"EXTRACTION_FAILURE: archive lacks {name}")
         if os.name != "nt":
             binary.chmod(binary.stat().st_mode | 0o111)
         clean_path = os.pathsep.join(
