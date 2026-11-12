@@ -2,7 +2,7 @@
 
 The flake also exposes `legacyPackages.<system>.cpuTarget`, a function accepting
 an LLVM CPU name and returning a CPU-specific RustiQ package. See the
-[installation guide](../getting-started/installation.md#install-with-nix) for
+[Nix installation guide](../getting-started/installation-nix.md#optional-cpu-specific-build) for
 commands and portability considerations. The default package remains portable.
 
 The packages below are declared in [`flake.nix`](https://github.com/mveril/RustiQ/blob/main/flake.nix). All four
@@ -96,7 +96,10 @@ The flake also exposes `nix build .#book` to build this manual,
 `nix build .#cargo-artifacts` for cached Cargo dependency artifacts, and
 `nix build .#pyscf-environment` for the base PySCF environment. These are build
 outputs rather than development shells. The default package is the RustiQ CLI
-binary, available through `nix build`. Its online manual follows the Cargo
+binary, available through `nix build` or explicitly through `nix build .#default`.
+Install a tagged version with `nix profile install github:mveril/RustiQ/vVERSION`,
+replacing `vVERSION` with a published tag. Both development and release revisions
+use this default package. Its online manual follows the Cargo
 version: a `dev` prerelease identifier selects development documentation;
 other versions select the matching versioned manual. No release flag is needed.
 See [releasing](releasing.md#preparing-a-release).
