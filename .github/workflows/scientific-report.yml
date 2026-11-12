@@ -67,12 +67,12 @@ jobs:
       - name: Run selected ERI Criterion benchmarks
         id: eri
         continue-on-error: true
-        run: cargo bench --features bench-support --bench eri_timings
+        run: cargo bench --features bench --bench eri_timings
 
       - name: Run selected MP2 Criterion benchmarks
         id: mp2
         continue-on-error: true
-        run: cargo bench --features bench-support --bench mp2_timings
+        run: cargo bench --features bench --bench mp2_timings
 
       - name: Generate performance report
         id: performance

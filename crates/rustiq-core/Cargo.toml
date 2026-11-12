@@ -1,11 +1,16 @@
 [package]
 name = "rustiq-chem-core"
-description = "Reusable domain model and quantum chemistry implementation for RustiQ"
-authors = ["Mickaël Véril"]
+description = "A reusable Rust library for modern quantum chemistry software"
+authors.workspace = true
 version = "0.1.0-alpha.1.dev"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/mveril/RustiQ"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/rustiq-chem-core"
+readme = "README.md"
+keywords.workspace = true
+categories = ["science::computational-chemistry::electronic-structure"]
 
 # Preserve the Rust import name independently of the Cargo package name.
 [lib]
@@ -20,7 +25,7 @@ workspace = true
 [features]
 default = []
 online = ["dep:reqwest", "dep:tokio"]
-bench-support = []
+bench = []
 
 [dependencies]
 miette.workspace = true

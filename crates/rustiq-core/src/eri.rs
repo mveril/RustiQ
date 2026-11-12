@@ -7,9 +7,9 @@
 #[cfg(test)]
 use mendeleev::Element;
 use std::f64::consts::PI;
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 use std::time::{Duration, Instant};
 mod compact;
 pub use compact::CompactEri;
@@ -27,16 +27,16 @@ use thiserror::Error;
 const ERI_SELF_INTEGRAL_NEGATIVE_TOLERANCE: f64 = 1e-12;
 const COULOMB_CACHE_SMALLVEC_CAPACITY: usize = 128;
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 const CACHE_SIZE_BUCKET_LIMITS: [usize; 8] = [16, 32, 64, 128, 256, 512, 1024, usize::MAX];
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 static COULOMB_CACHE_SIZE_COUNT: AtomicU64 = AtomicU64::new(0);
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 static COULOMB_CACHE_SIZE_SUM: AtomicU64 = AtomicU64::new(0);
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 static COULOMB_CACHE_SIZE_MAX: AtomicUsize = AtomicUsize::new(0);
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 static COULOMB_CACHE_SIZE_BUCKETS: [AtomicU64; 8] = [
     AtomicU64::new(0),
     AtomicU64::new(0),
@@ -220,7 +220,7 @@ pub(crate) fn electron_repulsion_ints_with_threshold(
     ))
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 #[allow(
     dead_code,
     reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
@@ -238,7 +238,7 @@ pub struct EriTimingBreakdown {
     pub coulomb_cache_sizes: CacheSizeStats,
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 #[allow(
     dead_code,
     reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
@@ -252,7 +252,7 @@ pub struct CacheSizeStats {
     pub buckets: [(usize, u64); 8],
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 #[allow(
     dead_code,
     reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
@@ -281,7 +281,7 @@ impl CacheSizeStats {
     }
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 #[allow(
     dead_code,
     reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
@@ -292,7 +292,7 @@ pub fn electron_repulsion_ints_timed(
     electron_repulsion_ints_timed_with_observer(basis, |_, _| {})
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 pub fn electron_repulsion_ints_timed_with_observer(
     basis: &Basis,
     mut observer: impl FnMut(&'static str, Duration),
@@ -498,7 +498,7 @@ fn compute_eri_pair_primitive(primitive_ab: &PairPrimitive, primitive_cd: &PairP
     2.0 * PI.powf(2.5) / (p * q * (p + q).sqrt()) * eri
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 fn reset_coulomb_cache_size_stats() {
     COULOMB_CACHE_SIZE_COUNT.store(0, Ordering::Relaxed);
     COULOMB_CACHE_SIZE_SUM.store(0, Ordering::Relaxed);
@@ -508,7 +508,7 @@ fn reset_coulomb_cache_size_stats() {
     }
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 fn record_coulomb_cache_size(len: usize) {
     COULOMB_CACHE_SIZE_COUNT.fetch_add(1, Ordering::Relaxed);
     COULOMB_CACHE_SIZE_SUM.fetch_add(len as u64, Ordering::Relaxed);
@@ -521,7 +521,7 @@ fn record_coulomb_cache_size(len: usize) {
     COULOMB_CACHE_SIZE_BUCKETS[bucket_index].fetch_add(1, Ordering::Relaxed);
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 fn coulomb_cache_size_stats() -> CacheSizeStats {
     let mut buckets = [(0, 0); 8];
     for (index, limit) in CACHE_SIZE_BUCKET_LIMITS.iter().copied().enumerate() {
@@ -648,7 +648,7 @@ impl CoulombAuxiliaryCache {
             * (u_max as usize + 1)
             * (v_max as usize + 1)
             * (n_max as usize + 1);
-        #[cfg(feature = "bench-support")]
+        #[cfg(feature = "bench")]
         record_coulomb_cache_size(len);
         let mut values = SmallVec::new();
         values.resize(len, f64::NAN);

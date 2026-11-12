@@ -360,13 +360,13 @@ Run `cargo test -p rustiq-chem-core math_utils::boys` and the affected
 [PySCF comparisons](https://github.com/mveril/RustiQ/blob/main/tools/reference/README.md) after changing this path.
 
 The `eri_timings` and `mp2_timings` benchmarks use Criterion and require
-`bench-support`:
+`bench`:
 
 ```sh
-cargo bench --bench mp2_timings --features bench-support
-cargo bench --bench eri_timings --features bench-support
-cargo bench --bench eri_storage_allocation --features bench-support
-cargo bench --bench eri_storage_memory --features bench-support
+cargo bench --bench mp2_timings --features bench
+cargo bench --bench eri_timings --features bench
+cargo bench --bench eri_storage_allocation --features bench
+cargo bench --bench eri_storage_memory --features bench
 ```
 
 The MP2 benchmark compares the dense AO-to-MO transformation and correlation
@@ -431,8 +431,8 @@ baseline on the reference revision with the same workload, then compare from
 the revision under test:
 
 ```sh
-cargo bench --bench mp2_timings --features bench-support -- --save-baseline before
-cargo bench --bench mp2_timings --features bench-support -- --baseline before
+cargo bench --bench mp2_timings --features bench -- --save-baseline before
+cargo bench --bench mp2_timings --features bench -- --baseline before
 ```
 
 See the [MP2 benchmark source](https://github.com/mveril/RustiQ/blob/main/benches/mp2_timings.rs)
@@ -461,8 +461,8 @@ platform metadata so results can be compared across revisions.
 Generate Criterion measurements and their report with:
 
 ```sh
-cargo bench --features bench-support --bench eri_timings
-cargo bench --features bench-support --bench mp2_timings
+cargo bench --features bench --bench eri_timings
+cargo bench --features bench --bench mp2_timings
 uv run --locked python tools/benchmarks/report.py
 ```
 
