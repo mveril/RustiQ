@@ -8,7 +8,14 @@ dependencies = ["pyscf==2.15.0; sys_platform != 'win32' or platform_machine == '
 
 [dependency-groups]
 test = ["numpy", "pytest"]
-dev = ["ipykernel", "jupyterlab", "matplotlib", "scipy"]
+# 26.1.0 has no macOS Intel wheel; remove this constraint when one is published.
+dev = [
+    "ipykernel",
+    "jupyterlab",
+    "matplotlib",
+    "scipy",
+    "argon2-cffi-bindings==25.1.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
 linting = ["ruff"]
 
 [tool.uv]
