@@ -1,9 +1,10 @@
 # First H₂ calculation
 
-## Using only the release binary
+## Using an installed release
 
-Copy the following geometry into a file named `h2.xyz` in your working
-directory. It is the same geometry used by the checked-in sample:
+The following commands work after installing a release from a GitHub archive,
+Cargo, or Nix. Copy the following geometry into a file named `h2.xyz` in your
+working directory. It is the same geometry used by the checked-in sample:
 
 ```text
 {{#include ../../../samples/h2/molecule.xyz}}

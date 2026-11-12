@@ -75,7 +75,7 @@ For example, the grouped output has this shape (unknown optional fields are
 omitted and the values depend on the build):
 
 ```text
-rustiq 0.1.0-alpha.1
+rustiq 0.1.0-beta.1
 
 SOURCE
   Git commit          <full commit hash>
