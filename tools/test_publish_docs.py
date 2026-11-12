@@ -225,6 +225,7 @@ def test_workflow_release_validation(tmp_path, tag, on_main, error):
     (tmp_path / "crates/rustiq-core/Cargo.toml").write_text(
         f'[package]\nversion = "{release_version}"\n'
     )
+    (tmp_path / "CITATION.cff").write_text(f"version: {release_version}\n")
 
     git("add", ".")
     git("commit", "-m", "Initial main")

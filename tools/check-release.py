@@ -29,6 +29,9 @@ def candidate(root):
         raise ValueError("workspace package versions differ")
     if manifest["dependencies"]["rustiq-core"]["version"].removeprefix("=") != version:
         raise ValueError("internal dependency must match release version")
+    citation = (root / "CITATION.cff").read_text(encoding="utf-8")
+    if re.findall(r"^version:\s*(\S+)\s*$", citation, re.MULTILINE) != [version]:
+        raise ValueError("citation version must match release version")
     return version
 
 
