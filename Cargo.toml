@@ -67,7 +67,7 @@ tokio = { version = "1", default-features = false }
 name = "rustiq-chem"
 description = "A modern command-line application for quantum chemistry, written in Rust"
 authors.workspace = true
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2.dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -91,7 +91,7 @@ completions = ["dep:clap_complete", "dep:clap_complete_nushell", "dep:sysinfo"]
 
 [dependencies]
 bytesize.workspace = true
-rustiq-core = { package = "rustiq-chem-core", path = "crates/rustiq-core", version = "0.1.0-beta.1", default-features = false }
+rustiq-core = { package = "rustiq-chem-core", path = "crates/rustiq-core", version = "0.1.0-beta.2.dev", default-features = false }
 directories = "6"
 miette = { workspace = true, features = ["fancy"] }
 clap = { version = "4.6", features = ["cargo", "derive", "env"] }

@@ -2,7 +2,7 @@
 name = "rustiq-chem-core"
 description = "A reusable Rust library for modern quantum chemistry software"
 authors.workspace = true
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2.dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
