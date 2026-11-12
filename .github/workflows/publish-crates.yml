@@ -63,7 +63,10 @@ jobs:
 
           excluded=()
           for package in rustiq-chem-core rustiq-chem; do
-            status=$(curl --silent --show-error --output "${package}.json" \
+            status=$(curl --silent --show-error \
+              --user-agent "RustiQ-release-check (https://github.com/mveril/RustiQ)" \
+              --header "Accept: application/json" \
+              --output "${package}.json" \
               --write-out '%{http_code}' \
               "https://crates.io/api/v1/crates/${package}/${version}")
             case "$status" in
