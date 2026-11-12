@@ -80,6 +80,7 @@ categories = ["science::computational-chemistry::electronic-structure", "command
 [[bin]]
 name = "rustiq"
 path = "src/main.rs"
+doc = false
 
 [features]
 default = ["online", "manpages", "completions"]

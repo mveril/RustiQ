@@ -135,7 +135,7 @@ fn prepare_scf_setup_with_thresholds(
     let step_start = Instant::now();
     let overlap = builder.overlap();
     timings.overlap = step_start.elapsed();
-    crate::debug_assert_is_symmetric!(&overlap, 1e-8);
+    crate::math_utils::debug_assert_is_symmetric!(&overlap, 1e-8);
 
     progress(ScfSetupStep::OverlapOrthogonalizer);
     let step_start = Instant::now();

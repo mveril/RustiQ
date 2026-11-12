@@ -25,7 +25,7 @@ impl<R: HfReference> DensityGuess<R> for OneElectron {
         h_core: &DMatrix<f64>,
         _basis: &Basis,
     ) -> Result<OrbitalGuess<R>, Self::Error> {
-        crate::debug_assert_is_symmetric!(h_core, 1e-8);
+        crate::math_utils::debug_assert_is_symmetric!(h_core, 1e-8);
         match self.perturbation {
             Some(perturbation) => {
                 perturb_fock_like_matrices(h_core, perturbation).map_err(Into::into)
@@ -101,7 +101,7 @@ mod tests {
         let density = scf.density_matrix;
 
         // Check that the density is symmetric
-        crate::debug_assert_is_symmetric!(&density, 1e-8);
+        crate::math_utils::debug_assert_is_symmetric!(&density, 1e-8);
 
         // AO densities are normalized in the overlap metric, not the Euclidean trace.
         let trace = (&density * basis.overlap_ints()).trace();

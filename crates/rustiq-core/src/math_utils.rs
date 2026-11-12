@@ -67,7 +67,6 @@ pub fn hermite(n: u64, PA: u32, QA: u32, p: f64, q: f64, f0: f64) -> f64 {
     f0 * hermite_classic(n, x)
 }
 
-#[macro_export]
 #[cfg(debug_assertions)]
 macro_rules! debug_assert_is_symmetric {
     ($matrix:expr, $tol:expr) => {{
@@ -98,11 +97,12 @@ macro_rules! debug_assert_is_symmetric {
     }};
 }
 
-#[macro_export]
 #[cfg(not(debug_assertions))]
 macro_rules! debug_assert_is_symmetric {
     ($matrix:expr, $tol:expr) => {{}};
 }
+
+pub(crate) use debug_assert_is_symmetric;
 
 #[cfg(test)]
 pub(crate) fn is_positive_definite(matrix: &DMatrix<f64>) -> bool {
@@ -162,11 +162,12 @@ mod tests {
         #[cfg(debug_assertions)]
         {
             let mat = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 2.0, 1.0]);
-            crate::debug_assert_is_symmetric!(&mat, 1e-12); // Should not fail
+            crate::math_utils::debug_assert_is_symmetric!(&mat, 1e-12); // Should not fail
 
             let mat_non_sym = DMatrix::from_row_slice(2, 2, &[1.0, 3.0, 2.0, 1.0]); // Corrected to make it non-symmetric
-            let result =
-                std::panic::catch_unwind(|| crate::debug_assert_is_symmetric!(&mat_non_sym, 1e-12));
+            let result = std::panic::catch_unwind(|| {
+                crate::math_utils::debug_assert_is_symmetric!(&mat_non_sym, 1e-12);
+            });
             assert!(result.is_err(), "The matrix should not be symmetric");
         }
     }
