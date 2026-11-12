@@ -19,11 +19,11 @@
 //! rejected to prevent numerically singular perturbative contributions.
 
 mod blocked;
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 use crate::eri::index::{EriIndex, PairIndex};
 pub use blocked::{Mp2MemoryPlan, Mp2Sector};
 use nalgebra::{DMatrix, DVector};
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 use rayon::prelude::*;
 use thiserror::Error;
 
@@ -263,7 +263,7 @@ pub(crate) fn correlation_energy_with_memory(
     )
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn build_ovov_integrals(input: &Mp2Input<'_>) -> DMatrix<f64> {
     let mo_coefficients = input.mo_coefficients;
     let basis_functions = mo_coefficients.nrows();
@@ -366,7 +366,7 @@ pub(crate) fn uhf_correlation_energy_with_memory(
     Ok(result)
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn build_ao_pair_matrix(
     two_electron_integrals: &CompactEri,
     basis_functions: usize,
@@ -391,7 +391,7 @@ fn build_ao_pair_matrix(
     matrix
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn build_orbital_pair_transform(
     mo_coefficients: &DMatrix<f64>,
     occupied_start: usize,
@@ -446,7 +446,7 @@ fn validate_spin_input(input: &Mp2SpinInput<'_>) -> Result<(), Mp2Error> {
     Ok(())
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn same_spin_correlation_energy(
     ovov_integrals: &DMatrix<f64>,
     orbital_energies: &DVector<f64>,
@@ -496,7 +496,7 @@ fn same_spin_correlation_energy(
     Ok(correlation_energy)
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn opposite_spin_correlation_energy(
     ovov_integrals: &DMatrix<f64>,
     alpha_orbital_energies: &DVector<f64>,
@@ -553,7 +553,7 @@ pub(crate) struct Mp2SpinInput<'a> {
     pub(crate) frozen_orbitals: usize,
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn pair_transform_coefficient(
     mo_coefficients: &DMatrix<f64>,
     mu: usize,
@@ -569,12 +569,12 @@ fn pair_transform_coefficient(
     }
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn orbital_pair_index(left: usize, right: usize, right_count: usize) -> usize {
     left * right_count + right
 }
 
-#[cfg(any(test, feature = "bench-support"))]
+#[cfg(any(test, feature = "bench"))]
 fn basis_function_pair_count(basis_functions: usize) -> usize {
     basis_functions * (basis_functions + 1) / 2
 }
@@ -614,7 +614,7 @@ fn mo_two_electron_integral(
     value
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 #[non_exhaustive]
 pub struct Mp2BenchResult {
     pub dense_elapsed: std::time::Duration,
@@ -624,7 +624,7 @@ pub struct Mp2BenchResult {
     pub memory: Mp2MemoryPlan,
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 pub struct Mp2BenchInput {
     coefficients: DMatrix<f64>,
     energies: DVector<f64>,
@@ -632,7 +632,7 @@ pub struct Mp2BenchInput {
     occupied_orbitals: usize,
 }
 
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 impl Mp2BenchInput {
     /// Creates deterministic synthetic input for comparing MP2 implementations.
     #[must_use]
@@ -735,7 +735,7 @@ impl Mp2BenchInput {
 }
 
 /// Synthetic, deterministic inputs; timing excludes input/ERI construction and SCF.
-#[cfg(feature = "bench-support")]
+#[cfg(feature = "bench")]
 ///
 /// # Errors
 ///

@@ -154,7 +154,7 @@ impl BasisStore {
     }
 
     /// Copies a basis file from another store into this store.
-    #[cfg(any(test, feature = "bench-support"))]
+    #[cfg(any(test, feature = "bench"))]
     #[allow(
         dead_code,
         reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"
@@ -174,7 +174,7 @@ impl BasisStore {
     }
 
     /// Returns the package-local fixture basis store used by tests and benches.
-    #[cfg(any(test, feature = "bench-support"))]
+    #[cfg(any(test, feature = "bench"))]
     #[allow(
         dead_code,
         reason = "Retained scientific helpers and representations support tests, benchmarks, or future internal use"

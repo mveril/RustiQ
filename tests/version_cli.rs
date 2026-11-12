@@ -128,15 +128,12 @@ fn verbose_version_accepts_both_orders_and_short_flags() {
     let feature_line = lines
         .iter()
         .find(|line| line.starts_with("  Cargo features"));
-    let expected_any_feature = cfg!(feature = "online") || cfg!(feature = "bench-support");
+    let expected_any_feature = cfg!(feature = "online") || cfg!(feature = "bench");
     assert_eq!(feature_line.is_some(), expected_any_feature);
     if let Some(feature_line) = feature_line {
         assert!(!feature_line.contains("default"));
         assert_eq!(feature_line.contains("online"), cfg!(feature = "online"));
-        assert_eq!(
-            feature_line.contains("bench-support"),
-            cfg!(feature = "bench-support")
-        );
+        assert_eq!(feature_line.contains("bench"), cfg!(feature = "bench"));
     }
     if let Some(debug_line) = lines
         .iter()

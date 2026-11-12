@@ -3,6 +3,14 @@ members = ["crates/rustiq-core"]
 default-members = [".", "crates/rustiq-core"]
 resolver = "2"
 
+[workspace.package]
+authors = ["Mickaël Véril"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/mveril/RustiQ"
+homepage = "https://mveril.github.io/RustiQ/"
+keywords = ["quantum-chemistry", "electronic-structure", "hartree-fock", "mp2", "chemistry"]
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 
@@ -10,6 +18,7 @@ unsafe_code = "deny"
 # Individual lint settings and local, documented exceptions override these groups.
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 panic = "deny"
 panic_in_result_fn = "deny"
@@ -56,14 +65,17 @@ tokio = { version = "1", default-features = false }
 
 [package]
 name = "rustiq-chem"
-description = "The modern rust quantum chemistry software"
-authors = ["Mickaël Véril"]
+description = "A modern command-line application for quantum chemistry, written in Rust"
+authors.workspace = true
 version = "0.1.0-alpha.1.dev"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/mveril/RustiQ"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://mveril.github.io/RustiQ/"
+readme = "README.md"
+keywords.workspace = true
+categories = ["science::computational-chemistry::electronic-structure", "command-line-utilities"]
 
 [[bin]]
 name = "rustiq"
@@ -72,7 +84,7 @@ path = "src/main.rs"
 [features]
 default = ["online", "manpages", "completions"]
 online = ["rustiq-core/online", "dep:indicatif", "dep:tokio"]
-bench-support = ["rustiq-core/bench-support"]
+bench = ["rustiq-core/bench"]
 manpages = ["dep:clap_mangen"]
 completions = ["dep:clap_complete", "dep:clap_complete_nushell", "dep:sysinfo"]
 
@@ -123,22 +135,22 @@ temp-env.workspace = true
 [[bench]]
 name = "mp2_timings"
 harness = false
-required-features = ["bench-support"]
+required-features = ["bench"]
 
 [[bench]]
 name = "eri_timings"
 harness = false
-required-features = ["bench-support"]
+required-features = ["bench"]
 
 [[bench]]
 name = "eri_storage_allocation"
 harness = false
-required-features = ["bench-support"]
+required-features = ["bench"]
 
 [[bench]]
 name = "eri_storage_memory"
 harness = false
-required-features = ["bench-support"]
+required-features = ["bench"]
 
 [build-dependencies]
 bat = { workspace = true, features = ["build-assets"] }

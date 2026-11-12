@@ -169,8 +169,8 @@ mod tests {
     #[test]
     fn cargo_feature_list_hides_the_default_marker_and_is_sorted() {
         assert_eq!(
-            cargo_feature_values("online,default,bench_support,online"),
-            ["bench-support", "online"]
+            cargo_feature_values("online,default,bench,online"),
+            ["bench", "online"]
         );
         assert_eq!(cargo_feature_values("default"), Vec::<String>::new());
     }
