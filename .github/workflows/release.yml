@@ -76,6 +76,8 @@ jobs:
       - id: plan
         run: |
           dist plan --tag=v0.1.0-beta.1 --output-format=json > plan-dist-manifest.json
+          jq '.ci.github.artifacts_matrix.include |= map(select(.targets == ["aarch64-apple-darwin"]) | .runner = "macos-15")' plan-dist-manifest.json > recovery-plan.json
+          mv recovery-plan.json plan-dist-manifest.json
           echo "dist ran successfully"
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
@@ -211,6 +213,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: artifacts-*
+          path: target/distrib/
+          merge-multiple: true
+      - name: Recover completed platform artifacts
+        uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 43286898836
+          pattern: artifacts-build-local-*
           path: target/distrib/
           merge-multiple: true
       - id: cargo-dist
