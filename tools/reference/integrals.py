@@ -193,7 +193,7 @@ def validate():
                 env=env,
             )
         except RuntimeError as error:
-            if not list(output.glob("*.json")):
+            if any(not (output / f"{name}.json").exists() for name, *_ in CASES):
                 raise
             cargo_error = str(error)
         rust = [json.loads((output / f"{name}.json").read_text()) for name, *_ in CASES]

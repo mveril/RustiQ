@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pytest
 
-# PySCF is intentionally unavailable on Windows for the pinned reference suite.
+# PySCF wheels are unavailable on some architectures, including Windows ARM64.
 # This module contains only tests that execute PySCF.
 pytest.importorskip("pyscf", reason="AO integral references require PySCF")
 
@@ -24,8 +24,13 @@ def test_ao_integrals():
 def test_checked_in_pyscf_references():
     metadata, generated = generate_fixture()
     stored = json.loads(FIXTURE.read_text())
+    # The checked-in arrays retain the PySCF version that generated them.
+    # Compare their values with the currently pinned PySCF independently.
+    metadata.pop("pyscf_version")
     assert metadata == {
-        key: value for key, value in stored.items() if key != "array_sha256"
+        key: value
+        for key, value in stored.items()
+        if key not in {"array_sha256", "pyscf_version"}
     }
     assert set(stored["array_sha256"]) == set(generated)
     for name, values in generated.items():

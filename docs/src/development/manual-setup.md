@@ -10,8 +10,7 @@
   dependencies through `Cargo.lock`, but does not pin the entire host environment.
 - **Platforms:** native Cargo supports the platforms in the
   [compatibility table](platforms.md), including Windows and Intel macOS.
-  Python development tools run natively on Windows; PySCF comparisons currently
-  require Linux, macOS, or WSL2.
+  Python development tools run natively on Windows; PySCF comparisons also run on Windows x86-64.
 - **HPC use:** this route can use the site's existing compiler environment
   without Docker or Nix. Build and run according to cluster policy, using the
   scheduler's assigned resources. A locally built binary still needs a
@@ -52,21 +51,17 @@ uv run --locked pytest tools/test_book_links.py tools/test_release_smoke.py tool
 
 The project supports Python 3.12 through 3.14. The default groups install
 JupyterLab, ipykernel, Matplotlib, SciPy, NumPy, pytest, and Ruff. The lock
-also includes PySCF 2.14.0 on Linux and macOS, but that pinned release has no
-Windows wheel, so uv excludes it on native Windows. Binary wheels are required;
+also includes PySCF 2.15.0 on Linux, macOS, and Windows x86-64.
+Windows ARM64 remains excluded. Binary wheels are required;
 source builds remain disabled. Run the reference suite with:
 
 ```sh
 uv run --locked pytest tools/reference
 ```
 
-On native Windows, only the PySCF calculation tests in
-`tools/reference/test_compare_pyscf.py` and `tools/reference/test_integrals.py`
-are skipped. Helper tests in
-`test_compare_pyscf_helpers.py`, report validation, and NumPy persistence tests,
-including Rust-generated persistence artifacts, remain available. Use WSL2
-for PySCF comparisons and the scientific report
-generator (`tools/reference/report.py`). These Python tools support
+On Windows x86-64, the same command runs PySCF calculations, AO integral
+comparisons, helper tests, and persistence interoperability tests. Use WSL2
+for PySCF on Windows ARM64. These Python tools support
 development and validation; building the RustiQ executable still requires the
 Rust toolchain and the Cargo commands above.
 
