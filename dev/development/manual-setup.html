@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-cf7e60ef.js";
+            window.path_to_searchindex_js = "../searchindex-0b49dd43.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -193,8 +193,7 @@ yourself. The repository selects Rust through <code>rust-toolchain.toml</code> a
 dependencies through <code>Cargo.lock</code>, but does not pin the entire host environment.</li>
 <li><strong>Platforms:</strong> native Cargo supports the platforms in the
 <a href="platforms.html">compatibility table</a>, including Windows and Intel macOS.
-Python development tools run natively on Windows; PySCF comparisons currently
-require Linux, macOS, or WSL2.</li>
+Python development tools run natively on Windows; PySCF comparisons also run on Windows x86-64.</li>
 <li><strong>HPC use:</strong> this route can use the site’s existing compiler environment
 without Docker or Nix. Build and run according to cluster policy, using the
 scheduler’s assigned resources. A locally built binary still needs a
@@ -227,18 +226,14 @@ uv run --locked pytest tools/test_book_links.py tools/test_release_smoke.py tool
 </code></pre>
 <p>The project supports Python 3.12 through 3.14. The default groups install
 JupyterLab, ipykernel, Matplotlib, SciPy, NumPy, pytest, and Ruff. The lock
-also includes PySCF 2.14.0 on Linux and macOS, but that pinned release has no
-Windows wheel, so uv excludes it on native Windows. Binary wheels are required;
+also includes PySCF 2.15.0 on Linux, macOS, and Windows x86-64.
+Windows ARM64 remains excluded. Binary wheels are required;
 source builds remain disabled. Run the reference suite with:</p>
 <pre><code class="language-sh">uv run --locked pytest tools/reference
 </code></pre>
-<p>On native Windows, only the PySCF calculation tests in
-<code>tools/reference/test_compare_pyscf.py</code> and <code>tools/reference/test_integrals.py</code>
-are skipped. Helper tests in
-<code>test_compare_pyscf_helpers.py</code>, report validation, and NumPy persistence tests,
-including Rust-generated persistence artifacts, remain available. Use WSL2
-for PySCF comparisons and the scientific report
-generator (<code>tools/reference/report.py</code>). These Python tools support
+<p>On Windows x86-64, the same command runs PySCF calculations, AO integral
+comparisons, helper tests, and persistence interoperability tests. Use WSL2
+for PySCF on Windows ARM64. These Python tools support
 development and validation; building the RustiQ executable still requires the
 Rust toolchain and the Cargo commands above.</p>
 <h2 id="build-for-calculations-and-install-the-executable"><a class="header" href="#build-for-calculations-and-install-the-executable">Build for calculations and install the executable</a></h2>

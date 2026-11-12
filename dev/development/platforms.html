@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-cf7e60ef.js";
+            window.path_to_searchindex_js = "../searchindex-0b49dd43.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -226,9 +226,9 @@ the container architecture, even when the host runs Windows or macOS. See
 Windows troubleshooting, and the configured VS Code extensions.</p>
 <p>The optional scientific Python tools have their own platform requirements.
 The project configures <code>uv</code> for Linux, macOS, and native Windows. The locked
-PySCF release is excluded on native Windows; the remaining Python tools and
-tests run there. The Nix environment provides PySCF on every declared Nix
-system. For PySCF comparisons on Windows, use WSL2 or the Linux Dev Container.</p>
+PySCF 2.15.0 release includes native Windows x86-64 wheels; Windows ARM64
+remains excluded. The Nix environment provides PySCF on every declared Nix
+system. For PySCF comparisons on Windows ARM64, use WSL2 or the Linux Dev Container.</p>
 <h2 id="how-compatibility-is-checked"><a class="header" href="#how-compatibility-is-checked">How compatibility is checked</a></h2>
 <p>The <a href="https://github.com/mveril/RustiQ/actions/workflows/ci.yml">regular CI workflow</a>
 provides ongoing evidence for this support:</p>
@@ -243,7 +243,9 @@ against PySCF.</li>
 and PySCF comparisons. Separate Windows and macOS host integrations are not
 exercised by these checks.</li>
 <li>The standalone <code>uv</code> environment is checked on Linux and Windows x86_64 with
-Python 3.12 and 3.14. Windows skips the PySCF comparison modules and also checks
+Python 3.12 and 3.14. A native PySCF job runs the reference suite on Linux
+x86-64 and ARM64, macOS Intel and Apple Silicon, and Windows x86-64.
+Windows also checks
 Rust/NumPy persistence interoperability with Python 3.12.</li>
 </ul>
 <p>The <a href="https://github.com/mveril/RustiQ/actions/workflows/nix-full.yml">scheduled full Nix workflow</a>
