@@ -2,6 +2,6 @@
 { pkgs, inputs, ... }:
 {
   environment.systemPackages = [
-    (inputs.rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+    inputs.rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 }

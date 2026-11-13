@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b49dd43.js";
+            window.path_to_searchindex_js = "../searchindex-f46be16c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -264,7 +264,7 @@ download the pinned dependencies; later invocations reuse its local store.</p>
 <h3 id="nix-without-direnv"><a class="header" href="#nix-without-direnv">Nix Without direnv</a></h3>
 <p>Install Nix with flakes enabled, clone the repository, and enter the development
 shell manually:</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 nix develop
 </code></pre>
@@ -305,7 +305,7 @@ package without entering the development shell:</p>
 </code></pre>
 <h3 id="nix-with-direnv"><a class="header" href="#nix-with-direnv">Nix With direnv</a></h3>
 <p>Install both Nix and <code>direnv</code>, enable the direnv hook for your shell, then run:</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 direnv allow
 </code></pre>

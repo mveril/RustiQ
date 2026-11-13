@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b49dd43.js";
+            window.path_to_searchindex_js = "../searchindex-f46be16c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -185,7 +185,7 @@
                         <h1 id="nix-packages-and-shells"><a class="header" href="#nix-packages-and-shells">Nix packages and shells</a></h1>
 <p>The flake also exposes <code>legacyPackages.&lt;system&gt;.cpuTarget</code>, a function accepting
 an LLVM CPU name and returning a CPU-specific RustiQ package. See the
-<a href="../getting-started/installation.html#install-with-nix">installation guide</a> for
+<a href="../getting-started/installation-nix.html#optional-cpu-specific-build">Nix installation guide</a> for
 commands and portability considerations. The default package remains portable.</p>
 <p>The packages below are declared in <a href="https://github.com/mveril/RustiQ/blob/main/flake.nix"><code>flake.nix</code></a>. All four
 shells share Rust build essentials. <code>rust</code> adds Rust development tools;
@@ -285,7 +285,10 @@ RustiQ binary. For example:</p>
 <code>nix build .#cargo-artifacts</code> for cached Cargo dependency artifacts, and
 <code>nix build .#pyscf-environment</code> for the base PySCF environment. These are build
 outputs rather than development shells. The default package is the RustiQ CLI
-binary, available through <code>nix build</code>. Its online manual follows the Cargo
+binary, available through <code>nix build</code> or explicitly through <code>nix build .#default</code>.
+Install a tagged version with <code>nix profile install github:mveril/RustiQ/vVERSION</code>,
+replacing <code>vVERSION</code> with a published tag. Both development and release revisions
+use this default package. Its online manual follows the Cargo
 version: a <code>dev</code> prerelease identifier selects development documentation;
 other versions select the matching versioned manual. No release flag is needed.
 See <a href="releasing.html#preparing-a-release">releasing</a>.</p>

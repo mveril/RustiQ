@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0b49dd43.js";
+            window.path_to_searchindex_js = "searchindex-f46be16c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-de272c4b.js"></script>
@@ -230,12 +230,25 @@ The <a href="#authoritative-references">authoritative references</a> page links 
 for plans and to the files that define existing contracts.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
-<h2 id="install-with-nix"><a class="header" href="#install-with-nix">Install with Nix</a></h2>
-<p>See <a href="#installing-with-nix">installing with Nix</a> for the supported platforms,
-profile installation, and CPU-specific builds.</p>
+<p>After a release promotion completes, RustiQ is distributed through a prebuilt
+archive on GitHub Releases, the Cargo registry, and the Nix flake. The three
+publications run independently, so use the channel where the release is listed.
+They are all built from the same release tag.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Choose it when</th><th>Platforms and manual</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#install-a-prebuilt-release-binary">GitHub Releases archive</a></td><td>You want a runnable executable without installing Rust or Nix.</td><td>The six target platforms listed below; includes the offline manual.</td></tr>
+<tr><td><a href="#install-with-cargo">Cargo</a></td><td>You already use Rust and Cargo, or want Cargo to build RustiQ locally.</td><td>Native Cargo-supported platforms; uses the online manual.</td></tr>
+<tr><td><a href="#installing-with-nix">Nix</a></td><td>You already use Nix or want declarative installation and a pinned package environment.</td><td>Linux x86_64/ARM64 and Apple Silicon macOS; includes the offline manual.</td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="install-a-prebuilt-release-binary"><a class="header" href="#install-a-prebuilt-release-binary">Install a prebuilt release binary</a></h2>
-<p>When a release is available, ordinary users can download the archive for their
-operating system and CPU from the <a href="https://github.com/mveril/RustiQ/releases">GitHub Releases page</a>.
+<p>Download the archive for your operating system and CPU from the
+<a href="https://github.com/mveril/RustiQ/releases">GitHub Releases page</a>.
 Archives are named <code>rustiq-chem-&lt;target&gt;.tar.gz</code> on Unix and
 <code>rustiq-chem-&lt;target&gt;.zip</code> on Windows. Supported targets are
 <code>x86_64-unknown-linux-gnu</code> (Linux Intel/AMD),
@@ -269,13 +282,33 @@ Write-Host "SHA-256 verified: $archive"
 <p>The <a href="#binary-releases">release guide</a> has the full
 platform-specific verification instructions. For Windows ARM64, replace the
 archive filename with <code>rustiq-chem-aarch64-pc-windows-msvc.zip</code>. Extract the
-archive only after the checksum comparison succeeds, then run
-<code>./rustiq --help</code> from its directory on Linux or macOS, or
-<code>.\rustiq.exe --help</code> from that directory in PowerShell. To use <code>rustiq</code> from
-any directory, add the directory containing <code>rustiq</code> or <code>rustiq.exe</code> to <code>PATH</code>
-and open a new terminal.</p>
+archive only after the checksum comparison succeeds. From the directory holding
+the download, extract it with one of the following commands:</p>
+<pre><code class="language-sh">tar -xzf rustiq-chem-&lt;target&gt;.tar.gz  # Linux or macOS
+</code></pre>
+<pre><code class="language-powershell">Expand-Archive rustiq-chem-&lt;target&gt;.zip -DestinationPath .\rustiq-chem
+</code></pre>
+<p>Open a terminal in the extracted directory and run <code>./rustiq --help</code> on Linux
+or macOS, or <code>.\rustiq.exe --help</code> in PowerShell. This works without changing
+<code>PATH</code>. To run <code>rustiq</code> from any directory, add the directory containing
+<code>rustiq</code> or <code>rustiq.exe</code> to <code>PATH</code> and open a new terminal.</p>
 <p>The Cargo package is named <code>rustiq-chem</code>; the executable is named <code>rustiq</code> (or
 <code>rustiq.exe</code> on Windows).</p>
+<h2 id="install-with-cargo"><a class="header" href="#install-with-cargo">Install with Cargo</a></h2>
+<p>Install the released Cargo package from crates.io from any directory. No source
+checkout is needed. This builds RustiQ from source and requires Rust and Cargo,
+a C/C++ toolchain, and CMake; see <a href="#install-and-build">manual setup</a>
+for platform prerequisites, but do not follow that page’s checkout commands
+unless you intend to contribute.</p>
+<pre><code class="language-sh">cargo install --locked rustiq-chem --version '=0.1.0-beta.1'
+rustiq --help
+</code></pre>
+<p>Ensure Cargo’s binary directory is on <code>PATH</code>. Cargo-only installations use the
+online manual, as described below.</p>
+<h2 id="install-with-nix"><a class="header" href="#install-with-nix">Install with Nix</a></h2>
+<p>See <a href="#installing-with-nix">installing with Nix</a> for the supported platforms,
+profile and declarative installation, and CPU-specific builds. That page uses
+the repository’s default branch, <code>main</code>, which contains released versions only.</p>
 <h2 id="consult-the-manual"><a class="header" href="#consult-the-manual">Consult the manual</a></h2>
 <p>Release archives contain an offline HTML manual in <code>manual/html/</code> beside the
 executable. Keep that directory with the executable when moving the extracted
@@ -309,22 +342,29 @@ and uses the online manual.</p>
 <p>If browser launching fails, the diagnostic includes the target and the
 <code>--print-path</code> route. RustiQ uses the operating system’s default browser opener.
 PDF export is future work and <code>--pdf</code> is not supported.</p>
-<h2 id="make-basis-sets-available"><a class="header" href="#make-basis-sets-available">Make basis sets available</a></h2>
-<p>The archive contains neither sample inputs nor basis data. With network access,
-download a basis using <code>rustiq basis download sto-3g</code>. This command is available
-in online builds and requires network access. To work offline, import a local
-Basis Set Exchange JSON file with <code>rustiq basis import /path/to/basis.json</code>;
-import does not access the network. See the
-<a href="#gaussian-basis-sets">basis-set guide</a> and the
-<a href="#first-h₂-calculation">first calculation</a> for a complete binary-only example.</p>
+<h2 id="after-installation-obtain-a-basis-and-run-a-calculation"><a class="header" href="#after-installation-obtain-a-basis-and-run-a-calculation">After installation: obtain a basis and run a calculation</a></h2>
+<p>Run <code>rustiq --version</code> to confirm the installation. Installed release packages
+do not include sample inputs or basis data. With network access, download a
+basis using <code>rustiq basis download sto-3g</code>. This command is available in online
+builds and requires network access. To work offline, import a local Basis Set
+Exchange JSON file with <code>rustiq basis import /path/to/basis.json</code>; import does
+not access the network. The <a href="#first-h₂-calculation">first calculation</a> works
+with an archive, Cargo, or Nix installation. See the
+<a href="#gaussian-basis-sets">basis-set guide</a> for basis-data details.</p>
 <h2 id="build-and-install-from-source"><a class="header" href="#build-and-install-from-source">Build and install from source</a></h2>
 <p>Contributors and users building from a checkout need Git, Rust through
 <a href="https://rustup.rs/">rustup</a>, a C/C++ build toolchain, and CMake. Clone from a
 parent directory, then run Cargo commands from the checkout root. For complete
 prerequisite and platform details, see the <a href="#install-and-build">manual setup</a>.</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 cargo build --locked
+</code></pre>
+<p>The default branch, <code>main</code>, is reserved for released versions. Use <code>develop</code>
+for an active development checkout; a checkout intended to reproduce a release
+should instead use its release tag.</p>
+<p>For example, to reproduce the <code>0.1.0-beta.1</code> release source, clone its tag:</p>
+<pre><code class="language-sh">git clone --branch v0.1.0-beta.1 --single-branch https://github.com/mveril/RustiQ.git
 </code></pre>
 <p><code>cargo build</code> does not add the executable to <code>PATH</code>. To run without installing,
 prefix commands with <code>cargo run --locked --</code>, for example
@@ -333,12 +373,14 @@ binary directory:</p>
 <pre><code class="language-sh">cargo install --locked --path .
 rustiq --help
 </code></pre>
-<p>The registry package is also named <code>rustiq-chem</code>; install from crates.io only
-when the relevant version has been published. See the
-<a href="#development-environments">development environments</a> page for Nix,
+<p>See the <a href="#development-environments">development environments</a> page for Nix,
 Docker, and other supported contributor setups.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="installing-with-nix"><a class="header" href="#installing-with-nix">Installing with Nix</a></h1>
+<p>Nix is one of the three release installation channels, alongside a
+<a href="#install-a-prebuilt-release-binary">GitHub Releases archive</a>
+and the <a href="#install-with-cargo">Cargo package</a>. This page covers
+the Nix-specific choices.</p>
 <p>Install <a href="https://nixos.org/download/">Nix</a> and enable the <code>nix-command</code> and
 <code>flakes</code> experimental features. The flake supports x86-64 Linux, ARM64 Linux,
 and Apple Silicon macOS. On Windows, use Nix inside WSL2 to run the Linux
@@ -348,6 +390,12 @@ may compile dependencies. Install the standard package from any directory with:<
 <pre><code class="language-sh">nix profile install github:mveril/RustiQ
 rustiq --version
 </code></pre>
+<p>The unqualified <code>github:mveril/RustiQ</code> reference follows GitHub’s default
+branch, <code>main</code>. That branch contains released versions only. To keep a fixed
+version, use a release tag (for example,
+<code>github:mveril/RustiQ/v0.1.0-beta.1</code>) or a commit revision instead.
+An unqualified reference is captured only when a consuming configuration’s
+<code>flake.lock</code> is updated; a tag makes the selected release explicit.</p>
 <h2 id="home-manager-without-a-configuration-flake"><a class="header" href="#home-manager-without-a-configuration-flake">Home Manager without a configuration flake</a></h2>
 <p>If your Home Manager configuration uses <code>home.nix</code> directly, create a
 <code>rustiq.nix</code> file beside it:</p>
@@ -357,7 +405,7 @@ let
 in
 {
   home.packages = [
-    (rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+    rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 }
 </code></pre>
@@ -367,11 +415,11 @@ in
 <p>Apply the configuration using your usual command. For Home Manager integrated
 as a NixOS module, run <code>sudo nixos-rebuild switch --impure</code>; for standalone Home
 Manager, run <code>home-manager switch --impure</code>. The unlocked GitHub reference
-requires impure evaluation. Check <code>rustiq --version</code> afterward. The reference tracks the default branch
-and is not pinned by a configuration <code>flake.lock</code>; use a revision in the URL
-for a fixed version. See the <a href="#optional-cpu-specific-build">CPU-specific build</a>
-caveats before using <code>native</code>. To use the standard package, replace the entry
-in <code>home.packages</code> with <code>rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default</code>.</p>
+requires impure evaluation. Check <code>rustiq --version</code> afterward. The reference tracks
+the release-only default branch, <code>main</code>, and is not pinned by a configuration
+<code>flake.lock</code>; use a revision in the URL
+for a fixed version. The standard package is portable across machines of the
+same supported platform.</p>
 <h2 id="home-manager-and-nixos"><a class="header" href="#home-manager-and-nixos">Home Manager and NixOS</a></h2>
 <p>The following snippets extend an existing <strong>flake-based</strong> configuration. Add
 RustiQ as an input to your configuration’s <code>flake.nix</code>:</p>
@@ -408,13 +456,13 @@ pass them to your existing <code>nixpkgs.lib.nixosSystem</code>:</p>
 <pre><code class="language-nix">specialArgs = { inherit inputs; };
 </code></pre>
 <p>Merge this with any existing <code>specialArgs</code>. Create <code>rustiq.nix</code> beside your
-<code>configuration.nix</code>. This complete NixOS module installs a RustiQ build
-optimized for the build machine’s CPU:</p>
+<code>configuration.nix</code>. This complete NixOS module installs the standard portable
+RustiQ package:</p>
 <pre><code class="language-nix"># NixOS module: provide the RustiQ flake through specialArgs.inputs.
 { pkgs, inputs, ... }:
 {
   environment.systemPackages = [
-    (inputs.rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+    inputs.rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 }
 </code></pre>
@@ -425,17 +473,14 @@ optimized for the build machine’s CPU:</p>
 }
 </code></pre>
 <p>Alternatively, add <code>./rustiq.nix</code> to the <code>modules</code> list in <code>nixosSystem</code>.
-See the CPU caveats below before using <code>native</code>. To use the standard package,
-replace the expression inside the list with:</p>
-<pre><code class="language-nix">inputs.rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
-</code></pre>
-<p>From the configuration directory, apply it with
+From the configuration directory, apply it with
 <code>sudo nixos-rebuild switch --flake .#YOUR_HOST</code> and check <code>rustiq --version</code>.
 Replace <code>YOUR_HOST</code> with your NixOS configuration name. See the
 <a href="https://nixos.org/manual/nixos/stable/#sec-declarative-package-management">NixOS package management guide</a>.</p>
 <h2 id="optional-cpu-specific-build"><a class="header" href="#optional-cpu-specific-build">Optional CPU-specific build</a></h2>
-<p>The NixOS module above uses this expression. For Home Manager, you can also
-replace the standard package entry in <code>home.packages</code> with it:</p>
+<p>The examples above use the portable standard package. For NixOS or Home
+Manager, replace that package expression with this one only when a build tied
+to the build machine’s CPU is appropriate:</p>
 <pre><code class="language-nix">(inputs.rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
 </code></pre>
 <p>For a profile installation from any directory, use one command instead:</p>
@@ -457,20 +502,27 @@ without adding it to your profile:</p>
 <pre><code class="language-sh">nix build
 ./result/bin/rustiq --version
 </code></pre>
+<p>For development, clone <code>develop</code> explicitly because the default branch is
+release-only:</p>
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
+cd RustiQ
+nix develop
+</code></pre>
 <p>The package includes the offline manual and shell completions. Run <code>rustiq docs</code>
 after installing, or <code>./result/bin/rustiq docs</code> from the checkout. See the
 <a href="#consult-the-manual">manual instructions</a> and the
 <a href="#installed-manual-and-completions">Nix package guide</a>.</p>
 <p>The package enables online basis downloads but does not bundle sample inputs or basis sets.
 Download or import a basis before running a calculation; see
-<a href="#make-basis-sets-available">make basis sets available</a> and the
+<a href="#after-installation-obtain-a-basis-and-run-a-calculation">obtaining a basis after installation</a> and the
 <a href="#first-h₂-calculation">first calculation</a>. For development shells, see
 <a href="#nix-setup">Nix setup</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="first-h₂-calculation"><a class="header" href="#first-h₂-calculation">First H₂ calculation</a></h1>
-<h2 id="using-only-the-release-binary"><a class="header" href="#using-only-the-release-binary">Using only the release binary</a></h2>
-<p>Copy the following geometry into a file named <code>h2.xyz</code> in your working
-directory. It is the same geometry used by the checked-in sample:</p>
+<h2 id="using-an-installed-release"><a class="header" href="#using-an-installed-release">Using an installed release</a></h2>
+<p>The following commands work after installing a release from a GitHub archive,
+Cargo, or Nix. Copy the following geometry into a file named <code>h2.xyz</code> in your
+working directory. It is the same geometry used by the checked-in sample:</p>
 <pre><code class="language-text">2
 Hydrogen molecule
 H 0.0 0.0 -0.37
@@ -2011,7 +2063,7 @@ specialized kernels use additional instructions. RustiQ does not guess
 the concrete build-host CPU.</p>
 <p>For example, the grouped output has this shape (unknown optional fields are
 omitted and the values depend on the build):</p>
-<pre><code class="language-text">rustiq 0.1.0-alpha.1
+<pre><code class="language-text">rustiq 0.1.0-beta.1
 
 SOURCE
   Git commit          &lt;full commit hash&gt;
@@ -2873,7 +2925,7 @@ explains that requirement. Docker must be configured to run Linux containers.</l
 </ol>
 <h3 id="open-rustiq-in-its-prepared-environment"><a class="header" href="#open-rustiq-in-its-prepared-environment">Open RustiQ in its prepared environment</a></h3>
 <p>Open a terminal on your computer and download the project:</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 </code></pre>
 <p>In VS Code, choose <strong>File &gt; Open Folder</strong> and select the downloaded <code>RustiQ</code>
@@ -3014,7 +3066,7 @@ download the pinned dependencies; later invocations reuse its local store.</p>
 <h3 id="nix-without-direnv"><a class="header" href="#nix-without-direnv">Nix Without direnv</a></h3>
 <p>Install Nix with flakes enabled, clone the repository, and enter the development
 shell manually:</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 nix develop
 </code></pre>
@@ -3055,7 +3107,7 @@ package without entering the development shell:</p>
 </code></pre>
 <h3 id="nix-with-direnv"><a class="header" href="#nix-with-direnv">Nix With direnv</a></h3>
 <p>Install both Nix and <code>direnv</code>, enable the direnv hook for your shell, then run:</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 direnv allow
 </code></pre>
@@ -3099,7 +3151,7 @@ Command Line Tools and CMake. On Windows, install Visual Studio C++ Build Tools
 with the Windows SDK, CMake, and the Rust MSVC toolchain.</p>
 <p>Install Git and Rust through <a href="https://rustup.rs/"><code>rustup</code></a>, then use Cargo
 directly on Linux, macOS, or Windows:</p>
-<pre><code class="language-sh">git clone https://github.com/mveril/RustiQ.git
+<pre><code class="language-sh">git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 rustup show
 cargo build --locked
@@ -3146,7 +3198,7 @@ directory is on <code>PATH</code>. Keep the checkout for the tutorial’s sample
 <h1 id="nix-packages-and-shells"><a class="header" href="#nix-packages-and-shells">Nix packages and shells</a></h1>
 <p>The flake also exposes <code>legacyPackages.&lt;system&gt;.cpuTarget</code>, a function accepting
 an LLVM CPU name and returning a CPU-specific RustiQ package. See the
-<a href="#install-with-nix">installation guide</a> for
+<a href="#optional-cpu-specific-build">Nix installation guide</a> for
 commands and portability considerations. The default package remains portable.</p>
 <p>The packages below are declared in <a href="https://github.com/mveril/RustiQ/blob/main/flake.nix"><code>flake.nix</code></a>. All four
 shells share Rust build essentials. <code>rust</code> adds Rust development tools;
@@ -3246,7 +3298,10 @@ RustiQ binary. For example:</p>
 <code>nix build .#cargo-artifacts</code> for cached Cargo dependency artifacts, and
 <code>nix build .#pyscf-environment</code> for the base PySCF environment. These are build
 outputs rather than development shells. The default package is the RustiQ CLI
-binary, available through <code>nix build</code>. Its online manual follows the Cargo
+binary, available through <code>nix build</code> or explicitly through <code>nix build .#default</code>.
+Install a tagged version with <code>nix profile install github:mveril/RustiQ/vVERSION</code>,
+replacing <code>vVERSION</code> with a published tag. Both development and release revisions
+use this default package. Its online manual follows the Cargo
 version: a <code>dev</code> prerelease identifier selects development documentation;
 other versions select the matching versioned manual. No release flag is needed.
 See <a href="#preparing-a-release">releasing</a>.</p>
@@ -3396,11 +3451,15 @@ out-of-date generated workflow. Keep the pin synchronized with the intended
 upload-artifact release when updating the workflow or cargo-dist. Preserve the
 custom <code>build-manual</code> job, the local-build dependency on it, and the download
 into <code>manual/html/</code> when regenerating the release workflow; generated defaults do
-not contain this offline-manual integration.</p>
+not contain this offline-manual integration. Preserve the static local-build job
+name, <code>Build platform artifacts</code>, so pull requests that skip artifact builds
+display a readable name before the target matrix is expanded.</p>
 <h3 id="release-rehearsal"><a class="header" href="#release-rehearsal">Release rehearsal</a></h3>
-<p>Run <strong>Actions → Release artifact smoke test → Run workflow</strong> and select the
-commit, branch, or tag to rehearse. The manually triggered workflow builds the
-configured target archive with the pinned dist version on each target’s native
+<p>The <strong>Release artifact smoke test</strong> workflow runs automatically on pull requests
+targeting <code>main</code>, testing the prospective merge commit. To rehearse another
+revision, run <strong>Actions → Release artifact smoke test → Run workflow</strong> and select
+the commit, branch, or tag. New runs cancel older rehearsals for the same pull
+request or selected workflow ref. The workflow builds the configured target archive with the pinned dist version on each target’s native
 GitHub-hosted runner. It extracts that archive, verifies its dist-generated
 SHA-256 checksum, starts the packaged <code>rustiq</code> executable, checks <code>--help</code>,
 and runs the checked-in H2/STO-3G regression with a copied local basis fixture
@@ -3427,12 +3486,12 @@ system. The runs use GitHub-hosted runners, which are not pristine operating
 system installations. The rehearsal requires the combined <code>sha256.sum</code> generated by the global
 dist build and verifies each tested archive against it. A checksum made during a rehearsal does not independently validate
 a published release.</p>
-<p>The rehearsal has read-only repository permissions and only a
-<code>workflow_dispatch</code> trigger. It does not run dist’s <code>host</code> command, upload
+<p>The rehearsal has read-only repository permissions and supports <code>pull_request</code>
+events targeting <code>main</code> and manual <code>workflow_dispatch</code> runs. It does not run dist’s <code>host</code> command, upload
 release assets, create a GitHub Release, create tags, or publish crates. It
 complements <code>.github/workflows/release.yml</code>, whose dispatched release path builds
-and publishes the release assets; ordinary pull requests continue to use the
-generated plan-only check.</p>
+and publishes the release assets. Pull requests targeting <code>develop</code> continue
+to use the generated plan-only check without the six-target rehearsal.</p>
 <p>Each executable archive includes <code>rustiq</code> (named <code>rustiq.exe</code> on Windows),
 the README, <code>LICENSE-MIT</code>, <code>LICENSE-APACHE</code>, <code>COPYING</code>, <code>DISTRIBUTION.md</code>, and
 <code>THIRD-PARTY-NOTICES.txt</code>, and the complete offline manual in <code>manual/html/</code>.
@@ -3584,7 +3643,7 @@ generated workflow installs the exact dist version recorded in
 if the Nixpkgs package differs:</p>
 <pre><code class="language-sh">cargo install cargo-dist --version 0.34.0 --locked
 </code></pre>
-<p>Development takes place on the default <code>develop</code> branch. Use a version ending
+<p>Development takes place on the <code>develop</code> branch. Use a version ending
 in <code>.dev</code>, keeping both crate versions and the internal dependency synchronized.
 Prepare a release on a <code>chore/*</code> task branch from <code>develop</code>: remove the development
 identifier, finalize the dated changelog, and update <code>Cargo.lock</code>.</p>
