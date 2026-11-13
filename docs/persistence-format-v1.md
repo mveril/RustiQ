@@ -804,3 +804,12 @@ reuse, SCF restart, DIIS restart, and Molden export are not implemented here.
 Effective AO ordering and normalized primitive components remain available,
 but original shell grouping, contraction provenance, and other export metadata
 must be added in a dedicated step before Molden conversion.
+
+
+The generic SCF persistence entry point is `ScfSolution<M, Converged>::to_artifact`,
+available when the method descriptor implements `PersistScf`. Its associated
+`Artifact` selects the versioned storage contract and value type. Each method
+owns its context identity, conversion and artifact validation; the generic layer
+requires no common orbital layout, HF summary, or retained AO integrals.
+RHF and UHF descriptors implement this contract using `ConvergedHfArtifact`.
+`ConvergedHf::from_solution` is a runtime HF convenience adapter to the same path.

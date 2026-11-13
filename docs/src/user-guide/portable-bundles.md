@@ -284,3 +284,12 @@ later publication error is reported. See the [CLI reference](../reference/cli.md
 for exact exit and publication behavior and the
 [persistence V1 specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
 for the archive contract and the [EZFIO comparison](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#relationship-to-ezfio).
+
+
+The generic SCF persistence entry point is `ScfSolution<M, Converged>::to_artifact`,
+available when the method descriptor implements `PersistScf`. Its associated
+`Artifact` selects the versioned storage contract and value type. Each method
+owns its context identity, conversion and artifact validation; the generic layer
+requires no common orbital layout, HF summary, or retained AO integrals.
+RHF and UHF descriptors implement this contract using `ConvergedHfArtifact`.
+`ConvergedHf::from_solution` is a runtime HF convenience adapter to the same path.

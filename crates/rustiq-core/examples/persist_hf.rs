@@ -1,6 +1,6 @@
 //! Persist and inspect converged orbitals using the bundled offline H2 fixture.
 use rustiq_core::{
-    persistence::{ConvergedHf, ConvergedHfArtifact, HfOrbitals, RustiQData},
+    persistence::{ConvergedHfArtifact, HfOrbitals, RustiQData},
     prelude::*,
 };
 
@@ -15,7 +15,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let prepared = CalculationBuilder::new(&geometry, &basis).prepare()?;
     let solution = prepared.run_hf()?.into_converged()?;
     let mut data = RustiQData::from_calculation(&prepared)?;
-    data.set::<ConvergedHfArtifact>(ConvergedHf::from_solution(&solution)?)?;
+    data.set::<ConvergedHfArtifact>(
+        solution
+            .as_restricted()
+            .ok_or("expected RHF")?
+            .as_scf()
+            .to_artifact()?,
+    )?;
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("h2.rustiq");
     // Optionally include the existing AO ERI without copying its representation.

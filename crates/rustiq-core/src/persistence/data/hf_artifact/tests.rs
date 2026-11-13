@@ -343,6 +343,8 @@ fn identity_survives_generic_solution_conversions() {
     let (_, solution, mut data) = fixture(HfMethod::Rhf, false);
     let hf = solution.into_restricted().unwrap();
     let generic = hf.into_scf();
+    let artifact = generic.to_artifact().unwrap();
+    data.set::<ConvergedHfArtifact>(artifact).unwrap();
     let restored: AnyHfSolution = generic.into();
     data.set::<ConvergedHfArtifact>(ConvergedHf::from_solution(&restored).unwrap())
         .unwrap();
