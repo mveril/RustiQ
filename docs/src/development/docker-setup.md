@@ -63,7 +63,7 @@ cross-architecture emulation into the comparison.
 Open a terminal on your computer and download the project:
 
 ```sh
-git clone https://github.com/mveril/RustiQ.git
+git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
 cd RustiQ
 ```
 

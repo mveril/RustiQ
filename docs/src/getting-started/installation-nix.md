@@ -1,5 +1,10 @@
 # Installing with Nix
 
+Nix is one of the three release installation channels, alongside a
+[GitHub Releases archive](installation.md#install-a-prebuilt-release-binary)
+and the [Cargo package](installation.md#install-with-cargo). This page covers
+the Nix-specific choices.
+
 Install [Nix](https://nixos.org/download/) and enable the `nix-command` and
 `flakes` experimental features. The flake supports x86-64 Linux, ARM64 Linux,
 and Apple Silicon macOS. On Windows, use Nix inside WSL2 to run the Linux
@@ -11,6 +16,13 @@ may compile dependencies. Install the standard package from any directory with:
 nix profile install github:mveril/RustiQ
 rustiq --version
 ```
+
+The unqualified `github:mveril/RustiQ` reference follows GitHub's default
+branch, `main`. That branch contains released versions only. To keep a fixed
+version, use a release tag (for example,
+`github:mveril/RustiQ/v0.1.0-beta.1`) or a commit revision instead.
+An unqualified reference is captured only when a consuming configuration's
+`flake.lock` is updated; a tag makes the selected release explicit.
 
 ## Home Manager without a configuration flake
 
@@ -24,7 +36,7 @@ let
 in
 {
   home.packages = [
-    (rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
+    rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 }
 ```
@@ -38,11 +50,11 @@ imports = [ ./rustiq.nix ];
 Apply the configuration using your usual command. For Home Manager integrated
 as a NixOS module, run `sudo nixos-rebuild switch --impure`; for standalone Home
 Manager, run `home-manager switch --impure`. The unlocked GitHub reference
-requires impure evaluation. Check `rustiq --version` afterward. The reference tracks the default branch
-and is not pinned by a configuration `flake.lock`; use a revision in the URL
-for a fixed version. See the [CPU-specific build](#optional-cpu-specific-build)
-caveats before using `native`. To use the standard package, replace the entry
-in `home.packages` with `rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default`.
+requires impure evaluation. Check `rustiq --version` afterward. The reference tracks
+the release-only default branch, `main`, and is not pinned by a configuration
+`flake.lock`; use a revision in the URL
+for a fixed version. The standard package is portable across machines of the
+same supported platform.
 
 ## Home Manager and NixOS
 
@@ -97,8 +109,8 @@ specialArgs = { inherit inputs; };
 ```
 
 Merge this with any existing `specialArgs`. Create `rustiq.nix` beside your
-`configuration.nix`. This complete NixOS module installs a RustiQ build
-optimized for the build machine's CPU:
+`configuration.nix`. This complete NixOS module installs the standard portable
+RustiQ package:
 
 ```nix
 {{#include rustiq.nix}}
@@ -114,13 +126,6 @@ Then import it in the existing `configuration.nix`, preserving any other imports
 ```
 
 Alternatively, add `./rustiq.nix` to the `modules` list in `nixosSystem`.
-See the CPU caveats below before using `native`. To use the standard package,
-replace the expression inside the list with:
-
-```nix
-inputs.rustiq.packages.${pkgs.stdenv.hostPlatform.system}.default
-```
-
 From the configuration directory, apply it with
 `sudo nixos-rebuild switch --flake .#YOUR_HOST` and check `rustiq --version`.
 Replace `YOUR_HOST` with your NixOS configuration name. See the
@@ -128,8 +133,9 @@ Replace `YOUR_HOST` with your NixOS configuration name. See the
 
 ## Optional CPU-specific build
 
-The NixOS module above uses this expression. For Home Manager, you can also
-replace the standard package entry in `home.packages` with it:
+The examples above use the portable standard package. For NixOS or Home
+Manager, replace that package expression with this one only when a build tied
+to the build machine's CPU is appropriate:
 
 ```nix
 (inputs.rustiq.legacyPackages.${pkgs.stdenv.hostPlatform.system}.cpuTarget "native")
@@ -162,6 +168,15 @@ nix build
 ./result/bin/rustiq --version
 ```
 
+For development, clone `develop` explicitly because the default branch is
+release-only:
+
+```sh
+git clone --branch develop --single-branch https://github.com/mveril/RustiQ.git
+cd RustiQ
+nix develop
+```
+
 The package includes the offline manual and shell completions. Run `rustiq docs`
 after installing, or `./result/bin/rustiq docs` from the checkout. See the
 [manual instructions](installation.md#consult-the-manual) and the
@@ -169,6 +184,6 @@ after installing, or `./result/bin/rustiq docs` from the checkout. See the
 
 The package enables online basis downloads but does not bundle sample inputs or basis sets.
 Download or import a basis before running a calculation; see
-[make basis sets available](installation.md#make-basis-sets-available) and the
+[obtaining a basis after installation](installation.md#after-installation-obtain-a-basis-and-run-a-calculation) and the
 [first calculation](first-calculation.md). For development shells, see
 [Nix setup](../development/nix-setup.md).

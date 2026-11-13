@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-The following capabilities are intended for the first public beta, `v0.1.0-beta.1`.
+## [0.1.0-beta.1] - 2026-11-12
+
 
 ### Added
 
@@ -58,4 +59,5 @@ The following capabilities are intended for the first public beta, `v0.1.0-beta.
 - The MP2 workspace budget does not bound total process memory; AO integral
   storage can still grow rapidly with basis size.
 
-[Unreleased]: https://github.com/mveril/RustiQ/commits/main/
+[Unreleased]: https://github.com/mveril/RustiQ/compare/v0.1.0-beta.1...HEAD
+[0.1.0-beta.1]: https://github.com/mveril/RustiQ/releases/tag/v0.1.0-beta.1

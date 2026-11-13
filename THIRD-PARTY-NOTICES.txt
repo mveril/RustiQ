@@ -1,6 +1,6 @@
-Cargo.lock SHA-256: 7f274ca9e7f738d58ec0e46d03be9802569df0512ec91892f4ccd1edbd90ad02
-Notice inputs SHA-256: 23de7d7b750a771f73732580c0542ac4047e5afd0d13789e3ec333efed68208c
-Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-alpha.1.dev/rustiq-corresponding-source.tar.gz
+Cargo.lock SHA-256: 2a1954c2ec99b6e87db533afbdd2e3d57caaaec25452083c8310ff2f821730ac
+Notice inputs SHA-256: 911b204bcfd6752d237e8ae735612b807bcbe52013a872b01f843c3897c6bc7b
+Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-beta.2.dev/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
 ==========================
@@ -8220,8 +8220,8 @@ limitations under the License.
 Apache License 2.0 (Apache-2.0)
 
 Used by:
-  rustiq-chem 0.1.0-alpha.1.dev — https://github.com/mveril/RustiQ
-  rustiq-chem-core 0.1.0-alpha.1.dev — https://github.com/mveril/RustiQ
+  rustiq-chem 0.1.0-beta.2.dev — https://github.com/mveril/RustiQ
+  rustiq-chem-core 0.1.0-beta.2.dev — https://github.com/mveril/RustiQ
 
                               Apache License
                         Version 2.0, January 2004
