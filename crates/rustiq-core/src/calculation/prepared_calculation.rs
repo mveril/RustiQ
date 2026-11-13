@@ -255,12 +255,17 @@ impl PreparedCalculation {
         let outcome = calculation.run_with_iterations(|iteration| {
             events.borrow_mut()(CalculationEvent::ScfIteration(iteration));
         })?;
+        // Scientific execution remains available even for inputs outside portable V1.
+        // Artifact conversion explicitly rejects a solution with no portable identity.
+        let identity = crate::persistence::calculation::Snapshot::from_calculation(self)
+            .ok()
+            .and_then(|snapshot| snapshot.hf_identity().ok());
         let hf = match outcome {
             ScfOutcome::Converged(scf) => {
-                HfOutcome::Converged(AnyHfSolution::from_state(scf, calculation.state))
+                HfOutcome::Converged(AnyHfSolution::from_state(scf, calculation.state, identity))
             }
             ScfOutcome::Unconverged(scf) => {
-                HfOutcome::Unconverged(AnyHfSolution::from_state(scf, calculation.state))
+                HfOutcome::Unconverged(AnyHfSolution::from_state(scf, calculation.state, identity))
             }
         };
         if retain_artifact {

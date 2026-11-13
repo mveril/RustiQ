@@ -13,7 +13,8 @@ A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
 lets users rerun saved calculations or reuse compatible AO ERIs in new ones
 without carrying a machine-local cache. The bundle does not save a
-Hartree–Fock wavefunction or skip a new SCF run.
+Hartree–Fock wavefunction through the CLI or skip a new SCF run.
+The Rust API can additionally store converged RHF/UHF orbitals, as described below.
 
 ## Create and inspect a bundle
 
@@ -216,13 +217,52 @@ defines the complete identity.
 | Add or change MP2 settings | Can remain compatible; MP2 runs again from the new HF result. |
 | Geometry, effective AO basis, or Schwarz screening | Incompatible; RustiQ checks the local cache, then recomputes if needed. |
 
-The bundle stores scientific input snapshots and optional AO ERIs. It does not
-store HF energies, convergence status, orbitals, density matrices, DIIS history,
-or MP2 results. Save the result JSON separately when those outputs matter.
+CLI-created bundles store scientific input snapshots and optional AO ERIs.
+They do not yet capture converged HF orbitals. Save the result JSON separately
+when reported results matter. Neither API stores density matrices, DIIS history,
+or MP2 results.
 Captured input and geometry bytes are provenance for inspection; they do not
 affect compatibility, and Nickel imports are not captured recursively.
 The same reconstruction is available to Rust callers; see the Rust API
 examples in the [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#single-calculation-execution-apis).
+
+## Converged HF orbitals through Rust
+
+The library exposes `ConvergedHfArtifact` through `RustiQData::set` and `get`.
+`ConvergedHf::from_solution(&solution)` copies orbital data from a converged
+`AnyHfSolution`, retaining its originating calculation identity and no AO ERIs.
+The entry created by `RustiQData::from_calculation(&prepared)` must match that
+identity. `RustiQBundle` reads and writes these entries alongside existing AO ERIs;
+older V1 archives without HF remain readable.
+
+The read-only `HfOrbitals` enum distinguishes RHF shared orbitals from separate
+UHF alpha/beta channels. Coefficients use column-major storage: rows retain the
+original AO order, columns match orbital energies in Hartree, and occupied
+orbitals form a prefix. The number of columns is the retained overlap rank,
+which can be smaller than the AO row count. RHF occupied spatial orbitals carry
+two electrons each; UHF channels carry one electron per occupied orbital.
+
+Run the offline example from a checkout:
+
+```sh
+cargo run -p rustiq-chem-core --example persist_hf --no-default-features
+```
+
+The example writes into a temporary directory and verifies the restored RHF
+coefficients. The API checks context identity, dimensions, occupations, finite
+values, convergence metadata, and payload integrity on first access. These
+checks do not independently establish physical validity or orbital orthonormality.
+`hf_is_compatible` checks context compatibility without verifying the payload.
+Reading the artifact does not reconstruct an executable HF solution, supply AO
+integrals, run MP2, restart SCF, or restore DIIS. CLI capture/reuse and MP2 reuse
+remain future work. The current CLI `artifact verify` supports AO ERIs and
+rejects HF artifacts as unsupported; use the typed Rust getter to verify HF.
+
+The resolved context preserves effective normalized AO components and their
+ordering. Original shell/contraction metadata is incomplete and must be added
+before a Molden exporter can be implemented. See the
+[HF artifact contract](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#converged-hf-artifact-v1)
+for the versioned representation and limits.
 
 ## Publication and failures
 

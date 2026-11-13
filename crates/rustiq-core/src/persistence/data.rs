@@ -1,3 +1,5 @@
+mod hf_artifact;
+pub use hf_artifact::{ConvergedHf, ConvergedHfArtifact, HfOrbitalChannel, HfOrbitals};
 mod ao_eri_artifact;
 mod artifact;
 mod rustiq_data;

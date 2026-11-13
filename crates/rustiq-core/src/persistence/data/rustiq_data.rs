@@ -19,6 +19,7 @@ pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 /// Known scientific artifacts and their manifest, with values loaded on demand.
 #[derive(Debug)]
 pub struct RustiQData {
+    pub(super) hf: Option<super::ConvergedHf>,
     pub(super) manifest: Manifest,
     pub(super) source: Option<Storage>,
     pub(super) ao_eri: Option<CompactEri>,
@@ -76,6 +77,7 @@ impl RustiQData {
             request: None,
             sources: Vec::new(),
             ao_eri: None,
+            hf: None,
             basis_functions: Some(basis_functions),
         }
     }
@@ -121,6 +123,7 @@ impl RustiQData {
             request: None,
             sources: Vec::new(),
             ao_eri: None,
+            hf: None,
             basis_functions,
         })
     }
@@ -319,7 +322,9 @@ impl RustiQData {
         }
 
         for (name, artifact) in &self.manifest.artifacts {
-            if name == AO_ERI_ARTIFACT && eri.is_some() {
+            if (name == AO_ERI_ARTIFACT && eri.is_some())
+                || (name == "converged_hf" && self.hf.is_some())
+            {
                 continue;
             }
 
@@ -371,6 +376,10 @@ impl RustiQData {
                     }),
                 },
             );
+        }
+
+        if let Some(artifact) = self.write_hf(&mut destination)? {
+            manifest.artifacts.insert("converged_hf".into(), artifact);
         }
 
         if publish_manifest {
