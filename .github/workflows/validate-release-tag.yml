@@ -16,6 +16,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
       - name: Validate tag format and main ancestry
         if: startsWith(github.ref, 'refs/tags/')
         env:

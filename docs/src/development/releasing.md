@@ -387,4 +387,9 @@ gh workflow run publish-crates.yml --ref vVERSION -f tag=vVERSION
 
 Dispatch only the missing publication. A default-branch dispatch does not select
 the release revision. Rerun failed jobs in the original binary workflow when
-some assets already exist; do not create a competing GitHub Release.
+some assets already exist; do not create a competing GitHub Release. The host
+job creates new releases as drafts, uploads each asset with up to three attempts,
+and publishes only after every upload succeeds. Retrying the host job reuses the
+existing release and replaces matching assets. Tag validation explicitly installs
+Python 3.12 because the release checker requires `tomllib` (Python 3.11 or newer).
+Preserve these steps when regenerating the workflow.
