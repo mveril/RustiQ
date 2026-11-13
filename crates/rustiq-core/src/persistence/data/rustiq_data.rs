@@ -272,6 +272,8 @@ impl RustiQData {
         artifacts: &[ArtifactRef<'_>],
         publish_manifest: bool,
     ) -> Result<Manifest, PersistenceWriteError> {
+        // Resolve HF before copying so all referenced orbital payloads are verified and written.
+        <super::ConvergedHfArtifact as super::Artifact>::get(self)?;
         let mut manifest = self.manifest.clone();
         if manifest.kind == ManifestKind::Portable {
             manifest.producer = Producer {

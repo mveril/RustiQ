@@ -349,3 +349,82 @@ fn identity_survives_generic_solution_conversions() {
     data.set::<ConvergedHfArtifact>(ConvergedHf::from_solution(&restored).unwrap())
         .unwrap();
 }
+
+#[test]
+fn npy_leaves_have_numpy_shapes_and_corruption_is_rejected() {
+    for method in [HfMethod::Rhf, HfMethod::Uhf] {
+        let (_, _, mut data) = fixture(method, false);
+        let dir = tempfile::tempdir().unwrap();
+        data.write_to(Storage::folder(dir.path())).unwrap();
+        let manifest: crate::persistence::Manifest =
+            serde_json::from_slice(&std::fs::read(dir.path().join("manifest.json")).unwrap())
+                .unwrap();
+        let stems: &[&str] = if method == HfMethod::Rhf {
+            &["orbitals"]
+        } else {
+            &["alpha", "beta"]
+        };
+        for stem in stems {
+            for name in ["coefficients", "energies"] {
+                let path = dir.path().join(if *stem == "orbitals" {
+                    format!("orbitals/{name}.npy")
+                } else {
+                    format!("orbitals/{name}/{stem}.npy")
+                });
+                let original = std::fs::read(&path).unwrap();
+                let npy = npyz::NpyFile::new(original.as_slice()).unwrap();
+                assert_eq!(
+                    npy.shape().len(),
+                    if name == "coefficients" { 2 } else { 1 }
+                );
+                let mut bytes = original.clone();
+                *bytes.last_mut().unwrap() ^= 1;
+                std::fs::write(&path, bytes).unwrap();
+                let mut restored =
+                    RustiQData::read_manifest(Storage::folder(dir.path()), manifest.clone())
+                        .unwrap();
+                restored.context = data.context.clone();
+                assert!(restored.get::<ConvergedHfArtifact>().is_err());
+                std::fs::write(&path, original).unwrap();
+            }
+        }
+        let mut restored =
+            RustiQData::read_manifest(Storage::folder(dir.path()), manifest).unwrap();
+        restored.context = data.context.clone();
+        let destination = tempfile::tempdir().unwrap();
+        restored
+            .write_to(Storage::folder(destination.path()))
+            .unwrap();
+        for stem in stems {
+            assert!(destination
+                .path()
+                .join(if *stem == "orbitals" {
+                    "orbitals/coefficients.npy".to_string()
+                } else {
+                    format!("orbitals/coefficients/{stem}.npy")
+                })
+                .is_file());
+        }
+    }
+}
+
+#[test]
+fn legacy_inline_hf_is_readable() {
+    let (_, _, mut data) = fixture(HfMethod::Rhf, false);
+    let dir = tempfile::tempdir().unwrap();
+    data.write_to(Storage::folder(dir.path())).unwrap();
+    let bytes = serde_json::to_vec(&*data.hf.as_ref().unwrap().0).unwrap();
+    std::fs::write(dir.path().join(HF_PATH), &bytes).unwrap();
+    let mut manifest: crate::persistence::Manifest =
+        serde_json::from_slice(&std::fs::read(dir.path().join("manifest.json")).unwrap()).unwrap();
+    let artifact = manifest
+        .artifacts
+        .get_mut(ConvergedHfArtifact::NAME)
+        .unwrap();
+    artifact.representation = "rustiq-converged-hf-v1".into();
+    artifact.size = bytes.len() as u64;
+    artifact.digest = crate::persistence::sha256(&bytes);
+    let mut restored = RustiQData::read_manifest(Storage::folder(dir.path()), manifest).unwrap();
+    restored.context = data.context.clone();
+    assert!(restored.get::<ConvergedHfArtifact>().unwrap().is_some());
+}

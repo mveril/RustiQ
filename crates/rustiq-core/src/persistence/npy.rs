@@ -1,6 +1,6 @@
 use std::io::{Read, Seek, Write};
 
-use nalgebra::DMatrix;
+use nalgebra::{DMatrix, DVector};
 use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
@@ -8,7 +8,7 @@ use crate::eri::CompactEri;
 use super::NpyError;
 
 /// Conversion between scientific values and an NPY byte stream.
-trait NpyConvert: Sized {
+pub(crate) trait NpyConvert: Sized {
     type Shape: Copy;
     type NpyShape: AsRef<[u64]>;
 
@@ -22,12 +22,7 @@ trait NpyConvert: Sized {
         shape: Self::Shape,
     ) -> Result<Self, NpyError> {
         let expected = Self::npy_shape(shape)?;
-        if npy.shape() != expected.as_ref() {
-            return Err(NpyError::InvalidShape {
-                expected: expected.as_ref().to_vec().into_boxed_slice(),
-                actual: npy.shape().to_vec().into_boxed_slice(),
-            });
-        }
+        check_npy_shape(expected.as_ref(), npy.shape())?;
         Self::decode_with_shape(npy, shape)
     }
 
@@ -37,6 +32,31 @@ trait NpyConvert: Sized {
     }
 
     fn write_npy(&self, writer: impl Write) -> Result<(), NpyError>;
+}
+
+/// Checks that two NPY headers declare identical ranks and axis lengths.
+/// Reads headers only; values, dtype compatibility, and payload integrity are not checked.
+///
+/// # Errors
+/// Returns a read error for invalid headers, or `InvalidShape` for different shapes.
+pub fn validate_matching_npy_shapes(
+    alpha: impl Read,
+    beta: impl Read,
+) -> Result<Box<[u64]>, NpyError> {
+    let alpha = NpyFile::new(alpha).map_err(NpyError::Read)?;
+    let beta = NpyFile::new(beta).map_err(NpyError::Read)?;
+    check_npy_shape(alpha.shape(), beta.shape())?;
+    Ok(alpha.shape().to_vec().into_boxed_slice())
+}
+
+fn check_npy_shape(expected: &[u64], actual: &[u64]) -> Result<(), NpyError> {
+    if expected != actual {
+        return Err(NpyError::InvalidShape {
+            expected: expected.into(),
+            actual: actual.into(),
+        });
+    }
+    Ok(())
 }
 
 impl NpyConvert for CompactEri {
@@ -99,6 +119,32 @@ impl NpyConvert for DMatrix<f64> {
             .map_err(NpyError::Write)?;
         writer
             .extend(self.as_slice().iter().copied())
+            .map_err(NpyError::Write)?;
+        writer.finish().map_err(NpyError::Write)
+    }
+}
+
+impl NpyConvert for DVector<f64> {
+    type Shape = usize;
+    type NpyShape = [u64; 1];
+    fn npy_shape(length: usize) -> Result<Self::NpyShape, NpyError> {
+        Ok([u64::try_from(length).map_err(|_| NpyError::DimensionOverflow)?])
+    }
+    fn decode_with_shape<R: Read>(npy: NpyFile<R>, _shape: usize) -> Result<Self, NpyError> {
+        Ok(DVector::from_vec(
+            npy.into_vec::<f64>().map_err(map_npy_value_read_error)?,
+        ))
+    }
+    fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
+        let shape = Self::npy_shape(self.len())?;
+        let mut writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&shape)
+            .writer(writer)
+            .begin_nd()
+            .map_err(NpyError::Write)?;
+        writer
+            .extend(self.iter().copied())
             .map_err(NpyError::Write)?;
         writer.finish().map_err(NpyError::Write)
     }
@@ -368,6 +414,36 @@ mod tests {
     use super::*;
     use crate::eri::index::EriIndex;
     use std::fs::File;
+
+    #[test]
+    fn matching_shapes_checks_rank_and_each_axis_without_reading_values() {
+        let mut matrix = Vec::new();
+        DMatrix::<f64>::zeros(2, 3).write_npy(&mut matrix).unwrap();
+        let mut same = Vec::new();
+        DMatrix::<f64>::zeros(2, 3).write_npy(&mut same).unwrap();
+        assert_eq!(
+            &*validate_matching_npy_shapes(matrix.as_slice(), same.as_slice()).unwrap(),
+            &[2, 3]
+        );
+        let mut transposed = Vec::new();
+        DMatrix::<f64>::zeros(3, 2)
+            .write_npy(&mut transposed)
+            .unwrap();
+        assert!(matches!(
+            validate_matching_npy_shapes(matrix.as_slice(), transposed.as_slice()),
+            Err(NpyError::InvalidShape { .. })
+        ));
+        let mut vector = Vec::new();
+        DVector::<f64>::zeros(6).write_npy(&mut vector).unwrap();
+        assert!(matches!(
+            validate_matching_npy_shapes(matrix.as_slice(), vector.as_slice()),
+            Err(NpyError::InvalidShape { .. })
+        ));
+        assert!(matches!(
+            validate_matching_npy_shapes(&b"invalid"[..], vector.as_slice()),
+            Err(NpyError::Read(_))
+        ));
+    }
 
     #[test]
     #[allow(

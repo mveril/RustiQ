@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub(super) const HF_PATH: &str = "orbitals/converged-hf.json";
-pub(super) const HF_REPRESENTATION: &str = "rustiq-converged-hf-v1";
+pub(super) const HF_REPRESENTATION: &str = "rustiq-converged-hf-npy-v1";
 const MAX_HF_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Converged HF orbitals, independently owned and cheap to clone. Contains no AO integrals.
@@ -56,19 +56,14 @@ impl HfOrbitalChannel {
 /// Reference-specific orbital layout; RHF orbitals are doubly occupied, UHF singly occupied.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "reference", rename_all = "lowercase", deny_unknown_fields)]
-pub enum HfOrbitals {
-    Rhf {
-        shared: HfOrbitalChannel,
-    },
-    Uhf {
-        alpha: HfOrbitalChannel,
-        beta: HfOrbitalChannel,
-    },
+pub enum HfOrbitals<C = HfOrbitalChannel> {
+    Rhf { shared: C },
+    Uhf { alpha: C, beta: C },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct HfRecord {
+struct HfRecord<O = HfOrbitals> {
     version: u32,
     identity: Sha256Digest,
     basis_dimension: u64,
@@ -82,7 +77,7 @@ struct HfRecord {
     linear_dependency_threshold: f64,
     // S^2, ideal S^2, and contamination, absent for RHF.
     spin: Option<[f64; 3]>,
-    orbitals: HfOrbitals,
+    orbitals: O,
 }
 
 impl ConvergedHf {
@@ -311,7 +306,11 @@ impl Artifact for ConvergedHfArtifact {
             let Some(a) = data.manifest.artifacts.get(Self::NAME) else {
                 return Ok(None);
             };
-            if a.representation != HF_REPRESENTATION || a.path.as_str() != HF_PATH {
+            if !matches!(
+                a.representation.as_str(),
+                HF_REPRESENTATION | "rustiq-converged-hf-v1"
+            ) || a.path.as_str() != HF_PATH
+            {
                 return Err(ArtifactError::UnsupportedRepresentation(
                     a.representation.clone(),
                 ));
@@ -327,9 +326,16 @@ impl Artifact for ConvergedHfArtifact {
             if metadata.size != a.size || metadata.digest != a.digest {
                 return Err(ArtifactError::IntegrityMismatch(a.path.to_string()));
             }
-            let record = source
-                .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
-                .map_err(|e| invalid(&e.to_string()))?;
+            let record = if a.representation == "rustiq-converged-hf-v1" {
+                source
+                    .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
+                    .map_err(|e| invalid(&e.to_string()))?
+            } else {
+                let record: HfRecord<HfOrbitals<StoredChannel>> = source
+                    .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
+                    .map_err(|e| invalid(&e.to_string()))?;
+                record.restore(source)?
+            };
             let value = ConvergedHf(Arc::new(record));
             value.validate(data)?;
             data.hf = Some(value);
@@ -349,7 +355,12 @@ impl RustiQData {
                     .manifest
                     .artifacts
                     .get(ConvergedHfArtifact::NAME)
-                    .is_some_and(|a| a.representation == HF_REPRESENTATION))
+                    .is_some_and(|a| {
+                        matches!(
+                            a.representation.as_str(),
+                            HF_REPRESENTATION | "rustiq-converged-hf-v1"
+                        )
+                    }))
             && ConvergedHfArtifact::is_compatible(self, calculation)
     }
 
@@ -364,7 +375,8 @@ impl RustiQData {
             return Ok(None);
         };
         hf.validate(self)?;
-        let metadata = destination.write_json(RelativePath::new(HF_PATH), &*hf.0)?;
+        let record = hf.0.store(destination)?;
+        let metadata = destination.write_json(RelativePath::new(HF_PATH), &record)?;
         if metadata.size > MAX_HF_BYTES {
             return Err(invalid("HF payload exceeds size limit").into());
         }
@@ -399,3 +411,150 @@ macro_rules! persist_hf {
 }
 persist_hf!(crate::calculation::Restricted);
 persist_hf!(crate::calculation::Unrestricted);
+
+use crate::calculation::Spin;
+use crate::persistence::payload::{Payload, PayloadRef};
+use crate::persistence::Storage;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StoredChannel {
+    coefficients: PayloadRef,
+    energies: PayloadRef,
+    occupied: u64,
+}
+
+impl<O> HfRecord<O> {
+    fn with_orbitals<P>(&self, orbitals: P) -> HfRecord<P> {
+        HfRecord {
+            version: self.version,
+            identity: self.identity,
+            basis_dimension: self.basis_dimension,
+            effective_rank: self.effective_rank,
+            iterations: self.iterations,
+            electronic_energy: self.electronic_energy,
+            nuclear_repulsion_energy: self.nuclear_repulsion_energy,
+            total_energy: self.total_energy,
+            delta_energy: self.delta_energy,
+            residual_norm: self.residual_norm,
+            linear_dependency_threshold: self.linear_dependency_threshold,
+            spin: self.spin,
+            orbitals,
+        }
+    }
+}
+
+impl HfRecord {
+    fn store(
+        &self,
+        storage: &mut Storage,
+    ) -> Result<HfRecord<HfOrbitals<StoredChannel>>, ArtifactError> {
+        let channel = |storage: &mut Storage,
+                       c: &HfOrbitalChannel,
+                       stem: &str|
+         -> Result<StoredChannel, ArtifactError> {
+            let rows = usize::try_from(self.basis_dimension)
+                .map_err(|_| invalid("HF dimension overflow"))?;
+            let cols = c.energies.len();
+            Ok(StoredChannel {
+                coefficients: DMatrix::from_vec(rows, cols, c.coefficients.clone())
+                    .save(storage, &format!("{stem}/coefficients"))?,
+                energies: DVector::from_vec(c.energies.clone())
+                    .save(storage, &format!("{stem}/energies"))?,
+                occupied: c.occupied,
+            })
+        };
+        let orbitals = match &self.orbitals {
+            HfOrbitals::Rhf { shared } => HfOrbitals::Rhf {
+                shared: channel(storage, shared, "orbitals")?,
+            },
+            HfOrbitals::Uhf { alpha, beta } => {
+                let rows = usize::try_from(self.basis_dimension)
+                    .map_err(|_| invalid("HF dimension overflow"))?;
+                let channels = Spin::new(alpha, beta);
+                let coefficients = channels
+                    .map(|c| DMatrix::from_vec(rows, c.energies.len(), c.coefficients.clone()))
+                    .save(storage, "orbitals/coefficients")?;
+                let energies = channels
+                    .map(|c| DVector::from_vec(c.energies.clone()))
+                    .save(storage, "orbitals/energies")?;
+                let stored = coefficients
+                    .zip_map(energies, |coefficients, energies| (coefficients, energies))
+                    .zip_map(channels, |(coefficients, energies), c| StoredChannel {
+                        coefficients,
+                        energies,
+                        occupied: c.occupied,
+                    });
+                let (alpha, beta) = stored.into_parts();
+                HfOrbitals::Uhf { alpha, beta }
+            }
+        };
+        Ok(self.with_orbitals(orbitals))
+    }
+}
+
+impl HfRecord<HfOrbitals<StoredChannel>> {
+    fn restore(self, storage: &mut Storage) -> Result<HfRecord, ArtifactError> {
+        let rows =
+            usize::try_from(self.basis_dimension).map_err(|_| invalid("HF dimension overflow"))?;
+        let cols =
+            usize::try_from(self.effective_rank).map_err(|_| invalid("HF dimension overflow"))?;
+        let channel = |storage: &mut Storage,
+                       c: StoredChannel,
+                       stem: &str|
+         -> Result<HfOrbitalChannel, ArtifactError> {
+            Ok(HfOrbitalChannel {
+                coefficients: DMatrix::<f64>::load(
+                    storage,
+                    &format!("{stem}/coefficients"),
+                    c.coefficients,
+                    (rows, cols),
+                )?
+                .as_slice()
+                .to_vec(),
+                energies: DVector::<f64>::load(
+                    storage,
+                    &format!("{stem}/energies"),
+                    c.energies,
+                    cols,
+                )?
+                .as_slice()
+                .to_vec(),
+                occupied: c.occupied,
+            })
+        };
+        // Move only the channel descriptors; the scalar metadata remains available.
+        let record = self.with_orbitals(());
+        let orbitals = match self.orbitals {
+            HfOrbitals::Rhf { shared } => HfOrbitals::Rhf {
+                shared: channel(storage, shared, "orbitals")?,
+            },
+            HfOrbitals::Uhf { alpha, beta } => {
+                let occupied = Spin::new(alpha.occupied, beta.occupied);
+                let coefficients = Spin::<DMatrix<f64>>::load(
+                    storage,
+                    "orbitals/coefficients",
+                    Spin::new(alpha.coefficients, beta.coefficients),
+                    (rows, cols),
+                )?;
+                let energies = Spin::<DVector<f64>>::load(
+                    storage,
+                    "orbitals/energies",
+                    Spin::new(alpha.energies, beta.energies),
+                    cols,
+                )?;
+                let channels = coefficients.zip_map(energies, |c, e| (c, e)).zip_map(
+                    occupied,
+                    |(c, e), occupied| HfOrbitalChannel {
+                        coefficients: c.as_slice().to_vec(),
+                        energies: e.as_slice().to_vec(),
+                        occupied,
+                    },
+                );
+                let (alpha, beta) = channels.into_parts();
+                HfOrbitals::Uhf { alpha, beta }
+            }
+        };
+        Ok(record.with_orbitals(orbitals))
+    }
+}

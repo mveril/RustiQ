@@ -17,6 +17,8 @@ mod error;
 mod identity;
 mod manifest;
 mod npy;
+pub use npy::validate_matching_npy_shapes;
+mod payload;
 mod storage;
 
 pub use crate::eri::CompactEri;
