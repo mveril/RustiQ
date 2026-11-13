@@ -299,17 +299,17 @@ impl FolderStorage {
 
     fn open_artifact(&self, path: &RelativePath) -> Result<File, StorageError> {
         validate_path(path)?;
-        let components: Vec<_> = path.as_str().split('/').collect();
+        let component_count = path.as_str().split('/').count();
         let mut native = self.root.clone();
 
-        for (index, component) in components.iter().enumerate() {
+        for (index, component) in path.as_str().split('/').enumerate() {
             native.push(component);
             let metadata = fs::symlink_metadata(&native)?;
             if metadata.file_type().is_symlink() {
                 return Err(StorageError::UnexpectedEntryType(path.to_string()));
             }
 
-            let is_last = index + 1 == components.len();
+            let is_last = index + 1 == component_count;
             if (!is_last && !metadata.is_dir()) || (is_last && !metadata.is_file()) {
                 return Err(StorageError::UnexpectedEntryType(path.to_string()));
             }

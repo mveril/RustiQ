@@ -13,10 +13,19 @@ pub(crate) struct BasisTableItem {
 }
 
 fn format_slice(vec: &[String]) -> String {
-    vec.chunks(3)
-        .map(|chunk| chunk.join(", "))
-        .collect::<Vec<String>>()
-        .join("\n")
+    let mut formatted = String::new();
+    for (chunk_index, chunk) in vec.chunks(3).enumerate() {
+        if chunk_index > 0 {
+            formatted.push('\n');
+        }
+        for (item_index, item) in chunk.iter().enumerate() {
+            if item_index > 0 {
+                formatted.push_str(", ");
+            }
+            formatted.push_str(item);
+        }
+    }
+    formatted
 }
 
 impl From<BasisSetDetail> for BasisTableItem {
@@ -74,7 +83,20 @@ mod tests {
         BasisId,
     };
 
-    use super::BasisTableItem;
+    use super::{format_slice, BasisTableItem};
+
+    #[test]
+    fn format_slice_keeps_three_items_per_line() {
+        assert_eq!(format_slice(&[]), "");
+        assert_eq!(
+            format_slice(&["H".into(), "He".into(), "Li".into()]),
+            "H, He, Li"
+        );
+        assert_eq!(
+            format_slice(&["H".into(), "He".into(), "Li".into(), "Be".into()]),
+            "H, He, Li\nBe"
+        );
+    }
 
     #[test]
     fn online_items_display_the_canonical_name() {

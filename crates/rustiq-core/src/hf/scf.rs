@@ -259,14 +259,11 @@ impl<'a> ScfCalculation<'a> {
         let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
         order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
-        let sorted_vectors = order
-            .iter()
-            .map(|&i| mo_coefficients.column(i).into_owned())
-            .collect::<Vec<_>>();
+        let sorted_vectors = mo_coefficients.select_columns(&order);
         let sorted_energies =
             DVector::from_iterator(order.len(), order.iter().map(|&i| orbital_energies[i]));
 
-        Ok((DMatrix::from_columns(&sorted_vectors), sorted_energies))
+        Ok((sorted_vectors, sorted_energies))
     }
 
     /// Execute the SCF calculation loop
@@ -638,6 +635,21 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use nalgebra::point;
     use std::convert::Infallible;
+
+    #[test]
+    fn sort_orbitals_reorders_columns_and_energies_together() {
+        let coefficients = DMatrix::from_row_slice(2, 3, &[10.0, 20.0, 30.0, 40.0, 50.0, 60.0]);
+        let energies = DVector::from_vec(vec![2.0, -1.0, 1.0]);
+
+        let (sorted_coefficients, sorted_energies) =
+            ScfCalculation::sort_orbitals(&coefficients, &energies).unwrap();
+
+        assert_eq!(
+            sorted_coefficients,
+            DMatrix::from_row_slice(2, 3, &[20.0, 30.0, 10.0, 50.0, 60.0, 40.0])
+        );
+        assert_eq!(sorted_energies, DVector::from_vec(vec![-1.0, 1.0, 2.0]));
+    }
 
     #[test]
     fn test_optimal_damping_minimizes_quadratic_on_segment() {
