@@ -49,7 +49,9 @@ jobs:
             exit 1
           fi
           version="${RELEASE_TAG#v}"
-          cargo metadata --locked --format-version 1 --no-deps > metadata.json
+          check_dir=$(mktemp -d)
+          trap 'rm -rf "$check_dir"' EXIT
+          cargo metadata --locked --format-version 1 --no-deps > "$check_dir/metadata.json"
           jq --exit-status --arg version "$version" '
             [.packages[] | select(.name == "rustiq-chem")] as $cli
             | [.packages[] | select(.name == "rustiq-chem-core")] as $core
@@ -59,17 +61,20 @@ jobs:
               and $core[0].version == $version
               and any($cli[0].dependencies[];
                 .name == "rustiq-chem-core" and .req == ("^" + $version))
-          ' metadata.json
+          ' "$check_dir/metadata.json"
 
           excluded=()
           for package in rustiq-chem-core rustiq-chem; do
-            status=$(curl --silent --show-error --output "${package}.json" \
+            status=$(curl --silent --show-error \
+              --user-agent "RustiQ-release-check (https://github.com/mveril/RustiQ)" \
+              --header "Accept: application/json" \
+              --output "$check_dir/${package}.json" \
               --write-out '%{http_code}' \
               "https://crates.io/api/v1/crates/${package}/${version}")
             case "$status" in
               200)
                 jq --exit-status --arg version "$version" \
-                  '.version.num == $version' "${package}.json" >/dev/null
+                  '.version.num == $version' "$check_dir/${package}.json" >/dev/null
                 excluded+=("$package")
                 echo "$package $version is already published; it will be skipped."
                 ;;
