@@ -754,8 +754,8 @@ For RHF, `orbitals` is `{"reference":"rhf","shared":CHANNEL}`. For UHF it is
 array field is an object with exactly `path`, `size`, and `digest`, using the
 same byte-size and SHA-256 conventions as artifact manifest entries. Paths are
 entry-relative and fixed by the layout below. Every leaf is size- and digest-checked
-on typed access and when forwarding the artifact to a new bundle. A leaf larger
-than 256 MiB is rejected. These references are covered by the HF JSON digest.
+on typed access and when forwarding the artifact to a new bundle. NPY leaves have
+no fixed byte-size ceiling. These references are covered by the HF JSON digest.
 
 Coefficients are a binary64 NPY matrix with shape
 `(basis_dimension, effective_rank)`, retaining original AO row order. Writers

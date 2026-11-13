@@ -36,7 +36,7 @@ fn checked(
         return Err(ArtifactError::InvalidPath(reference.path.clone()));
     }
     let path = RelativePath::new(&reference.path);
-    if reference.size > 256 * 1024 * 1024 || storage.artifact_size(path)? != reference.size {
+    if storage.artifact_size(path)? != reference.size {
         return Err(ArtifactError::IntegrityMismatch(reference.path.clone()));
     }
     let metadata = storage.artifact_metadata(path)?;
