@@ -466,6 +466,15 @@ impl Snapshot {
         Ok(())
     }
 
+    pub(crate) fn hf_identity(&self) -> Result<super::Sha256Digest, serde_json::Error> {
+        // V1 uses the explicit snapshot wire encoding, excluding the downstream MP2 request.
+        let mut context = self.clone();
+        context.mp2 = None;
+        let mut bytes = b"rustiq-converged-hf-context-v1\0".to_vec();
+        bytes.extend(serde_json::to_vec(&context)?);
+        Ok(super::sha256(&bytes))
+    }
+
     pub(crate) fn basis_functions(&self) -> usize {
         self.basis.len()
     }

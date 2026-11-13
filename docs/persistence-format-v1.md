@@ -435,8 +435,9 @@ so reparsing a snapshot cannot change its canonical scientific identity.
 The resolved snapshot supports reconstructing a prepared calculation through
 `RustiQData::prepare_calculation` and rerunning it through `rustiq run FILE.rustiq`.
 These are fresh HF/MP2 executions that reuse compatible stored AO ERIs when
-present and compute them otherwise. Snapshots do not persist HF orbitals,
-partial SCF state, or DIIS history for restart.
+present and compute them otherwise. Optional HF artifacts persist converged
+orbitals through the Rust API, but execution does not yet consume them. Partial
+SCF state and DIIS history are not persisted for restart.
 
 ### Rust API
 
@@ -723,3 +724,106 @@ payloads; those checks are deferred until a calculation selects and reads a
 payload. Requested cache and terminal settings are not reconstructed because
 they are frontend policy, absent from the scientific snapshots. The CLI
 reference documents commands and JSON presentation.
+
+
+## Converged HF artifact V1
+
+A portable calculation entry may contain `converged_hf`, with representation
+`rustiq-converged-hf-npy-v1` and entry-relative path `orbitals/converged-hf.json`.
+The normal artifact manifest records its exact byte size and SHA-256 digest;
+`attributes` is an empty object. This optional addition leaves the outer format
+at V1. Existing archives with no HF artifact remain valid.
+
+The UTF-8 JSON object has the following fields, with no unknown fields accepted:
+
+| Field | V1 meaning |
+| --- | --- |
+| `version` | Integer `1`; other versions are rejected by typed access. |
+| `identity` | Lowercase SHA-256 digest of the resolved HF context encoding below. |
+| `basis_dimension`, `effective_rank` | Unsigned 64-bit AO row count and retained MO column count. |
+| `iterations` | Unsigned 64-bit completed SCF iteration count, positive and within the context limit. |
+| `electronic_energy`, `nuclear_repulsion_energy`, `total_energy` | Binary64 HF energies in Hartree. |
+| `delta_energy`, `residual_norm` | Final absolute energy change in Hartree and SCF residual norm; nonnegative and strictly below the resolved convergence threshold. |
+| `linear_dependency_threshold` | Exact overlap rank threshold from the context. |
+| `spin` | RHF: null; UHF: `[s_squared, ideal_s_squared, spin_contamination]`. |
+| `orbitals` | Reference-specific channels described below. |
+
+For RHF, `orbitals` is `{"reference":"rhf","shared":CHANNEL}`. For UHF it is
+`{"reference":"uhf","alpha":CHANNEL,"beta":CHANNEL}`. A channel has exactly
+`coefficients`, `energies`, and `occupied`. In the NPY representation, each
+array field is an object with exactly `path`, `size`, and `digest`, using the
+same byte-size and SHA-256 conventions as artifact manifest entries. Paths are
+entry-relative and fixed by the layout below. Every leaf is size- and digest-checked
+on typed access and when forwarding the artifact to a new bundle. NPY leaves have
+no fixed byte-size ceiling. These references are covered by the HF JSON digest.
+
+Coefficients are a binary64 NPY matrix with shape
+`(basis_dimension, effective_rank)`, retaining original AO row order. Writers
+use Fortran order; readers also support C order. Energies are a one-dimensional
+binary64 NPY array of length `effective_rank`, in Hartree.
+
+RHF stores `orbitals/coefficients.npy` and `orbitals/energies.npy`. UHF stores
+`orbitals/coefficients/alpha.npy`, `orbitals/energies/alpha.npy`, and the matching
+`beta.npy` files in those two directories. The metadata stays at `orbitals/converged-hf.json`.
+
+
+`occupied` is an unsigned 64-bit prefix count: doubly occupied spatial orbitals
+for RHF, singly occupied orbitals per spin for UHF. Unknown reference layouts
+are rejected. All numerical values must be finite. The rank must be positive,
+no greater than the AO count, and large enough for each occupied channel.
+Occupations must match the electron count derived from atomic numbers, charge,
+and multiplicity: RHF has N/2 occupied orbitals, UHF has
+(N + multiplicity - 1)/2 alpha and (N - multiplicity + 1)/2 beta orbitals.
+
+HF context identity V1 is separate from the manifest's AO ERI identity. It is
+SHA-256 of the ASCII domain prefix `rustiq-converged-hf-context-v1` followed by
+one zero byte and the compact JSON serialization of the explicit resolved
+`calculation.json` V1 wire record, with `mp2` set to null. Serialization follows
+wire declaration order: `format`, `version`, `units`, `atoms`, `charge`,
+`multiplicity`, `basis`, `hf`, `mp2`, `ao_eri_computation_version`; nested records
+follow their V1 declaration order. Binary64 values use serde_json's shortest
+round-trip decimal representation (including signed zero). This identity
+includes geometry, effective ordered AO components, charge, multiplicity,
+resolved reference, screening, overlap threshold, convergence threshold,
+iteration limit, DIIS settings, and the resolved guess including random seeds.
+Producer, source paths, presentation, resource budgets, and downstream MP2
+settings are excluded. It identifies compatible inputs, not a unique SCF
+stationary point or a promise of bitwise reproducibility across platforms.
+
+Solutions produced by `PreparedCalculation` retain this identity through typed
+and generic solution conversions. If their context cannot be represented by the
+portable V1 contract, conversion to an HF artifact returns an error. The public
+`ConvergedHf::from_solution` accepts only converged runtime HF solutions; it
+copies orbital arrays and convergence metrics without cloning or retaining the
+AO integral representation. Cloning the artifact shares its immutable backing.
+Use `set::<ConvergedHfArtifact>` on a matching entry and
+`get::<ConvergedHfArtifact>` for a borrowed, reference-specific `HfOrbitals` view.
+The runnable offline example is `crates/rustiq-core/examples/persist_hf.rs`.
+
+Opening validates the entry context and declared payload size without decoding
+HF. First typed access checks representation, payload size (maximum 256 MiB),
+SHA-256, JSON version/layout, identity, dimensions, occupations, and convergence
+metadata before caching the value. Loaded values are validated again on write;
+forwarding an unloaded HF artifact also validates it. Existing AO ERIs are
+preserved independently. Tests in `persistence::data::hf_artifact::tests` cover
+RHF/UHF round trips, rank reduction, open-shell occupations, absent HF, integral
+preservation, invalid metadata, and corrupt payloads. No numerical method or
+energy tolerance is changed by this persistence addition.
+
+These structural checks do not recompute energies, overlap orthonormality,
+canonicality, or physical reliability. No API reconstructs an executable MP2
+reference from persisted orbitals. Such a conversion must validate the target
+context and obtain compatible AO integrals in a later stage. CLI capture and
+reuse, SCF restart, DIIS restart, and Molden export are not implemented here.
+Effective AO ordering and normalized primitive components remain available,
+but original shell grouping, contraction provenance, and other export metadata
+must be added in a dedicated step before Molden conversion.
+
+
+The generic SCF persistence entry point is `ScfSolution<M, Converged>::to_artifact`,
+available when the method descriptor implements `PersistScf`. Its associated
+`Artifact` selects the versioned storage contract and value type. Each method
+owns its context identity, conversion and artifact validation; the generic layer
+requires no common orbital layout, HF summary, or retained AO integrals.
+RHF and UHF descriptors implement this contract using `ConvergedHfArtifact`.
+`ConvergedHf::from_solution` is a runtime HF convenience adapter to the same path.

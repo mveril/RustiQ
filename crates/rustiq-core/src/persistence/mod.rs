@@ -5,7 +5,7 @@
 //! location policy remains outside `rustiq-chem-core`.
 
 mod cache_names;
-mod calculation;
+pub(crate) mod calculation;
 mod provenance;
 mod request;
 pub use calculation::{CalculationContext, ResolvedAo, ResolvedComponent};
@@ -17,11 +17,16 @@ mod error;
 mod identity;
 mod manifest;
 mod npy;
+pub use npy::validate_matching_npy_shapes;
+mod payload;
 mod storage;
 
 pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
-pub use data::{AoEriArtifact, AoEriReuse, Artifact, RustiQBundle, RustiQData};
+pub use data::{
+    AoEriArtifact, AoEriReuse, Artifact, ConvergedHf, ConvergedHfArtifact, HfOrbitalChannel,
+    HfOrbitals, RustiQBundle, RustiQData,
+};
 pub use eri_cache::{EriCache, EriCacheEntry};
 pub use error::{ArtifactError, NpyError, PortableError};
 pub(crate) use error::{ManifestError, PersistenceReadError, PersistenceWriteError, StorageError};
@@ -51,3 +56,6 @@ pub(crate) const MANIFEST_PATH: &str = "manifest.json";
 pub(crate) const AO_ERI_PATH: &str = "arrays/integrals/ao-eri.npy";
 pub(crate) const COMPACT_ERI_REPRESENTATION: &str = "rustiq-compact-eri-v1";
 pub(crate) const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
+
+mod scf;
+pub use scf::PersistScf;

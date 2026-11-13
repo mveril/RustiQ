@@ -224,12 +224,18 @@ impl RustiQData {
             .map(|_| (AO_ERI_ARTIFACT, COMPACT_ERI_REPRESENTATION))
             .into_iter()
             .chain(
+                self.hf
+                    .as_ref()
+                    .map(|_| ("converged_hf", super::hf_artifact::HF_REPRESENTATION)),
+            )
+            .chain(
                 self.manifest
                     .artifacts
                     .iter()
                     .filter_map(|(name, artifact)| {
-                        (name != AO_ERI_ARTIFACT || self.ao_eri.is_none())
-                            .then_some((name.as_str(), artifact.representation.as_str()))
+                        ((name != AO_ERI_ARTIFACT || self.ao_eri.is_none())
+                            && (name != "converged_hf" || self.hf.is_none()))
+                        .then_some((name.as_str(), artifact.representation.as_str()))
                     }),
             )
     }

@@ -405,6 +405,10 @@ fn write_snapshot_inner(
                 ArtifactAttributes::AoEri(attributes) if attributes.computation_version == crate::persistence::AO_ERI_COMPUTATION_VERSION)) {
             data.validate_unloaded_eri()?;
         }
+        // Validate HF semantics before forwarding an unloaded known payload.
+        if data.manifest.artifacts.contains_key("converged_hf") {
+            data.get::<super::ConvergedHfArtifact>()?;
+        }
         let id = format!("calculation-{index}");
         let prefix = format!("calculations/{id}");
         let saved_sources = std::mem::take(&mut data.sources);

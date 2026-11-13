@@ -104,10 +104,15 @@ impl<State> AnyHfSolution<State> {
         self.try_into()
     }
 
-    pub(in crate::calculation) fn from_state(scf: ScfResult, state: HfState<'_>) -> Self {
+    pub(in crate::calculation) fn from_state(
+        scf: ScfResult,
+        state: HfState<'_>,
+        identity: Option<crate::persistence::Sha256Digest>,
+    ) -> Self {
         match state {
             HfState::Rhf(s) => Self::Restricted(HfSolution::new(
                 RestrictedMethod::Rhf,
+                identity,
                 scf,
                 s.mo_coefficients,
                 s.orbital_energies,
@@ -116,6 +121,7 @@ impl<State> AnyHfSolution<State> {
             )),
             HfState::Uhf(s) => Self::Unrestricted(HfSolution::new(
                 UnrestrictedMethod::Uhf,
+                identity,
                 scf,
                 s.mo_coefficients,
                 s.orbital_energies,
