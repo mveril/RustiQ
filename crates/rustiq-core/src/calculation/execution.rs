@@ -20,6 +20,7 @@ use crate::{
 /// let _ = HfCalculationResult { ..unimplemented!() };
 /// ```
 pub struct HfCalculationResult {
+    pub(crate) persistence_identity: Option<crate::persistence::Sha256Digest>,
     pub method: ResolvedHfMethod,
     pub scf: ScfResult,
 }

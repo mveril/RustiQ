@@ -219,10 +219,7 @@ impl RustiQData {
     /// Lists scientific artifact names and representation identifiers without loading arrays.
     /// Unknown representations remain visible; listing does not verify their payloads.
     pub fn artifact_representations(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.manifest
-            .artifacts
-            .iter()
-            .map(|(name, artifact)| (name.as_str(), artifact.representation.as_str()))
+        self.hf.as_ref().map(|_| ("converged_hf", super::hf_artifact::HF_REPRESENTATION)).into_iter().chain(self.manifest.artifacts.iter().filter(|(name, _)| name.as_str() != "converged_hf" || self.hf.is_none()).map(|(name, artifact)| (name.as_str(), artifact.representation.as_str())))
     }
 
     /// Tests AO ERI compatibility with another resolved calculation, without reading arrays.

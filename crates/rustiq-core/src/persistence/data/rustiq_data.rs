@@ -23,6 +23,7 @@ pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 /// Replacing a payload affects only that data instance.
 #[derive(Clone, Debug)]
 pub struct RustiQData {
+    pub(super) hf: Option<super::ConvergedHf>,
     pub(super) manifest: Manifest,
     pub(super) source: Option<Arc<Storage>>,
     // TODO: Separate reader and writer responsibilities into two structures.
@@ -85,6 +86,7 @@ impl RustiQData {
             request: None,
             sources: Vec::new(),
             staged: BTreeMap::new(),
+            hf: None,
             basis_functions: Some(basis_functions),
         }
     }
@@ -130,6 +132,7 @@ impl RustiQData {
             request: None,
             sources: Vec::new(),
             staged: BTreeMap::new(),
+            hf: None,
             basis_functions,
         })
     }
@@ -326,7 +329,7 @@ impl RustiQData {
         }
 
         for (name, artifact) in &self.manifest.artifacts {
-            if artifacts.iter().any(|borrowed| borrowed.name() == name) {
+            if artifacts.iter().any(|borrowed| borrowed.name() == name) || (name == "converged_hf" && self.hf.is_some()) {
                 continue;
             }
 
@@ -359,6 +362,10 @@ impl RustiQData {
         for artifact in artifacts {
             let record = artifact.write_to(self, &mut destination)?;
             manifest.artifacts.insert(artifact.name().into(), record);
+        }
+
+        if let Some(artifact) = self.write_hf(&mut destination)? {
+            manifest.artifacts.insert("converged_hf".into(), artifact);
         }
 
         if publish_manifest {
