@@ -70,17 +70,19 @@ pub struct InitCommand {
 // Both paths are canonical absolute paths. Different filesystem roots cannot
 // be represented by a relative path (for example different Windows drives).
 fn relative_geometry(input: &Path, directory: &Path) -> PathBuf {
-    let source: Vec<_> = input.components().collect();
-    let base: Vec<_> = directory.components().collect();
-    let shared = source.iter().zip(&base).take_while(|(a, b)| a == b).count();
+    let shared = input
+        .components()
+        .zip(directory.components())
+        .take_while(|(a, b)| a == b)
+        .count();
     if shared == 0 {
         return input.to_path_buf();
     }
     let mut result = PathBuf::new();
-    for _ in &base[shared..] {
+    for _ in directory.components().skip(shared) {
         result.push("..");
     }
-    for component in &source[shared..] {
+    for component in input.components().skip(shared) {
         result.push(component.as_os_str());
     }
     result
@@ -217,6 +219,24 @@ mod tests {
     use crate::cli::{commands::Commands, Cli};
     use crate::runfile::parser::parse_runfile;
     use clap::Parser;
+
+    #[test]
+    fn relative_geometry_uses_shared_directory_prefix() {
+        assert_eq!(
+            relative_geometry(
+                Path::new("/work/project/data/molecule.xyz"),
+                Path::new("/work/project/runs/job"),
+            ),
+            PathBuf::from("../../data/molecule.xyz")
+        );
+        assert_eq!(
+            relative_geometry(
+                Path::new("/work/project/runs/job/molecule.xyz"),
+                Path::new("/work/project/runs/job"),
+            ),
+            PathBuf::from("molecule.xyz")
+        );
+    }
 
     fn command(input: &Path, output: &Path, extra: &[&str]) -> InitCommand {
         let mut args = vec![

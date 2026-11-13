@@ -119,11 +119,7 @@ fn sort_orbitals(
     let mut order: Vec<usize> = (0..orbital_energies.len()).collect();
     order.sort_by(|&a, &b| orbital_energies[a].total_cmp(&orbital_energies[b]));
 
-    let sorted_vectors = order
-        .iter()
-        .map(|&i| mo_coefficients.column(i).into_owned())
-        .collect::<Vec<_>>();
-    Ok(DMatrix::from_columns(&sorted_vectors))
+    Ok(mo_coefficients.select_columns(&order))
 }
 
 #[cfg(test)]
@@ -138,6 +134,19 @@ mod tests {
     use crate::hf::reference::Unrestricted;
     use crate::molecules::Molecule;
     use crate::test_utils;
+
+    #[test]
+    fn sort_orbitals_reorders_columns_by_energy() {
+        let coefficients = DMatrix::from_row_slice(2, 3, &[10.0, 20.0, 30.0, 40.0, 50.0, 60.0]);
+        let energies = DVector::from_vec(vec![2.0, -1.0, 1.0]);
+
+        let sorted = sort_orbitals(&coefficients, &energies).unwrap();
+
+        assert_eq!(
+            sorted,
+            DMatrix::from_row_slice(2, 3, &[20.0, 30.0, 10.0, 50.0, 60.0, 40.0])
+        );
+    }
 
     trait DensityGuessTestExt: DensityGuess
     where

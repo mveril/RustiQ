@@ -173,9 +173,9 @@ impl Basis {
         let mut normalized_components = Vec::new();
 
         for ao in context.basis() {
-            let components: Vec<_> = ao.components().collect();
+            let mut components = ao.components();
             let first = components
-                .first()
+                .next()
                 .expect("validated portable AO has at least one component");
             let shell_id = shells.len();
             let center = ao.center();
@@ -192,44 +192,30 @@ impl Basis {
                 first_angular_momentum[1],
                 first_angular_momentum[2],
             ));
-            angular_components.push(
-                components
-                    .iter()
-                    .map(|component| {
-                        let angular_momentum = component.angular_momentum();
-                        (
-                            Vector3::new(
-                                angular_momentum[0],
-                                angular_momentum[1],
-                                angular_momentum[2],
-                            ),
-                            1.0,
-                        )
-                    })
-                    .collect(),
-            );
-            normalized_components.push(
-                components
-                    .iter()
-                    .map(|component| NormalizedComponent {
-                        angular_momentum: {
-                            let angular_momentum = component.angular_momentum();
-                            Vector3::new(
-                                angular_momentum[0],
-                                angular_momentum[1],
-                                angular_momentum[2],
-                            )
-                        },
-                        primitives: component
-                            .primitives()
-                            .map(|(exponent, coefficient)| NormalizedPrimitive {
-                                exponent,
-                                coefficient,
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            );
+            let component_count = 1 + components.len();
+            let mut ao_angular_components = Vec::with_capacity(component_count);
+            let mut ao_normalized_components = Vec::with_capacity(component_count);
+            for component in std::iter::once(first).chain(components) {
+                let angular_momentum = component.angular_momentum();
+                let angular_momentum = Vector3::new(
+                    angular_momentum[0],
+                    angular_momentum[1],
+                    angular_momentum[2],
+                );
+                ao_angular_components.push((angular_momentum, 1.0));
+                ao_normalized_components.push(NormalizedComponent {
+                    angular_momentum,
+                    primitives: component
+                        .primitives()
+                        .map(|(exponent, coefficient)| NormalizedPrimitive {
+                            exponent,
+                            coefficient,
+                        })
+                        .collect(),
+                });
+            }
+            angular_components.push(ao_angular_components);
+            normalized_components.push(ao_normalized_components);
         }
 
         Self {
@@ -293,22 +279,18 @@ impl Basis {
                     let coeffs_list = &shell.coefficients;
                     let angular_momenta = &shell.angular_momentum;
 
-                    let angular_coeff_pairs: Vec<_> = if angular_momenta.len() == coeffs_list.len()
-                    {
-                        angular_momenta.iter().zip(coeffs_list.iter()).collect()
-                    } else if angular_momenta.len() == 1 {
-                        coeffs_list
-                            .iter()
-                            .map(|coeffs_group| (&angular_momenta[0], coeffs_group))
-                            .collect()
+                    let repeated_angular_momentum = if angular_momenta.len() == 1 {
+                        Some(&angular_momenta[0])
+                    } else if angular_momenta.len() == coeffs_list.len() {
+                        None
                     } else {
                         // Guaranteed unreachable by validate().
-                        unreachable!("validated contraction dimensions")
+                        unreachable!("validated contraction dimensions");
                     };
 
-                    for (coefficient_group, (l, coeffs_group)) in
-                        angular_coeff_pairs.into_iter().enumerate()
-                    {
+                    for (coefficient_group, coeffs_group) in coeffs_list.iter().enumerate() {
+                        let l = repeated_angular_momentum
+                            .unwrap_or_else(|| &angular_momenta[coefficient_group]);
                         // coeffs_group is a Vec<f64> (a coefficient group)
                         let contraction = Contraction::new(
                             *l,
