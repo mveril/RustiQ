@@ -92,6 +92,13 @@ impl ConvergedHf {
     /// # Errors
     /// Returns an error if the solution lacks a portable scientific identity.
     pub fn from_solution(solution: &AnyHfSolution) -> Result<Self, ArtifactError> {
+        match solution {
+            AnyHfSolution::Restricted(hf) => hf.as_scf().to_artifact(),
+            AnyHfSolution::Unrestricted(hf) => hf.as_scf().to_artifact(),
+        }
+    }
+
+    fn from_runtime(solution: &AnyHfSolution) -> Result<Self, ArtifactError> {
         let s = &solution.summary().scf;
         let orbitals = match solution {
             AnyHfSolution::Restricted(hf) => HfOrbitals::Rhf {
@@ -375,3 +382,20 @@ impl RustiQData {
 
 #[cfg(test)]
 mod tests;
+
+macro_rules! persist_hf {
+    ($reference:ty) => {
+        impl crate::persistence::PersistScf for crate::calculation::HfMethodDescriptor<$reference> {
+            type Artifact = ConvergedHfArtifact;
+            fn to_artifact(
+                solution: &crate::calculation::ScfSolution<Self>,
+            ) -> Result<ConvergedHf, ArtifactError> {
+                // Clone shares the solution allocation; conversion never copies retained ERIs.
+                let runtime: AnyHfSolution = solution.clone().into();
+                ConvergedHf::from_runtime(&runtime)
+            }
+        }
+    };
+}
+persist_hf!(crate::calculation::Restricted);
+persist_hf!(crate::calculation::Unrestricted);
