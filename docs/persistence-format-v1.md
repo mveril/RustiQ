@@ -729,7 +729,7 @@ reference documents commands and JSON presentation.
 ## Converged HF artifact V1
 
 A portable calculation entry may contain `converged_hf`, with representation
-`rustiq-converged-hf-v1` and entry-relative path `orbitals/converged-hf.json`.
+`rustiq-converged-hf-npy-v1` and entry-relative path `orbitals/converged-hf.json`.
 The normal artifact manifest records its exact byte size and SHA-256 digest;
 `attributes` is an empty object. This optional addition leaves the outer format
 at V1. Existing archives with no HF artifact remain valid.
@@ -750,9 +750,23 @@ The UTF-8 JSON object has the following fields, with no unknown fields accepted:
 
 For RHF, `orbitals` is `{"reference":"rhf","shared":CHANNEL}`. For UHF it is
 `{"reference":"uhf","alpha":CHANNEL,"beta":CHANNEL}`. A channel has exactly
-`coefficients`, `energies`, and `occupied`. Coefficients are a flat column-major
-binary64 array of length `basis_dimension * effective_rank`, retaining original
-AO row order. Energies are a binary64 Hartree array of length `effective_rank`.
+`coefficients`, `energies`, and `occupied`. In the NPY representation, each
+array field is an object with exactly `path`, `size`, and `digest`, using the
+same byte-size and SHA-256 conventions as artifact manifest entries. Paths are
+entry-relative and fixed by the layout below. Every leaf is size- and digest-checked
+on typed access and when forwarding the artifact to a new bundle. A leaf larger
+than 256 MiB is rejected. These references are covered by the HF JSON digest.
+
+Coefficients are a binary64 NPY matrix with shape
+`(basis_dimension, effective_rank)`, retaining original AO row order. Writers
+use Fortran order; readers also support C order. Energies are a one-dimensional
+binary64 NPY array of length `effective_rank`, in Hartree.
+
+RHF stores `orbitals/coefficients.npy` and `orbitals/energies.npy`. UHF stores
+`orbitals/coefficients/alpha.npy`, `orbitals/energies/alpha.npy`, and the matching
+`beta.npy` files in those two directories. The metadata stays at `orbitals/converged-hf.json`.
+
+
 `occupied` is an unsigned 64-bit prefix count: doubly occupied spatial orbitals
 for RHF, singly occupied orbitals per spin for UHF. Unknown reference layouts
 are rejected. All numerical values must be finite. The rank must be positive,

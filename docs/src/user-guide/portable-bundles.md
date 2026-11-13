@@ -235,6 +235,38 @@ The entry created by `RustiQData::from_calculation(&prepared)` must match that
 identity. `RustiQBundle` reads and writes these entries alongside existing AO ERIs;
 older V1 archives without HF remain readable.
 
+Orbital arrays are stored as NumPy-compatible NPY files. For RHF, each
+calculation entry contains:
+
+```text
+orbitals/
+├── converged-hf.json
+├── coefficients.npy
+└── energies.npy
+```
+
+For UHF, the two spin channels have separate directories:
+
+```text
+orbitals/
+├── converged-hf.json
+├── coefficients/
+│   ├── alpha.npy
+│   └── beta.npy
+└── energies/
+    ├── alpha.npy
+    └── beta.npy
+```
+
+These paths are relative to `calculations/<id>/` inside the bundle, alongside
+`calculation.json`, `request.json`, and optional `arrays/integrals/ao-eri.npy`.
+`persistence::validate_matching_npy_shapes(alpha_reader, beta_reader)` compares
+the ranks and axis lengths in two NPY headers before loading values. This
+header-only check does not validate dtype, values, or payload integrity.
+
+The JSON metadata references each array by its fixed path, byte size, and SHA-256
+digest. Typed access checks every referenced payload.
+
 The read-only `HfOrbitals` enum distinguishes RHF shared orbitals from separate
 UHF alpha/beta channels. Coefficients use column-major storage: rows retain the
 original AO order, columns match orbital energies in Hartree, and occupied
