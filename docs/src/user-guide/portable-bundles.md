@@ -265,7 +265,8 @@ the ranks and axis lengths in two NPY headers before loading values. This
 header-only check does not validate dtype, values, or payload integrity.
 
 The JSON metadata references each array by its fixed path, byte size, and SHA-256
-digest. Typed access checks every referenced payload.
+digest. Typed access checks every referenced payload. NPY arrays have no fixed
+byte-size ceiling; readers check their dimensions against the HF record.
 
 The read-only `HfOrbitals` enum distinguishes RHF shared orbitals from separate
 UHF alpha/beta channels. Coefficients use column-major storage: rows retain the
