@@ -33,7 +33,7 @@ impl RustiQData {
     }
 
     /// Opens a portable archive and validates its context and artifact index.
-    /// Numerical payloads are verified and decoded lazily on first access.
+    /// Numerical payloads are verified and decoded on demand on each access.
     /// Multi-calculation archives require [`super::RustiQBundle::open`].
     ///
     /// # Errors
@@ -56,7 +56,7 @@ impl RustiQData {
         if data.manifest.kind != ManifestKind::Portable {
             return Err(PortableError::UnsupportedVersion);
         }
-        let source = data.source.as_mut().expect("opened storage");
+        let source = data.source.as_deref().expect("opened storage");
         let reference =
             data.manifest.calculation.as_ref().ok_or_else(|| {
                 PortableError::InvalidArchive("missing calculation reference".into())
@@ -219,28 +219,16 @@ impl RustiQData {
     /// Lists scientific artifact names and representation identifiers without loading arrays.
     /// Unknown representations remain visible; listing does not verify their payloads.
     pub fn artifact_representations(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.ao_eri
-            .as_ref()
-            .map(|_| (AO_ERI_ARTIFACT, COMPACT_ERI_REPRESENTATION))
-            .into_iter()
-            .chain(
-                self.manifest
-                    .artifacts
-                    .iter()
-                    .filter_map(|(name, artifact)| {
-                        (name != AO_ERI_ARTIFACT || self.ao_eri.is_none())
-                            .then_some((name.as_str(), artifact.representation.as_str()))
-                    }),
-            )
+        self.manifest
+            .artifacts
+            .iter()
+            .map(|(name, artifact)| (name.as_str(), artifact.representation.as_str()))
     }
 
     /// Tests AO ERI compatibility with another resolved calculation, without reading arrays.
     /// Requested HF/MP2 methods do not participate in deterministic integral identity.
     #[must_use]
     pub fn eri_is_compatible(&self, calculation: &PreparedCalculation) -> bool {
-        if self.ao_eri.is_some() {
-            return self.matches_eri_identity(calculation);
-        }
         let Some(artifact) = self.manifest.artifacts.get(AO_ERI_ARTIFACT) else {
             return false;
         };
@@ -304,21 +292,17 @@ impl RustiQData {
         result
     }
 
-    /// Validates compatibility and lazily decodes the ERI, then transfers ownership.
+    /// Validates compatibility and decodes an owned ERI without retaining it.
     /// Missing, unsupported, incompatible, or corrupt artifacts are errors.
     ///
     /// # Errors
     ///
     /// Returns an error if the ERI is absent, incompatible, corrupt, or cannot be decoded.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a validated, loaded ERI is unexpectedly absent from internal state.
     pub fn take_compatible_eri(
         &mut self,
         calculation: &PreparedCalculation,
     ) -> Result<crate::eri::CompactEri, PortableError> {
-        if self.ao_eri.is_none() {
+        {
             let artifact = self
                 .manifest
                 .artifacts
@@ -334,8 +318,7 @@ impl RustiQData {
         if !self.eri_is_compatible(calculation) {
             return Err(PortableError::IncompatibleEri);
         }
-        self.read_eri()?;
-        Ok(self.take_eri().expect("validated ERI is loaded"))
+        self.read_eri().map_err(Into::into)
     }
 
     pub(crate) fn validate_unloaded_eri(&mut self) -> Result<(), PortableError> {
@@ -343,7 +326,9 @@ impl RustiQData {
         let ArtifactAttributes::AoEri(attributes) = &artifact.attributes else {
             unreachable!()
         };
-        let source = self.source.as_mut().ok_or(ArtifactError::Missing)?;
+        let source = self
+            .artifact_source(AO_ERI_ARTIFACT)
+            .ok_or(ArtifactError::Missing)?;
         source.with_artifact::<_, ArtifactError, _>(&artifact.path, |reader| {
             super::super::npy::checked_eri_prefix(
                 reader,
@@ -357,7 +342,7 @@ impl RustiQData {
 }
 
 pub(super) fn read_sources(
-    source: &mut Storage,
+    source: &Storage,
     references: &[super::super::manifest::SourceManifest],
 ) -> Result<Vec<SourceProvenance>, PortableError> {
     let mut sources = Vec::new();
@@ -415,7 +400,7 @@ pub(super) fn read_sources(
 }
 
 fn verify_reference(
-    source: &mut Storage,
+    source: &Storage,
     reference: &super::super::manifest::SnapshotManifest,
     expected_path: &str,
     limit: u64,

@@ -71,7 +71,7 @@ impl RustiQBundle {
     ///
     /// Returns an error if archive structure, context, references, or provenance are invalid or cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
-        let mut storage = Storage::open_zip(path.as_ref())?;
+        let storage = Storage::open_zip(path.as_ref())?;
         let manifest: PortableManifest = storage
             .read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)
             .map_err(crate::persistence::PersistenceReadError::from)?;
@@ -84,7 +84,7 @@ impl RustiQBundle {
         if manifest.calculations.is_empty() {
             return Err(invalid("portable bundles require at least one calculation"));
         }
-        let sources = portable::read_sources(&mut storage, &manifest.sources)?;
+        let sources = portable::read_sources(&storage, &manifest.sources)?;
         let storage = Arc::new(Mutex::new(storage));
         let mut ids = HashSet::new();
         let mut calculations = Vec::new();
@@ -156,7 +156,7 @@ impl RustiQBundle {
                 });
             }
             return Ok(AoEriReuse {
-                value: data.get::<AoEriArtifact>()?.cloned(),
+                value: data.get::<AoEriArtifact>()?,
                 decision: ArtifactReuseDecision::Reused,
                 source_index: Some(source_index),
             });
@@ -400,7 +400,7 @@ fn write_snapshot_inner(
         if data.context.is_none() || data.request.is_none() {
             return Err(invalid("missing calculation snapshots"));
         }
-        if eri.is_none() && data.ao_eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
+        if eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
             artifact.representation == COMPACT_ERI_REPRESENTATION && matches!(&artifact.attributes,
                 ArtifactAttributes::AoEri(attributes) if attributes.computation_version == crate::persistence::AO_ERI_COMPUTATION_VERSION)) {
             data.validate_unloaded_eri()?;
