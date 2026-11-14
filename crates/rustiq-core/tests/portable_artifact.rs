@@ -45,7 +45,7 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
         data.write(&path),
         Err(PortableError::AlreadyExists)
     ));
-    let mut restored = RustiQData::open(&path).unwrap();
+    let restored = RustiQData::open(&path).unwrap();
     assert_eq!(
         restored.request().unwrap().hf().method.value,
         rustiq_core::config::HfMethod::Auto

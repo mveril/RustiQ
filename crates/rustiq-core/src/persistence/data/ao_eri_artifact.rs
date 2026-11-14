@@ -16,7 +16,7 @@ impl Artifact for AoEriArtifact {
     const NAME: &'static str = AO_ERI_ARTIFACT;
 
     fn is_present(data: &RustiQData) -> bool {
-        data.ao_eri.is_some() || data.manifest.artifacts.contains_key(AO_ERI_ARTIFACT)
+        data.manifest.artifacts.contains_key(AO_ERI_ARTIFACT)
     }
 
     fn is_compatible(
@@ -26,10 +26,7 @@ impl Artifact for AoEriArtifact {
         data.matches_eri_identity(calculation)
     }
 
-    fn get(data: &mut RustiQData) -> Result<Option<&CompactEri>, ArtifactError> {
-        if data.ao_eri.is_some() {
-            return Ok(data.ao_eri.as_ref());
-        }
+    fn get(data: &RustiQData) -> Result<Option<CompactEri>, ArtifactError> {
         if !data.manifest.artifacts.contains_key(AO_ERI_ARTIFACT) {
             return Ok(None);
         }

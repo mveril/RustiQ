@@ -94,7 +94,6 @@ impl Runnable for VerifyCommand {
                 .artifact_representations()
                 .map(|(name, representation)| (name.to_owned(), representation.to_owned()))
                 .collect::<Vec<_>>();
-            let mut data = data;
             for (name, representation) in artifacts {
                 match name.as_str() {
                     name if name == AoEriArtifact::NAME

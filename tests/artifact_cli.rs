@@ -221,7 +221,7 @@ fn same_path_replacement_retains_new_request_and_failure_preserves_source() {
     );
     assert_eq!(report(&result)["origin"], "archive");
     assert_ne!(fs::read(root.join("state.rustiq")).unwrap(), bytes);
-    let mut restored = RustiQData::open(root.join("state.rustiq")).unwrap();
+    let restored = RustiQData::open(root.join("state.rustiq")).unwrap();
     assert!(restored.get::<AoEriArtifact>().unwrap().is_some());
     assert!(restored
         .sources()

@@ -26,7 +26,7 @@ pub trait Artifact: private::Sealed {
     ) -> bool;
 
     #[doc(hidden)]
-    fn get(data: &mut RustiQData) -> Result<Option<&Self::Value>, ArtifactError>;
+    fn get(data: &RustiQData) -> Result<Option<Self::Value>, ArtifactError>;
     #[doc(hidden)]
     fn set(data: &mut RustiQData, value: Self::Value) -> Result<(), ArtifactError>;
 }

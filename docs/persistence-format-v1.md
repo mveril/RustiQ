@@ -95,18 +95,28 @@ directory-backed ERI cache resolves folder storage internally, and the
 portable `.rustiq` API resolves ZIP/ZIP64 internally rather than exposing a
 generic storage backend. Internal readers load the bounded manifest first and
 open scientific artifacts on demand. `read_eri` validates and decodes the AO ERI
-NPY on first access and keeps the resulting `CompactEri` for subsequent accesses.
+NPY on every access and returns an owned `CompactEri`; decoded values are not
+retained by `RustiQData`. Reads accept an immutable reference, with ZIP cursor
+access synchronized internally.
 Unknown representations can be copied internally as verified byte streams without
 being decoded.
 
+`set` validates and immediately serializes the value into a `tempfile::TempDir`.
+It retains no decoded value and can fail on temporary-storage I/O errors. A
+replacement becomes active only after its payload is written successfully; an
+error leaves the previous artifact available. Temporary storage is removed when
+replaced or when its owning data is dropped. Publication copies staged and
+unchanged source payloads as verified streams with bounded buffers, without
+decoding them. The original source archive is never changed by `set`.
+
 The public scientific API is typed: `set_eri` and `read_eri` operate on
 `CompactEri`. The generic `get::<AoEriArtifact>()` returns
-`Result<Option<&CompactEri>, ArtifactError>`, while
+`Result<Option<CompactEri>, ArtifactError>`, while
 `set::<AoEriArtifact>(value)` accepts only `CompactEri`; only declared artifact
 marker types are accepted. Artifact access reports `ArtifactError`, while NPY
 format failures are represented by `NpyError`; storage, manifest, and persistence
 orchestration errors remain internal. A future known artifact gets its own marker,
-typed field, and accessors in `RustiQData`. NPY parsing and conversion remain
+typed metadata, and accessors in `RustiQData`. NPY parsing and conversion remain
 internal persistence details. Compact ERIs are decoded only with the
 basis-function count from their typed manifest attributes; the NPY length is never
 used to infer that scientific context. Matrix readers accept C and Fortran order
@@ -652,10 +662,11 @@ the same resolver; those representations are not implemented yet.
 
 `CalculationEvent::ArtifactReuse` reports per-artifact reused, missing, or
 incompatible decisions. Its decision type also distinguishes intentionally ignored
-state for future selection policies. Computed and reused values are retained in a
-separate in-memory typed data facade for subsequent executions. Compact ERI clones
-share immutable storage; mutation detaches that storage. Neither ordinary reuse nor
-this memory retention rewrites the source snapshot or stores runtime scratch data.
+state for future selection policies. Computed and reused artifacts are staged in
+a separate temporary on-disk data facade for subsequent executions. Each execution
+reads a fresh decoded value from that storage. Compact ERI clones within an
+execution share immutable storage; mutation detaches that storage. Neither ordinary
+reuse nor temporary staging rewrites the source snapshot.
 
 For callers managing portable data explicitly, `take_compatible_eri` checks
 scientific compatibility before returning the tensor. The lower-level

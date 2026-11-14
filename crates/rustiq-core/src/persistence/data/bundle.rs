@@ -156,7 +156,7 @@ impl RustiQBundle {
                 });
             }
             return Ok(AoEriReuse {
-                value: data.get::<AoEriArtifact>()?.cloned(),
+                value: data.get::<AoEriArtifact>()?,
                 decision: ArtifactReuseDecision::Reused,
                 source_index: Some(source_index),
             });
@@ -400,7 +400,7 @@ fn write_snapshot_inner(
         if data.context.is_none() || data.request.is_none() {
             return Err(invalid("missing calculation snapshots"));
         }
-        if eri.is_none() && data.ao_eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
+        if eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
             artifact.representation == COMPACT_ERI_REPRESENTATION && matches!(&artifact.attributes,
                 ArtifactAttributes::AoEri(attributes) if attributes.computation_version == crate::persistence::AO_ERI_COMPUTATION_VERSION)) {
             data.validate_unloaded_eri()?;

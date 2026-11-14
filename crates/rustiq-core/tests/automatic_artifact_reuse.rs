@@ -68,9 +68,16 @@ fn execute_automatically_reuses_portable_eri_and_preserves_mp2_results() {
     assert_eq!(overridden.ao_eri()[(0, 0, 0, 0)], 0.0);
     let repeated = restored.execute().unwrap();
     let hf_only = restored.run_hf().unwrap();
-    let pointer = &raw const result.hf.ao_eri()[(0, 0, 0, 0)];
-    assert_eq!(pointer, &raw const repeated.hf.ao_eri()[(0, 0, 0, 0)]);
-    assert_eq!(pointer, &raw const hf_only.ao_eri()[(0, 0, 0, 0)]);
+    for indices in 0..16 {
+        let index = (
+            indices & 1,
+            (indices >> 1) & 1,
+            (indices >> 2) & 1,
+            (indices >> 3) & 1,
+        );
+        assert_eq!(result.hf.ao_eri()[index], repeated.hf.ao_eri()[index]);
+        assert_eq!(result.hf.ao_eri()[index], hf_only.ao_eri()[index]);
+    }
     assert_eq!(std::fs::read(path).unwrap(), archive_bytes);
 }
 
@@ -79,7 +86,7 @@ fn execute_automatically_reuses_portable_eri_and_preserves_mp2_results() {
     clippy::float_cmp,
     reason = "Artifact reuse must preserve identical execution results and stored values exactly"
 )]
-fn missing_eri_are_computed_once_and_retained_for_normal_execution() {
+fn missing_eri_are_computed_once_and_staged_for_normal_execution() {
     let (geometry, basis) = inputs(1.4);
     let original = CalculationBuilder::new(&geometry, &basis)
         .prepare()
@@ -120,9 +127,18 @@ fn missing_eri_are_computed_once_and_retained_for_normal_execution() {
         expected.hf.summary().scf.total_energy
     );
     assert_eq!(
-        &raw const first.hf.ao_eri()[(0, 0, 0, 0)],
-        &raw const second.hf.ao_eri()[(0, 0, 0, 0)],
+        first.hf.summary().scf.total_energy,
+        second.hf.summary().scf.total_energy
     );
+    for indices in 0..16 {
+        let index = (
+            indices & 1,
+            (indices >> 1) & 1,
+            (indices >> 2) & 1,
+            (indices >> 3) & 1,
+        );
+        assert_eq!(first.hf.ao_eri()[index], second.hf.ao_eri()[index]);
+    }
     assert_eq!(std::fs::read(path).unwrap(), archive_bytes);
 }
 

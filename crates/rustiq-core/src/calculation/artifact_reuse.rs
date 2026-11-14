@@ -28,8 +28,7 @@ impl ArtifactReuse {
         })
     }
 
-    /// Resolve cached values through cheap `Clone`; artifact implementations document this
-    /// invariant because large payloads must not be duplicated during reuse.
+    /// Resolve artifacts from source or temporary storage without retaining decoded values.
     pub(super) fn resolve<A: Artifact>(
         &self,
         calculation: &PreparedCalculation,
@@ -40,7 +39,7 @@ impl ArtifactReuse {
         let mut resolved = self.resolved.lock().map_err(|_| {
             ArtifactError::AccessFailed("resolved artifact mutex is poisoned".into())
         })?;
-        if let Some(value) = resolved.get::<A>()?.cloned() {
+        if let Some(value) = resolved.get::<A>()? {
             return Ok((
                 Some(value),
                 ArtifactReuseEvent {
@@ -49,7 +48,7 @@ impl ArtifactReuse {
                 },
             ));
         }
-        let mut data = self
+        let data = self
             .source
             .lock()
             .map_err(|_| ArtifactError::AccessFailed("artifact source mutex is poisoned".into()))?;
@@ -58,7 +57,7 @@ impl ArtifactReuse {
         } else if !A::is_compatible(&data, calculation) {
             (None, ArtifactReuseDecision::Incompatible)
         } else {
-            let value = data.get::<A>()?.cloned();
+            let value = data.get::<A>()?;
             let decision = if value.is_some() {
                 ArtifactReuseDecision::Reused
             } else {
@@ -78,7 +77,7 @@ impl ArtifactReuse {
         ))
     }
 
-    /// Retains newly computed domain values in memory; never writes the source archive.
+    /// Stages newly computed values on disk; never writes the source archive.
     pub(super) fn remember<A: Artifact>(&self, value: A::Value) -> Result<(), ArtifactError> {
         self.resolved
             .lock()
