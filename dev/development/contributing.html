@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dd8675e0.js";
+            window.path_to_searchindex_js = "../searchindex-82b24959.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -462,7 +462,27 @@ a local cache directory into a portable artifact. See the
 <a href="../reference/index.html">persistence contract</a>, and the runnable API examples
 for details.
 Portable NPY ERI payloads stream directly into the final shared compact storage
-through an exact-size iterator, avoiding a temporary full-size <code>Vec&lt;f64&gt;</code>.</p>
+through an exact-size iterator, avoiding a temporary full-size <code>Vec&lt;f64&gt;</code>.
+<code>RustiQData::get</code> takes <code>&amp;self</code> and returns an owned value, reading and validating
+the artifact on every call without caching decoded data. <code>read_eri</code>,
+<code>take_compatible_eri</code>, and bundle <code>select_ao_eri</code> also take <code>&amp;self</code>; use
+<code>calculations()</code> for reading bundle entries. Integrity hashing and
+decoding share one buffered read of the payload. <code>set</code> borrows its value and
+writes immediately to a disk-backed <code>tempfile::TempDir</code>, so it can report I/O
+errors before final publication. Clones share the disk payloads; replacement
+releases the previous payload only when its last owner disappears. Dropping the
+last owner cleans up its temporary directory. Execution reads directly from the
+supplied source and never stages artifacts implicitly; missing artifacts use the
+enabled ERI disk cache or are recomputed on each execution. Publication copies
+payloads in streams rather than loading them all into memory. This leaves the
+disposable ERI disk cache unchanged and does not reduce the memory required by
+the active calculation or a value returned by <code>get</code>.</p>
+<p>For a single publication, <code>write_with_artifacts</code> streams a slice of typed
+<code>ArtifactRef</code> values borrowed from the caller directly into the archive. It avoids
+the temporary staging required by <code>set</code>, preserves artifacts not overridden by
+the supplied values, and rejects duplicate artifact names. <code>write_with_eri</code> is the
+single-ERI shorthand. Future scientific artifact markers can use the same
+publication interface rather than requiring a separate method per combination.</p>
 <p>This distinction matters for performance: compact AO ERI storage still grows
 as the fourth power of basis dimension, and the MP2 workspace budget covers
 additional transformation buffers rather than the full HF data or process
