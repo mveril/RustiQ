@@ -276,7 +276,7 @@ impl RustiQData {
     ///
     /// Returns an error if the supplied ERI is incompatible or archive validation or publication fails.
     pub fn write_with_eri(
-        &mut self,
+        &self,
         path: impl AsRef<Path>,
         eri: &crate::eri::CompactEri,
     ) -> Result<(), PortableError> {
@@ -290,18 +290,20 @@ impl RustiQData {
     /// # Errors
     /// Returns an error for duplicate names, invalid values, or failed publication.
     pub fn write_with_artifacts(
-        &mut self,
+        &self,
         path: impl AsRef<Path>,
         artifacts: &[ArtifactRef<'_>],
     ) -> Result<(), PortableError> {
-        let sources = std::mem::take(&mut self.sources);
+        // The bundle writer temporarily moves source provenance out of each entry. Clone the
+        // lightweight metadata so publication does not require mutable access to this value.
+        let mut data = self.clone();
+        let sources = std::mem::take(&mut data.sources);
         let result = super::bundle::write_bundle_with_artifacts(
-            std::slice::from_mut(self),
+            std::slice::from_mut(&mut data),
             &sources,
             path.as_ref(),
             artifacts,
         );
-        self.sources = sources;
         result
     }
 
