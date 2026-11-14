@@ -325,7 +325,9 @@ for details.
 Portable NPY ERI payloads stream directly into the final shared compact storage
 through an exact-size iterator, avoiding a temporary full-size `Vec<f64>`.
 `RustiQData::get` takes `&self` and returns an owned value, reading and validating
-the artifact on every call without caching decoded data. Integrity hashing and
+the artifact on every call without caching decoded data. `read_eri`,
+`take_compatible_eri`, and bundle `select_ao_eri` also take `&self`; use
+`calculations()` for reading bundle entries. Integrity hashing and
 decoding share one buffered read of the payload. `set` borrows its value and
 writes immediately to a disk-backed `tempfile::TempDir`, so it can report I/O
 errors before final publication. Clones share the disk payloads; replacement
@@ -336,6 +338,13 @@ enabled ERI disk cache or are recomputed on each execution. Publication copies
 payloads in streams rather than loading them all into memory. This leaves the
 disposable ERI disk cache unchanged and does not reduce the memory required by
 the active calculation or a value returned by `get`.
+
+For a single publication, `write_with_artifacts` streams a slice of typed
+`ArtifactRef` values borrowed from the caller directly into the archive. It avoids
+the temporary staging required by `set`, preserves artifacts not overridden by
+the supplied values, and rejects duplicate artifact names. `write_with_eri` is the
+single-ERI shorthand. Future scientific artifact markers can use the same
+publication interface rather than requiring a separate method per combination.
 
 This distinction matters for performance: compact AO ERI storage still grows
 as the fourth power of basis dimension, and the MP2 workspace budget covers

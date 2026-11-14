@@ -470,8 +470,8 @@ let entries = prepared_calculations.iter()
 let mut bundle = RustiQBundle::new(entries)?;
 bundle.add_source("batch.ncl", original_source_bytes)?;
 bundle.write("batch.rustiq")?;
-let mut reopened = RustiQBundle::open("batch.rustiq")?;
-for entry in reopened.calculations_mut() {
+let reopened = RustiQBundle::open("batch.rustiq")?;
+for entry in reopened.calculations() {
     println!("{:?}", entry.calculation().expect("portable context").hf_method());
 }
 ```
@@ -497,14 +497,14 @@ data.add_source("calculation.toml", original_toml_bytes)?;
 data.set_eri(&eri)?;
 data.write("water.rustiq")?;
 
-let mut restored = RustiQData::open("water.rustiq")?;
+let restored = RustiQData::open("water.rustiq")?;
 let context = restored.calculation().expect("portable context");
 println!("{:?}: {} AOs", context.hf_method(), context.basis().len());
 for (name, representation) in restored.artifact_representations() {
     println!("{name}: {representation}");
 }
 if restored.eri_is_compatible(&prepared) {
-    let eri: &CompactEri = restored.read_eri()?;
+    let eri: CompactEri = restored.read_eri()?;
 }
 ```
 
@@ -627,9 +627,29 @@ let mut data = RustiQData::from_calculation(&prepared)?;
 data.write_with_eri("water.rustiq", hf.ao_eri())?;
 ```
 
-The writer borrows the retained AO ERI without cloning or recomputing it.
-`set_eri` borrows the tensor to stage it before publication; the caller keeps
-ownership and may continue using it.
+For one publication, prefer `write_with_artifacts`: it streams a slice of typed
+borrowed values into the archive without temporary staging or payload cloning.
+`write_with_eri` is a convenience wrapper for a single borrowed AO ERI. The general
+API accepts one value per logical artifact name; duplicate names are rejected
+before writing. Supplied values replace matching source entries in the output
+only, while the remaining artifacts are copied as verified streams. The source
+data and caller-owned values remain unchanged.
+
+```rust,ignore
+use rustiq_core::persistence::{AoEriArtifact, ArtifactRef};
+
+let artifacts = [ArtifactRef::new::<AoEriArtifact>(hf.ao_eri())];
+data.write_with_artifacts("water.rustiq", &artifacts)?;
+```
+
+Currently the only known artifact marker is `AoEriArtifact`. As additional markers
+are implemented, their borrowed values can be included in the same slice without
+adding a publication method for each combination of artifact types. This API
+publishes one calculation; `RustiQBundle` remains the collection API.
+
+Use `set_eri` or `set` to stage artifacts before a later publication. These setters
+borrow their values too, but require temporary space and a subsequent read during
+publication. They remain useful when collecting or replacing artifacts over time.
 
 ```rust
 // .rustiq -> Calculation
@@ -677,7 +697,9 @@ Compact ERI clones within an execution share immutable storage; mutation detache
 that storage. The source snapshot is never rewritten by execution.
 
 For callers managing portable data explicitly, `take_compatible_eri` checks
-scientific compatibility before returning the tensor. The lower-level
+scientific compatibility before returning the tensor. It takes `&self`, as do
+`get`, `read_eri`, and `RustiQBundle::select_ao_eri`; inspecting or selecting
+artifacts does not require mutable data or mutable bundle entries. The lower-level
 `execute_with_eri` and `run_hf_with_eri` APIs accept a caller-supplied
 `CompactEri` and validate its expected element count, but cannot establish that
 the tensor came from matching geometry, AO ordering, or screening settings. The

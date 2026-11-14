@@ -5,7 +5,7 @@ use super::super::{
     ArtifactAttributes, ArtifactError, CalculationContext, ManifestKind, PortableError,
     SourceProvenance, Storage, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION,
 };
-use super::{RustiQData, AO_ERI_ARTIFACT};
+use super::{AoEriArtifact, ArtifactRef, RustiQData, AO_ERI_ARTIFACT};
 use crate::calculation::PreparedCalculation;
 use relative_path::RelativePath;
 use std::io::Read;
@@ -280,13 +280,26 @@ impl RustiQData {
         path: impl AsRef<Path>,
         eri: &crate::eri::CompactEri,
     ) -> Result<(), PortableError> {
-        self.validate_eri(eri)?;
+        self.write_with_artifacts(path, &[ArtifactRef::new::<AoEriArtifact>(eri)])
+    }
+
+    /// Streams borrowed artifacts into a single-calculation bundle without staging them.
+    /// Supplied values override the same artifact names in this data; other payloads are
+    /// copied from their existing storage. This does not change the stored values of `self`.
+    ///
+    /// # Errors
+    /// Returns an error for duplicate names, invalid values, or failed publication.
+    pub fn write_with_artifacts(
+        &mut self,
+        path: impl AsRef<Path>,
+        artifacts: &[ArtifactRef<'_>],
+    ) -> Result<(), PortableError> {
         let sources = std::mem::take(&mut self.sources);
-        let result = super::bundle::write_bundle_with_eri(
+        let result = super::bundle::write_bundle_with_artifacts(
             std::slice::from_mut(self),
             &sources,
             path.as_ref(),
-            Some(eri),
+            artifacts,
         );
         self.sources = sources;
         result
@@ -299,7 +312,7 @@ impl RustiQData {
     ///
     /// Returns an error if the ERI is absent, incompatible, corrupt, or cannot be decoded.
     pub fn take_compatible_eri(
-        &mut self,
+        &self,
         calculation: &PreparedCalculation,
     ) -> Result<crate::eri::CompactEri, PortableError> {
         {
@@ -321,7 +334,7 @@ impl RustiQData {
         self.read_eri().map_err(Into::into)
     }
 
-    pub(crate) fn validate_unloaded_eri(&mut self) -> Result<(), PortableError> {
+    pub(crate) fn validate_unloaded_eri(&self) -> Result<(), PortableError> {
         let artifact = &self.manifest.artifacts[AO_ERI_ARTIFACT];
         let ArtifactAttributes::AoEri(attributes) = &artifact.attributes else {
             unreachable!()

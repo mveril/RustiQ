@@ -1,4 +1,4 @@
-use super::rustiq_data::RustiQData;
+use super::{rustiq_data::RustiQData, ArtifactRef};
 use crate::persistence::ArtifactError;
 
 pub(crate) mod private {
@@ -23,5 +23,5 @@ pub trait Artifact: private::Sealed {
     #[doc(hidden)]
     fn get(data: &RustiQData) -> Result<Option<Self::Value>, ArtifactError>;
     #[doc(hidden)]
-    fn set(data: &mut RustiQData, value: &Self::Value) -> Result<(), ArtifactError>;
+    fn borrow(value: &Self::Value) -> ArtifactRef<'_>;
 }

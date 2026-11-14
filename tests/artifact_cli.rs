@@ -376,9 +376,9 @@ fn non_converged_batch_publishes_eri_but_any_execution_failure_blocks_publicatio
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate_batch(&value);
     assert_eq!(value["calculations"][0]["status"], "non_converged");
-    let mut bundle = RustiQBundle::open(root.join("state.rustiq")).unwrap();
+    let bundle = RustiQBundle::open(root.join("state.rustiq")).unwrap();
     assert_eq!(bundle.calculations().len(), 2);
-    for data in bundle.calculations_mut() {
+    for data in bundle.calculations() {
         assert!(data.get::<AoEriArtifact>().unwrap().is_some());
         assert_eq!(data.artifact_representations().count(), 1);
     }

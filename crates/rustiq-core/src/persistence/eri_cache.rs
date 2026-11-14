@@ -365,7 +365,7 @@ impl EriCache {
         }
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
-        let mut entry_data =
+        let entry_data =
             RustiQData::new_with_identity(identity, basis_functions, ManifestKind::IntegralCache);
         entry_data
             .write_storage_with_eri(Storage::folder(temporary.path()), eri)

@@ -33,7 +33,7 @@ impl Artifact for AoEriArtifact {
         data.read_eri().map(Some)
     }
 
-    fn set(data: &mut RustiQData, value: &CompactEri) -> Result<(), ArtifactError> {
-        data.set_eri(value)
+    fn borrow(value: &CompactEri) -> super::ArtifactRef<'_> {
+        super::ArtifactRef::ao_eri(value)
     }
 }

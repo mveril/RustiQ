@@ -36,7 +36,7 @@ fn portable_workflow_combines_prelude_with_explicit_storage_imports() {
     assert!(reused);
     let _: &HfOutcome = &result.hf;
 
-    let mut strict_data = RustiQData::open(&path).unwrap();
+    let strict_data = RustiQData::open(&path).unwrap();
     let transferred: CompactEri = strict_data.take_compatible_eri(&prepared).unwrap();
     let strict_result = prepared.execute_with_eri(transferred).unwrap();
     assert!(!strict_result.hf.ao_eri().is_empty());

@@ -9,7 +9,7 @@ use rustiq_core::{
     },
     config::Mp2Config,
     molecules::Geometry,
-    persistence::{CompactEri, EriCache, RustiQData},
+    persistence::{AoEriArtifact, ArtifactRef, CompactEri, EriCache, RustiQData},
 };
 
 fn inputs(distance: f64) -> (Geometry, BasisFile) {
@@ -317,14 +317,16 @@ fn execution_does_not_need_temporary_artifact_storage() {
             tempfile::tempdir().is_err(),
             "the child must not have usable temporary storage"
         );
-        let data = RustiQData::open(path).unwrap();
+        let path = std::path::PathBuf::from(path);
+        let data = RustiQData::open(&path).unwrap();
+        let mut publication = data.clone();
         let expected = if data.artifact_representations().count() == 0 {
             ArtifactReuseDecision::Missing
         } else {
             ArtifactReuseDecision::Reused
         };
         let prepared = data.prepare_calculation().unwrap();
-        for _ in 0..2 {
+        for attempt in 0..2 {
             let mut decisions = Vec::new();
             let result = prepared
                 .execute_with_events(|event| {
@@ -335,6 +337,15 @@ fn execution_does_not_need_temporary_artifact_storage() {
                 .unwrap();
             assert!(result.hf.is_converged());
             assert_eq!(decisions, [expected]);
+            if attempt == 0 {
+                // Only the sibling archive temporary file is needed; TMPDIR remains unusable.
+                publication
+                    .write_with_artifacts(
+                        path.with_extension("direct.rustiq"),
+                        &[ArtifactRef::new::<AoEriArtifact>(result.hf.ao_eri())],
+                    )
+                    .unwrap();
+            }
         }
         return;
     }

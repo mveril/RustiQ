@@ -8,13 +8,12 @@ use relative_path::RelativePath;
 use crate::eri::CompactEri;
 
 use super::super::{
-    validate_storage_path, write_compact_eri, AoEriAttributes, ArtifactAttributes, ArtifactError,
-    ArtifactManifest, Manifest, ManifestError, ManifestKind, PersistenceReadError,
-    PersistenceWriteError, Producer, ScientificIdentityManifest, Storage, StorageError,
-    AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
-    FORMAT_VERSION, MANIFEST_PATH,
+    validate_storage_path, ArtifactAttributes, ArtifactError, Manifest, ManifestError,
+    ManifestKind, PersistenceReadError, PersistenceWriteError, Producer,
+    ScientificIdentityManifest, Storage, StorageError, AO_ERI_COMPUTATION_VERSION, AO_ERI_PATH,
+    COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION, MANIFEST_PATH,
 };
-use super::artifact::Artifact;
+use super::{artifact::Artifact, AoEriArtifact, ArtifactRef};
 
 pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
 pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
@@ -52,7 +51,10 @@ impl RustiQData {
     /// Returns an error if the artifact cannot be represented by the current metadata or
     /// writing its temporary on-disk payload fails.
     pub fn set<A: Artifact>(&mut self, value: &A::Value) -> Result<(), ArtifactError> {
-        A::set(self, value)
+        let artifact = ArtifactRef::new::<A>(value);
+        artifact.validate(self)?;
+        let directory = tempfile::tempdir().map_err(StorageError::from)?;
+        self.stage_artifact(artifact, directory)
     }
 
     pub(crate) fn new_with_identity(
@@ -143,36 +145,21 @@ impl RustiQData {
     /// Returns an error if basis metadata is missing, the compact ERI length does not match it,
     /// or writing the temporary payload fails.
     pub fn set_eri(&mut self, eri: &CompactEri) -> Result<(), ArtifactError> {
-        self.validate_eri(eri)?;
-        let directory = tempfile::tempdir().map_err(StorageError::from)?;
-        self.stage_eri(eri, directory)
+        self.set::<AoEriArtifact>(eri)
     }
 
-    fn stage_eri(
+    fn stage_artifact(
         &mut self,
-        eri: &CompactEri,
+        artifact: ArtifactRef<'_>,
         directory: tempfile::TempDir,
     ) -> Result<(), ArtifactError> {
         let mut storage = Storage::folder(directory.path());
-        let metadata = storage
-            .write_artifact::<ArtifactError, _>(RelativePath::new(AO_ERI_PATH), |writer| {
-                write_compact_eri(writer, eri).map_err(Into::into)
-            })?;
-        self.manifest.artifacts.insert(
-            AO_ERI_ARTIFACT.into(),
-            ArtifactManifest {
-                path: AO_ERI_PATH.into(),
-                size: metadata.size,
-                digest: metadata.digest,
-                representation: COMPACT_ERI_REPRESENTATION.into(),
-                attributes: ArtifactAttributes::AoEri(AoEriAttributes {
-                    basis_functions: self.basis_functions.ok_or(ArtifactError::Missing)?,
-                    computation_version: AO_ERI_COMPUTATION_VERSION,
-                }),
-            },
-        );
+        let record = artifact.write_to(self, &mut storage)?;
+        self.manifest
+            .artifacts
+            .insert(artifact.name().into(), record);
         self.staged
-            .insert(AO_ERI_ARTIFACT.into(), Arc::new((directory, storage)));
+            .insert(artifact.name().into(), Arc::new((directory, storage)));
         Ok(())
     }
 
@@ -244,31 +231,32 @@ impl RustiQData {
         self.source.as_deref()
     }
 
-    pub(crate) fn write_to(&mut self, destination: Storage) -> Result<(), PersistenceWriteError> {
-        self.write_inner(destination, None, true).map(|_| ())
+    pub(crate) fn write_to(&self, destination: Storage) -> Result<(), PersistenceWriteError> {
+        self.write_inner(destination, &[], true).map(|_| ())
     }
 
     pub(crate) fn write_storage_with_eri(
-        &mut self,
+        &self,
         destination: Storage,
         eri: &CompactEri,
     ) -> Result<(), PersistenceWriteError> {
-        self.write_inner(destination, Some(eri), true).map(|_| ())
+        self.write_inner(destination, &[ArtifactRef::new::<AoEriArtifact>(eri)], true)
+            .map(|_| ())
     }
 
-    pub(crate) fn write_entry_with_eri(
-        &mut self,
+    pub(crate) fn write_entry_with_artifacts(
+        &self,
         destination: Storage,
-        eri: &CompactEri,
+        artifacts: &[ArtifactRef<'_>],
     ) -> Result<Manifest, PersistenceWriteError> {
-        self.write_inner(destination, Some(eri), false)
+        self.write_inner(destination, artifacts, false)
     }
 
     pub(crate) fn write_entry(
-        &mut self,
+        &self,
         destination: Storage,
     ) -> Result<Manifest, PersistenceWriteError> {
-        self.write_inner(destination, None, false)
+        self.write_inner(destination, &[], false)
     }
 
     #[allow(
@@ -276,9 +264,9 @@ impl RustiQData {
         reason = "Artifact publication and manifest ordering form one coherent transaction"
     )]
     fn write_inner(
-        &mut self,
+        &self,
         mut destination: Storage,
-        eri: Option<&CompactEri>,
+        artifacts: &[ArtifactRef<'_>],
         publish_manifest: bool,
     ) -> Result<Manifest, PersistenceWriteError> {
         let mut manifest = self.manifest.clone();
@@ -338,7 +326,7 @@ impl RustiQData {
         }
 
         for (name, artifact) in &self.manifest.artifacts {
-            if name == AO_ERI_ARTIFACT && eri.is_some() {
+            if artifacts.iter().any(|borrowed| borrowed.name() == name) {
                 continue;
             }
 
@@ -368,28 +356,9 @@ impl RustiQData {
             }
         }
 
-        if let Some(eri) = eri {
-            let basis_functions = self.basis_functions.ok_or(ArtifactError::Missing)?;
-            self.validate_eri(eri)?;
-            let path = RelativePath::new(AO_ERI_PATH);
-            let metadata = destination
-                .write_artifact::<PersistenceWriteError, _>(path, |writer| {
-                    write_compact_eri(writer, eri).map_err(Into::into)
-                })?;
-
-            manifest.artifacts.insert(
-                AO_ERI_ARTIFACT.to_owned(),
-                ArtifactManifest {
-                    path: AO_ERI_PATH.into(),
-                    size: metadata.size,
-                    representation: COMPACT_ERI_REPRESENTATION.to_owned(),
-                    digest: metadata.digest,
-                    attributes: ArtifactAttributes::AoEri(AoEriAttributes {
-                        basis_functions,
-                        computation_version: AO_ERI_COMPUTATION_VERSION,
-                    }),
-                },
-            );
+        for artifact in artifacts {
+            let record = artifact.write_to(self, &mut destination)?;
+            manifest.artifacts.insert(artifact.name().into(), record);
         }
 
         if publish_manifest {
@@ -438,7 +407,7 @@ mod tests {
 
     use super::*;
     use crate::persistence::{
-        data::AoEriArtifact, sha256, Sha256Digest, SCIENTIFIC_IDENTITY_VERSION,
+        data::AoEriArtifact, sha256, ArtifactManifest, Sha256Digest, SCIENTIFIC_IDENTITY_VERSION,
     };
 
     fn new_data() -> RustiQData {
@@ -549,7 +518,12 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let failed = directory.path().to_path_buf();
         fs::write(directory.path().join("arrays"), b"blocks payload directory").unwrap();
-        assert!(data.stage_eri(&CompactEri::Zeroed(2), directory).is_err());
+        assert!(data
+            .stage_artifact(
+                ArtifactRef::new::<AoEriArtifact>(&CompactEri::Zeroed(2)),
+                directory
+            )
+            .is_err());
         assert!(!failed.exists());
         assert!(previous.exists());
         assert_eq!(data.manifest, before);
@@ -658,7 +632,7 @@ mod tests {
         data.write_to(Storage::folder(&first)).unwrap();
         fs::write(first.join(AO_ERI_PATH), b"bad").unwrap();
 
-        let mut restored = RustiQData::read_from(Storage::folder(&first)).unwrap();
+        let restored = RustiQData::read_from(Storage::folder(&first)).unwrap();
         assert!(matches!(
             restored.write_to(Storage::folder(&second)),
             Err(PersistenceWriteError::Artifact(
