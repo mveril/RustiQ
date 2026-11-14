@@ -71,7 +71,7 @@ impl RustiQBundle {
     ///
     /// Returns an error if archive structure, context, references, or provenance are invalid or cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
-        let mut storage = Storage::open_zip(path.as_ref())?;
+        let storage = Storage::open_zip(path.as_ref())?;
         let manifest: PortableManifest = storage
             .read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)
             .map_err(crate::persistence::PersistenceReadError::from)?;
@@ -84,7 +84,7 @@ impl RustiQBundle {
         if manifest.calculations.is_empty() {
             return Err(invalid("portable bundles require at least one calculation"));
         }
-        let sources = portable::read_sources(&mut storage, &manifest.sources)?;
+        let sources = portable::read_sources(&storage, &manifest.sources)?;
         let storage = Arc::new(Mutex::new(storage));
         let mut ids = HashSet::new();
         let mut calculations = Vec::new();

@@ -33,7 +33,9 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
     for (index, value) in indices.into_iter().zip(&values) {
         eri[index] = *value;
     }
-    data.set::<AoEriArtifact>(eri).unwrap();
+    data.set::<AoEriArtifact>(&eri).unwrap();
+    // The caller keeps its tensor; later mutations do not change the staged snapshot.
+    eri[(0, 0, 0, 0)] = 9.0;
     assert_eq!(
         data.artifact_representations().collect::<Vec<_>>(),
         vec![("ao_eri", "rustiq-compact-eri-v1")]
@@ -121,7 +123,7 @@ fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() 
         .add_source("input.ncl", b"opaque input".as_slice())
         .unwrap();
     bundle.calculations_mut()[1]
-        .set::<AoEriArtifact>(CompactEri::Zeroed(2))
+        .set::<AoEriArtifact>(&CompactEri::Zeroed(2))
         .unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("bundle.rustiq");
@@ -233,7 +235,7 @@ fn explicit_input_rejects_missing_incompatible_and_multiple_calculations() {
         data.take_compatible_eri(&prepared),
         Err(PortableError::Artifact(ArtifactError::Missing))
     ));
-    data.set_eri(CompactEri::Zeroed(2)).unwrap();
+    data.set_eri(&CompactEri::Zeroed(2)).unwrap();
     let changed = CalculationBuilder::new(&geometry, &basis)
         .with_integrals({
             let mut updated_config = IntegralConfig::default();

@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
 use relative_path::RelativePath;
 
@@ -17,12 +20,14 @@ pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
 pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 
 /// Known scientific artifacts and their manifest, with values loaded on demand.
-#[derive(Debug)]
+/// Cloning copies metadata and provenance while sharing disk-backed payloads.
+/// Replacing a payload affects only that data instance.
+#[derive(Clone, Debug)]
 pub struct RustiQData {
     pub(super) manifest: Manifest,
-    pub(super) source: Option<Storage>,
+    pub(super) source: Option<Arc<Storage>>,
     // TODO: Separate reader and writer responsibilities into two structures.
-    pub(super) staged: Option<(tempfile::TempDir, Storage)>,
+    pub(super) staged: BTreeMap<String, Arc<(tempfile::TempDir, Storage)>>,
     pub(super) basis_functions: Option<usize>,
     pub(super) request: Option<crate::calculation::CalculationRequest>,
     pub(super) sources: Vec<super::super::SourceProvenance>,
@@ -40,13 +45,13 @@ impl RustiQData {
         A::get(self)
     }
 
-    /// Sets a known scientific artifact using its statically selected value type.
+    /// Borrows and immediately stages a known scientific artifact on disk.
     ///
     /// # Errors
     ///
     /// Returns an error if the artifact cannot be represented by the current metadata or
     /// writing its temporary on-disk payload fails.
-    pub fn set<A: Artifact>(&mut self, value: A::Value) -> Result<(), ArtifactError> {
+    pub fn set<A: Artifact>(&mut self, value: &A::Value) -> Result<(), ArtifactError> {
         A::set(self, value)
     }
 
@@ -77,7 +82,7 @@ impl RustiQData {
             context: None,
             request: None,
             sources: Vec::new(),
-            staged: None,
+            staged: BTreeMap::new(),
             basis_functions: Some(basis_functions),
         }
     }
@@ -118,11 +123,11 @@ impl RustiQData {
 
         Ok(Self {
             manifest,
-            source: Some(source),
+            source: Some(Arc::new(source)),
             context: None,
             request: None,
             sources: Vec::new(),
-            staged: None,
+            staged: BTreeMap::new(),
             basis_functions,
         })
     }
@@ -137,14 +142,10 @@ impl RustiQData {
     ///
     /// Returns an error if basis metadata is missing, the compact ERI length does not match it,
     /// or writing the temporary payload fails.
-    #[allow(
-        clippy::needless_pass_by_value,
-        reason = "The typed set API consumes the value and releases it after staging"
-    )]
-    pub fn set_eri(&mut self, eri: CompactEri) -> Result<(), ArtifactError> {
-        self.validate_eri(&eri)?;
+    pub fn set_eri(&mut self, eri: &CompactEri) -> Result<(), ArtifactError> {
+        self.validate_eri(eri)?;
         let directory = tempfile::tempdir().map_err(StorageError::from)?;
-        self.stage_eri(&eri, directory)
+        self.stage_eri(eri, directory)
     }
 
     fn stage_eri(
@@ -170,7 +171,8 @@ impl RustiQData {
                 }),
             },
         );
-        self.staged = Some((directory, storage));
+        self.staged
+            .insert(AO_ERI_ARTIFACT.into(), Arc::new((directory, storage)));
         Ok(())
     }
 
@@ -217,28 +219,29 @@ impl RustiQData {
         if source.artifact_size(&artifact.path)? != artifact.size {
             return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()));
         }
-        let metadata = source.artifact_metadata(&artifact.path)?;
-        if metadata.size != artifact.size || metadata.digest != artifact.digest {
-            return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()));
-        }
-
         source.with_artifact::<_, ArtifactError, _>(&artifact.path, |reader| {
-            super::super::npy::read_checked_compact_eri(
-                reader,
+            let hashing = super::super::checksum::DigestReader::new(reader);
+            // Buffer above the hasher so NPY's small reads hash blocks rather than individual values.
+            let mut reader = std::io::BufReader::with_capacity(64 * 1024, hashing);
+            let value = super::super::npy::read_checked_compact_eri(
+                &mut reader,
                 attributes.basis_functions,
                 artifact.size,
-            )
-            .map_err(Into::into)
+            );
+            std::io::copy(&mut reader, &mut std::io::sink()).map_err(StorageError::from)?;
+            let (size, digest) = reader.into_inner().finish();
+            if size != artifact.size || digest != artifact.digest {
+                return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()));
+            }
+            value.map_err(Into::into)
         })
     }
 
     pub(super) fn artifact_source(&self, name: &str) -> Option<&Storage> {
-        if name == AO_ERI_ARTIFACT {
-            if let Some((_, storage)) = &self.staged {
-                return Some(storage);
-            }
+        if let Some(staged) = self.staged.get(name) {
+            return Some(&staged.1);
         }
-        self.source.as_ref()
+        self.source.as_deref()
     }
 
     pub(crate) fn write_to(&mut self, destination: Storage) -> Result<(), PersistenceWriteError> {
@@ -456,13 +459,22 @@ mod tests {
         fs::create_dir(&entry).unwrap();
         let mut data = new_data();
         assert!(data.get::<AoEriArtifact>().unwrap().is_none());
-        data.set::<AoEriArtifact>(CompactEri::Zeroed(2)).unwrap();
+        data.set::<AoEriArtifact>(&CompactEri::Zeroed(2)).unwrap();
         data.write_to(Storage::folder(&entry)).unwrap();
         let restored = RustiQData::read_from(Storage::folder(&entry)).unwrap();
         let first = restored.get::<AoEriArtifact>().unwrap().unwrap();
         let second = restored.get::<AoEriArtifact>().unwrap().unwrap();
         assert_eq!(first.ordered_values(), second.ordered_values());
-        fs::write(entry.join(AO_ERI_PATH), b"corrupt").unwrap();
+        let path = entry.join(AO_ERI_PATH);
+        let mut bytes = fs::read(&path).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 1;
+        fs::write(&path, bytes).unwrap();
+        assert!(matches!(
+            restored.get::<AoEriArtifact>(),
+            Err(ArtifactError::IntegrityMismatch(_))
+        ));
+        fs::write(&path, b"corrupt").unwrap();
         assert!(matches!(
             restored.get::<AoEriArtifact>(),
             Err(ArtifactError::IntegrityMismatch(_))
@@ -473,27 +485,67 @@ mod tests {
     #[test]
     fn set_stages_immediately_and_cleans_up_on_replacement_and_drop() {
         let mut data = new_data();
-        data.set_eri(CompactEri::Zeroed(2)).unwrap();
-        let first = data.staged.as_ref().unwrap().0.path().to_path_buf();
+        data.set_eri(&CompactEri::Zeroed(2)).unwrap();
+        let first = data
+            .staged
+            .get(AO_ERI_ARTIFACT)
+            .unwrap()
+            .0
+            .path()
+            .to_path_buf();
         assert!(first.join(AO_ERI_PATH).is_file());
         let before = data.manifest.clone();
-        assert!(data.set_eri(CompactEri::Zeroed(3)).is_err());
+        assert!(data.set_eri(&CompactEri::Zeroed(3)).is_err());
         assert_eq!(data.manifest, before);
         assert!(first.exists());
-        data.set_eri(CompactEri::Zeroed(2)).unwrap();
+        data.set_eri(&CompactEri::Zeroed(2)).unwrap();
         assert!(!first.exists());
-        let second = data.staged.as_ref().unwrap().0.path().to_path_buf();
+        let second = data
+            .staged
+            .get(AO_ERI_ARTIFACT)
+            .unwrap()
+            .0
+            .path()
+            .to_path_buf();
         assert_eq!(data.read_eri().unwrap().len(), 6);
         drop(data);
         assert!(!second.exists());
     }
 
     #[test]
+    fn clones_share_payload_lifetimes_but_replace_independently() {
+        let mut data = new_data();
+        data.set_eri(&CompactEri::Zeroed(2)).unwrap();
+        let original_path = data.staged[AO_ERI_ARTIFACT].0.path().to_path_buf();
+        let copy = data.clone();
+        let replacement = CompactEri::from_ordered_values(2, vec![2.0; 6]).unwrap();
+        data.set_eri(&replacement).unwrap();
+        let replacement_path = data.staged[AO_ERI_ARTIFACT].0.path().to_path_buf();
+        assert!(original_path.exists());
+        assert_eq!(copy.read_eri().unwrap().ordered_values(), &[0.0; 6]);
+        assert_eq!(
+            data.read_eri().unwrap().ordered_values(),
+            replacement.ordered_values()
+        );
+        drop(data);
+        assert!(!replacement_path.exists());
+        assert!(original_path.exists());
+        drop(copy);
+        assert!(!original_path.exists());
+    }
+
+    #[test]
     fn staging_io_failure_keeps_the_previous_payload() {
         let mut data = new_data();
-        data.set_eri(CompactEri::Zeroed(2)).unwrap();
+        data.set_eri(&CompactEri::Zeroed(2)).unwrap();
         let before = data.manifest.clone();
-        let previous = data.staged.as_ref().unwrap().0.path().to_path_buf();
+        let previous = data
+            .staged
+            .get(AO_ERI_ARTIFACT)
+            .unwrap()
+            .0
+            .path()
+            .to_path_buf();
         let directory = tempfile::tempdir().unwrap();
         let failed = directory.path().to_path_buf();
         fs::write(directory.path().join("arrays"), b"blocks payload directory").unwrap();
@@ -513,7 +565,7 @@ mod tests {
         fs::create_dir(&second).unwrap();
 
         let mut data = new_data();
-        data.set_eri(CompactEri::Zeroed(2)).unwrap();
+        data.set_eri(&CompactEri::Zeroed(2)).unwrap();
         data.write_to(Storage::folder(&first)).unwrap();
 
         let unknown = b"opaque future data";
@@ -537,6 +589,26 @@ mod tests {
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
         let mut restored = RustiQData::read_from(Storage::folder(&first)).unwrap();
+        let future_directory = tempfile::tempdir().unwrap();
+        let future_root = future_directory.path().to_path_buf();
+        let mut future_storage = Storage::folder(&future_root);
+        future_storage
+            .write_artifact::<StorageError, _>(
+                RelativePath::new("arrays/post-hf/future.npy"),
+                |writer| {
+                    std::io::Write::write_all(writer, unknown)?;
+                    Ok(())
+                },
+            )
+            .unwrap();
+        restored.staged.insert(
+            "future".into(),
+            Arc::new((future_directory, future_storage)),
+        );
+        // Staging or replacing AO ERIs must leave other staged artifacts available.
+        restored.set_eri(&CompactEri::Zeroed(2)).unwrap();
+        restored.set_eri(&CompactEri::Zeroed(2)).unwrap();
+        assert!(future_root.exists());
         restored.write_to(Storage::folder(&second)).unwrap();
         assert_eq!(
             fs::read(second.join("arrays/post-hf/future.npy")).unwrap(),
@@ -582,7 +654,7 @@ mod tests {
         fs::create_dir(&second).unwrap();
 
         let mut data = new_data();
-        data.set_eri(CompactEri::Zeroed(2)).unwrap();
+        data.set_eri(&CompactEri::Zeroed(2)).unwrap();
         data.write_to(Storage::folder(&first)).unwrap();
         fs::write(first.join(AO_ERI_PATH), b"bad").unwrap();
 

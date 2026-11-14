@@ -121,13 +121,14 @@ impl PreparedCalculation {
     /// Supplies a read-only source of reusable typed scientific artifacts.
     /// Normal execution checks compatibility per artifact, then uses the enabled
     /// local cache or computes missing/incompatible values. Corrupt required
-    /// payloads are errors. Newly computed values are retained in memory.
+    /// payloads are errors. Execution does not stage newly computed values; repeated
+    /// calls use the explicitly enabled ERI cache or recompute missing values.
     ///
     /// # Errors
     ///
-    /// Returns an error if reusable portable data is incompatible with this calculation.
+    /// Currently always returns `Ok`. Artifact validation errors are reported during execution.
     pub fn with_reuse_data(mut self, data: RustiQData) -> Result<Self, PortableError> {
-        self.source = CalculationSource::Portable(Box::new(ArtifactReuse::new(data, &self)?));
+        self.source = CalculationSource::Portable(Box::new(ArtifactReuse::new(data)));
         Ok(self)
     }
 
@@ -220,7 +221,6 @@ impl PreparedCalculation {
         eri: Option<CompactEri>,
         events: impl FnMut(CalculationEvent<'_>),
     ) -> Result<HfOutcome, CalculationExecutionError> {
-        let retain_artifact = eri.is_none();
         let events = RefCell::new(events);
         let (config, method) = &self.hf;
         events.borrow_mut()(CalculationEvent::HfStarted {
@@ -263,13 +263,6 @@ impl PreparedCalculation {
                 HfOutcome::Unconverged(AnyHfSolution::from_state(scf, calculation.state))
             }
         };
-        if retain_artifact {
-            if let CalculationSource::Portable(reuse) = &self.source {
-                reuse
-                    .remember::<AoEriArtifact>(hf.ao_eri().clone())
-                    .map_err(|error| hf.clone().execution_error(CalculationError::from(error)))?;
-            }
-        }
         events.borrow_mut()(CalculationEvent::HfCompleted(&hf));
         Ok(hf)
     }

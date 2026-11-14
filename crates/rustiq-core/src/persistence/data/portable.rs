@@ -33,7 +33,7 @@ impl RustiQData {
     }
 
     /// Opens a portable archive and validates its context and artifact index.
-    /// Numerical payloads are verified and decoded lazily on first access.
+    /// Numerical payloads are verified and decoded on demand on each access.
     /// Multi-calculation archives require [`super::RustiQBundle::open`].
     ///
     /// # Errors
@@ -56,7 +56,7 @@ impl RustiQData {
         if data.manifest.kind != ManifestKind::Portable {
             return Err(PortableError::UnsupportedVersion);
         }
-        let source = data.source.as_mut().expect("opened storage");
+        let source = data.source.as_deref().expect("opened storage");
         let reference =
             data.manifest.calculation.as_ref().ok_or_else(|| {
                 PortableError::InvalidArchive("missing calculation reference".into())
@@ -342,7 +342,7 @@ impl RustiQData {
 }
 
 pub(super) fn read_sources(
-    source: &mut Storage,
+    source: &Storage,
     references: &[super::super::manifest::SourceManifest],
 ) -> Result<Vec<SourceProvenance>, PortableError> {
     let mut sources = Vec::new();
@@ -400,7 +400,7 @@ pub(super) fn read_sources(
 }
 
 fn verify_reference(
-    source: &mut Storage,
+    source: &Storage,
     reference: &super::super::manifest::SnapshotManifest,
     expected_path: &str,
     limit: u64,

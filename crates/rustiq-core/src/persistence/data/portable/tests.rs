@@ -35,7 +35,7 @@ fn calculation() -> PreparedCalculation {
 }
 fn data() -> RustiQData {
     let mut data = RustiQData::from_calculation(&calculation()).unwrap();
-    data.set_eri(CompactEri::from_ordered_values(2, vec![0.5, 1.5, 2.5, 3.5, 4.5, 5.5]).unwrap())
+    data.set_eri(&CompactEri::from_ordered_values(2, vec![0.5, 1.5, 2.5, 3.5, 4.5, 5.5]).unwrap())
         .unwrap();
     data
 }
@@ -137,7 +137,7 @@ fn rust_round_trip_is_lazy_self_describing_and_reproducible() {
     data().write(&second).unwrap();
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
     let restored = RustiQData::open(&first).unwrap();
-    assert!(restored.staged.is_none());
+    assert!(restored.staged.is_empty());
     let context = restored.calculation().unwrap();
     assert_eq!(
         context.atoms().collect::<Vec<_>>(),
@@ -284,7 +284,7 @@ fn opaque_sources_preserve_exact_bytes_without_affecting_scientific_state() {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
     }
     let mut restored = RustiQData::open(&path).unwrap();
-    assert!(restored.staged.is_none());
+    assert!(restored.staged.is_empty());
     assert!(restored.eri_is_compatible(&calculation()));
     for (source, (name, bytes)) in restored.sources().zip(sources) {
         assert_eq!(source.original_name(), name);
@@ -443,7 +443,7 @@ fn compatibility_depends_on_effective_integral_inputs_only() {
         .unwrap();
     assert!(!data.eri_is_compatible(&changed));
     data.manifest.artifacts.remove(AO_ERI_ARTIFACT);
-    data.staged = None;
+    data.staged.clear();
     assert!(!data.eri_is_compatible(&prepared));
 }
 
@@ -537,7 +537,7 @@ fn unknown_artifacts_survive_verified_streaming_copy() {
     let mut restored = RustiQData::open(&source).unwrap();
     let output = dir.path().join("copy.rustiq");
     restored.write(&output).unwrap();
-    assert!(restored.staged.is_none());
+    assert!(restored.staged.is_empty());
     assert!(members(&output).contains(&(
         "calculations/calculation-0/arrays/future.bin".into(),
         opaque
@@ -949,7 +949,7 @@ fn rewriting_foreign_producer_updates_provenance_only() {
     assert_eq!(restored.producer(), ("Python", "old"));
     let output = dir.path().join("rewritten.rustiq");
     restored.write(&output).unwrap();
-    assert!(restored.staged.is_none());
+    assert!(restored.staged.is_empty());
     let rewritten = RustiQData::open(&output).unwrap();
     assert_eq!(rewritten.producer(), ("RustiQ", env!("CARGO_PKG_VERSION")));
     assert_eq!(
@@ -1130,7 +1130,7 @@ fn bundle_entries_have_independent_lazy_artifacts_and_shared_sources() {
     second
         .add_source("batch.ncl", b"shared source".as_slice())
         .unwrap();
-    second.set_eri(CompactEri::Zeroed(2)).unwrap();
+    second.set_eri(&CompactEri::Zeroed(2)).unwrap();
     let mut bundle = RustiQBundle::new(vec![first, second]).unwrap();
     assert_eq!(bundle.sources().len(), 1);
     let dir = tempfile::tempdir().unwrap();
@@ -1162,7 +1162,7 @@ fn bundle_entries_have_independent_lazy_artifacts_and_shared_sources() {
     assert!(restored
         .calculations()
         .iter()
-        .all(|data| data.staged.is_none()));
+        .all(|data| data.staged.is_empty()));
     assert!(restored.calculations()[0].eri_is_compatible(&prepared));
     assert!(!restored.calculations()[1].eri_is_compatible(&prepared));
     assert!(restored.calculations()[1].eri_is_compatible(&changed));
@@ -1173,7 +1173,7 @@ fn bundle_entries_have_independent_lazy_artifacts_and_shared_sources() {
             .ordered_values()[0],
         0.5
     );
-    assert!(restored.calculations()[1].staged.is_none());
+    assert!(restored.calculations()[1].staged.is_empty());
     assert_eq!(
         restored.calculations_mut()[1]
             .read_eri()
@@ -1287,7 +1287,7 @@ fn reads_python_multi_calculation_fixture() {
     assert_eq!(bundle.sources().len(), 1);
     assert_eq!(bundle.calculations().len(), 2);
     for data in bundle.calculations_mut() {
-        assert!(data.staged.is_none());
+        assert!(data.staged.is_empty());
         assert_eq!(
             data.read_eri().unwrap().ordered_values(),
             &[0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
@@ -1370,13 +1370,15 @@ fn selects_supported_eri_by_compatibility_and_preserves_ignored_state() {
         .prepare()
         .unwrap();
     let mut incompatible = RustiQData::from_calculation(&changed).unwrap();
-    incompatible.set_eri(CompactEri::Zeroed(2)).unwrap();
+    incompatible.set_eri(&CompactEri::Zeroed(2)).unwrap();
     let mut bundle = RustiQBundle::new(vec![incompatible, data(), data()]).unwrap();
     let ignored = bundle.select_ao_eri(&prepared, false).unwrap();
     assert_eq!(ignored.decision, ArtifactReuseDecision::Ignored);
     assert_eq!(ignored.source_index, Some(1));
     assert!(ignored.value.is_none());
-    assert!(bundle.calculations()[1].staged.is_some());
+    assert!(bundle.calculations()[1]
+        .staged
+        .contains_key(AO_ERI_ARTIFACT));
     let selected = bundle.select_ao_eri(&prepared, true).unwrap();
     assert_eq!(selected.decision, ArtifactReuseDecision::Reused);
     assert_eq!(selected.source_index, Some(1));
@@ -1437,7 +1439,7 @@ fn replacement_validates_before_publication_and_collects_entry_sources() {
         .add_source("latest.toml", b"exact source".as_slice())
         .unwrap();
     replacement.calculations_mut()[0]
-        .set_eri(CompactEri::Zeroed(2))
+        .set_eri(&CompactEri::Zeroed(2))
         .unwrap();
     replacement.replace(&path).unwrap();
     let mut restored = RustiQBundle::open(&path).unwrap();

@@ -325,13 +325,17 @@ for details.
 Portable NPY ERI payloads stream directly into the final shared compact storage
 through an exact-size iterator, avoiding a temporary full-size `Vec<f64>`.
 `RustiQData::get` takes `&self` and returns an owned value, reading and validating
-the artifact on every call without caching decoded data. `set` writes immediately
-to a disk-backed `tempfile::TempDir`, so it can report I/O errors before final
-publication. Successful replacements release the previous temporary storage;
-dropping the data cleans up the remaining directory. Publication copies payloads
-in streams rather than loading them all into memory. This leaves the disposable
-ERI disk cache unchanged and does not reduce the memory required by the active
-calculation or a value returned by `get`.
+the artifact on every call without caching decoded data. Integrity hashing and
+decoding share one buffered read of the payload. `set` borrows its value and
+writes immediately to a disk-backed `tempfile::TempDir`, so it can report I/O
+errors before final publication. Clones share the disk payloads; replacement
+releases the previous payload only when its last owner disappears. Dropping the
+last owner cleans up its temporary directory. Execution reads directly from the
+supplied source and never stages artifacts implicitly; missing artifacts use the
+enabled ERI disk cache or are recomputed on each execution. Publication copies
+payloads in streams rather than loading them all into memory. This leaves the
+disposable ERI disk cache unchanged and does not reduce the memory required by
+the active calculation or a value returned by `get`.
 
 This distinction matters for performance: compact AO ERI storage still grows
 as the fourth power of basis dimension, and the MP2 workspace budget covers

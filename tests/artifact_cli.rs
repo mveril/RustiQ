@@ -526,3 +526,40 @@ fn portable_reruns_preserve_convergence_exit_codes() {
         }
     }
 }
+
+#[test]
+fn reuse_without_publication_does_not_need_temporary_storage() {
+    let directory = fixture();
+    let root = directory.path();
+    calculate(root, &["--artifact", "source.rustiq"]);
+    let before = fs::read(root.join("source.rustiq")).unwrap();
+    let blocked = root.join("unavailable-temporary-directory");
+    fs::write(&blocked, b"not a directory").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+        .current_dir(root)
+        .env("RUSTIQ_DATA_HOME", root.join("data"))
+        .env("RUSTIQ_CACHE_HOME", root.join("cache"))
+        .env("RUSTIQ_AUTO_DOWNLOAD", "0")
+        .env("TMPDIR", &blocked)
+        .env("TMP", &blocked)
+        .env("TEMP", &blocked)
+        .args([
+            "run",
+            "run.toml",
+            "--reuse",
+            "source.rustiq",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report(&result)["decision"], "reused");
+    assert_eq!(report(&result)["origin"], "archive");
+    assert_eq!(fs::read(root.join("source.rustiq")).unwrap(), before);
+}

@@ -86,7 +86,7 @@ fn execute_automatically_reuses_portable_eri_and_preserves_mp2_results() {
     clippy::float_cmp,
     reason = "Artifact reuse must preserve identical execution results and stored values exactly"
 )]
-fn missing_eri_are_computed_once_and_staged_for_normal_execution() {
+fn missing_eri_are_recomputed_without_implicit_staging() {
     let (geometry, basis) = inputs(1.4);
     let original = CalculationBuilder::new(&geometry, &basis)
         .prepare()
@@ -119,7 +119,7 @@ fn missing_eri_are_computed_once_and_staged_for_normal_execution() {
         decisions,
         [
             ArtifactReuseDecision::Missing,
-            ArtifactReuseDecision::Reused
+            ArtifactReuseDecision::Missing
         ]
     );
     assert_eq!(
@@ -153,7 +153,7 @@ fn incompatible_artifacts_fall_back_to_the_current_calculation_and_local_cache()
         .prepare()
         .unwrap();
     let mut source = RustiQData::from_calculation(&source_calculation).unwrap();
-    source.set_eri(CompactEri::Zeroed(2)).unwrap();
+    source.set_eri(&CompactEri::Zeroed(2)).unwrap();
     let (geometry, _) = inputs(1.6);
     let expected = CalculationBuilder::new(&geometry, &basis)
         .execute()
@@ -198,7 +198,7 @@ fn explicit_portable_eri_take_precedence_over_local_cache_and_computation() {
         .prepare()
         .unwrap();
     let mut source = RustiQData::from_calculation(&original).unwrap();
-    source.set_eri(CompactEri::Zeroed(2)).unwrap();
+    source.set_eri(&CompactEri::Zeroed(2)).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let cache_root = directory.path().join("unused-cache");
     let calculation = CalculationBuilder::new(&geometry, &basis)
@@ -307,4 +307,73 @@ fn resolved_spherical_ao_components_are_restored_without_renormalization() {
         result.hf.summary().scf.total_energy,
         expected.hf.summary().scf.total_energy
     );
+}
+
+#[test]
+fn execution_does_not_need_temporary_artifact_storage() {
+    const CHILD_ARCHIVE: &str = "RUSTIQ_TEST_READ_ONLY_EXECUTION_ARCHIVE";
+    if let Some(path) = std::env::var_os(CHILD_ARCHIVE) {
+        assert!(
+            tempfile::tempdir().is_err(),
+            "the child must not have usable temporary storage"
+        );
+        let data = RustiQData::open(path).unwrap();
+        let expected = if data.artifact_representations().count() == 0 {
+            ArtifactReuseDecision::Missing
+        } else {
+            ArtifactReuseDecision::Reused
+        };
+        let prepared = data.prepare_calculation().unwrap();
+        for _ in 0..2 {
+            let mut decisions = Vec::new();
+            let result = prepared
+                .execute_with_events(|event| {
+                    if let CalculationEvent::ArtifactReuse(event) = event {
+                        decisions.push(event.decision);
+                    }
+                })
+                .unwrap();
+            assert!(result.hf.is_converged());
+            assert_eq!(decisions, [expected]);
+        }
+        return;
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let blocked = directory.path().join("unavailable-temporary-directory");
+    std::fs::write(&blocked, b"not a directory").unwrap();
+    let (geometry, basis) = inputs(1.4);
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .prepare()
+        .unwrap();
+    let hf = prepared.run_hf().unwrap();
+    for include_eri in [false, true] {
+        let path = directory
+            .path()
+            .join(format!("source-{include_eri}.rustiq"));
+        let mut data = RustiQData::from_calculation(&prepared).unwrap();
+        if include_eri {
+            data.write_with_eri(&path, hf.ao_eri()).unwrap();
+        } else {
+            data.write(&path).unwrap();
+        }
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "execution_does_not_need_temporary_artifact_storage",
+                "--nocapture",
+            ])
+            .env(CHILD_ARCHIVE, &path)
+            .env("TMPDIR", &blocked)
+            .env("TMP", &blocked)
+            .env("TEMP", &blocked)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "child failed: {}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
