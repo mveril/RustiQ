@@ -67,7 +67,7 @@ fn borrowed_artifact_publication_is_transient_and_rejects_duplicate_names() {
     use crate::persistence::ArtifactRef;
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("direct.rustiq");
-    let mut stored = data();
+    let stored = data();
     let original = stored.manifest.clone();
     let replacement = CompactEri::Zeroed(2);
     let artifact = ArtifactRef::new::<AoEriArtifact>(&replacement);
@@ -569,7 +569,7 @@ fn unknown_artifacts_survive_verified_streaming_copy() {
     });
     let source = dir.path().join("source.rustiq");
     write_members(&source, &contents);
-    let mut restored = RustiQData::open(&source).unwrap();
+    let restored = RustiQData::open(&source).unwrap();
     let output = dir.path().join("copy.rustiq");
     let replacement = CompactEri::Zeroed(2);
     restored

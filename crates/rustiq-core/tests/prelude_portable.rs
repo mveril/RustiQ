@@ -17,7 +17,7 @@ fn portable_workflow_combines_prelude_with_explicit_storage_imports() {
     let eri: &CompactEri = hf.ao_eri();
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("h2.rustiq");
-    let mut data = RustiQData::from_calculation(&prepared).unwrap();
+    let data = RustiQData::from_calculation(&prepared).unwrap();
     data.write_with_eri(&path, eri).unwrap();
 
     let restored = RustiQData::open(&path)

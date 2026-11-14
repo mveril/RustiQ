@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data = RustiQData::open(input)?;
     let eri = data.take_compatible_eri(&prepared)?;
     let result = prepared.execute_with_eri(eri)?;
-    let mut output = RustiQData::from_calculation(&prepared)?;
+    let output = RustiQData::from_calculation(&prepared)?;
     let output_path = common::data_path("h2-copy.rustiq")?;
     output.write_with_eri(&output_path, result.hf.ao_eri())?;
     println!(

@@ -319,7 +319,7 @@ fn execution_does_not_need_temporary_artifact_storage() {
         );
         let path = std::path::PathBuf::from(path);
         let data = RustiQData::open(&path).unwrap();
-        let mut publication = data.clone();
+        let publication = data.clone();
         let expected = if data.artifact_representations().count() == 0 {
             ArtifactReuseDecision::Missing
         } else {
