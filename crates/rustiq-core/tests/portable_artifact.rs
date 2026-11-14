@@ -2,7 +2,7 @@ use rustiq_core::{
     basis::BasisFile,
     calculation::CalculationBuilder,
     molecules::Geometry,
-    persistence::{AoEriArtifact, CompactEri, PortableError, RustiQData},
+    persistence::{AoEriArtifact, ArtifactRef, CompactEri, PortableError, RustiQData},
 };
 
 #[test]
@@ -33,7 +33,9 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
     for (index, value) in indices.into_iter().zip(&values) {
         eri[index] = *value;
     }
-    data.set::<AoEriArtifact>(eri).unwrap();
+    data.set::<AoEriArtifact>(&eri).unwrap();
+    // The caller keeps its tensor; later mutations do not change the staged snapshot.
+    eri[(0, 0, 0, 0)] = 9.0;
     assert_eq!(
         data.artifact_representations().collect::<Vec<_>>(),
         vec![("ao_eri", "rustiq-compact-eri-v1")]
@@ -45,7 +47,7 @@ fn public_api_creates_inspects_and_recovers_a_portable_artifact() {
         data.write(&path),
         Err(PortableError::AlreadyExists)
     ));
-    let mut restored = RustiQData::open(&path).unwrap();
+    let restored = RustiQData::open(&path).unwrap();
     assert_eq!(
         restored.request().unwrap().hf().method.value,
         rustiq_core::config::HfMethod::Auto
@@ -121,12 +123,12 @@ fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() 
         .add_source("input.ncl", b"opaque input".as_slice())
         .unwrap();
     bundle.calculations_mut()[1]
-        .set::<AoEriArtifact>(CompactEri::Zeroed(2))
+        .set::<AoEriArtifact>(&CompactEri::Zeroed(2))
         .unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("bundle.rustiq");
     bundle.write(&path).unwrap();
-    let mut reopened = RustiQBundle::open(&path).unwrap();
+    let reopened = RustiQBundle::open(&path).unwrap();
     assert_eq!(reopened.sources().next().unwrap().bytes(), b"opaque input");
     for entry in reopened.calculations() {
         let request = entry.request().unwrap();
@@ -153,11 +155,11 @@ fn public_bundle_api_preserves_restructured_options_for_multiple_calculations() 
             .eri_schwarz_threshold()
             .is_none());
     }
-    assert!(reopened.calculations_mut()[0]
+    assert!(reopened.calculations()[0]
         .get::<AoEriArtifact>()
         .unwrap()
         .is_none());
-    assert!(reopened.calculations_mut()[1]
+    assert!(reopened.calculations()[1]
         .get::<AoEriArtifact>()
         .unwrap()
         .is_some());
@@ -187,9 +189,16 @@ fn borrowed_output_and_owned_input_preserve_eri_and_mp2() {
     let tensor = ordinary.hf.ao_eri();
     let pointer = &raw const tensor[(0, 0, 0, 0)];
     data.write_with_eri(&path, tensor).unwrap();
+    let general_path = directory.path().join("borrowed-artifacts.rustiq");
+    data.write_with_artifacts(&general_path, &[ArtifactRef::new::<AoEriArtifact>(tensor)])
+        .unwrap();
+    assert_eq!(
+        std::fs::read(&path).unwrap(),
+        std::fs::read(general_path).unwrap()
+    );
     assert_eq!(pointer, &raw const ordinary.hf.ao_eri()[(0, 0, 0, 0)]);
     assert!(data.get::<AoEriArtifact>().unwrap().is_none());
-    let mut restored = RustiQData::open(&path).unwrap();
+    let restored = RustiQData::open(&path).unwrap();
     assert_eq!(restored.sources().len(), 1);
     assert_eq!(restored.calculation().unwrap().charge(), 0);
     let cache_root = directory.path().join("unused-cache");
@@ -233,7 +242,7 @@ fn explicit_input_rejects_missing_incompatible_and_multiple_calculations() {
         data.take_compatible_eri(&prepared),
         Err(PortableError::Artifact(ArtifactError::Missing))
     ));
-    data.set_eri(CompactEri::Zeroed(2)).unwrap();
+    data.set_eri(&CompactEri::Zeroed(2)).unwrap();
     let changed = CalculationBuilder::new(&geometry, &basis)
         .with_integrals({
             let mut updated_config = IntegralConfig::default();
@@ -301,7 +310,7 @@ fn explicit_input_reports_corrupt_and_unsupported_eri() {
             writer.write_all(&bytes).unwrap();
         }
         writer.finish().unwrap();
-        let mut data = RustiQData::open(path).unwrap();
+        let data = RustiQData::open(path).unwrap();
         let error = data.take_compatible_eri(&prepared).unwrap_err();
         if unsupported {
             assert!(matches!(

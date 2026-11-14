@@ -7,11 +7,8 @@ use std::{
 
 use miette::{miette, IntoDiagnostic};
 use rustiq_core::{
-    calculation::{
-        ArtifactReuseDecision, CalculationEvent, CalculationResult, EriCacheAction,
-        PreparedCalculation,
-    },
-    persistence::{AoEriArtifact, RustiQBundle, RustiQData},
+    calculation::{CalculationEvent, CalculationResult, EriCacheAction, PreparedCalculation},
+    persistence::{AoEriArtifact, Artifact, RustiQBundle, RustiQData},
 };
 use serde::Serialize;
 
@@ -93,19 +90,24 @@ impl ArtifactSession {
             origin: "computation",
             source_index: None,
         };
-        if let Some(bundle) = self.source.borrow_mut().as_mut() {
-            let selection = bundle.select_ao_eri(&prepared, true).into_diagnostic()?;
-            report.decision = match selection.decision {
-                ArtifactReuseDecision::Reused => "reused",
-                ArtifactReuseDecision::Missing => "missing",
-                ArtifactReuseDecision::Incompatible => "incompatible",
-                ArtifactReuseDecision::Ignored => "ignored",
-                _ => return Err(miette!("unsupported artifact reuse decision")),
-            };
-            report.source_index = selection.source_index;
-            if let Some(eri) = selection.value {
-                data.set::<AoEriArtifact>(eri).into_diagnostic()?;
+        if let Some(bundle) = self.source.borrow().as_ref() {
+            for (index, candidate) in bundle.calculations().iter().enumerate() {
+                if !candidate
+                    .artifact_representations()
+                    .any(|(name, _)| name == AoEriArtifact::NAME)
+                {
+                    continue;
+                }
+                report.decision = "incompatible";
+                if !candidate.eri_is_compatible(&prepared) {
+                    continue;
+                }
+                // Share the source handle; execution verifies and decodes the selected payload.
+                data = candidate.clone();
+                report.decision = "reused";
+                report.source_index = Some(index);
                 report.origin = "archive";
+                break;
             }
         }
         let prepared = prepared.with_reuse_data(data).into_diagnostic()?;
@@ -122,7 +124,7 @@ impl ArtifactSession {
             return Ok(());
         }
         let mut data = RustiQData::from_calculation(prepared).into_diagnostic()?;
-        data.set::<AoEriArtifact>(result.hf.ao_eri().clone())
+        data.set::<AoEriArtifact>(result.hf.ao_eri())
             .into_diagnostic()?;
         for (name, bytes) in sources {
             data.add_source(name, bytes).into_diagnostic()?;

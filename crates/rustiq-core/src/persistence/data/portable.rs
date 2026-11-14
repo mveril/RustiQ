@@ -5,7 +5,7 @@ use super::super::{
     ArtifactAttributes, ArtifactError, CalculationContext, ManifestKind, PortableError,
     SourceProvenance, Storage, AO_ERI_PATH, COMPACT_ERI_REPRESENTATION,
 };
-use super::{RustiQData, AO_ERI_ARTIFACT};
+use super::{AoEriArtifact, ArtifactRef, RustiQData, AO_ERI_ARTIFACT};
 use crate::calculation::PreparedCalculation;
 use relative_path::RelativePath;
 use std::io::Read;
@@ -33,7 +33,7 @@ impl RustiQData {
     }
 
     /// Opens a portable archive and validates its context and artifact index.
-    /// Numerical payloads are verified and decoded lazily on first access.
+    /// Numerical payloads are verified and decoded on demand on each access.
     /// Multi-calculation archives require [`super::RustiQBundle::open`].
     ///
     /// # Errors
@@ -56,7 +56,7 @@ impl RustiQData {
         if data.manifest.kind != ManifestKind::Portable {
             return Err(PortableError::UnsupportedVersion);
         }
-        let source = data.source.as_mut().expect("opened storage");
+        let source = data.source.as_deref().expect("opened storage");
         let reference =
             data.manifest.calculation.as_ref().ok_or_else(|| {
                 PortableError::InvalidArchive("missing calculation reference".into())
@@ -219,28 +219,16 @@ impl RustiQData {
     /// Lists scientific artifact names and representation identifiers without loading arrays.
     /// Unknown representations remain visible; listing does not verify their payloads.
     pub fn artifact_representations(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.ao_eri
-            .as_ref()
-            .map(|_| (AO_ERI_ARTIFACT, COMPACT_ERI_REPRESENTATION))
-            .into_iter()
-            .chain(
-                self.manifest
-                    .artifacts
-                    .iter()
-                    .filter_map(|(name, artifact)| {
-                        (name != AO_ERI_ARTIFACT || self.ao_eri.is_none())
-                            .then_some((name.as_str(), artifact.representation.as_str()))
-                    }),
-            )
+        self.manifest
+            .artifacts
+            .iter()
+            .map(|(name, artifact)| (name.as_str(), artifact.representation.as_str()))
     }
 
     /// Tests AO ERI compatibility with another resolved calculation, without reading arrays.
     /// Requested HF/MP2 methods do not participate in deterministic integral identity.
     #[must_use]
     pub fn eri_is_compatible(&self, calculation: &PreparedCalculation) -> bool {
-        if self.ao_eri.is_some() {
-            return self.matches_eri_identity(calculation);
-        }
         let Some(artifact) = self.manifest.artifacts.get(AO_ERI_ARTIFACT) else {
             return false;
         };
@@ -288,37 +276,48 @@ impl RustiQData {
     ///
     /// Returns an error if the supplied ERI is incompatible or archive validation or publication fails.
     pub fn write_with_eri(
-        &mut self,
+        &self,
         path: impl AsRef<Path>,
         eri: &crate::eri::CompactEri,
     ) -> Result<(), PortableError> {
-        self.validate_eri(eri)?;
-        let sources = std::mem::take(&mut self.sources);
-        let result = super::bundle::write_bundle_with_eri(
-            std::slice::from_mut(self),
+        self.write_with_artifacts(path, &[ArtifactRef::new::<AoEriArtifact>(eri)])
+    }
+
+    /// Streams borrowed artifacts into a single-calculation bundle without staging them.
+    /// Supplied values override the same artifact names in this data; other payloads are
+    /// copied from their existing storage. This does not change the stored values of `self`.
+    ///
+    /// # Errors
+    /// Returns an error for duplicate names, invalid values, or failed publication.
+    pub fn write_with_artifacts(
+        &self,
+        path: impl AsRef<Path>,
+        artifacts: &[ArtifactRef<'_>],
+    ) -> Result<(), PortableError> {
+        // The bundle writer temporarily moves source provenance out of each entry. Clone the
+        // lightweight metadata so publication does not require mutable access to this value.
+        let mut data = self.clone();
+        let sources = std::mem::take(&mut data.sources);
+        let result = super::bundle::write_bundle_with_artifacts(
+            std::slice::from_mut(&mut data),
             &sources,
             path.as_ref(),
-            Some(eri),
+            artifacts,
         );
-        self.sources = sources;
         result
     }
 
-    /// Validates compatibility and lazily decodes the ERI, then transfers ownership.
+    /// Validates compatibility and decodes an owned ERI without retaining it.
     /// Missing, unsupported, incompatible, or corrupt artifacts are errors.
     ///
     /// # Errors
     ///
     /// Returns an error if the ERI is absent, incompatible, corrupt, or cannot be decoded.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a validated, loaded ERI is unexpectedly absent from internal state.
     pub fn take_compatible_eri(
-        &mut self,
+        &self,
         calculation: &PreparedCalculation,
     ) -> Result<crate::eri::CompactEri, PortableError> {
-        if self.ao_eri.is_none() {
+        {
             let artifact = self
                 .manifest
                 .artifacts
@@ -334,16 +333,17 @@ impl RustiQData {
         if !self.eri_is_compatible(calculation) {
             return Err(PortableError::IncompatibleEri);
         }
-        self.read_eri()?;
-        Ok(self.take_eri().expect("validated ERI is loaded"))
+        self.read_eri().map_err(Into::into)
     }
 
-    pub(crate) fn validate_unloaded_eri(&mut self) -> Result<(), PortableError> {
+    pub(crate) fn validate_unloaded_eri(&self) -> Result<(), PortableError> {
         let artifact = &self.manifest.artifacts[AO_ERI_ARTIFACT];
         let ArtifactAttributes::AoEri(attributes) = &artifact.attributes else {
             unreachable!()
         };
-        let source = self.source.as_mut().ok_or(ArtifactError::Missing)?;
+        let source = self
+            .artifact_source(AO_ERI_ARTIFACT)
+            .ok_or(ArtifactError::Missing)?;
         source.with_artifact::<_, ArtifactError, _>(&artifact.path, |reader| {
             super::super::npy::checked_eri_prefix(
                 reader,
@@ -357,7 +357,7 @@ impl RustiQData {
 }
 
 pub(super) fn read_sources(
-    source: &mut Storage,
+    source: &Storage,
     references: &[super::super::manifest::SourceManifest],
 ) -> Result<Vec<SourceProvenance>, PortableError> {
     let mut sources = Vec::new();
@@ -415,7 +415,7 @@ pub(super) fn read_sources(
 }
 
 fn verify_reference(
-    source: &mut Storage,
+    source: &Storage,
     reference: &super::super::manifest::SnapshotManifest,
     expected_path: &str,
     limit: u64,

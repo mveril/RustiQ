@@ -337,15 +337,14 @@ impl EriCache {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return None;
         }
-        let mut data = RustiQData::read_from(Storage::folder(&entry)).ok()?;
+        let data = RustiQData::read_from(Storage::folder(&entry)).ok()?;
         let manifest = data.manifest();
         let artifact = manifest.artifacts.get(AO_ERI_ARTIFACT)?;
         let attributes = ao_eri_attributes(artifact)?;
         if !manifest_is_valid(manifest, identity) || attributes.basis_functions != basis_functions {
             return None;
         }
-        data.read_eri().ok()?;
-        data.take_eri()
+        data.read_eri().ok()
     }
 
     fn store_identity(
@@ -366,7 +365,7 @@ impl EriCache {
         }
         fs::create_dir_all(parent)?;
         let temporary = Builder::new().prefix(".rustiq-eri-").tempdir_in(parent)?;
-        let mut entry_data =
+        let entry_data =
             RustiQData::new_with_identity(identity, basis_functions, ManifestKind::IntegralCache);
         entry_data
             .write_storage_with_eri(Storage::folder(temporary.path()), eri)

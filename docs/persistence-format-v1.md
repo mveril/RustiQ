@@ -95,18 +95,31 @@ directory-backed ERI cache resolves folder storage internally, and the
 portable `.rustiq` API resolves ZIP/ZIP64 internally rather than exposing a
 generic storage backend. Internal readers load the bounded manifest first and
 open scientific artifacts on demand. `read_eri` validates and decodes the AO ERI
-NPY on first access and keeps the resulting `CompactEri` for subsequent accesses.
+NPY on every access, hashing the same buffered stream while decoding, and returns
+an owned `CompactEri`; decoded values are not retained by `RustiQData`. Reads accept an immutable reference, with ZIP cursor
+access synchronized internally.
 Unknown representations can be copied internally as verified byte streams without
 being decoded.
 
+`set` borrows, validates and immediately serializes the value into a
+`tempfile::TempDir`. Temporary payloads are indexed by artifact name.
+It retains no decoded value and can fail on temporary-storage I/O errors. A
+replacement becomes active only after its payload is written successfully; an
+error leaves the previous artifact available. Temporary storage is removed when
+replaced or when its last owner is dropped. Cloning `RustiQData` copies metadata
+and provenance but shares the source and staged disk payloads. Replacing an
+artifact in one clone leaves the others unchanged. Publication copies staged and
+unchanged source payloads as verified streams with bounded buffers, without
+decoding them. The original source archive is never changed by `set`.
+
 The public scientific API is typed: `set_eri` and `read_eri` operate on
 `CompactEri`. The generic `get::<AoEriArtifact>()` returns
-`Result<Option<&CompactEri>, ArtifactError>`, while
-`set::<AoEriArtifact>(value)` accepts only `CompactEri`; only declared artifact
+`Result<Option<CompactEri>, ArtifactError>`, while
+`set::<AoEriArtifact>(&value)` accepts only `&CompactEri`; only declared artifact
 marker types are accepted. Artifact access reports `ArtifactError`, while NPY
 format failures are represented by `NpyError`; storage, manifest, and persistence
 orchestration errors remain internal. A future known artifact gets its own marker,
-typed field, and accessors in `RustiQData`. NPY parsing and conversion remain
+typed metadata, and accessors in `RustiQData`. NPY parsing and conversion remain
 internal persistence details. Compact ERIs are decoded only with the
 basis-function count from their typed manifest attributes; the NPY length is never
 used to infer that scientific context. Matrix readers accept C and Fortran order
@@ -457,8 +470,8 @@ let entries = prepared_calculations.iter()
 let mut bundle = RustiQBundle::new(entries)?;
 bundle.add_source("batch.ncl", original_source_bytes)?;
 bundle.write("batch.rustiq")?;
-let mut reopened = RustiQBundle::open("batch.rustiq")?;
-for entry in reopened.calculations_mut() {
+let reopened = RustiQBundle::open("batch.rustiq")?;
+for entry in reopened.calculations() {
     println!("{:?}", entry.calculation().expect("portable context").hf_method());
 }
 ```
@@ -469,7 +482,7 @@ so callers cannot silently drop entries. Sources returned by `RustiQData::open`
 are the single bundle's shared provenance. Bundle entries use `bundle.sources()`.
 
 `RustiQData::from_calculation(&PreparedCalculation)` captures requested and resolved inputs
-without executing HF. `set_eri` / `set::<AoEriArtifact>` supply an owned
+without executing HF. `set_eri` / `set::<AoEriArtifact>` borrow a
 `CompactEri` whose dimension matches those inputs. The caller is responsible for
 supplying the ERIs computed for that calculation, rather than unrelated values
 of the same shape.
@@ -481,17 +494,17 @@ use rustiq_core::persistence::{CompactEri, RustiQData};
 let mut data = RustiQData::from_calculation(&prepared)?;
 // Optional: preserve exact source bytes separately from scientific state.
 data.add_source("calculation.toml", original_toml_bytes)?;
-data.set_eri(eri)?;
+data.set_eri(&eri)?;
 data.write("water.rustiq")?;
 
-let mut restored = RustiQData::open("water.rustiq")?;
+let restored = RustiQData::open("water.rustiq")?;
 let context = restored.calculation().expect("portable context");
 println!("{:?}: {} AOs", context.hf_method(), context.basis().len());
 for (name, representation) in restored.artifact_representations() {
     println!("{name}: {representation}");
 }
 if restored.eri_is_compatible(&prepared) {
-    let eri: &CompactEri = restored.read_eri()?;
+    let eri: CompactEri = restored.read_eri()?;
 }
 ```
 
@@ -614,8 +627,29 @@ let mut data = RustiQData::from_calculation(&prepared)?;
 data.write_with_eri("water.rustiq", hf.ao_eri())?;
 ```
 
-The writer borrows the retained AO ERI without cloning or recomputing it.
-`set_eri` remains available when the caller owns the tensor.
+For one publication, prefer `write_with_artifacts`: it streams a slice of typed
+borrowed values into the archive without temporary staging or payload cloning.
+`write_with_eri` is a convenience wrapper for a single borrowed AO ERI. The general
+API accepts one value per logical artifact name; duplicate names are rejected
+before writing. Supplied values replace matching source entries in the output
+only, while the remaining artifacts are copied as verified streams. The source
+data and caller-owned values remain unchanged.
+
+```rust,ignore
+use rustiq_core::persistence::{AoEriArtifact, ArtifactRef};
+
+let artifacts = [ArtifactRef::new::<AoEriArtifact>(hf.ao_eri())];
+data.write_with_artifacts("water.rustiq", &artifacts)?;
+```
+
+Currently the only known artifact marker is `AoEriArtifact`. As additional markers
+are implemented, their borrowed values can be included in the same slice without
+adding a publication method for each combination of artifact types. This API
+publishes one calculation; `RustiQBundle` remains the collection API.
+
+Use `set_eri` or `set` to stage artifacts before a later publication. These setters
+borrow their values too, but require temporary space and a subsequent read during
+publication. They remain useful when collecting or replacing artifacts over time.
 
 ```rust
 // .rustiq -> Calculation
@@ -652,13 +686,20 @@ the same resolver; those representations are not implemented yet.
 
 `CalculationEvent::ArtifactReuse` reports per-artifact reused, missing, or
 incompatible decisions. Its decision type also distinguishes intentionally ignored
-state for future selection policies. Computed and reused values are retained in a
-separate in-memory typed data facade for subsequent executions. Compact ERI clones
-share immutable storage; mutation detaches that storage. Neither ordinary reuse nor
-this memory retention rewrites the source snapshot or stores runtime scratch data.
+state for future selection policies. Execution reads compatible artifacts directly
+from the source without copying them to temporary storage. It never stages newly
+computed artifacts implicitly: repeated executions use the explicitly enabled
+local ERI cache or recompute missing values. Temporary staging belongs only to
+explicit `set` calls. An I/O error while publishing requested output can still
+fail publication, but HF execution does not depend on implicit temporary staging.
+The explicitly enabled ERI disk cache retains its own I/O policy.
+Compact ERI clones within an execution share immutable storage; mutation detaches
+that storage. The source snapshot is never rewritten by execution.
 
 For callers managing portable data explicitly, `take_compatible_eri` checks
-scientific compatibility before returning the tensor. The lower-level
+scientific compatibility before returning the tensor. It takes `&self`, as do
+`get`, `read_eri`, and `RustiQBundle::select_ao_eri`; inspecting or selecting
+artifacts does not require mutable data or mutable bundle entries. The lower-level
 `execute_with_eri` and `run_hf_with_eri` APIs accept a caller-supplied
 `CompactEri` and validate its expected element count, but cannot establish that
 the tensor came from matching geometry, AO ordering, or screening settings. The

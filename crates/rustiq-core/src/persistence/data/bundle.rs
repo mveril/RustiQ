@@ -10,9 +10,9 @@ use relative_path::{RelativePath, RelativePathBuf};
 use super::{portable, rustiq_data::MAX_MANIFEST_BYTES, RustiQData};
 use crate::persistence::{
     manifest::{PortableCalculation, PortableManifest, SourceManifest},
-    AoEriArtifact, Artifact, ArtifactAttributes, CompactEri, Manifest, ManifestKind, PortableError,
-    Producer, SourceProvenance, Storage, COMPACT_ERI_REPRESENTATION, FORMAT_NAME, FORMAT_VERSION,
-    MANIFEST_PATH,
+    AoEriArtifact, Artifact, ArtifactAttributes, ArtifactRef, CompactEri, Manifest, ManifestKind,
+    PortableError, Producer, SourceProvenance, Storage, COMPACT_ERI_REPRESENTATION, FORMAT_NAME,
+    FORMAT_VERSION, MANIFEST_PATH,
 };
 
 /// A portable snapshot containing one or more independently reusable calculations.
@@ -71,7 +71,7 @@ impl RustiQBundle {
     ///
     /// Returns an error if archive structure, context, references, or provenance are invalid or cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
-        let mut storage = Storage::open_zip(path.as_ref())?;
+        let storage = Storage::open_zip(path.as_ref())?;
         let manifest: PortableManifest = storage
             .read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)
             .map_err(crate::persistence::PersistenceReadError::from)?;
@@ -84,7 +84,7 @@ impl RustiQBundle {
         if manifest.calculations.is_empty() {
             return Err(invalid("portable bundles require at least one calculation"));
         }
-        let sources = portable::read_sources(&mut storage, &manifest.sources)?;
+        let sources = portable::read_sources(&storage, &manifest.sources)?;
         let storage = Arc::new(Mutex::new(storage));
         let mut ids = HashSet::new();
         let mut calculations = Vec::new();
@@ -134,13 +134,13 @@ impl RustiQBundle {
     ///
     /// Returns an error if a selected compatible artifact cannot be validated or decoded.
     pub fn select_ao_eri(
-        &mut self,
+        &self,
         calculation: &crate::calculation::PreparedCalculation,
         enabled: bool,
     ) -> Result<AoEriReuse, PortableError> {
         use crate::calculation::ArtifactReuseDecision;
         let mut decision = ArtifactReuseDecision::Missing;
-        for (source_index, data) in self.calculations.iter_mut().enumerate() {
+        for (source_index, data) in self.calculations.iter().enumerate() {
             if !AoEriArtifact::is_present(data) {
                 continue;
             }
@@ -156,7 +156,7 @@ impl RustiQBundle {
                 });
             }
             return Ok(AoEriReuse {
-                value: data.get::<AoEriArtifact>()?.cloned(),
+                value: data.get::<AoEriArtifact>()?,
                 decision: ArtifactReuseDecision::Reused,
                 source_index: Some(source_index),
             });
@@ -247,7 +247,7 @@ impl RustiQBundle {
             &mut self.calculations,
             &self.sources,
             path.as_ref(),
-            None,
+            &[],
             true,
         )
     }
@@ -289,32 +289,43 @@ pub(super) fn write_bundle(
     sources: &[SourceProvenance],
     path: &Path,
 ) -> Result<(), PortableError> {
-    write_bundle_with_eri(calculations, sources, path, None)
+    write_bundle_with_artifacts(calculations, sources, path, &[])
 }
 
-pub(super) fn write_bundle_with_eri(
+pub(super) fn write_bundle_with_artifacts(
     calculations: &mut [RustiQData],
     sources: &[SourceProvenance],
     path: &Path,
-    eri: Option<&crate::eri::CompactEri>,
+    artifacts: &[ArtifactRef<'_>],
 ) -> Result<(), PortableError> {
-    publish_bundle(calculations, sources, path, eri, false)
+    publish_bundle(calculations, sources, path, artifacts, false)
 }
 
 fn publish_bundle(
     calculations: &mut [RustiQData],
     sources: &[SourceProvenance],
     path: &Path,
-    eri: Option<&crate::eri::CompactEri>,
+    artifacts: &[ArtifactRef<'_>],
     replace: bool,
 ) -> Result<(), PortableError> {
     if calculations.is_empty() {
         return Err(invalid("portable bundles require at least one calculation"));
     }
-    if eri.is_some() && calculations.len() != 1 {
+    if !artifacts.is_empty() && calculations.len() != 1 {
         return Err(invalid(
-            "a borrowed AO ERI can only be written with a single calculation",
+            "borrowed artifacts can only be written with a single calculation",
         ));
+    }
+    let mut names = HashSet::new();
+    for artifact in artifacts {
+        if !names.insert(artifact.name()) {
+            return Err(crate::persistence::ArtifactError::InvalidMetadata(format!(
+                "duplicate borrowed artifact: {}",
+                artifact.name()
+            ))
+            .into());
+        }
+        artifact.validate(&calculations[0])?;
     }
     validate_sources(sources)?;
     if !replace {
@@ -333,7 +344,7 @@ fn publish_bundle(
         calculations,
         sources,
         Storage::create_zip(temporary.reopen()?),
-        eri,
+        artifacts,
     )?;
     drop(RustiQBundle::open(temporary.path())?);
     let publication = if replace {
@@ -358,14 +369,14 @@ pub(super) fn write_snapshot(
     sources: &[SourceProvenance],
     destination: Storage,
 ) -> Result<(), PortableError> {
-    write_snapshot_inner(calculations, sources, destination, None)
+    write_snapshot_inner(calculations, sources, destination, &[])
 }
 
 fn write_snapshot_inner(
     calculations: &mut [RustiQData],
     sources: &[SourceProvenance],
     destination: Storage,
-    eri: Option<&crate::eri::CompactEri>,
+    artifacts: &[ArtifactRef<'_>],
 ) -> Result<(), PortableError> {
     let storage = Arc::new(Mutex::new(destination));
     let mut manifest = PortableManifest {
@@ -400,7 +411,7 @@ fn write_snapshot_inner(
         if data.context.is_none() || data.request.is_none() {
             return Err(invalid("missing calculation snapshots"));
         }
-        if eri.is_none() && data.ao_eri.is_none() && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
+        if !artifacts.iter().any(|artifact| artifact.name() == super::AO_ERI_ARTIFACT) && data.manifest.artifacts.get(super::AO_ERI_ARTIFACT).is_some_and(|artifact|
             artifact.representation == COMPACT_ERI_REPRESENTATION && matches!(&artifact.attributes,
                 ArtifactAttributes::AoEri(attributes) if attributes.computation_version == crate::persistence::AO_ERI_COMPUTATION_VERSION)) {
             data.validate_unloaded_eri()?;
@@ -409,9 +420,10 @@ fn write_snapshot_inner(
         let prefix = format!("calculations/{id}");
         let saved_sources = std::mem::take(&mut data.sources);
         let destination = Storage::scoped(storage.clone(), prefix.clone());
-        let result = match eri {
-            Some(eri) => data.write_entry_with_eri(destination, eri),
-            None => data.write_entry(destination),
+        let result = if artifacts.is_empty() {
+            data.write_entry(destination)
+        } else {
+            data.write_entry_with_artifacts(destination, artifacts)
         };
         data.sources = saved_sources;
         let entry = result?;

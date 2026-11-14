@@ -131,6 +131,41 @@ pub fn verify_sha256(bytes: &[u8], expected: Sha256Digest) -> bool {
     sha256(bytes) == expected
 }
 
+/// Hashes and counts bytes as the decoder consumes a payload.
+pub(crate) struct DigestReader<R> {
+    inner: R,
+    hasher: Sha256,
+    size: u64,
+}
+
+impl<R> DigestReader<R> {
+    pub(crate) fn new(inner: R) -> Self {
+        Self {
+            inner,
+            hasher: Sha256::new(),
+            size: 0,
+        }
+    }
+
+    pub(crate) fn finish(self) -> (u64, Sha256Digest) {
+        (self.size, self.hasher.finalize().into())
+    }
+}
+
+impl<R: Read> Read for DigestReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let count = self.inner.read(buffer)?;
+        self.hasher.update(&buffer[..count]);
+        self.size = self
+            .size
+            .checked_add(
+                u64::try_from(count).map_err(|_| io::Error::other("artifact size exceeds u64"))?,
+            )
+            .ok_or_else(|| io::Error::other("artifact size exceeds u64"))?;
+        Ok(count)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

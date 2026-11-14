@@ -19,7 +19,7 @@ pub(crate) enum Storage {
         storage: std::sync::Arc<std::sync::Mutex<Storage>>,
         prefix: String,
     },
-    ZipReader(Box<::zip::ZipArchive<File>>),
+    ZipReader(std::sync::Mutex<Box<::zip::ZipArchive<File>>>),
     ZipWriter(Box<::zip::ZipWriter<BufWriter<File>>>),
 }
 
@@ -79,14 +79,16 @@ impl Storage {
     }
 
     pub(crate) fn open_zip(path: &std::path::Path) -> Result<Self, StorageError> {
-        Ok(Self::ZipReader(Box::new(zip::open(path)?)))
+        Ok(Self::ZipReader(std::sync::Mutex::new(Box::new(zip::open(
+            path,
+        )?))))
     }
 
     pub(crate) fn create_zip(file: File) -> Self {
         Self::ZipWriter(Box::new(zip::writer(file)))
     }
 
-    pub(crate) fn artifact_size(&mut self, path: &RelativePath) -> Result<u64, StorageError> {
+    pub(crate) fn artifact_size(&self, path: &RelativePath) -> Result<u64, StorageError> {
         validate_path(path)?;
         match self {
             Self::Scoped { storage, prefix } => storage
@@ -95,6 +97,8 @@ impl Storage {
                 .artifact_size(&prefixed_path(prefix, path)?),
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_size(path),
             Self::ZipReader(archive) => Ok(archive
+                .lock()
+                .map_err(|_| zip::invalid("archive mutex poisoned"))?
                 .by_name(path.as_str())
                 .map_err(zip::zip_error)?
                 .size()),
@@ -107,7 +111,7 @@ impl Storage {
     }
 
     pub(crate) fn artifact_metadata(
-        &mut self,
+        &self,
         path: &RelativePath,
     ) -> Result<ArtifactMetadata, StorageError> {
         match self {
@@ -117,20 +121,24 @@ impl Storage {
                 .artifact_metadata(&prefixed_path(prefix, path)?),
             Self::Folder(root) => FolderStorage { root: root.clone() }.artifact_metadata(path),
             Self::ZipReader(archive) => {
+                let mut archive = archive
+                    .lock()
+                    .map_err(|_| zip::invalid("archive mutex poisoned"))?;
                 let size = archive
                     .by_name(path.as_str())
                     .map_err(zip::zip_error)?
                     .size();
-                let digest = zip::with_member::<_, StorageError, _>(archive, path, |reader| {
-                    Ok(sha256_reader(reader)?)
-                })?;
+                let digest =
+                    zip::with_member::<_, StorageError, _>(&mut archive, path, |reader| {
+                        Ok(sha256_reader(reader)?)
+                    })?;
                 Ok(ArtifactMetadata { size, digest })
             }
             Self::ZipWriter(_) => Err(zip::invalid("cannot read an archive writer")),
         }
     }
 
-    pub(crate) fn with_artifact<T, E, F>(&mut self, path: &RelativePath, read: F) -> Result<T, E>
+    pub(crate) fn with_artifact<T, E, F>(&self, path: &RelativePath, read: F) -> Result<T, E>
     where
         E: From<StorageError>,
         F: FnOnce(&mut dyn Read) -> Result<T, E>,
@@ -141,7 +149,12 @@ impl Storage {
                 .expect("storage mutex poisoned")
                 .with_artifact(&prefixed_path(prefix, path).map_err(E::from)?, read),
             Self::Folder(root) => FolderStorage { root: root.clone() }.with_artifact(path, read),
-            Self::ZipReader(archive) => zip::with_member(archive, path, read),
+            Self::ZipReader(archive) => {
+                let mut archive = archive
+                    .lock()
+                    .map_err(|_| E::from(zip::invalid("archive mutex poisoned")))?;
+                zip::with_member(&mut archive, path, read)
+            }
             Self::ZipWriter(_) => Err(E::from(zip::invalid("cannot read an archive writer"))),
         }
     }
@@ -177,7 +190,7 @@ impl Storage {
     }
 
     pub(crate) fn read_json<T: DeserializeOwned>(
-        &mut self,
+        &self,
         path: &RelativePath,
         max_size: u64,
     ) -> Result<T, ManifestError> {

@@ -221,7 +221,7 @@ fn same_path_replacement_retains_new_request_and_failure_preserves_source() {
     );
     assert_eq!(report(&result)["origin"], "archive");
     assert_ne!(fs::read(root.join("state.rustiq")).unwrap(), bytes);
-    let mut restored = RustiQData::open(root.join("state.rustiq")).unwrap();
+    let restored = RustiQData::open(root.join("state.rustiq")).unwrap();
     assert!(restored.get::<AoEriArtifact>().unwrap().is_some());
     assert!(restored
         .sources()
@@ -376,9 +376,9 @@ fn non_converged_batch_publishes_eri_but_any_execution_failure_blocks_publicatio
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate_batch(&value);
     assert_eq!(value["calculations"][0]["status"], "non_converged");
-    let mut bundle = RustiQBundle::open(root.join("state.rustiq")).unwrap();
+    let bundle = RustiQBundle::open(root.join("state.rustiq")).unwrap();
     assert_eq!(bundle.calculations().len(), 2);
-    for data in bundle.calculations_mut() {
+    for data in bundle.calculations() {
         assert!(data.get::<AoEriArtifact>().unwrap().is_some());
         assert_eq!(data.artifact_representations().count(), 1);
     }
@@ -525,4 +525,41 @@ fn portable_reruns_preserve_convergence_exit_codes() {
             let _: Value = serde_json::from_slice(&failed.stdout).unwrap();
         }
     }
+}
+
+#[test]
+fn reuse_without_publication_does_not_need_temporary_storage() {
+    let directory = fixture();
+    let root = directory.path();
+    calculate(root, &["--artifact", "source.rustiq"]);
+    let before = fs::read(root.join("source.rustiq")).unwrap();
+    let blocked = root.join("unavailable-temporary-directory");
+    fs::write(&blocked, b"not a directory").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+        .current_dir(root)
+        .env("RUSTIQ_DATA_HOME", root.join("data"))
+        .env("RUSTIQ_CACHE_HOME", root.join("cache"))
+        .env("RUSTIQ_AUTO_DOWNLOAD", "0")
+        .env("TMPDIR", &blocked)
+        .env("TMP", &blocked)
+        .env("TEMP", &blocked)
+        .args([
+            "run",
+            "run.toml",
+            "--reuse",
+            "source.rustiq",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report(&result)["decision"], "reused");
+    assert_eq!(report(&result)["origin"], "archive");
+    assert_eq!(fs::read(root.join("source.rustiq")).unwrap(), before);
 }
