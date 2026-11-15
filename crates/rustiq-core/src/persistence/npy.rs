@@ -1,8 +1,9 @@
 use std::io::{Read, Seek, Write};
 
-use nalgebra::DMatrix;
 #[cfg(test)]
-use nalgebra::DVector;
+use nalgebra::{DMatrix, DVector};
+mod nalgebra_impl;
+pub(crate) use nalgebra_impl::read_dmatrix;
 use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
@@ -88,79 +89,6 @@ impl NpyConvert for CompactEri {
             .map_err(NpyError::Write)?;
         writer
             .extend(self.ordered_values().iter().copied())
-            .map_err(NpyError::Write)?;
-        writer.finish().map_err(NpyError::Write)
-    }
-}
-
-impl<Rows: nalgebra::Dim, Cols: nalgebra::Dim> NpyConvert for nalgebra::OMatrix<f64, Rows, Cols>
-where
-    nalgebra::DefaultAllocator: nalgebra::allocator::Allocator<Rows, Cols>,
-{
-    type Shape = (usize, usize);
-    type NpyShape = [u64; 2];
-
-    fn npy_shape((rows, columns): Self::Shape) -> Result<Self::NpyShape, NpyError> {
-        Ok([
-            u64::try_from(rows).map_err(|_| NpyError::DimensionOverflow)?,
-            u64::try_from(columns).map_err(|_| NpyError::DimensionOverflow)?,
-        ])
-    }
-
-    fn try_from_npy_with_shape<R: Read>(
-        npy: NpyFile<R>,
-        shape: Self::Shape,
-    ) -> Result<Self, NpyError> {
-        shape
-            .0
-            .checked_mul(shape.1)
-            .ok_or(NpyError::DimensionOverflow)?;
-        let expected = Self::npy_shape(shape)?;
-        // Dim::try_to_usize inspects the type: Const<1> returns Some(1), while Dyn
-        // returns None even when its runtime size is 1. This allows 1D NPY input
-        // for Vector/RowVector types without relaxing shape checks for DMatrix.
-        let vector = (Rows::try_to_usize() == Some(1) || Cols::try_to_usize() == Some(1))
-            && (shape.0 == 1 || shape.1 == 1)
-            && npy.shape() == [expected[0] * expected[1]];
-        if !vector {
-            check_npy_shape(&expected, npy.shape())?;
-        }
-        if Rows::try_to_usize().is_some_and(|n| n != shape.0)
-            || Cols::try_to_usize().is_some_and(|n| n != shape.1)
-        {
-            return Err(NpyError::InvalidMatrixShape(expected.into()));
-        }
-        Self::decode_with_shape(npy, shape)
-    }
-
-    fn decode_with_shape<R: Read>(
-        npy: NpyFile<R>,
-        (rows, columns): Self::Shape,
-    ) -> Result<Self, NpyError> {
-        rows.checked_mul(columns)
-            .ok_or(NpyError::DimensionOverflow)?;
-        let order = npy.order();
-        let values = npy.into_vec::<f64>().map_err(map_npy_value_read_error)?;
-        let r = Rows::from_usize(rows);
-        let c = Cols::from_usize(columns);
-        if order == npyz::Order::C && rows > 1 && columns > 1 {
-            Ok(Self::from_row_slice_generic(r, c, &values))
-        } else {
-            Ok(Self::from_vec_generic(r, c, values))
-        }
-    }
-
-    fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
-        let shape = Self::npy_shape(self.shape())?;
-        let mut writer = npyz::WriteOptions::new()
-            .default_dtype()
-            .order(npyz::Order::Fortran)
-            .shape(&shape)
-            .writer(writer)
-            .begin_nd()
-            .map_err(NpyError::Write)?;
-        writer
-            .extend(self.as_slice().iter().copied())
             .map_err(NpyError::Write)?;
         writer.finish().map_err(NpyError::Write)
     }
@@ -376,45 +304,6 @@ pub(crate) fn validate_compact_eri_header(
         && data_offset
             .checked_add(expected.saturating_mul(8))
             .is_some_and(|end| end == file_size)
-}
-
-pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, NpyError> {
-    decode_dmatrix(NpyFile::new(reader).map_err(NpyError::Read)?)
-}
-
-fn decode_dmatrix<R: Read>(npy: NpyFile<R>) -> Result<DMatrix<f64>, NpyError> {
-    if npy.shape().len() != 2 {
-        return Err(NpyError::InvalidMatrixShape(
-            npy.shape().to_vec().into_boxed_slice(),
-        ));
-    }
-    let rows = usize::try_from(npy.shape()[0])
-        .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
-    let columns = usize::try_from(npy.shape()[1])
-        .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
-    rows.checked_mul(columns)
-        .ok_or_else(|| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
-    let order = npy.order();
-    let values = npy.into_vec::<f64>().map_err(|error| {
-        if error.kind() == std::io::ErrorKind::InvalidData {
-            NpyError::InvalidDtype(error.to_string())
-        } else {
-            NpyError::Read(error)
-        }
-    })?;
-    Ok(matrix_from_npy_values(rows, columns, order, values))
-}
-
-fn matrix_from_npy_values(
-    rows: usize,
-    columns: usize,
-    order: npyz::Order,
-    values: Vec<f64>,
-) -> DMatrix<f64> {
-    match order {
-        npyz::Order::C => DMatrix::from_row_slice(rows, columns, &values),
-        npyz::Order::Fortran => DMatrix::from_vec(rows, columns, values),
-    }
 }
 
 #[cfg(test)]

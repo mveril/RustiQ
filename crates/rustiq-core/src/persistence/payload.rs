@@ -1,5 +1,8 @@
 //! NPY artifact storage using existing conversions; spin pairs are directories.
-use nalgebra::Matrix;
+use nalgebra::{
+    storage::{IsContiguous, Storage as MatrixStorage},
+    DMatrix, Dim, Matrix,
+};
 use npyz::WriterBuilder;
 use relative_path::RelativePath;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -43,9 +46,9 @@ pub(crate) struct MatrixSlice<'a> {
     pub(crate) order: npyz::Order,
 }
 
-impl<'a, R: nalgebra::Dim, C: nalgebra::Dim, S> From<&'a Matrix<f64, R, C, S>> for MatrixSlice<'a>
+impl<'a, R: Dim, C: Dim, S> From<&'a Matrix<f64, R, C, S>> for MatrixSlice<'a>
 where
-    S: nalgebra::storage::Storage<f64, R, C> + nalgebra::storage::IsContiguous,
+    S: MatrixStorage<f64, R, C> + IsContiguous,
 {
     fn from(matrix: &'a Matrix<f64, R, C, S>) -> Self {
         Self {
@@ -154,12 +157,12 @@ impl PayloadRef {
         storage: &mut Storage,
         stem: &str,
     ) -> Result<Self, ArtifactError> {
-        let matrix_shape = nalgebra::DMatrix::<f64>::npy_shape(shape)?;
         if shape.0.checked_mul(shape.1) != Some(values.len()) {
             return Err(ArtifactError::InvalidMetadata(
                 "matrix payload length mismatch".into(),
             ));
         }
+        let matrix_shape = DMatrix::<f64>::npy_shape(shape)?;
         Self::save_npy(values, &matrix_shape, order, storage, stem)
     }
 
@@ -292,6 +295,11 @@ mod tests {
         )
         .save_payload(&mut storage, "coefficients")
         .unwrap();
+        let alpha_bytes = std::fs::read(dir.path().join("coefficients/alpha.npy")).unwrap();
+        assert_eq!(
+            npyz::NpyFile::new(alpha_bytes.as_slice()).unwrap().shape(),
+            &[2, 2]
+        );
         assert!(dir.path().join("coefficients/alpha.npy").is_file());
         assert!(dir.path().join("coefficients/beta.npy").is_file());
         let restored =
@@ -330,6 +338,24 @@ mod tests {
             let values: Vec<f64> = restored.data.into();
             assert_eq!(values.as_ptr(), pointer);
         }
+    }
+
+    #[test]
+    fn explicit_vector_slice_writer_emits_one_dimensional_shape() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut storage = Storage::folder(dir.path());
+        let reference = [7.0_f64]
+            .as_slice()
+            .save_payload(&mut storage, "energy")
+            .unwrap();
+        let bytes = std::fs::read(dir.path().join("energy.npy")).unwrap();
+        assert_eq!(npyz::NpyFile::new(bytes.as_slice()).unwrap().shape(), &[1]);
+        assert_eq!(
+            DVector::<f64>::load(&storage, "energy", reference, (1, 1))
+                .unwrap()
+                .as_slice(),
+            &[7.]
+        );
     }
 
     #[test]
