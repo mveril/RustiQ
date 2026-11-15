@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-82b24959.js";
+            window.path_to_searchindex_js = "searchindex-a08b65e3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-de272c4b.js"></script>
@@ -1638,7 +1638,8 @@ Commands using <code>rustiq</code> assume the executable is installed or availab
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
 lets users rerun saved calculations or reuse compatible AO ERIs in new ones
 without carrying a machine-local cache. The bundle does not save a
-Hartree–Fock wavefunction or skip a new SCF run.</p>
+Hartree–Fock wavefunction through the CLI or skip a new SCF run.
+The Rust API can additionally store converged RHF/UHF orbitals, as described below.</p>
 <h2 id="create-and-inspect-a-bundle"><a class="header" href="#create-and-inspect-a-bundle">Create and inspect a bundle</a></h2>
 <h3 id="release-binary"><a class="header" href="#release-binary">Release binary</a></h3>
 <p>First follow the local-input workflow in the
@@ -1804,13 +1805,80 @@ defines the complete identity.</p>
 </tbody>
 </table>
 </div>
-<p>The bundle stores scientific input snapshots and optional AO ERIs. It does not
-store HF energies, convergence status, orbitals, density matrices, DIIS history,
-or MP2 results. Save the result JSON separately when those outputs matter.
+<p>CLI-created bundles store scientific input snapshots and optional AO ERIs.
+They do not yet capture converged HF orbitals. Save the result JSON separately
+when reported results matter. Neither API stores density matrices, DIIS history,
+or MP2 results.
 Captured input and geometry bytes are provenance for inspection; they do not
 affect compatibility, and Nickel imports are not captured recursively.
 The same reconstruction is available to Rust callers; see the Rust API
 examples in the <a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#single-calculation-execution-apis">persistence specification</a>.</p>
+<h2 id="converged-hf-orbitals-through-rust"><a class="header" href="#converged-hf-orbitals-through-rust">Converged HF orbitals through Rust</a></h2>
+<p>The library exposes <code>ConvergedHfArtifact</code> through <code>RustiQData::set</code> and <code>get</code>.
+<code>ConvergedHf::from_solution(&amp;solution)</code> copies orbital data from a converged
+<code>AnyHfSolution</code>, retaining its originating calculation identity and no AO ERIs.
+The entry created by <code>RustiQData::from_calculation(&amp;prepared)</code> must match that
+identity. <code>RustiQBundle</code> reads and writes these entries alongside existing AO ERIs;
+older V1 archives without HF remain readable.</p>
+<p>As with AO ERIs, <code>set::&lt;ConvergedHfArtifact&gt;(&amp;value)</code> stages the artifact on disk
+immediately. Cloning an entry shares its stored payloads; replacing the artifact
+in one clone does not affect the others. Each <code>get::&lt;ConvergedHfArtifact&gt;()</code> reads
+and validates the payload again and returns an independently owned value.
+<code>ArtifactRef::new::&lt;ConvergedHfArtifact&gt;(&amp;value)</code> also supports direct borrowed
+publication without staging. Republishing stored HF data streams its NPY files
+without retaining decoded orbital arrays.</p>
+<p>The HF representation label is <code>rustiq-converged-hf-orbitals-v1</code>; readers retain
+support for the former <code>rustiq-converged-hf-npy-v1</code> label with the same layout.</p>
+<p>Orbital arrays are stored as NumPy-compatible NPY files. For RHF, each
+calculation entry contains:</p>
+<pre><code class="language-text">orbitals/
+├── converged-hf.json
+├── coefficients.npy
+└── energies.npy
+</code></pre>
+<p>For UHF, the two spin channels have separate directories:</p>
+<pre><code class="language-text">orbitals/
+├── converged-hf.json
+├── coefficients/
+│   ├── alpha.npy
+│   └── beta.npy
+└── energies/
+    ├── alpha.npy
+    └── beta.npy
+</code></pre>
+<p>These paths are relative to <code>calculations/&lt;id&gt;/</code> inside the bundle, alongside
+<code>calculation.json</code>, <code>request.json</code>, and optional <code>arrays/integrals/ao-eri.npy</code>.
+<code>persistence::validate_matching_npy_shapes(alpha_reader, beta_reader)</code> compares
+the ranks and axis lengths in two NPY headers before loading values. This
+header-only check does not validate dtype, values, or payload integrity.</p>
+<p>The JSON metadata references each array by its fixed path, byte size, and SHA-256
+digest. Typed access checks every referenced payload. NPY arrays have no fixed
+byte-size ceiling; readers check their dimensions against the HF record.</p>
+<p>The read-only <code>HfOrbitals</code> enum carries distinct <code>RhfOrbitals</code> and
+<code>UhfOrbitals</code> types for shared spatial orbitals and separate alpha/beta channels.
+<code>UhfOrbitals::channels</code> uses <code>Spin&lt;C&gt;</code> and its shared payload save/load operations.
+Their serialized descriptor layout is unchanged; only RHF and UHF are supported. Coefficients use column-major storage: rows retain the
+original AO order, columns match orbital energies in Hartree, and occupied
+orbitals form a prefix. The number of columns is the retained overlap rank,
+which can be smaller than the AO row count. RHF occupied spatial orbitals carry
+two electrons each; UHF channels carry one electron per occupied orbital.</p>
+<p>Run the offline example from a checkout:</p>
+<pre><code class="language-sh">cargo run -p rustiq-chem-core --example persist_hf --no-default-features
+</code></pre>
+<p>The example writes into a temporary directory and verifies the restored RHF
+coefficients. The API checks context identity, dimensions, occupations, finite
+values, convergence metadata, and payload integrity on first access. These
+checks do not independently establish physical validity or orbital orthonormality.
+<code>hf_is_compatible</code> checks context compatibility without verifying the payload.
+Reading the artifact does not reconstruct an executable HF solution, supply AO
+integrals, run MP2, restart SCF, or restore DIIS. CLI capture/reuse and MP2 reuse
+remain future work. The current CLI <code>artifact verify</code> supports AO ERIs and
+rejects HF artifacts as unsupported; use the typed Rust getter to verify HF.</p>
+<p>The resolved context preserves effective normalized AO components and their
+ordering. Original shell/contraction metadata is incomplete and must be added
+before a Molden exporter can be implemented. See the
+<a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#converged-hf-artifact-v1">HF artifact contract</a>
+for the versioned representation and limits.</p>
 <h2 id="publication-and-failures"><a class="header" href="#publication-and-failures">Publication and failures</a></h2>
 <p><code>--artifact</code> publishes the current requested collection; it does not append to
 the source bundle. A new destination must not exist. An existing destination is
@@ -1835,6 +1903,21 @@ later publication error is reported. See the <a href="#cache-and-portable-bundle
 for exact exit and publication behavior and the
 <a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md">persistence V1 specification</a>
 for the archive contract and the <a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#relationship-to-ezfio">EZFIO comparison</a>.</p>
+<p>The generic SCF persistence entry point is <code>ScfSolution&lt;M, Converged&gt;::to_artifact</code>,
+available when the method descriptor implements <code>PersistScf</code>. Its associated
+<code>Artifact</code> selects the versioned storage contract and value type. Each method
+owns its context identity, conversion and artifact validation; the generic layer
+requires no common orbital layout, HF summary, or retained AO integrals.
+RHF and UHF descriptors implement this contract using <code>ConvergedHfArtifact</code>.
+<code>ConvergedHf::from_solution</code> is a runtime HF convenience adapter to the same path.</p>
+<p>The generic NPY conversion handles owned nalgebra matrices with static or
+dynamic dimensions. Its expected shape is <code>(rows, columns)</code>, and its writer
+preserves both axes in Fortran order. The slice writer used for HF energies
+emits <code>(n,)</code> instead.</p>
+<p>Nalgebra <code>Vector</code> and <code>RowVector</code> types additionally accept one-dimensional
+NPY arrays <code>(n,)</code>, taking their orientation from the target type. Two-dimensional
+input must match the requested orientation exactly. General matrices, including
+<code>DMatrix</code> with one row or column, always require an exact two-dimensional shape.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="scientific-scope-and-limitations"><a class="header" href="#scientific-scope-and-limitations">Scientific scope and limitations</a></h1>
 <p>RustiQ is experimental software for molecular electronic energies at a fixed
