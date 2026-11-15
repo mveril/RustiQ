@@ -1,7 +1,8 @@
 //! Paired alpha and beta data independent of the orbital layout.
 
 /// A value for each electron spin component.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Spin<T> {
     pub(crate) alpha: T,
     pub(crate) beta: T,
@@ -34,6 +35,14 @@ impl<T> Spin<T> {
     /// Applies a function to each component, preserving alpha, beta order.
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Spin<U> {
         Spin::new(f(self.alpha), f(self.beta))
+    }
+
+    /// Applies a fallible conversion to each component in alpha, beta order.
+    ///
+    /// # Errors
+    /// Returns the first error, without converting subsequent components.
+    pub fn try_map<U, E>(self, mut f: impl FnMut(T) -> Result<U, E>) -> Result<Spin<U>, E> {
+        Ok(Spin::new(f(self.alpha)?, f(self.beta)?))
     }
 
     /// Combines corresponding components from two spin pairs.

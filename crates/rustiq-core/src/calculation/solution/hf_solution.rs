@@ -104,6 +104,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
 
     pub(super) fn new(
         method: R::Method,
+        persistence_identity: Option<crate::persistence::Sha256Digest>,
         scf: ScfResult,
         coefficients: MoCoefficients<R>,
         energies: OrbitalEnergies<R>,
@@ -113,6 +114,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
         Self(ScfSolution::new(
             HfMethodDescriptor(method),
             HfCalculationResult {
+                persistence_identity,
                 method: method.into(),
                 scf,
             },

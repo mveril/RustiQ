@@ -1,6 +1,9 @@
 use std::io::{Read, Seek, Write};
 
-use nalgebra::DMatrix;
+#[cfg(test)]
+use nalgebra::{DMatrix, DVector};
+mod nalgebra_impl;
+pub(crate) use nalgebra_impl::read_dmatrix;
 use npyz::{DType, NpyFile, TypeChar, WriterBuilder};
 
 use crate::eri::CompactEri;
@@ -8,7 +11,7 @@ use crate::eri::CompactEri;
 use super::NpyError;
 
 /// Conversion between scientific values and an NPY byte stream.
-trait NpyConvert: Sized {
+pub(crate) trait NpyConvert: Sized {
     type Shape: Copy;
     type NpyShape: AsRef<[u64]>;
 
@@ -22,12 +25,7 @@ trait NpyConvert: Sized {
         shape: Self::Shape,
     ) -> Result<Self, NpyError> {
         let expected = Self::npy_shape(shape)?;
-        if npy.shape() != expected.as_ref() {
-            return Err(NpyError::InvalidShape {
-                expected: expected.as_ref().to_vec().into_boxed_slice(),
-                actual: npy.shape().to_vec().into_boxed_slice(),
-            });
-        }
+        check_npy_shape(expected.as_ref(), npy.shape())?;
         Self::decode_with_shape(npy, shape)
     }
 
@@ -37,6 +35,31 @@ trait NpyConvert: Sized {
     }
 
     fn write_npy(&self, writer: impl Write) -> Result<(), NpyError>;
+}
+
+/// Checks that two NPY headers declare identical ranks and axis lengths.
+/// Reads headers only; values, dtype compatibility, and payload integrity are not checked.
+///
+/// # Errors
+/// Returns a read error for invalid headers, or `InvalidShape` for different shapes.
+pub fn validate_matching_npy_shapes(
+    alpha: impl Read,
+    beta: impl Read,
+) -> Result<Box<[u64]>, NpyError> {
+    let alpha = NpyFile::new(alpha).map_err(NpyError::Read)?;
+    let beta = NpyFile::new(beta).map_err(NpyError::Read)?;
+    check_npy_shape(alpha.shape(), beta.shape())?;
+    Ok(alpha.shape().to_vec().into_boxed_slice())
+}
+
+fn check_npy_shape(expected: &[u64], actual: &[u64]) -> Result<(), NpyError> {
+    if expected != actual {
+        return Err(NpyError::InvalidShape {
+            expected: expected.into(),
+            actual: actual.into(),
+        });
+    }
+    Ok(())
 }
 
 impl NpyConvert for CompactEri {
@@ -66,39 +89,6 @@ impl NpyConvert for CompactEri {
             .map_err(NpyError::Write)?;
         writer
             .extend(self.ordered_values().iter().copied())
-            .map_err(NpyError::Write)?;
-        writer.finish().map_err(NpyError::Write)
-    }
-}
-
-impl NpyConvert for DMatrix<f64> {
-    type Shape = (usize, usize);
-    type NpyShape = [u64; 2];
-
-    fn npy_shape((rows, columns): (usize, usize)) -> Result<Self::NpyShape, NpyError> {
-        let rows = u64::try_from(rows).map_err(|_| NpyError::DimensionOverflow)?;
-        let columns = u64::try_from(columns).map_err(|_| NpyError::DimensionOverflow)?;
-        Ok([rows, columns])
-    }
-
-    fn decode_with_shape<R: Read>(
-        npy: NpyFile<R>,
-        _shape: (usize, usize),
-    ) -> Result<Self, NpyError> {
-        decode_dmatrix(npy)
-    }
-
-    fn write_npy(&self, writer: impl Write) -> Result<(), NpyError> {
-        let shape = Self::npy_shape((self.nrows(), self.ncols()))?;
-        let mut writer = npyz::WriteOptions::new()
-            .default_dtype()
-            .order(npyz::Order::Fortran)
-            .shape(&shape)
-            .writer(writer)
-            .begin_nd()
-            .map_err(NpyError::Write)?;
-        writer
-            .extend(self.as_slice().iter().copied())
             .map_err(NpyError::Write)?;
         writer.finish().map_err(NpyError::Write)
     }
@@ -316,45 +306,6 @@ pub(crate) fn validate_compact_eri_header(
             .is_some_and(|end| end == file_size)
 }
 
-pub(crate) fn read_dmatrix(reader: impl Read) -> Result<DMatrix<f64>, NpyError> {
-    decode_dmatrix(NpyFile::new(reader).map_err(NpyError::Read)?)
-}
-
-fn decode_dmatrix<R: Read>(npy: NpyFile<R>) -> Result<DMatrix<f64>, NpyError> {
-    if npy.shape().len() != 2 {
-        return Err(NpyError::InvalidMatrixShape(
-            npy.shape().to_vec().into_boxed_slice(),
-        ));
-    }
-    let rows = usize::try_from(npy.shape()[0])
-        .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
-    let columns = usize::try_from(npy.shape()[1])
-        .map_err(|_| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
-    rows.checked_mul(columns)
-        .ok_or_else(|| NpyError::InvalidMatrixShape(npy.shape().to_vec().into_boxed_slice()))?;
-    let order = npy.order();
-    let values = npy.into_vec::<f64>().map_err(|error| {
-        if error.kind() == std::io::ErrorKind::InvalidData {
-            NpyError::InvalidDtype(error.to_string())
-        } else {
-            NpyError::Read(error)
-        }
-    })?;
-    Ok(matrix_from_npy_values(rows, columns, order, values))
-}
-
-fn matrix_from_npy_values(
-    rows: usize,
-    columns: usize,
-    order: npyz::Order,
-    values: Vec<f64>,
-) -> DMatrix<f64> {
-    match order {
-        npyz::Order::C => DMatrix::from_row_slice(rows, columns, &values),
-        npyz::Order::Fortran => DMatrix::from_vec(rows, columns, values),
-    }
-}
-
 #[cfg(test)]
 #[allow(
     unknown_lints,
@@ -368,6 +319,36 @@ mod tests {
     use super::*;
     use crate::eri::index::EriIndex;
     use std::fs::File;
+
+    #[test]
+    fn matching_shapes_checks_rank_and_each_axis_without_reading_values() {
+        let mut matrix = Vec::new();
+        DMatrix::<f64>::zeros(2, 3).write_npy(&mut matrix).unwrap();
+        let mut same = Vec::new();
+        DMatrix::<f64>::zeros(2, 3).write_npy(&mut same).unwrap();
+        assert_eq!(
+            &*validate_matching_npy_shapes(matrix.as_slice(), same.as_slice()).unwrap(),
+            &[2, 3]
+        );
+        let mut transposed = Vec::new();
+        DMatrix::<f64>::zeros(3, 2)
+            .write_npy(&mut transposed)
+            .unwrap();
+        assert!(matches!(
+            validate_matching_npy_shapes(matrix.as_slice(), transposed.as_slice()),
+            Err(NpyError::InvalidShape { .. })
+        ));
+        let mut vector = Vec::new();
+        DVector::<f64>::zeros(6).write_npy(&mut vector).unwrap();
+        assert!(matches!(
+            validate_matching_npy_shapes(matrix.as_slice(), vector.as_slice()),
+            Err(NpyError::InvalidShape { .. })
+        ));
+        assert!(matches!(
+            validate_matching_npy_shapes(&b"invalid"[..], vector.as_slice()),
+            Err(NpyError::Read(_))
+        ));
+    }
 
     #[test]
     #[allow(
@@ -595,5 +576,87 @@ mod tests {
         }
 
         write_compact_eri(File::create(output).unwrap(), &source).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod vector_shapes {
+    use super::*;
+
+    #[test]
+    fn generic_matrix_supports_static_and_dynamic_dimensions() {
+        let source = nalgebra::Matrix2x3::new(1., 2., 3., 4., 5., 6.);
+        let mut bytes = Vec::new();
+        source.write_npy(&mut bytes).unwrap();
+        assert_eq!(
+            nalgebra::Matrix2x3::try_read_with_shape(bytes.as_slice(), (2, 3)).unwrap(),
+            source
+        );
+        assert_eq!(
+            DMatrix::try_read_with_shape(bytes.as_slice(), (2, 3))
+                .unwrap()
+                .as_slice(),
+            source.as_slice()
+        );
+        assert!(nalgebra::Matrix3x2::try_read_with_shape(bytes.as_slice(), (2, 3)).is_err());
+        let source = nalgebra::Vector3::new(1., 2., 3.);
+        bytes.clear();
+        source.write_npy(&mut bytes).unwrap();
+        assert_eq!(
+            npyz::NpyFile::new(bytes.as_slice()).unwrap().shape(),
+            &[3, 1]
+        );
+        assert!(DMatrix::try_read_with_shape(bytes.as_slice(), (3, 1)).is_ok());
+        assert!(DMatrix::try_read_with_shape(bytes.as_slice(), (1, 3)).is_err());
+        assert!(nalgebra::RowVector3::try_read_with_shape(bytes.as_slice(), (1, 3)).is_err());
+    }
+
+    #[test]
+    fn accepts_vector_axes_but_rejects_matrices_before_decoding() {
+        for shape in [&[3][..], &[3, 1], &[1, 3], &[2, 2], &[1, 1, 3], &[4, 1]] {
+            for order in [npyz::Order::C, npyz::Order::Fortran] {
+                let mut bytes = Vec::new();
+                let mut writer = npyz::WriteOptions::new()
+                    .default_dtype()
+                    .shape(shape)
+                    .order(order)
+                    .writer(&mut bytes)
+                    .begin_nd()
+                    .unwrap();
+                writer
+                    .extend(
+                        [1.0_f64, 2., 3., 4.]
+                            .into_iter()
+                            .take(usize::try_from(shape.iter().product::<u64>()).unwrap()),
+                    )
+                    .unwrap();
+                writer.finish().unwrap();
+                for expected in [(3, 1), (1, 3)] {
+                    let dynamic = DMatrix::<f64>::try_read_with_shape(bytes.as_slice(), expected);
+                    if shape == [expected.0 as u64, expected.1 as u64] {
+                        let dynamic = dynamic.unwrap();
+                        assert_eq!(dynamic.shape(), expected);
+                        assert_eq!(dynamic.as_slice(), &[1., 2., 3.]);
+                    } else {
+                        assert!(matches!(dynamic, Err(NpyError::InvalidShape { .. })));
+                    }
+                }
+                let row =
+                    nalgebra::RowDVector::<f64>::try_read_with_shape(bytes.as_slice(), (1, 3));
+                let static_column =
+                    nalgebra::Vector3::<f64>::try_read_with_shape(bytes.as_slice(), (3, 1));
+                let static_row =
+                    nalgebra::RowVector3::<f64>::try_read_with_shape(bytes.as_slice(), (1, 3));
+                assert_eq!(row.is_ok(), shape == [3] || shape == [1, 3]);
+                assert_eq!(static_row.is_ok(), shape == [3] || shape == [1, 3]);
+                assert_eq!(static_column.is_ok(), shape == [3] || shape == [3, 1]);
+                let result = DVector::<f64>::try_read_with_shape(bytes.as_slice(), (3, 1));
+                if shape == [3] || shape == [3, 1] {
+                    assert_eq!(result.unwrap().as_slice(), &[1., 2., 3.]);
+                } else {
+                    assert!(matches!(result, Err(NpyError::InvalidShape { .. })));
+                }
+            }
+        }
     }
 }

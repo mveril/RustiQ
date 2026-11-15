@@ -1,3 +1,7 @@
+mod hf_artifact;
+pub use hf_artifact::{
+    ConvergedHf, ConvergedHfArtifact, HfOrbitalChannel, HfOrbitals, RhfOrbitals, UhfOrbitals,
+};
 mod ao_eri_artifact;
 mod artifact;
 mod artifact_ref;
@@ -7,7 +11,7 @@ pub use ao_eri_artifact::AoEriArtifact;
 pub use artifact::Artifact;
 pub use artifact_ref::ArtifactRef;
 pub use rustiq_data::RustiQData;
-pub(crate) use rustiq_data::AO_ERI_ARTIFACT;
+pub(crate) use rustiq_data::{AO_ERI_ARTIFACT, HF_ARTIFACT};
 
 mod portable;
 
