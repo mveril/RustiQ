@@ -504,8 +504,7 @@ calculations or establish scientific validity. JSON output follows the
 [artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
 `artifact verify PATH` eagerly reads and validates supported numerical
 payloads. It currently checks compact AO ERI payload hashes, NPY encoding,
-array dimensions, and consistency with the declared AO basis. It reports an
-error for an invalid payload or unsupported representation. Verification does
+array dimensions, and consistency with the declared AO basis. It aggregates errors for invalid supported payloads. Verification does
 not run a calculation or establish scientific validity.
 The archive captures exact bytes of the main input and geometry files as shared
 provenance; it does not capture Nickel's full import graph. See the
@@ -519,3 +518,13 @@ calculation schema or the batch schema. `schema_version` identifies the
 contract; schemas, rather than this manual, define the complete field sets.
 The [JSON guide](../user-guide/json-output.md) describes output selection,
 standard output behavior, failure cases, and the existing automated checks.
+
+Artifact verification supports `ao_eri` (`rustiq-compact-eri-v1`) and
+`converged_hf` (`rustiq-converged-hf-orbitals-v1`, `rustiq-converged-hf-npy-v1` and legacy
+`rustiq-converged-hf-v1`). Unknown artifacts and unsupported representations
+produce Miette warnings on stderr and count as skipped. Independent failures
+are collected into one diagnostic after traversal. The stdout summary counts
+calculations and logical verified, failed, and skipped artifacts. Exit status
+is 0 when supported artifacts pass (including empty bundles), and 1 for
+verification failures or fatal archive errors. Verification does not establish
+scientific validity.

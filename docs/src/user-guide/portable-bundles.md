@@ -92,13 +92,17 @@ rustiq artifact verify h2.rustiq
 The command checks compact AO ERI payload hashes, NPY encoding, array dimensions,
 and consistency with the declared AO basis. It reports the number of verified
 payloads and calculations on standard output, and exits unsuccessfully if a
-payload is invalid or has an unsupported representation. A bundle with no
+supported payload is invalid. A bundle with no
 numerical payloads can successfully report zero verified payloads. Verification
 does not execute the calculation or establish that the scientific method or
 result is valid. For the H₂ bundle created above, the output is:
 
 ```text
-Verified 1 payload(s) across 1 calculation(s).
+Verification summary
+  Calculations: 1
+  Verified:     1
+  Failed:       0
+  Skipped:      0
 ```
 
 ## Rerun a saved calculation
@@ -301,8 +305,8 @@ checks do not independently establish physical validity or orbital orthonormalit
 `hf_is_compatible` checks context compatibility without verifying the payload.
 Reading the artifact alone does not construct an executable solution. To restore
 one for MP2, the same calculation entry must also contain compatible AO ERIs.
-The current CLI `artifact verify` supports AO ERIs and rejects HF artifacts as
-unsupported; use the typed Rust getter to verify HF.
+The CLI `artifact verify` supports AO ERIs and converged RHF/UHF artifacts
+through the typed Rust getters.
 
 ### Restoring a solution for MP2
 
@@ -405,3 +409,13 @@ Nalgebra `Vector` and `RowVector` types additionally accept one-dimensional
 NPY arrays `(n,)`, taking their orientation from the target type. Two-dimensional
 input must match the requested orientation exactly. General matrices, including
 `DMatrix` with one row or column, always require an exact two-dimensional shape.
+
+Artifact verification supports `ao_eri` (`rustiq-compact-eri-v1`) and
+`converged_hf` (`rustiq-converged-hf-orbitals-v1`, `rustiq-converged-hf-npy-v1` and legacy
+`rustiq-converged-hf-v1`). Unknown artifacts and unsupported representations
+produce Miette warnings on stderr and count as skipped. Independent failures
+are collected into one diagnostic after traversal. The stdout summary counts
+calculations and logical verified, failed, and skipped artifacts. Exit status
+is 0 when supported artifacts pass (including empty bundles), and 1 for
+verification failures or fatal archive errors. Verification does not establish
+scientific validity.

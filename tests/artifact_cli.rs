@@ -563,3 +563,20 @@ fn reuse_without_publication_does_not_need_temporary_storage() {
     assert_eq!(report(&result)["origin"], "archive");
     assert_eq!(fs::read(root.join("source.rustiq")).unwrap(), before);
 }
+
+#[test]
+fn verification_counts_current_eri_and_hf_artifacts() {
+    let directory = fixture();
+    let root = directory.path();
+    calculate(root, &["--artifact", "verify.rustiq"]);
+    let output = command(root, &["artifact", "verify", "verify.rustiq"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("Verified:     2"), "{text}");
+    assert!(text.contains("Failed:       0"), "{text}");
+    assert!(text.contains("Skipped:      0"), "{text}");
+}

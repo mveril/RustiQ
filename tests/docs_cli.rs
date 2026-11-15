@@ -249,7 +249,7 @@ fn standalone_manual_workflows_run_offline() {
     ]);
     assert!(hf.contains("-1.116759"), "{hf}");
     let verified = run(&["artifact", "verify", "h2.rustiq"]);
-    assert!(verified.contains("Verified 1 payload(s)"), "{verified}");
+    assert!(verified.contains("Verified:     1"), "{verified}");
     run(&["init", "h2.xyz", "--mp2", "--force"]);
     let mp2 = run(&[
         "run",

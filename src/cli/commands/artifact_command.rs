@@ -4,9 +4,12 @@ use std::{
 };
 
 use clap::Subcommand;
-use miette::{miette, IntoDiagnostic};
-use rustiq_core::persistence::{AoEriArtifact, Artifact, RustiQBundle};
+use miette::{miette, Diagnostic, IntoDiagnostic};
+use rustiq_core::persistence::{
+    AoEriArtifact, Artifact, ConvergedHfArtifact, RustiQBundle, RustiQData,
+};
 use serde::Serialize;
+use thiserror::Error;
 
 use super::{run_command::CalculationOutputFormat, CommandResult, Runnable};
 use crate::cli::ux::{
@@ -83,42 +86,105 @@ impl Runnable for ArtifactCommands {
     }
 }
 
+#[derive(Debug, Error, Diagnostic)]
+#[error(
+    "verification failed for calculation {calculation_index}, artifact {name} ({representation})"
+)]
+#[diagnostic(code(rustiq::artifact::verification_failed))]
+struct VerificationFailure {
+    calculation_index: usize,
+    name: String,
+    representation: String,
+    #[source]
+    #[diagnostic_source]
+    source: Box<dyn Diagnostic + Send + Sync>,
+}
+
+#[derive(Debug, Error, Diagnostic)]
+#[error("artifact verification failed")]
+#[diagnostic(code(rustiq::artifact::verification_batch_failed))]
+struct VerificationFailures {
+    #[related]
+    errors: Vec<VerificationFailure>,
+}
+
+#[derive(Debug, Error, Diagnostic)]
+#[error("skipping calculation {calculation_index}, artifact {name} ({representation}): {reason}")]
+#[diagnostic(code(rustiq::artifact::verification_skipped), severity(Warning))]
+struct VerificationWarning {
+    calculation_index: usize,
+    name: String,
+    representation: String,
+    reason: &'static str,
+}
+
+fn verify_payload<A: Artifact>(data: &RustiQData) -> miette::Result<()> {
+    data.get::<A>()
+        .into_diagnostic()?
+        .ok_or_else(|| miette!("declared artifact payload is missing"))?;
+    Ok(())
+}
+
 impl Runnable for VerifyCommand {
     fn run(&self) -> CommandResult {
         let bundle = RustiQBundle::open(&self.path).into_diagnostic()?;
         let calculation_count = bundle.calculations().len();
         let mut verified = 0;
+        let mut skipped = 0;
+        let mut errors = Vec::new();
 
         for (calculation_index, data) in bundle.into_calculations().into_iter().enumerate() {
-            let artifacts = data
-                .artifact_representations()
-                .map(|(name, representation)| (name.to_owned(), representation.to_owned()))
-                .collect::<Vec<_>>();
-            for (name, representation) in artifacts {
-                match name.as_str() {
-                    name if name == AoEriArtifact::NAME
-                        && representation == "rustiq-compact-eri-v1" =>
+            for (name, representation) in data.artifact_representations() {
+                let reason = match name {
+                    "ao_eri" if representation == "rustiq-compact-eri-v1" => None,
+                    "converged_hf"
+                        if matches!(
+                            representation,
+                            "rustiq-converged-hf-orbitals-v1"
+                                | "rustiq-converged-hf-npy-v1"
+                                | "rustiq-converged-hf-v1"
+                        ) =>
                     {
-                        data.get::<AoEriArtifact>()
-                            .into_diagnostic()?
-                            .ok_or_else(|| miette!("AO ERI payload is missing"))?;
-                        verified += 1;
+                        None
                     }
-                    _ => {
-                        return Err(miette!(
-                            "cannot verify unsupported artifact {name} ({representation}) in calculation {calculation_index}"
-                        ));
-                    }
+                    "ao_eri" | "converged_hf" => Some("unsupported representation"),
+                    _ => Some("unknown artifact"),
+                };
+                if let Some(reason) = reason {
+                    skipped += 1;
+                    let warning = miette::Report::new(VerificationWarning {
+                        calculation_index,
+                        name: name.to_owned(),
+                        representation: representation.to_owned(),
+                        reason,
+                    });
+                    writeln!(io::stderr().lock(), "{warning:?}").into_diagnostic()?;
+                    continue;
+                }
+
+                let result = match name {
+                    "ao_eri" => verify_payload::<AoEriArtifact>(&data),
+                    _ => verify_payload::<ConvergedHfArtifact>(&data),
+                };
+                match result {
+                    Ok(()) => verified += 1,
+                    Err(source) => errors.push(VerificationFailure {
+                        calculation_index,
+                        name: name.to_owned(),
+                        representation: representation.to_owned(),
+                        source: source.into(),
+                    }),
                 }
             }
         }
-
-        writeln!(
-            io::stdout().lock(),
-            "Verified {verified} payload(s) across {calculation_count} calculation(s)."
-        )
-        .into_diagnostic()?;
-        Ok(())
+        writeln!(io::stdout().lock(),
+            "Verification summary\n  Calculations: {calculation_count}\n  Verified:     {verified}\n  Failed:       {}\n  Skipped:      {skipped}", errors.len()
+        ).into_diagnostic()?;
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(VerificationFailures { errors }.into())
+        }
     }
 }
 
@@ -257,5 +323,37 @@ impl Runnable for InspectCommand {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod verification_tests {
+    use super::*;
+
+    #[test]
+    fn diagnostics_preserve_severity_context_and_sources() {
+        let warning = VerificationWarning {
+            calculation_index: 2,
+            name: "future".into(),
+            representation: "v2".into(),
+            reason: "unknown artifact",
+        };
+        assert_eq!(warning.severity(), Some(miette::Severity::Warning));
+        assert_eq!(
+            warning.code().unwrap().to_string(),
+            "rustiq::artifact::verification_skipped"
+        );
+        let failure = VerificationFailure {
+            calculation_index: 1,
+            name: "ao_eri".into(),
+            representation: "rustiq-compact-eri-v1".into(),
+            source: miette!("invalid payload").into(),
+        };
+        assert!(std::error::Error::source(&failure).is_some());
+        assert!(failure.diagnostic_source().is_some());
+        let batch = VerificationFailures {
+            errors: vec![failure],
+        };
+        assert_eq!(batch.related().unwrap().count(), 1);
     }
 }
