@@ -88,11 +88,11 @@ impl<T: PayloadWrite> PayloadWrite for Spin<T> {
         storage: &mut Storage,
         stem: &str,
     ) -> Result<Self::Reference, ArtifactError> {
-        Ok(Spin::new(
-            self.alpha()
-                .save_payload(storage, &format!("{stem}/alpha"))?,
-            self.beta().save_payload(storage, &format!("{stem}/beta"))?,
-        ))
+        self.as_ref()
+            .zip_map(Spin::new("alpha", "beta"), |value, channel| {
+                (value, channel)
+            })
+            .try_map(|(value, channel)| value.save_payload(storage, &format!("{stem}/{channel}")))
     }
 }
 
@@ -141,11 +141,13 @@ impl<T: Payload> Payload for Spin<T> {
         reference: Self::Reference,
         shape: Self::Shape,
     ) -> Result<Self, ArtifactError> {
-        let (alpha, beta) = reference.into_parts();
-        Ok(Spin::new(
-            T::load(storage, &format!("{stem}/alpha"), alpha, shape)?,
-            T::load(storage, &format!("{stem}/beta"), beta, shape)?,
-        ))
+        reference
+            .zip_map(Spin::new("alpha", "beta"), |value, channel| {
+                (value, channel)
+            })
+            .try_map(|(value, channel)| {
+                T::load(storage, &format!("{stem}/{channel}"), value, shape)
+            })
     }
 }
 
