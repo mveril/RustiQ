@@ -16,6 +16,7 @@ use super::super::{
 use super::{artifact::Artifact, AoEriArtifact, ArtifactRef};
 
 pub(crate) const AO_ERI_ARTIFACT: &str = "ao_eri";
+pub(crate) const HF_ARTIFACT: &str = "converged_hf";
 pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 
 /// Known scientific artifacts and their manifest, with values loaded on demand.
@@ -334,7 +335,7 @@ impl RustiQData {
                 ArtifactError::InvalidMetadata(format!("artifact {name} has no source"))
             })?;
             validate_artifact_path(&artifact.path)?;
-            if name == "converged_hf"
+            if name == HF_ARTIFACT
                 && matches!(
                     artifact.representation.as_str(),
                     super::hf_artifact::HF_REPRESENTATION

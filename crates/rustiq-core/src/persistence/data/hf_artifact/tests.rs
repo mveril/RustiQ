@@ -69,12 +69,17 @@ fn rhf_uhf_and_reduced_rank_roundtrip_without_integrals() {
                     .orbitals(),
                 &solution,
             ) {
-                (HfOrbitals::Rhf { shared }, AnyHfSolution::Restricted(hf)) => {
+                (HfOrbitals::Rhf(RhfOrbitals { shared }), AnyHfSolution::Restricted(hf)) => {
                     assert_eq!(shared.coefficients(), hf.mo_coefficients().as_slice());
                     assert_eq!(shared.energies(), hf.orbital_energies().as_slice());
                     assert_eq!(shared.occupied(), *hf.occupied_orbitals() as u64);
                 }
-                (HfOrbitals::Uhf { alpha, beta }, AnyHfSolution::Unrestricted(hf)) => {
+                (
+                    HfOrbitals::Uhf(UhfOrbitals {
+                        channels: Spin { alpha, beta },
+                    }),
+                    AnyHfSolution::Unrestricted(hf),
+                ) => {
                     assert_eq!(alpha.coefficients(), hf.mo_coefficients().alpha.as_slice());
                     assert_eq!(beta.coefficients(), hf.mo_coefficients().beta.as_slice());
                     assert_eq!(alpha.energies(), hf.orbital_energies().alpha.as_slice());
@@ -267,7 +272,9 @@ fn open_shell_occupations_match_solution_and_context() {
         let mut data = RustiQData::from_calculation(&prepared).unwrap();
         let value = ConvergedHf::from_solution(&hf).unwrap();
         match value.orbitals() {
-            HfOrbitals::Uhf { alpha, beta } => {
+            HfOrbitals::Uhf(UhfOrbitals {
+                channels: Spin { alpha, beta },
+            }) => {
                 assert_eq!(
                     alpha.coefficients(),
                     solution.mo_coefficients().alpha.as_slice()
@@ -285,7 +292,7 @@ fn open_shell_occupations_match_solution_and_context() {
                 assert_eq!(beta.occupied(), solution.occupied_orbitals().beta as u64);
                 assert_ne!(alpha.occupied(), beta.occupied());
             }
-            HfOrbitals::Rhf { .. } => panic!("expected UHF"),
+            HfOrbitals::Rhf(RhfOrbitals { .. }) => panic!("expected UHF"),
         }
         data.set::<ConvergedHfArtifact>(&value).unwrap();
         assert!(data.hf_is_compatible(&prepared));
@@ -309,7 +316,7 @@ fn rejects_nonfinite_orbitals_and_unknown_layouts() {
     let valid = json(data.get::<ConvergedHfArtifact>().unwrap().unwrap());
     for coefficients in [true, false] {
         let mut record: HfRecord = serde_json::from_value(valid.clone()).unwrap();
-        let HfOrbitals::Rhf { shared } = &mut record.orbitals else {
+        let HfOrbitals::Rhf(RhfOrbitals { shared }) = &mut record.orbitals else {
             unreachable!()
         };
         if coefficients {
@@ -551,4 +558,22 @@ fn former_npy_representation_label_can_be_read_and_republished() {
         json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
         json(original)
     );
+}
+
+#[test]
+fn typed_orbital_variants_preserve_descriptor_layout() {
+    let rhf = serde_json::json!({"reference": "rhf", "shared": 7});
+    let uhf = serde_json::json!({"reference": "uhf", "alpha": 7, "beta": 3});
+    for value in [rhf, uhf] {
+        let orbitals: HfOrbitals<u64> = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(orbitals).unwrap(), value);
+    }
+    for invalid in [
+        serde_json::json!({"reference": "rhf", "alpha": 7, "beta": 3}),
+        serde_json::json!({"reference": "uhf", "shared": 7}),
+        serde_json::json!({"reference": "rhf", "shared": 7, "beta": 3}),
+        serde_json::json!({"reference": "rohf", "shared": 7}),
+    ] {
+        assert!(serde_json::from_value::<HfOrbitals<u64>>(invalid).is_err());
+    }
 }

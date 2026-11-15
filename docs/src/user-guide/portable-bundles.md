@@ -279,8 +279,10 @@ The JSON metadata references each array by its fixed path, byte size, and SHA-25
 digest. Typed access checks every referenced payload. NPY arrays have no fixed
 byte-size ceiling; readers check their dimensions against the HF record.
 
-The read-only `HfOrbitals` enum distinguishes RHF shared orbitals from separate
-UHF alpha/beta channels. Coefficients use column-major storage: rows retain the
+The read-only `HfOrbitals` enum carries distinct `RhfOrbitals` and
+`UhfOrbitals` types for shared spatial orbitals and separate alpha/beta channels.
+`UhfOrbitals::channels` uses `Spin<C>` and its shared payload save/load operations.
+Their serialized descriptor layout is unchanged; only RHF and UHF are supported. Coefficients use column-major storage: rows retain the
 original AO order, columns match orbital energies in Hartree, and occupied
 orbitals form a prefix. The number of columns is the retained overlap rank,
 which can be smaller than the AO row count. RHF occupied spatial orbitals carry

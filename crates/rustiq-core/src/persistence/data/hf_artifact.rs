@@ -4,7 +4,7 @@ use nalgebra::{DMatrix, DVector};
 use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
 
-use super::{artifact::private, Artifact, RustiQData};
+use super::{artifact::private, Artifact, RustiQData, HF_ARTIFACT};
 use crate::{
     calculation::{AnyHfSolution, PreparedCalculation},
     config::ResolvedHfMethod,
@@ -58,8 +58,23 @@ impl HfOrbitalChannel {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "reference", rename_all = "lowercase", deny_unknown_fields)]
 pub enum HfOrbitals<C = HfOrbitalChannel> {
-    Rhf { shared: C },
-    Uhf { alpha: C, beta: C },
+    Rhf(RhfOrbitals<C>),
+    Uhf(UhfOrbitals<C>),
+}
+
+/// Shared spatial orbitals whose occupied columns each hold two electrons.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RhfOrbitals<C = HfOrbitalChannel> {
+    pub shared: C,
+}
+
+/// Independent spin channels whose occupied columns each hold one electron.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UhfOrbitals<C = HfOrbitalChannel> {
+    #[serde(flatten)]
+    pub channels: Spin<C>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,25 +112,27 @@ impl ConvergedHf {
     fn from_runtime(solution: &AnyHfSolution) -> Result<Self, ArtifactError> {
         let s = &solution.summary().scf;
         let orbitals = match solution {
-            AnyHfSolution::Restricted(hf) => HfOrbitals::Rhf {
+            AnyHfSolution::Restricted(hf) => HfOrbitals::Rhf(RhfOrbitals {
                 shared: HfOrbitalChannel::from_solution(
                     hf.mo_coefficients(),
                     hf.orbital_energies(),
                     *hf.occupied_orbitals(),
                 ),
-            },
-            AnyHfSolution::Unrestricted(hf) => HfOrbitals::Uhf {
-                alpha: HfOrbitalChannel::from_solution(
-                    &hf.mo_coefficients().alpha,
-                    &hf.orbital_energies().alpha,
-                    hf.occupied_orbitals().alpha,
-                ),
-                beta: HfOrbitalChannel::from_solution(
-                    &hf.mo_coefficients().beta,
-                    &hf.orbital_energies().beta,
-                    hf.occupied_orbitals().beta,
-                ),
-            },
+            }),
+            AnyHfSolution::Unrestricted(hf) => HfOrbitals::Uhf(UhfOrbitals {
+                channels: Spin {
+                    alpha: HfOrbitalChannel::from_solution(
+                        &hf.mo_coefficients().alpha,
+                        &hf.orbital_energies().alpha,
+                        hf.occupied_orbitals().alpha,
+                    ),
+                    beta: HfOrbitalChannel::from_solution(
+                        &hf.mo_coefficients().beta,
+                        &hf.orbital_energies().beta,
+                        hf.occupied_orbitals().beta,
+                    ),
+                },
+            }),
         };
         Ok(Self(Arc::new(HfRecord {
             version: 1,
@@ -266,10 +283,17 @@ impl ConvergedHf {
             }
         };
         match (&r.orbitals, context.hf_method()) {
-            (HfOrbitals::Rhf { shared }, ResolvedHfMethod::Rhf) if r.spin.is_none() => {
+            (HfOrbitals::Rhf(RhfOrbitals { shared }), ResolvedHfMethod::Rhf)
+                if r.spin.is_none() =>
+            {
                 check(shared, alpha)
             }
-            (HfOrbitals::Uhf { alpha: a, beta: b }, ResolvedHfMethod::Uhf) if r.spin.is_some() => {
+            (
+                HfOrbitals::Uhf(UhfOrbitals {
+                    channels: Spin { alpha: a, beta: b },
+                }),
+                ResolvedHfMethod::Uhf,
+            ) if r.spin.is_some() => {
                 check(a, alpha)?;
                 check(b, beta)
             }
@@ -286,7 +310,7 @@ pub struct ConvergedHfArtifact;
 impl private::Sealed for ConvergedHfArtifact {}
 impl Artifact for ConvergedHfArtifact {
     type Value = ConvergedHf;
-    const NAME: &'static str = "converged_hf";
+    const NAME: &'static str = HF_ARTIFACT;
     fn is_present(data: &RustiQData) -> bool {
         data.manifest.artifacts.contains_key(Self::NAME)
     }
@@ -404,13 +428,15 @@ pub(super) fn copy_payloads(
         channel.energies.copy_to(source, destination, energy_stem)
     };
     match &record.orbitals {
-        HfOrbitals::Rhf { shared } => copy(
+        HfOrbitals::Rhf(RhfOrbitals { shared }) => copy(
             shared,
             "orbitals/coefficients",
             "orbitals/energies",
             destination,
         ),
-        HfOrbitals::Uhf { alpha, beta } => {
+        HfOrbitals::Uhf(UhfOrbitals {
+            channels: Spin { alpha, beta },
+        }) => {
             copy(
                 alpha,
                 "orbitals/coefficients/alpha",
@@ -506,40 +532,35 @@ impl HfRecord {
             })
         };
         let orbitals = match &self.orbitals {
-            HfOrbitals::Rhf { shared } => HfOrbitals::Rhf {
+            HfOrbitals::Rhf(RhfOrbitals { shared }) => HfOrbitals::Rhf(RhfOrbitals {
                 shared: channel(storage, shared, "orbitals")?,
-            },
-            HfOrbitals::Uhf { alpha, beta } => {
+            }),
+            HfOrbitals::Uhf(UhfOrbitals { channels }) => {
                 let rows = usize::try_from(self.basis_dimension)
                     .map_err(|_| invalid("HF dimension overflow"))?;
-                let coefficients = Spin::new(
-                    MatrixSlice {
-                        values: &alpha.coefficients,
-                        shape: (rows, alpha.energies.len()),
+                let coefficients = channels
+                    .as_ref()
+                    .map(|c| MatrixSlice {
+                        values: &c.coefficients,
+                        shape: (rows, c.energies.len()),
                         order: npyz::Order::Fortran,
-                    },
-                    MatrixSlice {
-                        values: &beta.coefficients,
-                        shape: (rows, beta.energies.len()),
-                        order: npyz::Order::Fortran,
-                    },
-                )
-                .save_payload(storage, "orbitals/coefficients")?;
-                let energies = Spin::new(alpha.energies.as_slice(), beta.energies.as_slice())
+                    })
+                    .save_payload(storage, "orbitals/coefficients")?;
+                let energies = channels
+                    .as_ref()
+                    .map(|c| c.energies.as_slice())
                     .save_payload(storage, "orbitals/energies")?;
-                let (alpha_coefficients, beta_coefficients) = coefficients.into_parts();
-                let (alpha_energies, beta_energies) = energies.into_parts();
-                let alpha = StoredChannel {
-                    coefficients: alpha_coefficients,
-                    energies: alpha_energies,
-                    occupied: alpha.occupied,
-                };
-                let beta = StoredChannel {
-                    coefficients: beta_coefficients,
-                    energies: beta_energies,
-                    occupied: beta.occupied,
-                };
-                HfOrbitals::Uhf { alpha, beta }
+                HfOrbitals::Uhf(UhfOrbitals {
+                    channels: coefficients
+                        .zip_map(energies, |coefficients, energies| (coefficients, energies))
+                        .zip_map(channels.as_ref(), |(coefficients, energies), c| {
+                            StoredChannel {
+                                coefficients,
+                                energies,
+                                occupied: c.occupied,
+                            }
+                        }),
+                })
             }
         };
         Ok(self.with_orbitals(orbitals))
@@ -579,10 +600,12 @@ impl HfRecord<HfOrbitals<StoredChannel>> {
         // Move only the channel descriptors; the scalar metadata remains available.
         let record = self.with_orbitals(());
         let orbitals = match self.orbitals {
-            HfOrbitals::Rhf { shared } => HfOrbitals::Rhf {
+            HfOrbitals::Rhf(RhfOrbitals { shared }) => HfOrbitals::Rhf(RhfOrbitals {
                 shared: channel(storage, shared, "orbitals")?,
-            },
-            HfOrbitals::Uhf { alpha, beta } => {
+            }),
+            HfOrbitals::Uhf(UhfOrbitals {
+                channels: Spin { alpha, beta },
+            }) => {
                 let occupied = Spin::new(alpha.occupied, beta.occupied);
                 let coefficients = Spin::<DMatrix<f64>>::load(
                     storage,
@@ -605,7 +628,9 @@ impl HfRecord<HfOrbitals<StoredChannel>> {
                     },
                 );
                 let (alpha, beta) = channels.into_parts();
-                HfOrbitals::Uhf { alpha, beta }
+                HfOrbitals::Uhf(UhfOrbitals {
+                    channels: Spin { alpha, beta },
+                })
             }
         };
         Ok(record.with_orbitals(orbitals))

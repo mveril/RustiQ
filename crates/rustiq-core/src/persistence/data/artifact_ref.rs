@@ -37,7 +37,7 @@ impl<'a> ArtifactRef<'a> {
     pub(super) fn name(self) -> &'static str {
         match self.0 {
             Value::AoEri(_) => super::AO_ERI_ARTIFACT,
-            Value::Hf(_) => "converged_hf",
+            Value::Hf(_) => super::HF_ARTIFACT,
         }
     }
 

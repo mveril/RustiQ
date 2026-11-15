@@ -33,11 +33,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let orbitals = restored
         .get::<ConvergedHfArtifact>()?
         .ok_or("HF artifact missing")?;
-    if let HfOrbitals::Rhf { shared } = orbitals.orbitals() {
-        if shared.occupied() != 1 {
+    if let HfOrbitals::Rhf(rhf) = orbitals.orbitals() {
+        if rhf.shared.occupied() != 1 {
             return Err("unexpected occupation".into());
         }
-        if shared.coefficients()
+        if rhf.shared.coefficients()
             != solution
                 .as_restricted()
                 .ok_or("expected RHF")?
