@@ -45,12 +45,12 @@ fn fixture(method: HfMethod, redundant: bool) -> (PreparedCalculation, AnyHfSolu
     let prepared = calculation(method, 0, 1, redundant);
     let solution = prepared.run_hf().unwrap().into_converged().unwrap();
     let mut data = RustiQData::from_calculation(&prepared).unwrap();
-    data.set::<ConvergedHfArtifact>(ConvergedHf::from_solution(&solution).unwrap())
+    data.set::<ConvergedHfArtifact>(&ConvergedHf::from_solution(&solution).unwrap())
         .unwrap();
     (prepared, solution, data)
 }
-fn json(hf: &ConvergedHf) -> serde_json::Value {
-    serde_json::to_value(&*hf.0).unwrap()
+fn json(hf: impl std::borrow::Borrow<ConvergedHf>) -> serde_json::Value {
+    serde_json::to_value(&*hf.borrow().0).unwrap()
 }
 fn from_json(json: serde_json::Value) -> ConvergedHf {
     ConvergedHf(Arc::new(serde_json::from_value(json).unwrap()))
@@ -62,7 +62,13 @@ fn rhf_uhf_and_reduced_rank_roundtrip_without_integrals() {
         for redundant in [false, true] {
             let (_, solution, mut data) = fixture(method, redundant);
             let before = json(data.get::<ConvergedHfArtifact>().unwrap().unwrap());
-            match (data.hf.as_ref().unwrap().orbitals(), &solution) {
+            match (
+                data.get::<ConvergedHfArtifact>()
+                    .unwrap()
+                    .unwrap()
+                    .orbitals(),
+                &solution,
+            ) {
                 (HfOrbitals::Rhf { shared }, AnyHfSolution::Restricted(hf)) => {
                     assert_eq!(shared.coefficients(), hf.mo_coefficients().as_slice());
                     assert_eq!(shared.energies(), hf.orbital_energies().as_slice());
@@ -80,13 +86,23 @@ fn rhf_uhf_and_reduced_rank_roundtrip_without_integrals() {
             }
 
             assert_eq!(
-                data.hf.as_ref().unwrap().energies()[0],
+                data.get::<ConvergedHfArtifact>()
+                    .unwrap()
+                    .unwrap()
+                    .energies()[0],
                 solution.summary().scf.electronic_energy
             );
             if redundant {
                 assert!(
-                    data.hf.as_ref().unwrap().effective_rank()
-                        < data.hf.as_ref().unwrap().basis_dimension()
+                    data.get::<ConvergedHfArtifact>()
+                        .unwrap()
+                        .unwrap()
+                        .effective_rank()
+                        < data
+                            .get::<ConvergedHfArtifact>()
+                            .unwrap()
+                            .unwrap()
+                            .basis_dimension()
                 );
             }
             let dir = tempfile::tempdir().unwrap();
@@ -94,20 +110,19 @@ fn rhf_uhf_and_reduced_rank_roundtrip_without_integrals() {
             data.write(&path).unwrap();
             let mut bundle = RustiQBundle::open(&path).unwrap();
             let restored = &mut bundle.calculations_mut()[0];
-            assert!(restored.hf.is_none());
+            assert!(restored.staged.is_empty());
             assert!(restored.get::<AoEriArtifact>().unwrap().is_none());
             assert_eq!(
                 json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
                 before
             );
-            let cached = restored.hf.as_ref().unwrap().clone();
-            assert!(Arc::ptr_eq(
-                &cached.0,
-                &restored.get::<ConvergedHfArtifact>().unwrap().unwrap().0
-            ));
+            let first = restored.get::<ConvergedHfArtifact>().unwrap().unwrap();
+            let second = restored.get::<ConvergedHfArtifact>().unwrap().unwrap();
+            assert!(!Arc::ptr_eq(&first.0, &second.0));
+            assert_eq!(json(first), json(second));
             let copy = dir.path().join("copy.rustiq");
             bundle.write(&copy).unwrap();
-            let mut reread = RustiQData::open(copy).unwrap();
+            let reread = RustiQData::open(copy).unwrap();
             assert_eq!(
                 json(reread.get::<ConvergedHfArtifact>().unwrap().unwrap()),
                 before
@@ -121,16 +136,17 @@ fn preserves_existing_integrals_and_old_archives() {
     let (_, solution, mut data) = fixture(HfMethod::Rhf, false);
     let dir = tempfile::tempdir().unwrap();
     let old = dir.path().join("old.rustiq");
-    data.hf = None;
+    data.manifest.artifacts.remove(ConvergedHfArtifact::NAME);
+    data.staged.remove(ConvergedHfArtifact::NAME);
     data.write_with_eri(&old, solution.ao_eri()).unwrap();
     let mut restored = RustiQData::open(&old).unwrap();
     assert!(restored.get::<ConvergedHfArtifact>().unwrap().is_none());
     restored
-        .set::<ConvergedHfArtifact>(ConvergedHf::from_solution(&solution).unwrap())
+        .set::<ConvergedHfArtifact>(&ConvergedHf::from_solution(&solution).unwrap())
         .unwrap();
     let new = dir.path().join("new.rustiq");
     restored.write(&new).unwrap();
-    let mut reopened = RustiQData::open(new).unwrap();
+    let reopened = RustiQData::open(new).unwrap();
     assert!(reopened.get::<ConvergedHfArtifact>().unwrap().is_some());
     assert_eq!(
         reopened.read_eri().unwrap().ordered_values(),
@@ -141,7 +157,7 @@ fn preserves_existing_integrals_and_old_archives() {
 #[test]
 fn rejects_invalid_dimensions_occupations_numbers_versions_and_identity() {
     let (_, _, mut data) = fixture(HfMethod::Rhf, false);
-    let valid = json(data.hf.as_ref().unwrap());
+    let valid = json(data.get::<ConvergedHfArtifact>().unwrap().unwrap());
     for (pointer, replacement) in [
         ("/basis_dimension", serde_json::json!(3)),
         ("/effective_rank", serde_json::json!(0)),
@@ -158,7 +174,7 @@ fn rejects_invalid_dimensions_occupations_numbers_versions_and_identity() {
         let mut bad = valid.clone();
         *bad.pointer_mut(pointer).unwrap() = replacement;
         assert!(
-            data.set::<ConvergedHfArtifact>(from_json(bad)).is_err(),
+            data.set::<ConvergedHfArtifact>(&from_json(bad)).is_err(),
             "{pointer}"
         );
     }
@@ -180,23 +196,25 @@ fn rejects_invalid_dimensions_occupations_numbers_versions_and_identity() {
             _ => record.linear_dependency_threshold = f64::NAN,
         }
         assert!(data
-            .set::<ConvergedHfArtifact>(ConvergedHf(Arc::new(record)))
+            .set::<ConvergedHfArtifact>(&ConvergedHf(Arc::new(record)))
             .is_err());
     }
     for charge_mult in [(1, 2), (0, 3)] {
         let prepared = calculation(HfMethod::Uhf, charge_mult.0, charge_mult.1, false);
         let mut other = RustiQData::from_calculation(&prepared).unwrap();
         assert!(other
-            .set::<ConvergedHfArtifact>(from_json(valid.clone()))
+            .set::<ConvergedHfArtifact>(&from_json(valid.clone()))
             .is_err());
     }
     let (_, _, other) = fixture(HfMethod::Uhf, false);
-    assert!(data.set::<ConvergedHfArtifact>(other.hf.unwrap()).is_err());
+    assert!(data
+        .set::<ConvergedHfArtifact>(&other.get::<ConvergedHfArtifact>().unwrap().unwrap())
+        .is_err());
 }
 
 #[test]
 fn rejects_corrupt_truncated_unknown_and_semantically_invalid_payloads() {
-    let (_, _, mut data) = fixture(HfMethod::Rhf, false);
+    let (_, _, data) = fixture(HfMethod::Rhf, false);
     let dir = tempfile::tempdir().unwrap();
     data.write_to(Storage::folder(dir.path())).unwrap();
     let original = std::fs::read(dir.path().join(HF_PATH)).unwrap();
@@ -269,7 +287,7 @@ fn open_shell_occupations_match_solution_and_context() {
             }
             HfOrbitals::Rhf { .. } => panic!("expected UHF"),
         }
-        data.set::<ConvergedHfArtifact>(value).unwrap();
+        data.set::<ConvergedHfArtifact>(&value).unwrap();
         assert!(data.hf_is_compatible(&prepared));
         let other = calculation(HfMethod::Uhf, 0, 1, false);
         assert!(data.matches_eri_identity(&other));
@@ -277,10 +295,10 @@ fn open_shell_occupations_match_solution_and_context() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("open-shell.rustiq");
         data.write(&path).unwrap();
-        let mut restored = RustiQData::open(path).unwrap();
+        let restored = RustiQData::open(path).unwrap();
         assert_eq!(
             json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
-            json(data.hf.as_ref().unwrap())
+            json(data.get::<ConvergedHfArtifact>().unwrap().unwrap())
         );
     }
 }
@@ -288,7 +306,7 @@ fn open_shell_occupations_match_solution_and_context() {
 #[test]
 fn rejects_nonfinite_orbitals_and_unknown_layouts() {
     let (_, _, mut data) = fixture(HfMethod::Rhf, false);
-    let valid = json(data.hf.as_ref().unwrap());
+    let valid = json(data.get::<ConvergedHfArtifact>().unwrap().unwrap());
     for coefficients in [true, false] {
         let mut record: HfRecord = serde_json::from_value(valid.clone()).unwrap();
         let HfOrbitals::Rhf { shared } = &mut record.orbitals else {
@@ -300,7 +318,7 @@ fn rejects_nonfinite_orbitals_and_unknown_layouts() {
             shared.energies[0] = f64::INFINITY;
         }
         assert!(data
-            .set::<ConvergedHfArtifact>(ConvergedHf(Arc::new(record)))
+            .set::<ConvergedHfArtifact>(&ConvergedHf(Arc::new(record)))
             .is_err());
     }
     let mut bad = valid;
@@ -344,16 +362,16 @@ fn identity_survives_generic_solution_conversions() {
     let hf = solution.into_restricted().unwrap();
     let generic = hf.into_scf();
     let artifact = generic.to_artifact().unwrap();
-    data.set::<ConvergedHfArtifact>(artifact).unwrap();
+    data.set::<ConvergedHfArtifact>(&artifact).unwrap();
     let restored: AnyHfSolution = generic.into();
-    data.set::<ConvergedHfArtifact>(ConvergedHf::from_solution(&restored).unwrap())
+    data.set::<ConvergedHfArtifact>(&ConvergedHf::from_solution(&restored).unwrap())
         .unwrap();
 }
 
 #[test]
 fn npy_leaves_have_numpy_shapes_and_corruption_is_rejected() {
     for method in [HfMethod::Rhf, HfMethod::Uhf] {
-        let (_, _, mut data) = fixture(method, false);
+        let (_, _, data) = fixture(method, false);
         let dir = tempfile::tempdir().unwrap();
         data.write_to(Storage::folder(dir.path())).unwrap();
         let manifest: crate::persistence::Manifest =
@@ -410,10 +428,11 @@ fn npy_leaves_have_numpy_shapes_and_corruption_is_rejected() {
 
 #[test]
 fn legacy_inline_hf_is_readable() {
-    let (_, _, mut data) = fixture(HfMethod::Rhf, false);
+    let (_, _, data) = fixture(HfMethod::Rhf, false);
     let dir = tempfile::tempdir().unwrap();
     data.write_to(Storage::folder(dir.path())).unwrap();
-    let bytes = serde_json::to_vec(&*data.hf.as_ref().unwrap().0).unwrap();
+    let bytes =
+        serde_json::to_vec(&*data.get::<ConvergedHfArtifact>().unwrap().unwrap().0).unwrap();
     std::fs::write(dir.path().join(HF_PATH), &bytes).unwrap();
     let mut manifest: crate::persistence::Manifest =
         serde_json::from_slice(&std::fs::read(dir.path().join("manifest.json")).unwrap()).unwrap();
@@ -425,6 +444,83 @@ fn legacy_inline_hf_is_readable() {
     artifact.size = bytes.len() as u64;
     artifact.digest = crate::persistence::sha256(&bytes);
     let mut restored = RustiQData::read_manifest(Storage::folder(dir.path()), manifest).unwrap();
-    restored.context = data.context.clone();
+    restored.context = data.context;
     assert!(restored.get::<ConvergedHfArtifact>().unwrap().is_some());
+}
+
+#[test]
+fn staged_hf_clones_replace_independently_and_reread_payloads() {
+    let (_, _, mut data) = fixture(HfMethod::Rhf, false);
+    let clone = data.clone();
+    let original = clone.get::<ConvergedHfArtifact>().unwrap().unwrap();
+    let mut record: HfRecord = serde_json::from_value(json(&original)).unwrap();
+    record.iterations += 1;
+    let replacement = ConvergedHf(Arc::new(record));
+    data.set::<ConvergedHfArtifact>(&replacement).unwrap();
+    assert_eq!(
+        data.get::<ConvergedHfArtifact>()
+            .unwrap()
+            .unwrap()
+            .iterations(),
+        replacement.iterations()
+    );
+    assert_eq!(
+        clone
+            .get::<ConvergedHfArtifact>()
+            .unwrap()
+            .unwrap()
+            .iterations(),
+        original.iterations()
+    );
+    let staged = clone.staged.get(ConvergedHfArtifact::NAME).unwrap();
+    std::fs::write(staged.0.path().join("orbitals/energies.npy"), b"corrupt").unwrap();
+    assert!(clone.get::<ConvergedHfArtifact>().is_err());
+    assert!(data.get::<ConvergedHfArtifact>().is_ok());
+    assert_eq!(original.basis_dimension(), replacement.basis_dimension());
+}
+
+#[test]
+fn borrowed_hf_publication_does_not_stage_and_can_replace_corrupt_payload() {
+    let (prepared, _, data) = fixture(HfMethod::Uhf, false);
+    let value = data.get::<ConvergedHfArtifact>().unwrap().unwrap();
+    let entry = RustiQData::from_calculation(&prepared).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("borrowed.rustiq");
+    entry
+        .write_with_artifacts(
+            &path,
+            &[crate::persistence::ArtifactRef::new::<ConvergedHfArtifact>(
+                &value,
+            )],
+        )
+        .unwrap();
+    assert!(entry.staged.is_empty());
+    assert!(!ConvergedHfArtifact::is_present(&entry));
+    let reopened = RustiQData::open(path).unwrap();
+    assert_eq!(
+        json(reopened.get::<ConvergedHfArtifact>().unwrap().unwrap()),
+        json(&value)
+    );
+    let staged = data.staged.get(ConvergedHfArtifact::NAME).unwrap();
+    std::fs::write(
+        staged.0.path().join("orbitals/energies/alpha.npy"),
+        b"corrupt",
+    )
+    .unwrap();
+    let destination = directory.path().join("corrupt.rustiq");
+    let mut copy = data.clone();
+    assert!(copy.write(&destination).is_err());
+    assert!(!destination.exists());
+    copy.write_with_artifacts(
+        &destination,
+        &[crate::persistence::ArtifactRef::new::<ConvergedHfArtifact>(
+            &value,
+        )],
+    )
+    .unwrap();
+    assert!(RustiQData::open(destination)
+        .unwrap()
+        .get::<ConvergedHfArtifact>()
+        .unwrap()
+        .is_some());
 }

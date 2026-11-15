@@ -17,12 +17,17 @@ pub struct ArtifactRef<'a>(Value<'a>);
 #[derive(Clone, Copy, Debug)]
 enum Value<'a> {
     AoEri(&'a CompactEri),
+    Hf(&'a super::ConvergedHf),
 }
 
 impl<'a> ArtifactRef<'a> {
     /// Borrows a known scientific value without cloning or staging it.
     pub fn new<A: Artifact>(value: &'a A::Value) -> Self {
         A::borrow(value)
+    }
+
+    pub(super) fn hf(value: &'a super::ConvergedHf) -> Self {
+        Self(Value::Hf(value))
     }
 
     pub(super) fn ao_eri(value: &'a CompactEri) -> Self {
@@ -32,12 +37,14 @@ impl<'a> ArtifactRef<'a> {
     pub(super) fn name(self) -> &'static str {
         match self.0 {
             Value::AoEri(_) => super::AO_ERI_ARTIFACT,
+            Value::Hf(_) => "converged_hf",
         }
     }
 
     pub(super) fn validate(self, data: &RustiQData) -> Result<(), ArtifactError> {
         match self.0 {
             Value::AoEri(eri) => data.validate_eri(eri),
+            Value::Hf(hf) => hf.validate(data),
         }
     }
 
@@ -48,6 +55,7 @@ impl<'a> ArtifactRef<'a> {
     ) -> Result<ArtifactManifest, ArtifactError> {
         self.validate(data)?;
         match self.0 {
+            Value::Hf(hf) => hf.write_to(destination),
             Value::AoEri(eri) => {
                 let metadata = destination.write_artifact::<ArtifactError, _>(
                     RelativePath::new(AO_ERI_PATH),

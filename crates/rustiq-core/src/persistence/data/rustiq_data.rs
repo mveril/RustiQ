@@ -23,7 +23,6 @@ pub(super) const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 /// Replacing a payload affects only that data instance.
 #[derive(Clone, Debug)]
 pub struct RustiQData {
-    pub(super) hf: Option<super::ConvergedHf>,
     pub(super) manifest: Manifest,
     pub(super) source: Option<Arc<Storage>>,
     // TODO: Separate reader and writer responsibilities into two structures.
@@ -86,7 +85,6 @@ impl RustiQData {
             request: None,
             sources: Vec::new(),
             staged: BTreeMap::new(),
-            hf: None,
             basis_functions: Some(basis_functions),
         }
     }
@@ -132,7 +130,6 @@ impl RustiQData {
             request: None,
             sources: Vec::new(),
             staged: BTreeMap::new(),
-            hf: None,
             basis_functions,
         })
     }
@@ -272,8 +269,6 @@ impl RustiQData {
         artifacts: &[ArtifactRef<'_>],
         publish_manifest: bool,
     ) -> Result<Manifest, PersistenceWriteError> {
-        // Resolve HF before copying so all referenced orbital payloads are verified and written.
-        <super::ConvergedHfArtifact as super::Artifact>::get(self)?;
         let mut manifest = self.manifest.clone();
         if manifest.kind == ManifestKind::Portable {
             manifest.producer = Producer {
@@ -331,7 +326,7 @@ impl RustiQData {
         }
 
         for (name, artifact) in &self.manifest.artifacts {
-            if artifacts.iter().any(|borrowed| borrowed.name() == name) || (name == "converged_hf" && self.hf.is_some()) {
+            if artifacts.iter().any(|borrowed| borrowed.name() == name) {
                 continue;
             }
 
@@ -339,6 +334,11 @@ impl RustiQData {
                 ArtifactError::InvalidMetadata(format!("artifact {name} has no source"))
             })?;
             validate_artifact_path(&artifact.path)?;
+            if name == "converged_hf"
+                && artifact.representation == super::hf_artifact::HF_REPRESENTATION
+            {
+                super::hf_artifact::copy_payloads(source, &mut destination)?;
+            }
 
             if source.artifact_size(&artifact.path)? != artifact.size {
                 return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()).into());
@@ -364,10 +364,6 @@ impl RustiQData {
         for artifact in artifacts {
             let record = artifact.write_to(self, &mut destination)?;
             manifest.artifacts.insert(artifact.name().into(), record);
-        }
-
-        if let Some(artifact) = self.write_hf(&mut destination)? {
-            manifest.artifacts.insert("converged_hf".into(), artifact);
         }
 
         if publish_manifest {

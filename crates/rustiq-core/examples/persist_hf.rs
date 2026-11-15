@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let solution = prepared.run_hf()?.into_converged()?;
     let mut data = RustiQData::from_calculation(&prepared)?;
     data.set::<ConvergedHfArtifact>(
-        solution
+        &solution
             .as_restricted()
             .ok_or("expected RHF")?
             .as_scf()
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = directory.path().join("h2.rustiq");
     // Optionally include the existing AO ERI without copying its representation.
     data.write_with_eri(&path, solution.ao_eri())?;
-    let mut restored = RustiQData::open(path)?;
+    let restored = RustiQData::open(path)?;
     if !restored.hf_is_compatible(&prepared) {
         return Err("incompatible HF context".into());
     }

@@ -837,15 +837,21 @@ portable V1 contract, conversion to an HF artifact returns an error. The public
 `ConvergedHf::from_solution` accepts only converged runtime HF solutions; it
 copies orbital arrays and convergence metrics without cloning or retaining the
 AO integral representation. Cloning the artifact shares its immutable backing.
-Use `set::<ConvergedHfArtifact>` on a matching entry and
-`get::<ConvergedHfArtifact>` for a borrowed, reference-specific `HfOrbitals` view.
+Use `set::<ConvergedHfArtifact>(&value)` on a matching entry to validate and
+stage the payload on disk. `get::<ConvergedHfArtifact>` returns an independently
+owned value with a reference-specific `HfOrbitals` view. Entry clones share
+stored payloads, and replacement affects only the modified entry.
+`ArtifactRef::new::<ConvergedHfArtifact>(&value)` supports direct publication
+without staging.
 The runnable offline example is `crates/rustiq-core/examples/persist_hf.rs`.
 
 Opening validates the entry context and declared payload size without decoding
-HF. First typed access checks representation, payload size (maximum 256 MiB),
+HF. Every typed access checks representation, JSON payload size (maximum 256 MiB),
 SHA-256, JSON version/layout, identity, dimensions, occupations, and convergence
-metadata before caching the value. Loaded values are validated again on write;
-forwarding an unloaded HF artifact also validates it. Existing AO ERIs are
+metadata without retaining the decoded value in the entry. Borrowed values are
+validated before publication. Forwarding stored HF artifacts streams their NPY
+leaves and verifies paths, sizes, and SHA-256 without decoding orbital arrays;
+semantic validation requires the typed getter. Existing AO ERIs are
 preserved independently. Tests in `persistence::data::hf_artifact::tests` cover
 RHF/UHF round trips, rank reduction, open-shell occupations, absent HF, integral
 preservation, invalid metadata, and corrupt payloads. No numerical method or

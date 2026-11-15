@@ -287,7 +287,7 @@ impl Artifact for ConvergedHfArtifact {
     type Value = ConvergedHf;
     const NAME: &'static str = "converged_hf";
     fn is_present(data: &RustiQData) -> bool {
-        data.hf.is_some() || data.manifest.artifacts.contains_key(Self::NAME)
+        data.manifest.artifacts.contains_key(Self::NAME)
     }
     fn is_compatible(data: &RustiQData, calculation: &PreparedCalculation) -> bool {
         let requested = crate::persistence::calculation::Snapshot::from_calculation(calculation)
@@ -296,51 +296,48 @@ impl Artifact for ConvergedHfArtifact {
         requested.is_some()
             && requested == data.context.as_ref().and_then(|c| c.0.hf_identity().ok())
     }
-    fn set(data: &mut RustiQData, value: ConvergedHf) -> Result<(), ArtifactError> {
-        value.validate(data)?;
-        data.hf = Some(value);
-        Ok(())
+    fn borrow(value: &ConvergedHf) -> super::ArtifactRef<'_> {
+        super::ArtifactRef::hf(value)
     }
-    fn get(data: &mut RustiQData) -> Result<Option<&ConvergedHf>, ArtifactError> {
-        if data.hf.is_none() {
-            let Some(a) = data.manifest.artifacts.get(Self::NAME) else {
-                return Ok(None);
-            };
-            if !matches!(
-                a.representation.as_str(),
-                HF_REPRESENTATION | "rustiq-converged-hf-v1"
-            ) || a.path.as_str() != HF_PATH
-            {
-                return Err(ArtifactError::UnsupportedRepresentation(
-                    a.representation.clone(),
-                ));
-            }
-            if a.size > MAX_HF_BYTES {
-                return Err(invalid("HF payload exceeds size limit"));
-            }
-            let source = data.source.as_mut().ok_or(ArtifactError::Missing)?;
-            if source.artifact_size(&a.path)? != a.size {
-                return Err(ArtifactError::IntegrityMismatch(a.path.to_string()));
-            }
-            let metadata = source.artifact_metadata(&a.path)?;
-            if metadata.size != a.size || metadata.digest != a.digest {
-                return Err(ArtifactError::IntegrityMismatch(a.path.to_string()));
-            }
-            let record = if a.representation == "rustiq-converged-hf-v1" {
-                source
-                    .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
-                    .map_err(|e| invalid(&e.to_string()))?
-            } else {
-                let record: HfRecord<HfOrbitals<StoredChannel>> = source
-                    .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
-                    .map_err(|e| invalid(&e.to_string()))?;
-                record.restore(source)?
-            };
-            let value = ConvergedHf(Arc::new(record));
-            value.validate(data)?;
-            data.hf = Some(value);
+    fn get(data: &RustiQData) -> Result<Option<ConvergedHf>, ArtifactError> {
+        let Some(a) = data.manifest.artifacts.get(Self::NAME) else {
+            return Ok(None);
+        };
+        if !matches!(
+            a.representation.as_str(),
+            HF_REPRESENTATION | "rustiq-converged-hf-v1"
+        ) || a.path.as_str() != HF_PATH
+        {
+            return Err(ArtifactError::UnsupportedRepresentation(
+                a.representation.clone(),
+            ));
         }
-        Ok(data.hf.as_ref())
+        if a.size > MAX_HF_BYTES {
+            return Err(invalid("HF payload exceeds size limit"));
+        }
+        let source = data
+            .artifact_source(Self::NAME)
+            .ok_or(ArtifactError::Missing)?;
+        if source.artifact_size(&a.path)? != a.size {
+            return Err(ArtifactError::IntegrityMismatch(a.path.to_string()));
+        }
+        let metadata = source.artifact_metadata(&a.path)?;
+        if metadata.size != a.size || metadata.digest != a.digest {
+            return Err(ArtifactError::IntegrityMismatch(a.path.to_string()));
+        }
+        let record = if a.representation == "rustiq-converged-hf-v1" {
+            source
+                .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
+                .map_err(|e| invalid(&e.to_string()))?
+        } else {
+            let record: HfRecord<HfOrbitals<StoredChannel>> = source
+                .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
+                .map_err(|e| invalid(&e.to_string()))?;
+            record.restore(source)?
+        };
+        let value = ConvergedHf(Arc::new(record));
+        value.validate(data)?;
+        Ok(Some(value))
     }
 }
 
@@ -350,37 +347,33 @@ impl RustiQData {
     #[must_use]
     pub fn hf_is_compatible(&self, calculation: &PreparedCalculation) -> bool {
         ConvergedHfArtifact::is_present(self)
-            && (self.hf.is_some()
-                || self
-                    .manifest
-                    .artifacts
-                    .get(ConvergedHfArtifact::NAME)
-                    .is_some_and(|a| {
-                        matches!(
-                            a.representation.as_str(),
-                            HF_REPRESENTATION | "rustiq-converged-hf-v1"
-                        )
-                    }))
+            && (self
+                .manifest
+                .artifacts
+                .get(ConvergedHfArtifact::NAME)
+                .is_some_and(|a| {
+                    matches!(
+                        a.representation.as_str(),
+                        HF_REPRESENTATION | "rustiq-converged-hf-v1"
+                    )
+                }))
             && ConvergedHfArtifact::is_compatible(self, calculation)
     }
+}
 
-    pub(super) fn write_hf(
+impl ConvergedHf {
+    pub(super) fn write_to(
         &self,
-        destination: &mut crate::persistence::Storage,
-    ) -> Result<
-        Option<crate::persistence::ArtifactManifest>,
-        crate::persistence::PersistenceWriteError,
-    > {
-        let Some(hf) = &self.hf else {
-            return Ok(None);
-        };
-        hf.validate(self)?;
-        let record = hf.0.store(destination)?;
-        let metadata = destination.write_json(RelativePath::new(HF_PATH), &record)?;
+        destination: &mut Storage,
+    ) -> Result<crate::persistence::ArtifactManifest, ArtifactError> {
+        let record = self.0.store(destination)?;
+        let metadata = destination
+            .write_json(RelativePath::new(HF_PATH), &record)
+            .map_err(|e| invalid(&e.to_string()))?;
         if metadata.size > MAX_HF_BYTES {
-            return Err(invalid("HF payload exceeds size limit").into());
+            return Err(invalid("HF payload exceeds size limit"));
         }
-        Ok(Some(crate::persistence::ArtifactManifest {
+        Ok(crate::persistence::ArtifactManifest {
             path: HF_PATH.into(),
             representation: HF_REPRESENTATION.into(),
             size: metadata.size,
@@ -388,7 +381,48 @@ impl RustiQData {
             attributes: crate::persistence::ArtifactAttributes::Unknown(
                 std::collections::BTreeMap::default(),
             ),
-        }))
+        })
+    }
+}
+
+/// Forwards the orbital leaves without decoding or retaining their arrays.
+pub(super) fn copy_payloads(
+    source: &Storage,
+    destination: &mut Storage,
+) -> Result<(), ArtifactError> {
+    let record: HfRecord<HfOrbitals<StoredChannel>> = source
+        .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
+        .map_err(|e| invalid(&e.to_string()))?;
+    let copy = |channel: &StoredChannel,
+                coefficient_stem: &str,
+                energy_stem: &str,
+                destination: &mut Storage| {
+        channel
+            .coefficients
+            .copy_to(source, destination, coefficient_stem)?;
+        channel.energies.copy_to(source, destination, energy_stem)
+    };
+    match &record.orbitals {
+        HfOrbitals::Rhf { shared } => copy(
+            shared,
+            "orbitals/coefficients",
+            "orbitals/energies",
+            destination,
+        ),
+        HfOrbitals::Uhf { alpha, beta } => {
+            copy(
+                alpha,
+                "orbitals/coefficients/alpha",
+                "orbitals/energies/alpha",
+                destination,
+            )?;
+            copy(
+                beta,
+                "orbitals/coefficients/beta",
+                "orbitals/energies/beta",
+                destination,
+            )
+        }
     }
 }
 
@@ -494,12 +528,12 @@ impl HfRecord {
 }
 
 impl HfRecord<HfOrbitals<StoredChannel>> {
-    fn restore(self, storage: &mut Storage) -> Result<HfRecord, ArtifactError> {
+    fn restore(self, storage: &Storage) -> Result<HfRecord, ArtifactError> {
         let rows =
             usize::try_from(self.basis_dimension).map_err(|_| invalid("HF dimension overflow"))?;
         let cols =
             usize::try_from(self.effective_rank).map_err(|_| invalid("HF dimension overflow"))?;
-        let channel = |storage: &mut Storage,
+        let channel = |storage: &Storage,
                        c: StoredChannel,
                        stem: &str|
          -> Result<HfOrbitalChannel, ArtifactError> {

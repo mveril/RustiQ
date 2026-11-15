@@ -235,6 +235,14 @@ The entry created by `RustiQData::from_calculation(&prepared)` must match that
 identity. `RustiQBundle` reads and writes these entries alongside existing AO ERIs;
 older V1 archives without HF remain readable.
 
+As with AO ERIs, `set::<ConvergedHfArtifact>(&value)` stages the artifact on disk
+immediately. Cloning an entry shares its stored payloads; replacing the artifact
+in one clone does not affect the others. Each `get::<ConvergedHfArtifact>()` reads
+and validates the payload again and returns an independently owned value.
+`ArtifactRef::new::<ConvergedHfArtifact>(&value)` also supports direct borrowed
+publication without staging. Republishing stored HF data streams its NPY files
+without retaining decoded orbital arrays.
+
 Orbital arrays are stored as NumPy-compatible NPY files. For RHF, each
 calculation entry contains:
 

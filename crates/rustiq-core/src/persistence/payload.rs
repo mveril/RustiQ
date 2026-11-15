@@ -19,7 +19,7 @@ pub(crate) trait Payload: Sized {
     type Shape: Copy;
     fn save(&self, storage: &mut Storage, stem: &str) -> Result<Self::Reference, ArtifactError>;
     fn load(
-        storage: &mut Storage,
+        storage: &Storage,
         stem: &str,
         reference: Self::Reference,
         shape: Self::Shape,
@@ -27,7 +27,7 @@ pub(crate) trait Payload: Sized {
 }
 
 fn checked(
-    storage: &mut Storage,
+    storage: &Storage,
     stem: &str,
     extension: &str,
     reference: &PayloadRef,
@@ -62,7 +62,7 @@ impl<T: NpyConvert> Payload for T {
         })
     }
     fn load(
-        storage: &mut Storage,
+        storage: &Storage,
         stem: &str,
         reference: PayloadRef,
         shape: Self::Shape,
@@ -84,7 +84,7 @@ impl<T: Payload> Payload for Spin<T> {
         ))
     }
     fn load(
-        storage: &mut Storage,
+        storage: &Storage,
         stem: &str,
         reference: Self::Reference,
         shape: Self::Shape,
@@ -94,6 +94,28 @@ impl<T: Payload> Payload for Spin<T> {
             T::load(storage, &format!("{stem}/alpha"), alpha, shape)?,
             T::load(storage, &format!("{stem}/beta"), beta, shape)?,
         ))
+    }
+}
+
+impl PayloadRef {
+    pub(super) fn copy_to(
+        &self,
+        source: &Storage,
+        destination: &mut Storage,
+        stem: &str,
+    ) -> Result<(), ArtifactError> {
+        checked(source, stem, "npy", self)?;
+        let path = RelativePath::new(&self.path);
+        let metadata = source.with_artifact::<_, ArtifactError, _>(path, |input| {
+            destination.write_artifact::<ArtifactError, _>(path, |output| {
+                std::io::copy(input, output).map_err(super::StorageError::from)?;
+                Ok(())
+            })
+        })?;
+        if metadata.size != self.size || metadata.digest != self.digest {
+            return Err(ArtifactError::IntegrityMismatch(self.path.clone()));
+        }
+        Ok(())
     }
 }
 
@@ -113,11 +135,11 @@ mod tests {
         let reference = source.save(&mut storage, "energies").unwrap();
         assert!(dir.path().join("energies/alpha.npy").is_file());
         let restored =
-            Spin::<DVector<f64>>::load(&mut storage, "energies", reference.clone(), 2).unwrap();
+            Spin::<DVector<f64>>::load(&storage, "energies", reference.clone(), 2).unwrap();
         assert_eq!(source.alpha(), restored.alpha());
         assert_eq!(source.beta(), restored.beta());
         std::fs::write(dir.path().join("energies/beta.npy"), b"corrupt").unwrap();
-        assert!(Spin::<DVector<f64>>::load(&mut storage, "energies", reference, 2).is_err());
+        assert!(Spin::<DVector<f64>>::load(&storage, "energies", reference, 2).is_err());
 
         let json = serde_json::to_value(Spin::new(1, 2)).unwrap();
         assert_eq!(json, serde_json::json!({"alpha": 1, "beta": 2}));
@@ -129,9 +151,7 @@ mod tests {
         let mut storage = Storage::folder(dir.path());
         let source = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let reference = source.save(&mut storage, "coefficients").unwrap();
-        assert!(
-            DMatrix::<f64>::load(&mut storage, "coefficients", reference.clone(), (3, 2)).is_err()
-        );
-        assert!(DMatrix::<f64>::load(&mut storage, "elsewhere", reference, (2, 3)).is_err());
+        assert!(DMatrix::<f64>::load(&storage, "coefficients", reference.clone(), (3, 2)).is_err());
+        assert!(DMatrix::<f64>::load(&storage, "elsewhere", reference, (2, 3)).is_err());
     }
 }
