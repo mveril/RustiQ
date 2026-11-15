@@ -565,7 +565,7 @@ fn reuse_without_publication_does_not_need_temporary_storage() {
 }
 
 #[test]
-fn verification_counts_current_eri_and_hf_artifacts() {
+fn verification_counts_current_eri_artifact() {
     let directory = fixture();
     let root = directory.path();
     calculate(root, &["--artifact", "verify.rustiq"]);
@@ -576,7 +576,7 @@ fn verification_counts_current_eri_and_hf_artifacts() {
         String::from_utf8_lossy(&output.stderr)
     );
     let text = String::from_utf8_lossy(&output.stdout);
-    assert!(text.contains("Verified:     2"), "{text}");
+    assert!(text.contains("Verified:     1"), "{text}");
     assert!(text.contains("Failed:       0"), "{text}");
     assert!(text.contains("Skipped:      0"), "{text}");
 }
