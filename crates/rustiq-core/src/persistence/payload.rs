@@ -185,18 +185,7 @@ impl PayloadRef {
         let path = format!("{stem}.npy");
         let metadata =
             storage.write_artifact::<ArtifactError, _>(RelativePath::new(&path), |writer| {
-                let options = npyz::WriteOptions::new();
-                let options = options.default_dtype();
-                let options = options.order(order);
-                let mut writer = options
-                    .shape(shape)
-                    .writer(writer)
-                    .begin_nd()
-                    .map_err(super::NpyError::Write)?;
-                writer
-                    .extend(values.iter().copied())
-                    .map_err(super::NpyError::Write)?;
-                writer.finish().map_err(super::NpyError::Write)?;
+                write_slice_npy(values, shape, order, writer)?;
                 Ok(())
             })?;
         Ok(Self {
@@ -227,10 +216,291 @@ impl PayloadRef {
     }
 }
 
+// Shared stream encoder for the explicit 1D and matrix payload writers.
+fn write_slice_npy(
+    values: &[f64],
+    shape: &[u64],
+    order: npyz::Order,
+    writer: impl std::io::Write,
+) -> Result<(), super::NpyError> {
+    let options = npyz::WriteOptions::new();
+    let options = options.default_dtype();
+    let options = options.order(order);
+    let mut writer = options
+        .shape(shape)
+        .writer(writer)
+        .begin_nd()
+        .map_err(super::NpyError::Write)?;
+    writer
+        .extend(values.iter().copied())
+        .map_err(super::NpyError::Write)?;
+    writer.finish().map_err(super::NpyError::Write)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use nalgebra::{DMatrix, DVector};
+    use proptest::strategy::Strategy;
+
+    proptest::proptest! {
+        #[test]
+        fn matrices_interoperate_between_binary_writers_and_readers(
+            case in (0usize..7, 0usize..7).prop_flat_map(|(rows, columns)| {
+                proptest::collection::vec(-1.0e6_f64..1.0e6, rows * columns)
+                    .prop_map(move |values| (rows, columns, values))
+            }),
+        ) {
+            use std::io::Cursor;
+            let (rows, columns, values) = case;
+            let matrix = DMatrix::from_row_slice(rows, columns, &values);
+            let view: MatrixSlice<'_> = (&matrix).into();
+            proptest::prop_assert_eq!(view.values.as_ptr(), matrix.as_slice().as_ptr());
+            let shape = [u64::try_from(rows).unwrap(), u64::try_from(columns).unwrap()];
+            let mut native = Cursor::new(Vec::new());
+            matrix.write_npy(&mut native).unwrap();
+            for order in [npyz::Order::C, npyz::Order::Fortran] {
+                let ordered = if order == npyz::Order::C { values.as_slice() } else { view.values };
+                let mut sliced = Cursor::new(Vec::new());
+                write_slice_npy(ordered, &shape, order, &mut sliced).unwrap();
+                for (bytes, expected_order) in [(sliced.get_ref(), order), (native.get_ref(), npyz::Order::Fortran)] {
+                    let header = npyz::NpyFile::new(Cursor::new(bytes)).unwrap();
+                    proptest::prop_assert_eq!(header.shape(), &shape);
+                    proptest::prop_assert_eq!(header.order(), expected_order);
+                    let restored = DMatrix::<f64>::try_read_with_shape(Cursor::new(bytes), (rows, columns)).unwrap();
+                    proptest::prop_assert_eq!(&restored, &matrix);
+                    proptest::prop_assert!(DMatrix::<f64>::try_read_with_shape(Cursor::new(bytes), (rows + 1, columns)).is_err());
+                    if rows != columns {
+                        proptest::prop_assert!(DMatrix::<f64>::try_read_with_shape(Cursor::new(bytes), (columns, rows)).is_err());
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn slices_interoperate_with_dynamic_nalgebra_vectors(
+            values in proptest::collection::vec(-1.0e6_f64..1.0e6, 0..33),
+        ) {
+            use std::io::Cursor;
+            use nalgebra::RowDVector;
+            let n = values.len();
+            let mut bytes = Cursor::new(Vec::new());
+            write_slice_npy(&values, &[u64::try_from(n).unwrap()], npyz::Order::C, &mut bytes).unwrap();
+            let column = DVector::<f64>::try_read_with_shape(Cursor::new(bytes.get_ref()), (n, 1)).unwrap();
+            let row = RowDVector::<f64>::try_read_with_shape(Cursor::new(bytes.get_ref()), (1, n)).unwrap();
+            proptest::prop_assert_eq!(column.as_slice(), values.as_slice());
+            proptest::prop_assert_eq!(row.as_slice(), values.as_slice());
+            proptest::prop_assert!(matches!(DMatrix::<f64>::try_read_with_shape(Cursor::new(bytes.get_ref()), (n, 1)), Err(super::super::NpyError::InvalidShape { .. })), "1D input must be rejected by DMatrix");
+            for (shape, encoded) in [
+                ([u64::try_from(n).unwrap(), 1], { let mut bytes = Vec::new(); column.write_npy(&mut bytes).unwrap(); bytes }),
+                ([1, u64::try_from(n).unwrap()], { let mut bytes = Vec::new(); row.write_npy(&mut bytes).unwrap(); bytes }),
+            ] {
+                let npy = npyz::NpyFile::new(Cursor::new(encoded)).unwrap();
+                proptest::prop_assert_eq!(npy.shape(), &shape);
+                proptest::prop_assert_eq!(npy.into_vec::<f64>().unwrap(), values.as_slice());
+            }
+        }
+
+        #[test]
+        fn slices_interoperate_with_static_nalgebra_vectors(
+            values in proptest::array::uniform3(-1.0e6_f64..1.0e6),
+        ) {
+            use std::io::Cursor;
+            use nalgebra::{RowVector3, Vector3};
+            let mut bytes = Cursor::new(Vec::new());
+            write_slice_npy(&values, &[3], npyz::Order::C, &mut bytes).unwrap();
+            let column = Vector3::<f64>::try_read_with_shape(Cursor::new(bytes.get_ref()), (3, 1)).unwrap();
+            let row = RowVector3::<f64>::try_read_with_shape(Cursor::new(bytes.get_ref()), (1, 3)).unwrap();
+            proptest::prop_assert_eq!(column.as_slice(), &values);
+            proptest::prop_assert_eq!(row.as_slice(), &values);
+            proptest::prop_assert!(Vector3::<f64>::try_read_with_shape(Cursor::new(bytes.get_ref()), (2, 1)).is_err());
+            let mut encoded = Vec::new();
+            column.write_npy(&mut encoded).unwrap();
+            let npy = npyz::NpyFile::new(Cursor::new(encoded)).unwrap();
+            proptest::prop_assert_eq!(npy.shape(), &[3, 1]);
+            let restored = npy.into_vec::<f64>().unwrap();
+            proptest::prop_assert_eq!(restored.as_slice(), &values);
+        }
+    }
+
+    #[test]
+    fn rust_array_npy_stream_loads_as_static_and_dynamic_nalgebra_vectors() {
+        use nalgebra::{RowDVector, RowVector3, Vector3};
+        use std::io::Cursor;
+
+        let array = [1.25, -2.5, 7.];
+        let mut stream = Cursor::new(Vec::new());
+        write_slice_npy(&array, &[3], npyz::Order::C, &mut stream).unwrap();
+        let bytes = stream.get_ref();
+        let column = Vector3::<f64>::try_read_with_shape(Cursor::new(bytes), (3, 1)).unwrap();
+        let row = RowVector3::<f64>::try_read_with_shape(Cursor::new(bytes), (1, 3)).unwrap();
+        let dynamic_column =
+            DVector::<f64>::try_read_with_shape(Cursor::new(bytes), (3, 1)).unwrap();
+        let dynamic_row =
+            RowDVector::<f64>::try_read_with_shape(Cursor::new(bytes), (1, 3)).unwrap();
+        assert_eq!(column.as_slice(), array);
+        assert_eq!(row.as_slice(), array);
+        assert_eq!(dynamic_column.as_slice(), array);
+        assert_eq!(dynamic_row.as_slice(), array);
+        assert_eq!(column.shape(), (3, 1));
+        assert_eq!(row.shape(), (1, 3));
+        assert_eq!(dynamic_column.shape(), (3, 1));
+        assert_eq!(dynamic_row.shape(), (1, 3));
+    }
+
+    #[test]
+    fn binary_interop_between_existing_rust_array_and_nalgebra_conversions() {
+        use nalgebra::{RowDVector, RowVector3, Vector3};
+        use std::io::Cursor;
+
+        let array = [1.25, -2.5, 7.];
+        let mut flat = Cursor::new(Vec::new());
+        write_slice_npy(&array, &[3], npyz::Order::C, &mut flat).unwrap();
+        assert_eq!(
+            npyz::NpyFile::new(Cursor::new(flat.get_ref()))
+                .unwrap()
+                .shape(),
+            &[3]
+        );
+        let column =
+            Vector3::<f64>::try_read_with_shape(Cursor::new(flat.get_ref()), (3, 1)).unwrap();
+        let row =
+            RowVector3::<f64>::try_read_with_shape(Cursor::new(flat.get_ref()), (1, 3)).unwrap();
+        let column_array: [f64; 3] = column.into();
+        let row_array: [f64; 3] = row.into();
+        assert_eq!(column_array, array);
+        assert_eq!(row_array, array);
+
+        // Existing From<[T; N]> conversions followed by each nalgebra writer.
+        for (shape, bytes) in [
+            ([3, 1], {
+                let mut bytes = Vec::new();
+                Vector3::from(array).write_npy(&mut bytes).unwrap();
+                bytes
+            }),
+            ([1, 3], {
+                let mut bytes = Vec::new();
+                RowVector3::from(array).write_npy(&mut bytes).unwrap();
+                bytes
+            }),
+        ] {
+            let npy = npyz::NpyFile::new(Cursor::new(bytes)).unwrap();
+            assert_eq!(npy.shape(), shape);
+            let decoded: Vec<f64> = npy.into_vec().unwrap();
+            let decoded_array: [f64; 3] = decoded.try_into().unwrap();
+            assert_eq!(decoded_array, array);
+        }
+
+        // Existing dynamic conversions transfer the allocation without copying.
+        let values = array.to_vec();
+        let pointer = values.as_ptr();
+        let column = DVector::from(values);
+        assert_eq!(column.as_slice().as_ptr(), pointer);
+        let values: Vec<f64> = column.data.into();
+        assert_eq!(values.as_ptr(), pointer);
+        let row = RowDVector::from(values);
+        assert_eq!(row.as_slice().as_ptr(), pointer);
+        let values: Vec<f64> = row.data.into();
+        assert_eq!(values.as_ptr(), pointer);
+        assert_eq!(values, array);
+    }
+
+    #[test]
+    fn binary_stream_interoperability_between_slice_and_nalgebra_contracts() {
+        use nalgebra::{RowDVector, RowVector3, SMatrix, SVector, Vector3};
+        use std::io::Cursor;
+
+        // All buffers stay in memory. Non-symmetric values expose ordering errors.
+        for (rows, columns) in [(1, 1), (1, 3), (3, 1), (2, 3)] {
+            let values = [1., -2., 3., 4., -5., 6.];
+            let values = &values[..rows * columns];
+            let expected = DMatrix::from_row_slice(rows, columns, values);
+            let view: MatrixSlice<'_> = (&expected).into();
+            let mut native = Cursor::new(Vec::new());
+            expected.write_npy(&mut native).unwrap();
+            for order in [npyz::Order::C, npyz::Order::Fortran] {
+                let mut stream = Cursor::new(Vec::new());
+                let shape = [
+                    u64::try_from(rows).unwrap(),
+                    u64::try_from(columns).unwrap(),
+                ];
+                let ordered = if order == npyz::Order::C {
+                    values
+                } else {
+                    view.values
+                };
+                write_slice_npy(ordered, &shape, order, &mut stream).unwrap();
+                let header = npyz::NpyFile::new(stream.get_ref().as_slice()).unwrap();
+                assert_eq!(header.shape(), shape);
+                assert_eq!(header.order(), order);
+                for bytes in [stream.get_ref(), native.get_ref()] {
+                    assert_eq!(
+                        DMatrix::<f64>::try_read_with_shape(Cursor::new(bytes), (rows, columns))
+                            .unwrap(),
+                        expected
+                    );
+                    if (rows, columns) == (2, 3) {
+                        assert_eq!(
+                            SMatrix::<f64, 2, 3>::try_read_with_shape(Cursor::new(bytes), (2, 3))
+                                .unwrap()
+                                .as_slice(),
+                            expected.as_slice()
+                        );
+                    }
+                }
+            }
+        }
+        for values in [&[7.][..], &[1., -2., 3.][..]] {
+            let n = values.len();
+            let mut flat = Cursor::new(Vec::new());
+            write_slice_npy(
+                values,
+                &[u64::try_from(n).unwrap()],
+                npyz::Order::C,
+                &mut flat,
+            )
+            .unwrap();
+            let bytes = flat.get_ref();
+            assert_eq!(
+                DVector::<f64>::try_read_with_shape(Cursor::new(bytes), (n, 1))
+                    .unwrap()
+                    .as_slice(),
+                values
+            );
+            assert_eq!(
+                RowDVector::<f64>::try_read_with_shape(Cursor::new(bytes), (1, n))
+                    .unwrap()
+                    .as_slice(),
+                values
+            );
+            assert!(DMatrix::<f64>::try_read_with_shape(Cursor::new(bytes), (n, 1)).is_err());
+            if n == 1 {
+                assert_eq!(
+                    SVector::<f64, 1>::try_read_with_shape(Cursor::new(bytes), (1, 1)).unwrap()[0],
+                    values[0]
+                );
+                assert_eq!(
+                    SMatrix::<f64, 1, 1>::try_read_with_shape(Cursor::new(bytes), (1, 1)).unwrap()
+                        [(0, 0)],
+                    values[0]
+                );
+            } else {
+                assert_eq!(
+                    Vector3::<f64>::try_read_with_shape(Cursor::new(bytes), (3, 1))
+                        .unwrap()
+                        .as_slice(),
+                    values
+                );
+                assert_eq!(
+                    RowVector3::<f64>::try_read_with_shape(Cursor::new(bytes), (1, 3))
+                        .unwrap()
+                        .as_slice(),
+                    values
+                );
+            }
+        }
+    }
 
     #[test]
     fn vector_payload_accepts_slice_owners_without_copying() {

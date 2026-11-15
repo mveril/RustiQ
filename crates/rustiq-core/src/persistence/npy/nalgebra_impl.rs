@@ -137,6 +137,97 @@ mod tests {
         bytes
     }
 
+    // Exercise the same binary stream against every supported destination family.
+    fn check_conversion<M: NpyConvert<Shape = (usize, usize)>>(
+        bytes: &[u8],
+        actual: &[u64],
+        expected: (usize, usize),
+        allows_1d: bool,
+        static_axes_match: bool,
+    ) {
+        let axes = [
+            u64::try_from(expected.0).unwrap(),
+            u64::try_from(expected.1).unwrap(),
+        ];
+        let shape_matches = actual == axes || (allows_1d && actual == [axes[0] * axes[1]]);
+        match M::try_read_with_shape(std::io::Cursor::new(bytes), expected) {
+            Ok(value) => {
+                assert!(shape_matches && static_axes_match);
+                let mut encoded = Vec::new();
+                value.write_npy(&mut encoded).unwrap();
+                let header = NpyFile::new(encoded.as_slice()).unwrap();
+                assert_eq!(header.shape(), axes);
+                assert_eq!(header.order(), npyz::Order::Fortran);
+                let original = NpyFile::new(bytes).unwrap().into_vec::<f64>().unwrap();
+                let decoded = header.into_vec::<f64>().unwrap();
+                if expected.0 <= 1 || expected.1 <= 1 {
+                    assert_eq!(decoded, original);
+                }
+            }
+            Err(NpyError::InvalidShape {
+                expected,
+                actual: reported,
+            }) => {
+                assert!(!shape_matches);
+                assert_eq!(&*expected, axes);
+                assert_eq!(&*reported, actual);
+            }
+            Err(NpyError::InvalidMatrixShape(reported)) => {
+                assert!(shape_matches && !static_axes_match);
+                assert_eq!(&*reported, axes);
+            }
+            Err(error) => panic!("unexpected conversion error: {error}"),
+        }
+    }
+
+    #[test]
+    fn binary_conversion_contract_acceptance_and_error_matrix() {
+        use nalgebra::{RowDVector, RowVector1, RowVector3, SMatrix, SVector, Vector3};
+        let shapes: &[&[u64]] = &[
+            &[],
+            &[0],
+            &[1],
+            &[3],
+            &[4],
+            &[0, 1],
+            &[1, 0],
+            &[1, 1],
+            &[1, 3],
+            &[3, 1],
+            &[2, 3],
+            &[3, 2],
+            &[2, 2],
+            &[1, 1, 1],
+            &[1, 3, 1],
+        ];
+        for actual in shapes {
+            for order in [npyz::Order::C, npyz::Order::Fortran] {
+                let count = usize::try_from(actual.iter().product::<u64>()).unwrap();
+                let values: Vec<_> = (0..count)
+                    .map(|i| f64::from(u32::try_from(i).unwrap()) + 0.25)
+                    .collect();
+                let bytes = npy(actual, order, &values);
+                check_conversion::<SVector<f64, 1>>(&bytes, actual, (1, 1), true, true);
+                check_conversion::<SMatrix<f64, 1, 1>>(&bytes, actual, (1, 1), true, true);
+                check_conversion::<RowVector1<f64>>(&bytes, actual, (1, 1), true, true);
+                check_conversion::<Vector3<f64>>(&bytes, actual, (3, 1), true, true);
+                check_conversion::<RowVector3<f64>>(&bytes, actual, (1, 3), true, true);
+                check_conversion::<SMatrix<f64, 2, 3>>(&bytes, actual, (2, 3), false, true);
+                // Explicit dimensions that disagree with static axes must also fail.
+                check_conversion::<Vector3<f64>>(&bytes, actual, (1, 3), true, false);
+                check_conversion::<RowVector3<f64>>(&bytes, actual, (3, 1), true, false);
+                check_conversion::<SMatrix<f64, 2, 3>>(&bytes, actual, (3, 2), false, false);
+                for n in [0, 1, 3] {
+                    check_conversion::<DVector<f64>>(&bytes, actual, (n, 1), true, true);
+                    check_conversion::<RowDVector<f64>>(&bytes, actual, (1, n), true, true);
+                    check_conversion::<DMatrix<f64>>(&bytes, actual, (n, 1), false, true);
+                    check_conversion::<DMatrix<f64>>(&bytes, actual, (1, n), false, true);
+                }
+                check_conversion::<DMatrix<f64>>(&bytes, actual, (2, 3), false, true);
+            }
+        }
+    }
+
     #[test]
     fn singleton_static_vectors_accept_1d_and_exact_2d_but_matrices_do_not() {
         let one_dimensional = npy(&[1], npyz::Order::C, &[7.]);
@@ -272,6 +363,33 @@ mod tests {
             &[1., 2., 3.]
         );
         assert!(DMatrix::<f64>::try_read_with_shape(&one_dimensional[..], (3, 1)).is_err());
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn matrix_roundtrips_for_arbitrary_shapes_and_storage_orders(
+            rows in 1usize..7,
+            columns in 1usize..7,
+            values in proptest::collection::vec(-1.0e6_f64..1.0e6, 1..=36),
+        ) {
+            let count = rows * columns;
+            proptest::prop_assume!(values.len() >= count);
+            let values = &values[..count];
+            let expected = DMatrix::from_row_slice(rows, columns, values);
+
+            for order in [npyz::Order::C, npyz::Order::Fortran] {
+                let ordered_values = if order == npyz::Order::Fortran { expected.as_slice() } else { values };
+                let bytes = npy(&[u64::try_from(rows).unwrap(), u64::try_from(columns).unwrap()], order, ordered_values);
+                let restored = DMatrix::<f64>::try_read_with_shape(&bytes[..], (rows, columns)).unwrap();
+                proptest::prop_assert_eq!(&restored, &expected);
+            }
+
+            let mut bytes = Vec::new();
+            expected.write_npy(&mut bytes).unwrap();
+            let header = NpyFile::new(bytes.as_slice()).unwrap();
+            proptest::prop_assert_eq!(header.shape(), &[u64::try_from(rows).unwrap(), u64::try_from(columns).unwrap()]);
+            proptest::prop_assert_eq!(header.order(), npyz::Order::Fortran);
+        }
     }
 
     #[test]
