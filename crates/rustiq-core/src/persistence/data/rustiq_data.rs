@@ -335,7 +335,11 @@ impl RustiQData {
             })?;
             validate_artifact_path(&artifact.path)?;
             if name == "converged_hf"
-                && artifact.representation == super::hf_artifact::HF_REPRESENTATION
+                && matches!(
+                    artifact.representation.as_str(),
+                    super::hf_artifact::HF_REPRESENTATION
+                        | super::hf_artifact::LEGACY_NPY_REPRESENTATION
+                )
             {
                 super::hf_artifact::copy_payloads(source, &mut destination)?;
             }

@@ -770,7 +770,10 @@ reference documents commands and JSON presentation.
 ## Converged HF artifact V1
 
 A portable calculation entry may contain `converged_hf`, with representation
-`rustiq-converged-hf-npy-v1` and entry-relative path `orbitals/converged-hf.json`.
+`rustiq-converged-hf-orbitals-v1` and entry-relative path `orbitals/converged-hf.json`.
+Readers also accept the former `rustiq-converged-hf-npy-v1` label with the same
+payload layout. The legacy inline `rustiq-converged-hf-v1` representation remains
+readable. Relabeling does not change the array shapes or binary encodings.
 The normal artifact manifest records its exact byte size and SHA-256 digest;
 `attributes` is an empty object. This optional addition leaves the outer format
 at V1. Existing archives with no HF artifact remain valid.

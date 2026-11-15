@@ -243,6 +243,9 @@ and validates the payload again and returns an independently owned value.
 publication without staging. Republishing stored HF data streams its NPY files
 without retaining decoded orbital arrays.
 
+The HF representation label is `rustiq-converged-hf-orbitals-v1`; readers retain
+support for the former `rustiq-converged-hf-npy-v1` label with the same layout.
+
 Orbital arrays are stored as NumPy-compatible NPY files. For RHF, each
 calculation entry contains:
 

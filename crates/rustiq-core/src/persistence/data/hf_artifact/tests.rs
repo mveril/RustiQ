@@ -524,3 +524,31 @@ fn borrowed_hf_publication_does_not_stage_and_can_replace_corrupt_payload() {
         .unwrap()
         .is_some());
 }
+
+#[test]
+fn former_npy_representation_label_can_be_read_and_republished() {
+    let (prepared, _, mut data) = fixture(HfMethod::Uhf, false);
+    assert!(!HF_REPRESENTATION.contains("npy"));
+    let directory = tempfile::tempdir().unwrap();
+    let original = data.get::<ConvergedHfArtifact>().unwrap().unwrap();
+    let entry = data
+        .manifest
+        .artifacts
+        .get_mut(ConvergedHfArtifact::NAME)
+        .unwrap();
+    assert_eq!(entry.representation, HF_REPRESENTATION);
+    entry.representation = LEGACY_NPY_REPRESENTATION.into();
+    assert!(data.hf_is_compatible(&prepared));
+    assert_eq!(
+        json(data.get::<ConvergedHfArtifact>().unwrap().unwrap()),
+        json(&original)
+    );
+    let output = directory.path().join("legacy-label.rustiq");
+    data.write(&output).unwrap();
+    let restored = RustiQData::open(output).unwrap();
+    assert!(restored.hf_is_compatible(&prepared));
+    assert_eq!(
+        json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
+        json(original)
+    );
+}

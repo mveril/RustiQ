@@ -12,7 +12,8 @@ use crate::{
 };
 
 pub(super) const HF_PATH: &str = "orbitals/converged-hf.json";
-pub(super) const HF_REPRESENTATION: &str = "rustiq-converged-hf-npy-v1";
+pub(super) const HF_REPRESENTATION: &str = "rustiq-converged-hf-orbitals-v1";
+pub(super) const LEGACY_NPY_REPRESENTATION: &str = "rustiq-converged-hf-npy-v1";
 const MAX_HF_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Converged HF orbitals, independently owned and cheap to clone. Contains no AO integrals.
@@ -305,7 +306,7 @@ impl Artifact for ConvergedHfArtifact {
         };
         if !matches!(
             a.representation.as_str(),
-            HF_REPRESENTATION | "rustiq-converged-hf-v1"
+            HF_REPRESENTATION | LEGACY_NPY_REPRESENTATION | "rustiq-converged-hf-v1"
         ) || a.path.as_str() != HF_PATH
         {
             return Err(ArtifactError::UnsupportedRepresentation(
@@ -354,7 +355,7 @@ impl RustiQData {
                 .is_some_and(|a| {
                     matches!(
                         a.representation.as_str(),
-                        HF_REPRESENTATION | "rustiq-converged-hf-v1"
+                        HF_REPRESENTATION | LEGACY_NPY_REPRESENTATION | "rustiq-converged-hf-v1"
                     )
                 }))
             && ConvergedHfArtifact::is_compatible(self, calculation)
