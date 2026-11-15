@@ -334,3 +334,13 @@ owns its context identity, conversion and artifact validation; the generic layer
 requires no common orbital layout, HF summary, or retained AO integrals.
 RHF and UHF descriptors implement this contract using `ConvergedHfArtifact`.
 `ConvergedHf::from_solution` is a runtime HF convenience adapter to the same path.
+
+The generic NPY conversion handles owned nalgebra matrices with static or
+dynamic dimensions. Its expected shape is `(rows, columns)`, and its writer
+preserves both axes in Fortran order. The slice writer used for HF energies
+emits `(n,)` instead.
+
+Nalgebra `Vector` and `RowVector` types additionally accept one-dimensional
+NPY arrays `(n,)`, taking their orientation from the target type. Two-dimensional
+input must match the requested orientation exactly. General matrices, including
+`DMatrix` with one row or column, always require an exact two-dimensional shape.

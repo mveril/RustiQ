@@ -447,7 +447,7 @@ persist_hf!(crate::calculation::Restricted);
 persist_hf!(crate::calculation::Unrestricted);
 
 use crate::calculation::Spin;
-use crate::persistence::payload::{Payload, PayloadRef};
+use crate::persistence::payload::{MatrixSlice, Payload, PayloadRef, PayloadWrite};
 use crate::persistence::Storage;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -491,17 +491,16 @@ impl HfRecord {
                 .map_err(|_| invalid("HF dimension overflow"))?;
             let cols = c.energies.len();
             Ok(StoredChannel {
-                coefficients: PayloadRef::save_matrix_slice(
-                    &c.coefficients,
-                    (rows, cols),
-                    storage,
-                    &format!("{stem}/coefficients"),
-                )?,
-                energies: PayloadRef::save_vector_slice(
-                    &c.energies,
-                    storage,
-                    &format!("{stem}/energies"),
-                )?,
+                coefficients: MatrixSlice {
+                    values: &c.coefficients,
+                    shape: (rows, cols),
+                    order: npyz::Order::Fortran,
+                }
+                .save_payload(storage, &format!("{stem}/coefficients"))?,
+                energies: c
+                    .energies
+                    .as_slice()
+                    .save_payload(storage, &format!("{stem}/energies"))?,
                 occupied: c.occupied,
             })
         };
@@ -512,32 +511,31 @@ impl HfRecord {
             HfOrbitals::Uhf { alpha, beta } => {
                 let rows = usize::try_from(self.basis_dimension)
                     .map_err(|_| invalid("HF dimension overflow"))?;
+                let coefficients = Spin::new(
+                    MatrixSlice {
+                        values: &alpha.coefficients,
+                        shape: (rows, alpha.energies.len()),
+                        order: npyz::Order::Fortran,
+                    },
+                    MatrixSlice {
+                        values: &beta.coefficients,
+                        shape: (rows, beta.energies.len()),
+                        order: npyz::Order::Fortran,
+                    },
+                )
+                .save_payload(storage, "orbitals/coefficients")?;
+                let energies = Spin::new(alpha.energies.as_slice(), beta.energies.as_slice())
+                    .save_payload(storage, "orbitals/energies")?;
+                let (alpha_coefficients, beta_coefficients) = coefficients.into_parts();
+                let (alpha_energies, beta_energies) = energies.into_parts();
                 let alpha = StoredChannel {
-                    coefficients: PayloadRef::save_matrix_slice(
-                        &alpha.coefficients,
-                        (rows, alpha.energies.len()),
-                        storage,
-                        "orbitals/coefficients/alpha",
-                    )?,
-                    energies: PayloadRef::save_vector_slice(
-                        &alpha.energies,
-                        storage,
-                        "orbitals/energies/alpha",
-                    )?,
+                    coefficients: alpha_coefficients,
+                    energies: alpha_energies,
                     occupied: alpha.occupied,
                 };
                 let beta = StoredChannel {
-                    coefficients: PayloadRef::save_matrix_slice(
-                        &beta.coefficients,
-                        (rows, beta.energies.len()),
-                        storage,
-                        "orbitals/coefficients/beta",
-                    )?,
-                    energies: PayloadRef::save_vector_slice(
-                        &beta.energies,
-                        storage,
-                        "orbitals/energies/beta",
-                    )?,
+                    coefficients: beta_coefficients,
+                    energies: beta_energies,
                     occupied: beta.occupied,
                 };
                 HfOrbitals::Uhf { alpha, beta }
@@ -564,16 +562,16 @@ impl HfRecord<HfOrbitals<StoredChannel>> {
                     c.coefficients,
                     (rows, cols),
                 )?
-                .as_slice()
-                .to_vec(),
+                .data
+                .into(),
                 energies: DVector::<f64>::load(
                     storage,
                     &format!("{stem}/energies"),
                     c.energies,
-                    cols,
+                    (cols, 1),
                 )?
-                .as_slice()
-                .to_vec(),
+                .data
+                .into(),
                 occupied: c.occupied,
             })
         };
@@ -595,13 +593,13 @@ impl HfRecord<HfOrbitals<StoredChannel>> {
                     storage,
                     "orbitals/energies",
                     Spin::new(alpha.energies, beta.energies),
-                    cols,
+                    (cols, 1),
                 )?;
                 let channels = coefficients.zip_map(energies, |c, e| (c, e)).zip_map(
                     occupied,
                     |(c, e), occupied| HfOrbitalChannel {
-                        coefficients: c.as_slice().to_vec(),
-                        energies: e.as_slice().to_vec(),
+                        coefficients: c.data.into(),
+                        energies: e.data.into(),
                         occupied,
                     },
                 );
