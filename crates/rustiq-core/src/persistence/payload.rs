@@ -206,6 +206,23 @@ mod tests {
     }
 
     #[test]
+    fn spin_matrix_payloads_roundtrip_through_alpha_beta_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut storage = Storage::folder(dir.path());
+        let source = Spin::new(
+            DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]),
+            DMatrix::from_row_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]),
+        );
+        let reference = source.save(&mut storage, "coefficients").unwrap();
+        assert!(dir.path().join("coefficients/alpha.npy").is_file());
+        assert!(dir.path().join("coefficients/beta.npy").is_file());
+        let restored =
+            Spin::<DMatrix<f64>>::load(&storage, "coefficients", reference, (2, 2)).unwrap();
+        assert_eq!(source.alpha(), restored.alpha());
+        assert_eq!(source.beta(), restored.beta());
+    }
+
+    #[test]
     fn matrix_shape_is_checked_before_loading_and_paths_are_fixed() {
         let dir = tempfile::tempdir().unwrap();
         let mut storage = Storage::folder(dir.path());
