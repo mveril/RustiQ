@@ -1,4 +1,5 @@
 //! NPY artifact storage using existing conversions; spin pairs are directories.
+use npyz::WriterBuilder;
 use relative_path::RelativePath;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -98,6 +99,65 @@ impl<T: Payload> Payload for Spin<T> {
 }
 
 impl PayloadRef {
+    pub(super) fn save_matrix_slice(
+        values: &[f64],
+        shape: (usize, usize),
+        storage: &mut Storage,
+        stem: &str,
+    ) -> Result<Self, ArtifactError> {
+        let matrix_shape = nalgebra::DMatrix::<f64>::npy_shape(shape)?;
+        if shape.0.checked_mul(shape.1) != Some(values.len()) {
+            return Err(ArtifactError::InvalidMetadata(
+                "matrix payload length mismatch".into(),
+            ));
+        }
+        Self::save_npy(values, &matrix_shape, true, storage, stem)
+    }
+
+    pub(super) fn save_vector_slice(
+        values: &[f64],
+        storage: &mut Storage,
+        stem: &str,
+    ) -> Result<Self, ArtifactError> {
+        let shape = [u64::try_from(values.len()).map_err(|_| super::NpyError::DimensionOverflow)?];
+        Self::save_npy(values, &shape, false, storage, stem)
+    }
+
+    fn save_npy(
+        values: &[f64],
+        shape: &[u64],
+        fortran: bool,
+        storage: &mut Storage,
+        stem: &str,
+    ) -> Result<Self, ArtifactError> {
+        let path = format!("{stem}.npy");
+        let metadata =
+            storage.write_artifact::<ArtifactError, _>(RelativePath::new(&path), |writer| {
+                let options = npyz::WriteOptions::new();
+                let options = options.default_dtype();
+                let options = if fortran {
+                    options.order(npyz::Order::Fortran)
+                } else {
+                    options.order(npyz::Order::C)
+                };
+                let mut writer = options
+                    .shape(shape)
+                    .writer(writer)
+                    .begin_nd()
+                    .map_err(super::NpyError::Write)?;
+                writer
+                    .extend(values.iter().copied())
+                    .map_err(super::NpyError::Write)?;
+                writer.finish().map_err(super::NpyError::Write)?;
+                Ok(())
+            })?;
+        Ok(Self {
+            path,
+            size: metadata.size,
+            digest: metadata.digest,
+        })
+    }
+
     pub(super) fn copy_to(
         &self,
         source: &Storage,

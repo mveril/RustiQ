@@ -491,10 +491,17 @@ impl HfRecord {
                 .map_err(|_| invalid("HF dimension overflow"))?;
             let cols = c.energies.len();
             Ok(StoredChannel {
-                coefficients: DMatrix::from_vec(rows, cols, c.coefficients.clone())
-                    .save(storage, &format!("{stem}/coefficients"))?,
-                energies: DVector::from_vec(c.energies.clone())
-                    .save(storage, &format!("{stem}/energies"))?,
+                coefficients: PayloadRef::save_matrix_slice(
+                    &c.coefficients,
+                    (rows, cols),
+                    storage,
+                    &format!("{stem}/coefficients"),
+                )?,
+                energies: PayloadRef::save_vector_slice(
+                    &c.energies,
+                    storage,
+                    &format!("{stem}/energies"),
+                )?,
                 occupied: c.occupied,
             })
         };
@@ -505,21 +512,34 @@ impl HfRecord {
             HfOrbitals::Uhf { alpha, beta } => {
                 let rows = usize::try_from(self.basis_dimension)
                     .map_err(|_| invalid("HF dimension overflow"))?;
-                let channels = Spin::new(alpha, beta);
-                let coefficients = channels
-                    .map(|c| DMatrix::from_vec(rows, c.energies.len(), c.coefficients.clone()))
-                    .save(storage, "orbitals/coefficients")?;
-                let energies = channels
-                    .map(|c| DVector::from_vec(c.energies.clone()))
-                    .save(storage, "orbitals/energies")?;
-                let stored = coefficients
-                    .zip_map(energies, |coefficients, energies| (coefficients, energies))
-                    .zip_map(channels, |(coefficients, energies), c| StoredChannel {
-                        coefficients,
-                        energies,
-                        occupied: c.occupied,
-                    });
-                let (alpha, beta) = stored.into_parts();
+                let alpha = StoredChannel {
+                    coefficients: PayloadRef::save_matrix_slice(
+                        &alpha.coefficients,
+                        (rows, alpha.energies.len()),
+                        storage,
+                        "orbitals/coefficients/alpha",
+                    )?,
+                    energies: PayloadRef::save_vector_slice(
+                        &alpha.energies,
+                        storage,
+                        "orbitals/energies/alpha",
+                    )?,
+                    occupied: alpha.occupied,
+                };
+                let beta = StoredChannel {
+                    coefficients: PayloadRef::save_matrix_slice(
+                        &beta.coefficients,
+                        (rows, beta.energies.len()),
+                        storage,
+                        "orbitals/coefficients/beta",
+                    )?,
+                    energies: PayloadRef::save_vector_slice(
+                        &beta.energies,
+                        storage,
+                        "orbitals/energies/beta",
+                    )?,
+                    occupied: beta.occupied,
+                };
                 HfOrbitals::Uhf { alpha, beta }
             }
         };
