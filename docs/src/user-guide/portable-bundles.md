@@ -355,7 +355,11 @@ The restored solution owns its scientific data and remains usable after the
 bundle is closed. Restoration does not modify the source. The offline
 `persist_hf` example above saves both artifacts, reopens the bundle, restores
 RHF, and compares the resulting MP2 correlation energy with the original
-solution. SCF/DIIS restart and automatic CLI HF capture/reuse remain future work.
+solution within `1e-12` Eh. It uses a temporary directory that is removed on
+exit, closes the bundle before MP2, and prints HF total, MP2 correlation, and
+MP2 total energies (HF total plus MP2 correlation). This checks the persistence
+round trip for the bundled H2/STO-3G case, rather than independent scientific
+accuracy. SCF/DIIS restart and automatic CLI HF capture/reuse remain future work.
 
 The resolved context preserves effective normalized AO components and their
 ordering. Original shell/contraction metadata is incomplete and must be added
