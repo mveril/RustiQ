@@ -7,9 +7,10 @@ use super::{PortableError, RustiQData};
 /// HF restoration requires converged orbitals and compatible AO ERIs. It never runs
 /// SCF or computes missing ERIs, but recomputes one-electron energy components.
 /// Persisted HF energies and convergence diagnostics are retained. Reconstructed
-/// components can differ from the original summary within the density convergence
-/// tolerance; unpersisted execution timings are zero. Restoration trusts the stored
-/// convergence record without independently checking orbital canonicality.
+/// components use the final orbital density, which can differ from the retained
+/// SCF density within the convergence tolerance. Unpersisted execution timings
+/// are zero. Restoration trusts the stored convergence record without independently
+/// checking orbital canonicality.
 ///
 /// ```no_run
 /// use rustiq_core::{persistence::RustiQData, prelude::*};
