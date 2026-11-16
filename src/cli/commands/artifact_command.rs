@@ -119,6 +119,8 @@ struct VerificationWarning {
     name: String,
     representation: String,
     reason: &'static str,
+    #[help]
+    help: &'static str,
 }
 
 fn verify_payload<A: Artifact>(data: &RustiQData) -> miette::Result<()> {
@@ -138,9 +140,12 @@ impl Runnable for VerifyCommand {
 
         for (calculation_index, data) in bundle.into_calculations().into_iter().enumerate() {
             for (name, representation) in data.artifact_representations() {
+                // Match representation labels before reading: UnsupportedRepresentation
+                // from a typed reader can also mean invalid metadata (for example
+                // an HF path), which must remain a failure rather than a skip.
                 let reason = match name {
-                    "ao_eri" if representation == "rustiq-compact-eri-v1" => None,
-                    "converged_hf"
+                    AoEriArtifact::NAME if representation == "rustiq-compact-eri-v1" => None,
+                    ConvergedHfArtifact::NAME
                         if matches!(
                             representation,
                             "rustiq-converged-hf-orbitals-v1"
@@ -150,23 +155,29 @@ impl Runnable for VerifyCommand {
                     {
                         None
                     }
-                    "ao_eri" | "converged_hf" => Some("unsupported representation"),
+                    AoEriArtifact::NAME | ConvergedHfArtifact::NAME => {
+                        Some("unsupported representation")
+                    }
                     _ => Some("unknown artifact"),
                 };
                 if let Some(reason) = reason {
                     skipped += 1;
-                    let warning = miette::Report::new(VerificationWarning {
+                    crate::cli::ux::diagnostics::emit_warning(VerificationWarning {
                         calculation_index,
                         name: name.to_owned(),
                         representation: representation.to_owned(),
                         reason,
-                    });
-                    writeln!(io::stderr().lock(), "{warning:?}").into_diagnostic()?;
+                        help: if reason == "unknown artifact" {
+                            "This RustiQ version does not recognize the artifact name. Its payload was not checked."
+                        } else {
+                            "This RustiQ version cannot read this representation. Its payload was not checked; an unsupported representation is not evidence of corruption."
+                        },
+                    })?;
                     continue;
                 }
 
                 let result = match name {
-                    "ao_eri" => verify_payload::<AoEriArtifact>(&data),
+                    AoEriArtifact::NAME => verify_payload::<AoEriArtifact>(&data),
                     _ => verify_payload::<ConvergedHfArtifact>(&data),
                 };
                 match result {
@@ -180,9 +191,24 @@ impl Runnable for VerifyCommand {
                 }
             }
         }
-        writeln!(io::stdout().lock(),
-            "Verification summary\n  Calculations: {calculation_count}\n  Verified:     {verified}\n  Failed:       {}\n  Skipped:      {skipped}", errors.len()
+        let status = if !errors.is_empty() {
+            "Verification failed"
+        } else if skipped > 0 {
+            "Verification incomplete"
+        } else {
+            "Verification successful"
+        };
+        let mut stdout = io::stdout().lock();
+        writeln!(stdout,
+            "{status}\n  Calculations: {calculation_count}\n  Verified:     {verified}\n  Failed:       {}\n  Skipped:      {skipped}", errors.len()
         ).into_diagnostic()?;
+        if verified == 0 && skipped == 0 && errors.is_empty() {
+            writeln!(
+                stdout,
+                "  No numerical artifacts declared; no numerical payload was verified."
+            )
+            .into_diagnostic()?;
+        }
         if !errors.is_empty() {
             Err(VerificationFailures { errors }.into())
         } else if self.strict && skipped > 0 {
@@ -342,6 +368,7 @@ mod verification_tests {
             name: "future".into(),
             representation: "v2".into(),
             reason: "unknown artifact",
+            help: "The payload was not checked.",
         };
         assert_eq!(warning.severity(), Some(miette::Severity::Warning));
         assert_eq!(

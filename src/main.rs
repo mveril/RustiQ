@@ -16,7 +16,12 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             let status = cli::exit_status::for_error(&error);
-            if writeln!(std::io::stderr().lock(), "Error: {error:?}").is_err() {
+            let prefix = if error.severity() == Some(miette::Severity::Warning) {
+                "Warning"
+            } else {
+                "Error"
+            };
+            if writeln!(std::io::stderr().lock(), "{prefix}: {error:?}").is_err() {
                 return ExitCode::FAILURE;
             }
             status

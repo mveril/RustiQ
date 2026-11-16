@@ -20,7 +20,11 @@ pub(crate) struct IncompleteBatch {
 
 #[derive(Debug, Error, Diagnostic)]
 #[error("artifact verification incomplete: {skipped} artifacts skipped")]
-#[diagnostic(code(rustiq::artifact::verification_incomplete))]
+#[diagnostic(
+    code(rustiq::artifact::verification_incomplete),
+    severity(Warning),
+    help("Strict verification requires every declared artifact to be checked. Skipped payloads were not checked; this does not imply corruption.")
+)]
 pub(crate) struct IncompleteVerification {
     pub skipped: usize,
 }

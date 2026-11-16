@@ -89,21 +89,55 @@ payload in the bundle:
 rustiq artifact verify h2.rustiq
 ```
 
-The command checks compact AO ERI payload hashes, NPY encoding, array dimensions,
-and consistency with the declared AO basis. It reports the number of verified
-payloads and calculations on standard output, and exits unsuccessfully if a
-supported payload is invalid. A bundle with no
-numerical payloads can successfully report zero verified payloads. Verification
-does not execute the calculation or establish that the scientific method or
-result is valid. For the H₂ bundle created above, the output is:
+The command verifies supported `ao_eri` and `converged_hf` artifacts through
+their artifact readers. AO ERI checks cover payload hashes, NPY encoding, dimensions,
+and consistency with the declared AO basis. HF checks cover metadata, referenced
+payload integrity, array shapes, occupations, finite values, and context identity.
+Current HF orbital representations and the legacy NPY and inline JSON
+representations are supported.
+
+The summary on stdout counts calculations and logical artifacts, rather than
+individual files. Diagnostics go to stderr. For the H₂ bundle created above:
 
 ```text
-Verification summary
+Verification successful
   Calculations: 1
   Verified:     1
   Failed:       0
   Skipped:      0
 ```
+
+The first line distinguishes three outcomes:
+
+| Status | Meaning |
+| --- | --- |
+| `Verification successful` | Every declared artifact passed; none failed or were skipped. |
+| `Verification incomplete` | No supported artifact failed, but at least one artifact was skipped. |
+| `Verification failed` | At least one supported artifact failed, regardless of skips. |
+
+Unknown artifact names and known artifacts with unsupported representations are
+skipped with warnings. Their payloads are **not checked**: an older reader's
+inability to interpret a representation is not evidence of corruption. Supported
+artifacts with invalid metadata or payloads fail verification. Independent
+failures are collected and reported together, with a summary after traversal.
+A fatal archive error that prevents opening or traversal can stop without a summary.
+Calculation indices in diagnostics are zero-based.
+
+By default, exit code `0` means all supported artifacts passed; unsupported
+artifacts may still have been skipped. Use `rustiq artifact verify PATH --strict`
+to require exhaustive verification: skips without failures return `5`, reported
+as a warning rather than evidence of corruption. Any supported artifact failure
+or fatal archive error returns `1` in either mode. Failures take precedence over
+skips. Strict mode returns `0` when every artifact passes.
+
+A bundle without numerical artifacts returns `0` in either mode, with all three
+artifact counters at zero and an explicit message:
+`No numerical artifacts declared; no numerical payload was verified.`
+
+Verification does not run the calculation or independently establish scientific
+correctness, physical validity, orbital orthonormality, or adequacy of the method
+and basis. Successful verification means the supported stored data passed its
+reader's integrity and validation checks.
 
 ## Rerun a saved calculation
 
@@ -409,16 +443,3 @@ Nalgebra `Vector` and `RowVector` types additionally accept one-dimensional
 NPY arrays `(n,)`, taking their orientation from the target type. Two-dimensional
 input must match the requested orientation exactly. General matrices, including
 `DMatrix` with one row or column, always require an exact two-dimensional shape.
-
-Artifact verification supports `ao_eri` (`rustiq-compact-eri-v1`) and
-`converged_hf` (`rustiq-converged-hf-orbitals-v1`, `rustiq-converged-hf-npy-v1` and legacy
-`rustiq-converged-hf-v1`). Unknown artifacts and unsupported representations
-produce Miette warnings on stderr and count as skipped. Independent failures
-are collected into one diagnostic after traversal. The stdout summary counts
-calculations and logical verified, failed, and skipped artifacts. Exit status
-is 0 when supported artifacts pass (including empty bundles). The boolean
-`--strict` flag defaults to false; enable it with `artifact verify PATH --strict`
-to return exit code 5 when any artifact is skipped because its name or
-representation is unsupported. Verification failures or fatal archive errors
-return 1, including when artifacts are also skipped in strict mode. Verification does not establish
-scientific validity.

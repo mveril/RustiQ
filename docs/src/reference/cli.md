@@ -308,19 +308,19 @@ directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
 manage entries from a run that used a custom cache root.
 
 The CLI reports input, basis, preparation, and calculation errors as diagnostics.
-Exit codes follow the Unix convention: zero means complete success; any nonzero
-code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.
+Exit codes follow the Unix convention: nonzero means the command did not fully
+succeed. In normal artifact verification, zero permits unsupported artifacts to
+be skipped; use `--strict` to require exhaustive verification. Codes 3–5 are
+RustiQ-specific.
 
 | Code | Meaning                                                                                                                                         |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | All requested calculations succeeded. Help and version requests also return zero.                                                               |
+| `0`  | All requested calculations succeeded, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.                                                               |
 | `1`  | General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error. |
 | `2`  | Invalid command-line arguments.                                                                                                                 |
 | `3`  | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.                                     |
 | `4`  | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.                      |
-
-`artifact verify --strict` additionally returns `5` for incomplete verification
-when artifacts were skipped and no verification failure occurred.
+| `5`  | Strict artifact verification is incomplete: artifacts were skipped and no supported artifact failed. |
 
 These codes apply to TOML, Nickel, and `.rustiq` inputs, with text or JSON output.
 A calculation succeeds only when the complete requested method succeeds: converged
@@ -522,15 +522,10 @@ contract; schemas, rather than this manual, define the complete field sets.
 The [JSON guide](../user-guide/json-output.md) describes output selection,
 standard output behavior, failure cases, and the existing automated checks.
 
-Artifact verification supports `ao_eri` (`rustiq-compact-eri-v1`) and
-`converged_hf` (`rustiq-converged-hf-orbitals-v1`, `rustiq-converged-hf-npy-v1` and legacy
-`rustiq-converged-hf-v1`). Unknown artifacts and unsupported representations
-produce Miette warnings on stderr and count as skipped. Independent failures
-are collected into one diagnostic after traversal. The stdout summary counts
-calculations and logical verified, failed, and skipped artifacts. Exit status
-is 0 when supported artifacts pass (including empty bundles). The boolean
-`--strict` flag defaults to false; enable it with `artifact verify PATH --strict`
-to return exit code 5 when any artifact is skipped because its name or
-representation is unsupported. Verification failures or fatal archive errors
-return 1, including when artifacts are also skipped in strict mode. Verification does not establish
-scientific validity.
+Artifact verification prints `Verification successful`, `Verification incomplete`,
+or `Verification failed` and aligned counters on stdout; diagnostics go to stderr.
+Normal verification returns `0` if no supported artifact fails, even with skips.
+Strict verification returns `5` for skips without failures; failures return `1`
+in either mode. Unsupported payloads are not checked. See the
+[portable bundle guide](../user-guide/portable-bundles.md#create-and-inspect-a-bundle)
+for the canonical verification contract, supported artifacts, and limitations.

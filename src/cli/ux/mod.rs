@@ -3,6 +3,7 @@ pub mod basis_table;
 pub(crate) mod bat;
 pub(crate) mod calculation_presentation;
 pub(crate) mod calculation_report;
+pub(crate) mod diagnostics;
 pub(crate) mod json_output;
 pub(crate) mod mp2_report;
 pub mod scf_report;
