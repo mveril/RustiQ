@@ -15,10 +15,26 @@ pub struct ResolvedCalculationConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedMoleculeConfig {
+    #[serde(deserialize_with = "deserialize_geometry_path")]
     pub geometry: PathBuf,
     pub charge: i32,
     pub multiplicity: NonZeroU8,
     pub units: Units,
+}
+
+fn deserialize_geometry_path<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<PathBuf, D::Error> {
+    let path = String::deserialize(deserializer)?;
+    validate_geometry_path(&path).map_err(serde::de::Error::custom)?;
+    Ok(PathBuf::from(path))
+}
+
+pub(crate) fn validate_geometry_path(path: &str) -> Result<(), &'static str> {
+    if path.is_empty() || path.starts_with('/') || path.contains('\\') || path.contains(':') {
+        return Err("molecule.geometry must be a relative portable path using '/' separators (for example ../molecule.xyz)");
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -195,10 +211,10 @@ impl IntoIterator for ResolvedInput {
 
 impl ResolvedCalculationConfig {
     pub fn resource_path(&self, input: Option<&std::path::Path>) -> PathBuf {
-        input
+        let base = input
             .and_then(std::path::Path::parent)
-            .unwrap_or_else(|| std::path::Path::new("."))
-            .join(&self.molecule.geometry)
+            .unwrap_or_else(|| std::path::Path::new("."));
+        relative_path::RelativePath::new(&self.molecule.geometry.to_string_lossy()).to_path(base)
     }
 
     pub fn molecule_config(&self) -> rustiq_core::config::MoleculeConfig {
@@ -404,11 +420,6 @@ mod tests {
             std::path::Path::new(".").join("../molecule.xyz")
         );
         assert_eq!(std::env::current_dir().unwrap(), cwd);
-        calculation.molecule.geometry = temporary.path().join("molecule.xyz");
-        assert_eq!(
-            calculation.resource_path(Some(&directory.join("calculation.toml"))),
-            calculation.molecule.geometry
-        );
     }
 
     #[test]

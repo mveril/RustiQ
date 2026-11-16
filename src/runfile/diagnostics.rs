@@ -112,7 +112,7 @@ pub(crate) fn humanized_runfile_error(
             "expected a basis set name, for example name = \"sto-3g\"".to_string(),
         ),
         "molecule.geometry" => (
-            "The molecule geometry path must be a non-empty string.".to_string(),
+            "The molecule geometry must be a relative portable path using / separators, such as ../molecule.xyz.".to_string(),
             "expected a geometry file path".to_string(),
         ),
         "molecule.charge" => (

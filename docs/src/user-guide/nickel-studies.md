@@ -46,7 +46,9 @@ The checked-in H₂ study maps over two basis names to produce two inputs:
 
 To run this study with only the release binary, save the H₂ geometry below as
 `molecule.xyz` and save the study above as `study.ncl` in the same working
-directory. The study's `molecule.geometry = "molecule.xyz"` path is relative
+directory. Geometry paths must be portable relative paths using `/` separators;
+absolute paths and backslashes are rejected. The study's
+`molecule.geometry = "molecule.xyz"` path is relative
 to that file. Both STO-3G and 6-31G must be available. Download them as shown
 below, or import independently obtained local files when offline with
 `rustiq basis import /path/to/sto-3g.json /path/to/6-31g.json`.

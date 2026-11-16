@@ -85,7 +85,11 @@ cache. The cache can be used as a fallback when a portable bundle has no
 compatible AO ERI; it is not itself a portable `.rustiq` bundle. See the
 [portable bundle guide](portable-bundles.md) for that reuse order.
 
-The geometry path is resolved relative to the TOML file. If the input is read
+Geometry paths must be relative and use `/` separators on every platform, for
+example `../molecule.xyz`. Absolute paths and backslashes are rejected so
+inputs remain portable. When using `rustiq init`, the XYZ file and the output
+must share a filesystem root (the same drive on Windows). The geometry path is
+resolved relative to the TOML file. If the input is read
 from standard input, its geometry path is resolved from the current working
 directory. Geometry file structure and coordinate units are explained in the
 [geometry guide](geometry.md).

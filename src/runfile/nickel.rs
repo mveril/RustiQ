@@ -147,8 +147,12 @@ fn evaluate_input_with_context(
     })?;
     serde_json::from_str(&json).map_err(|error| {
         let message = error.to_string();
-        let path = (message.contains("MP2 memory limit") || message.contains("couldn't parse"))
-            .then(|| "method.mp2.memory_limit".to_owned());
+        let path = if message.contains("molecule.geometry") {
+            Some("molecule.geometry".to_owned())
+        } else {
+            (message.contains("MP2 memory limit") || message.contains("couldn't parse"))
+                .then(|| "method.mp2.memory_limit".to_owned())
+        };
         vec![ConfigurationError {
             kind: ConfigurationErrorKind::Domain,
             path,
@@ -533,6 +537,40 @@ fn production_toml_frontend_accepts_tagged_and_optional_settings() {
         let source = format!("[basis]\nname = 'sto-3g'\n{settings}");
         let parsed = super::parser::parse_runfile("parity.toml", &source).unwrap();
         parsed.hf_config.unwrap();
+    }
+}
+
+#[test]
+fn geometry_paths_are_portable_in_toml_and_nickel() {
+    for path in ["molecule.xyz", "../data/molecule.xyz", "data/molecule.xyz"] {
+        let toml = format!("[basis]\nname = 'sto-3g'\n[molecule]\ngeometry = '{path}'\n");
+        assert!(
+            super::parser::parse_runfile("input.toml", &toml).is_ok(),
+            "{path}"
+        );
+        let nickel = format!(
+            "{{ basis.name = \"sto-3g\", molecule.geometry = {} }}",
+            serde_json::to_string(path).unwrap()
+        );
+        assert!(evaluate(&nickel).is_ok(), "{path}");
+    }
+    for path in [
+        "/tmp/molecule.xyz",
+        r"C:\data\molecule.xyz",
+        "C:/data/molecule.xyz",
+        r"data\molecule.xyz",
+        "//server/share/molecule.xyz",
+    ] {
+        let toml = format!("[basis]\nname = 'sto-3g'\n[molecule]\ngeometry = '{path}'\n");
+        assert!(
+            super::parser::parse_runfile("input.toml", &toml).is_err(),
+            "{path}"
+        );
+        let nickel = format!(
+            "{{ basis.name = \"sto-3g\", molecule.geometry = {} }}",
+            serde_json::to_string(path).unwrap()
+        );
+        assert!(evaluate(&nickel).is_err(), "{path}");
     }
 }
 

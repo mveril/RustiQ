@@ -51,7 +51,7 @@ Source spans are attached separately after fallible conversion to core types.
 An omitted HF section produces fully resolved HF defaults without source spans.
 
 For file inputs, relative geometry paths are resolved from the directory of the
-top-level input; absolute paths are retained. For stdin, relative paths are
+top-level input; paths must be relative and use / separators. For stdin, paths are
 resolved from the current working directory. CLI cache-directory arguments stay
 relative to the caller's working directory. The process directory is never
 changed to resolve resources.

@@ -4694,6 +4694,7 @@ dependencies = [
  "proptest",
  "rand",
  "rayon",
+ "relative-path 2.0.3",
  "rstest",
  "rustiq-chem-core",
  "rusty-figlet",

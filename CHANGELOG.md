@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Geometry paths in TOML and Nickel inputs must now be portable relative paths
+  using `/` separators. Migrate absolute paths or Windows backslash separators
+  to a path relative to the input, such as `../molecule.xyz`. `rustiq init`
+  reports an error when the geometry is on a different filesystem root.
+
 ## [0.1.0-beta.1] - 2026-11-12
 
 
