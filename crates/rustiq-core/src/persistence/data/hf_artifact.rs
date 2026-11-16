@@ -17,7 +17,7 @@ pub(super) const LEGACY_NPY_REPRESENTATION: &str = "rustiq-converged-hf-npy-v1";
 const MAX_HF_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Converged HF orbitals, independently owned and cheap to clone. Contains no AO integrals.
-/// This inspection artifact cannot be converted into an executable MP2 reference.
+/// Restoring an executable HF solution additionally requires compatible AO integrals.
 #[derive(Clone, Debug)]
 pub struct ConvergedHf(Arc<HfRecord>);
 
@@ -305,7 +305,7 @@ fn invalid(message: &str) -> ArtifactError {
     ArtifactError::InvalidMetadata(message.into())
 }
 
-/// Typed marker for converged, inspection-only HF data.
+/// Typed marker for converged HF orbital data, stored separately from AO integrals.
 pub struct ConvergedHfArtifact;
 impl private::Sealed for ConvergedHfArtifact {}
 impl Artifact for ConvergedHfArtifact {
@@ -453,6 +453,7 @@ pub(super) fn copy_payloads(
     }
 }
 
+mod restore;
 #[cfg(test)]
 mod tests;
 

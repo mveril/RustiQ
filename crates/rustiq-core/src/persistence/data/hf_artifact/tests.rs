@@ -577,3 +577,237 @@ fn typed_orbital_variants_preserve_descriptor_layout() {
         assert!(serde_json::from_value::<HfOrbitals<u64>>(invalid).is_err());
     }
 }
+
+fn mp2_energy(solution: &AnyHfSolution) -> f64 {
+    use crate::config::Mp2Config;
+    match solution {
+        AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default()).unwrap().correlation_energy,
+        AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default()).unwrap().correlation_energy,
+    }
+}
+
+#[test]
+fn restore_hf_roundtrip_retains_mp2_and_summary() {
+    use crate::{
+        calculation::{RhfSolution, UhfSolution},
+        persistence::RestoreFromRustiQ,
+    };
+    for (method, charge, multiplicity) in [
+        (HfMethod::Rhf, 0, 1),
+        (HfMethod::Uhf, 0, 1),
+        (HfMethod::Uhf, 1, 2),
+    ] {
+        for redundant in [false, true] {
+            let prepared = calculation(method, charge, multiplicity, redundant);
+            let solution = prepared.run_hf().unwrap().into_converged().unwrap();
+            let mut data = RustiQData::from_calculation(&prepared).unwrap();
+            data.set::<ConvergedHfArtifact>(&ConvergedHf::from_solution(&solution).unwrap())
+                .unwrap();
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join("hf.rustiq");
+            data.write_with_eri(&path, solution.ao_eri()).unwrap();
+            let bytes = std::fs::read(&path).unwrap();
+            let data = RustiQData::open(&path).unwrap();
+            let restored: AnyHfSolution = data.restore().unwrap();
+            assert!((mp2_energy(&restored) - mp2_energy(&solution)).abs() < 1e-12);
+            let original = &solution.summary().scf;
+            let summary = &restored.summary().scf;
+            assert_eq!(
+                restored.summary().persistence_identity,
+                solution.summary().persistence_identity
+            );
+            assert_eq!(summary.total_energy, original.total_energy);
+            assert_eq!(summary.iterations, original.iterations);
+            assert_eq!(summary.residual_norm, original.residual_norm);
+            assert_eq!(summary.orthogonalization, original.orthogonalization);
+            assert_eq!(summary.spin, original.spin);
+            assert!(
+                (summary.energy_details.kinetic_energy - original.energy_details.kinetic_energy)
+                    .abs()
+                    < 1e-12
+            );
+            assert!(
+                (summary.energy_details.nuclear_attraction_energy
+                    - original.energy_details.nuclear_attraction_energy)
+                    .abs()
+                    < 1e-12
+            );
+            assert!(
+                (summary.energy_details.electron_repulsion_energy
+                    - original.energy_details.electron_repulsion_energy)
+                    .abs()
+                    < 1e-12
+            );
+            assert_eq!(summary.timings.total, std::time::Duration::ZERO);
+            assert_eq!(
+                restored.ao_eri().ordered_values(),
+                solution.ao_eri().ordered_values()
+            );
+            match &solution {
+                AnyHfSolution::Restricted(hf) => {
+                    let typed = RhfSolution::restore_from_rustiq(&data).unwrap();
+                    assert_eq!(typed.mo_coefficients(), hf.mo_coefficients());
+                    assert_eq!(typed.orbital_energies(), hf.orbital_energies());
+                    assert!(matches!(
+                        data.restore::<UhfSolution>(),
+                        Err(crate::persistence::PortableError::HfReferenceMismatch { .. })
+                    ));
+                }
+                AnyHfSolution::Unrestricted(hf) => {
+                    let typed: UhfSolution = data.restore().unwrap();
+                    assert_eq!(typed.mo_coefficients(), hf.mo_coefficients());
+                    assert_eq!(typed.orbital_energies(), hf.orbital_energies());
+                    assert!(matches!(
+                        RhfSolution::restore_from_rustiq(&data),
+                        Err(crate::persistence::PortableError::HfReferenceMismatch { .. })
+                    ));
+                }
+            }
+            drop(data);
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+            drop(solution);
+            assert!(mp2_energy(&restored).is_finite());
+        }
+    }
+}
+
+#[test]
+fn restore_hf_requires_both_artifacts_and_valid_payloads() {
+    use crate::persistence::PortableError;
+    let (_, solution, mut data) = fixture(HfMethod::Rhf, false);
+    assert!(matches!(
+        data.restore::<AnyHfSolution>(),
+        Err(PortableError::MissingArtifact("ao_eri"))
+    ));
+    data.set::<AoEriArtifact>(solution.ao_eri()).unwrap();
+    let hf = data
+        .manifest
+        .artifacts
+        .remove(ConvergedHfArtifact::NAME)
+        .unwrap();
+    assert!(matches!(
+        data.restore::<AnyHfSolution>(),
+        Err(PortableError::MissingArtifact("converged_hf"))
+    ));
+    data.manifest
+        .artifacts
+        .insert(ConvergedHfArtifact::NAME.into(), hf);
+    let eri = data
+        .manifest
+        .artifacts
+        .get_mut(AoEriArtifact::NAME)
+        .unwrap();
+    eri.digest = crate::persistence::sha256(b"corrupt");
+    assert!(data.restore::<AnyHfSolution>().is_err());
+    data.set::<AoEriArtifact>(solution.ao_eri()).unwrap();
+    let mut other = RustiQData::from_calculation(&calculation(HfMethod::Uhf, 1, 2, false)).unwrap();
+    data.context = other.context.take();
+    assert!(data.restore::<AnyHfSolution>().is_err());
+}
+
+#[test]
+fn restore_hf_open_shell_oh_retains_nonzero_mp2() {
+    use crate::{calculation::UhfSolution, config::Mp2Config, persistence::RestoreFromRustiQ};
+    let geometry = crate::test_utils::load_sample_geometry_in_bohr("samples/oh/oh.xyz");
+    let basis = crate::test_utils::load_minimal_basis_file();
+    let molecule = MoleculeConfig {
+        multiplicity: std::num::NonZeroU8::new(2).unwrap().into(),
+        ..MoleculeConfig::default()
+    };
+    let prepared = CalculationBuilder::new(&geometry, &basis)
+        .with_molecule_config(molecule)
+        .prepare()
+        .unwrap();
+    let solution = prepared.run_hf().unwrap().into_converged().unwrap();
+    let original = solution.as_unrestricted().unwrap();
+    assert_ne!(
+        original.occupied_orbitals().alpha,
+        original.occupied_orbitals().beta
+    );
+    assert!(original.occupied_orbitals().beta > 0);
+    let data = RustiQData::from_calculation(&prepared).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("oh.rustiq");
+    data.write_with_artifacts(
+        &path,
+        &[
+            crate::persistence::ArtifactRef::new::<ConvergedHfArtifact>(
+                &ConvergedHf::from_solution(&solution).unwrap(),
+            ),
+            crate::persistence::ArtifactRef::new::<AoEriArtifact>(solution.ao_eri()),
+        ],
+    )
+    .unwrap();
+    let data = RustiQData::open(path).unwrap();
+    let restored = UhfSolution::restore_from_rustiq(&data).unwrap();
+    let expected = original
+        .mp2(Mp2Config::default())
+        .unwrap()
+        .correlation_energy;
+    assert!(expected.abs() > 1e-6);
+    assert!(
+        (restored
+            .mp2(Mp2Config::default())
+            .unwrap()
+            .correlation_energy
+            - expected)
+            .abs()
+            < 1e-12
+    );
+    assert_eq!(restored.mo_coefficients(), original.mo_coefficients());
+    assert_eq!(restored.orbital_energies(), original.orbital_energies());
+    assert_eq!(
+        restored.summary().scf.total_energy,
+        original.summary().scf.total_energy
+    );
+    let components = &restored.summary().scf.energy_details;
+    let total = components.kinetic_energy
+        + components.nuclear_attraction_energy
+        + components.electron_repulsion_energy;
+    assert!((total - restored.summary().scf.electronic_energy).abs() < 1e-12);
+    assert_eq!(restored.summary().scf.spin, original.summary().scf.spin);
+}
+
+#[test]
+fn restore_hf_rejects_corrupt_or_unsupported_hf_and_incompatible_eri() {
+    use crate::persistence::PortableError;
+    let (_, solution, mut data) = fixture(HfMethod::Rhf, false);
+    data.set::<AoEriArtifact>(solution.ao_eri()).unwrap();
+    let original = data.manifest.artifacts[ConvergedHfArtifact::NAME].clone();
+    data.manifest
+        .artifacts
+        .get_mut(ConvergedHfArtifact::NAME)
+        .unwrap()
+        .digest = crate::persistence::sha256(b"corrupt HF");
+    assert!(matches!(
+        data.restore::<AnyHfSolution>(),
+        Err(PortableError::Artifact(ArtifactError::IntegrityMismatch(_)))
+    ));
+    data.manifest
+        .artifacts
+        .insert(ConvergedHfArtifact::NAME.into(), original.clone());
+    data.manifest
+        .artifacts
+        .get_mut(ConvergedHfArtifact::NAME)
+        .unwrap()
+        .representation = "unsupported-hf".into();
+    assert!(matches!(
+        data.restore::<AnyHfSolution>(),
+        Err(PortableError::Artifact(
+            ArtifactError::UnsupportedRepresentation(_)
+        ))
+    ));
+    data.manifest
+        .artifacts
+        .insert(ConvergedHfArtifact::NAME.into(), original);
+    data.manifest.scientific_identity.digest = crate::persistence::sha256(b"other ERI context");
+    assert!(matches!(
+        data.restore::<AnyHfSolution>(),
+        Err(PortableError::IncompatibleEri)
+    ));
+    data.context = None;
+    assert!(matches!(
+        data.restore::<AnyHfSolution>(),
+        Err(PortableError::InvalidCalculation(_))
+    ));
+}

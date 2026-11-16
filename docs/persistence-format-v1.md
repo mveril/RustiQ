@@ -861,10 +861,19 @@ preservation, invalid metadata, and corrupt payloads. No numerical method or
 energy tolerance is changed by this persistence addition.
 
 These structural checks do not recompute energies, overlap orthonormality,
-canonicality, or physical reliability. No API reconstructs an executable MP2
-reference from persisted orbitals. Such a conversion must validate the target
-context and obtain compatible AO integrals in a later stage. CLI capture and
-reuse, SCF restart, DIIS restart, and Molden export are not implemented here.
+canonicality, or physical reliability. `RestoreFromRustiQ` reconstructs converged
+RHF/UHF solutions only when the same entry also supplies compatible AO ERIs.
+`RustiQData::restore::<T>()` delegates to this trait. Restoration validates both
+artifacts and the resolved context, rejects a mismatched requested reference,
+and fails on missing or corrupt data without running SCF or computing ERIs.
+It recomputes one-electron integrals and the occupied-orbital density to recover
+kinetic and nuclear-attraction components; the electron-repulsion component is
+the persisted electronic energy minus these terms. Reconstructed components can
+differ from the original summary because final orbital and SCF densities can
+differ within the convergence tolerance. Persisted HF energies and diagnostics
+are preserved. Unpersisted execution timings are zero. This requires no wire-format change.
+CLI HF capture and reuse, SCF restart, DIIS restart, and Molden export are not
+implemented here.
 Effective AO ordering and normalized primitive components remain available,
 but original shell grouping, contraction provenance, and other export metadata
 must be added in a dedicated step before Molden conversion.

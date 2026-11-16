@@ -1,4 +1,4 @@
-//! Persist and inspect converged orbitals using the bundled offline H2 fixture.
+//! Persist, inspect, and restore converged HF using the bundled offline H2 fixture.
 use rustiq_core::{
     persistence::{ConvergedHfArtifact, HfOrbitals, RustiQData},
     prelude::*,
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("h2.rustiq");
-    // Optionally include the existing AO ERI without copying its representation.
+    // Include the existing AO ERIs required to restore an executable solution.
     data.write_with_eri(&path, solution.ao_eri())?;
     let restored = RustiQData::open(path)?;
     if !restored.hf_is_compatible(&prepared) {
@@ -47,6 +47,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("coefficients changed".into());
         }
     }
-    // Reading orbitals does not reconstruct a solution or run MP2.
+    let hf: RhfSolution = restored.restore()?;
+    let reference = solution.as_restricted().ok_or("expected RHF")?;
+    let config = Mp2Config::default();
+    let expected = reference.mp2(config)?.correlation_energy;
+    let actual = hf.mp2(config)?.correlation_energy;
+    if (actual - expected).abs() > 1e-12 {
+        return Err("restored MP2 correlation energy changed".into());
+    }
     Ok(())
 }
