@@ -541,7 +541,7 @@ fn production_toml_frontend_accepts_tagged_and_optional_settings() {
 }
 
 #[test]
-fn geometry_paths_are_portable_in_toml_and_nickel() {
+fn geometry_paths_accept_relative_and_native_absolute_forms() {
     for path in ["molecule.xyz", "../data/molecule.xyz", "data/molecule.xyz"] {
         let toml = format!("[basis]\nname = 'sto-3g'\n[molecule]\ngeometry = '{path}'\n");
         assert!(
@@ -560,17 +560,18 @@ fn geometry_paths_are_portable_in_toml_and_nickel() {
         "C:/data/molecule.xyz",
         r"data\molecule.xyz",
         "//server/share/molecule.xyz",
+        r"\\server\share\molecule.xyz",
     ] {
         let toml = format!("[basis]\nname = 'sto-3g'\n[molecule]\ngeometry = '{path}'\n");
         assert!(
-            super::parser::parse_runfile("input.toml", &toml).is_err(),
+            super::parser::parse_runfile("input.toml", &toml).is_ok(),
             "{path}"
         );
         let nickel = format!(
             "{{ basis.name = \"sto-3g\", molecule.geometry = {} }}",
             serde_json::to_string(path).unwrap()
         );
-        assert!(evaluate(&nickel).is_err(), "{path}");
+        assert!(evaluate(&nickel).is_ok(), "{path}");
     }
 }
 

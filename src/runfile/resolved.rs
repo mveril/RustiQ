@@ -31,8 +31,8 @@ fn deserialize_geometry_path<'de, D: serde::Deserializer<'de>>(
 }
 
 pub(crate) fn validate_geometry_path(path: &str) -> Result<(), &'static str> {
-    if path.is_empty() || path.starts_with('/') || path.contains('\\') || path.contains(':') {
-        return Err("molecule.geometry must be a relative portable path using '/' separators (for example ../molecule.xyz)");
+    if path.is_empty() {
+        return Err("molecule.geometry must be a non-empty file path");
     }
     Ok(())
 }
@@ -214,7 +214,7 @@ impl ResolvedCalculationConfig {
         let base = input
             .and_then(std::path::Path::parent)
             .unwrap_or_else(|| std::path::Path::new("."));
-        relative_path::RelativePath::new(&self.molecule.geometry.to_string_lossy()).to_path(base)
+        base.join(&self.molecule.geometry)
     }
 
     pub fn molecule_config(&self) -> rustiq_core::config::MoleculeConfig {
@@ -434,6 +434,36 @@ mod tests {
             Err(ResolutionError::UnsupportedBatch { count: 2 })
         ));
         assert_eq!(batch.calculations().len(), 2);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_absolute_geometry_ignores_input_drive() {
+        let mut calculation = resolved();
+        for geometry in [
+            r"D:\data\molecule.xyz",
+            "D:/data/molecule.xyz",
+            r"\\server\share\molecule.xyz",
+        ] {
+            calculation.molecule.geometry = geometry.into();
+            assert_eq!(
+                calculation.resource_path(Some(std::path::Path::new(r"C:\runs\input.toml"))),
+                PathBuf::from(geometry)
+            );
+        }
+    }
+
+    #[test]
+    fn absolute_geometry_is_not_rebased() {
+        let mut calculation = resolved();
+        let temp = tempfile::tempdir().unwrap();
+        let geometry = temp.path().join("molecule.xyz");
+        calculation.molecule.geometry = geometry.clone();
+        assert_eq!(
+            calculation.resource_path(Some(std::path::Path::new("other/input.toml"))),
+            geometry
+        );
+        assert_eq!(calculation.resource_path(None), geometry);
     }
 
     #[test]

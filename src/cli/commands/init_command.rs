@@ -76,9 +76,7 @@ fn relative_geometry(input: &Path, directory: &Path) -> miette::Result<PathBuf> 
         .take_while(|(a, b)| a == b)
         .count();
     if shared == 0 {
-        return Err(miette!(
-            "Cannot create a portable relative geometry path across filesystem roots"
-        ));
+        return Ok(input.to_path_buf());
     }
     let mut result = PathBuf::new();
     for _ in directory.components().skip(shared) {
@@ -228,9 +226,10 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn relative_geometry_rejects_different_windows_drives() {
-        assert!(
-            relative_geometry(Path::new(r"C:\data\molecule.xyz"), Path::new(r"D:\runs")).is_err()
+    fn relative_geometry_supports_windows_drives() {
+        assert_eq!(
+            relative_geometry(Path::new(r"C:\data\molecule.xyz"), Path::new(r"D:\runs")).unwrap(),
+            PathBuf::from(r"C:\data\molecule.xyz")
         );
         assert_eq!(
             relative_geometry(
@@ -260,6 +259,20 @@ mod tests {
             .unwrap(),
             PathBuf::from("molecule.xyz")
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn geometry_on_another_drive_remains_absolute() {
+        for (input, directory) in [
+            (r"D:\data\molecule.xyz", r"C:\runs"),
+            (r"\\?\D:\data\molecule.xyz", r"\\?\C:\runs"),
+        ] {
+            assert_eq!(
+                relative_geometry(Path::new(input), Path::new(directory)).unwrap(),
+                PathBuf::from(input)
+            );
+        }
     }
 
     fn command(input: &Path, output: &Path, extra: &[&str]) -> InitCommand {
@@ -496,8 +509,11 @@ mod tests {
         let input = temp.path().join("mol \"quoted\"\\name.xyz");
         fs::write(&input, "1\nH\nH 0 0 0\n").unwrap();
         let output = temp.path().join("calculation.toml");
-        assert!(command(&input, &output, &[]).run().is_err());
-        fs::write(&output, "existing").unwrap();
+        command(&input, &output, &[]).run().unwrap();
+        let run = parse_runfile("generated", &fs::read_to_string(&output).unwrap())
+            .unwrap()
+            .runfile;
+        assert_eq!(temp.path().join(run.molecule.geometry), input);
         let link = temp.path().join("link.toml");
         std::os::unix::fs::symlink(&output, &link).unwrap();
         let valid_input = temp.path().join("molecule.xyz");
