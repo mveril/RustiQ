@@ -416,6 +416,9 @@ Artifact verification supports `ao_eri` (`rustiq-compact-eri-v1`) and
 produce Miette warnings on stderr and count as skipped. Independent failures
 are collected into one diagnostic after traversal. The stdout summary counts
 calculations and logical verified, failed, and skipped artifacts. Exit status
-is 0 when supported artifacts pass (including empty bundles), and 1 for
-verification failures or fatal archive errors. Verification does not establish
+is 0 when supported artifacts pass (including empty bundles). The boolean
+`--strict` flag defaults to false; enable it with `artifact verify PATH --strict`
+to return exit code 5 when any artifact is skipped because its name or
+representation is unsupported. Verification failures or fatal archive errors
+return 1, including when artifacts are also skipped in strict mode. Verification does not establish
 scientific validity.

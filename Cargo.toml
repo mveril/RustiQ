@@ -126,6 +126,7 @@ sysinfo = { workspace = true, optional = true }
 webbrowser = "1"
 
 [dev-dependencies]
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 vergen-gix = { version = "10", features = ["cargo", "rustc"] }
 approx.workspace = true
 criterion = "0.8"

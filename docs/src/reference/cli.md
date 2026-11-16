@@ -248,7 +248,7 @@ installs the generated assets but disables both generators in its executable.
 | `rustiq cache list [--cache-dir DIR]`                                   | Inspect AO ERI cache entries and their validation status.                                                                                                |
 | `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries.                                                                                                             |
 | `rustiq artifact inspect <PATH> [--format FORMAT]`                      | Inspect portable `.rustiq` calculation snapshots and artifact metadata.                                                                                  |
-| `rustiq artifact verify <PATH>`                                         | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
+| `rustiq artifact verify <PATH> [--strict]`                                         | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
 | `rustiq geometry info [XYZ]`                                            | Print basic geometry information; read XYZ from standard input when no path is given.                                                                    |
 | `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry`  | Transform a geometry and write the result; each subcommand has its own help.                                                                             |
 
@@ -318,6 +318,9 @@ code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.
 | `2`  | Invalid command-line arguments.                                                                                                                 |
 | `3`  | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.                                     |
 | `4`  | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.                      |
+
+`artifact verify --strict` additionally returns `5` for incomplete verification
+when artifacts were skipped and no verification failure occurred.
 
 These codes apply to TOML, Nickel, and `.rustiq` inputs, with text or JSON output.
 A calculation succeeds only when the complete requested method succeeds: converged
@@ -525,6 +528,9 @@ Artifact verification supports `ao_eri` (`rustiq-compact-eri-v1`) and
 produce Miette warnings on stderr and count as skipped. Independent failures
 are collected into one diagnostic after traversal. The stdout summary counts
 calculations and logical verified, failed, and skipped artifacts. Exit status
-is 0 when supported artifacts pass (including empty bundles), and 1 for
-verification failures or fatal archive errors. Verification does not establish
+is 0 when supported artifacts pass (including empty bundles). The boolean
+`--strict` flag defaults to false; enable it with `artifact verify PATH --strict`
+to return exit code 5 when any artifact is skipped because its name or
+representation is unsupported. Verification failures or fatal archive errors
+return 1, including when artifacts are also skipped in strict mode. Verification does not establish
 scientific validity.

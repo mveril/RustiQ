@@ -18,6 +18,13 @@ pub(crate) struct IncompleteBatch {
     pub general_errors: usize,
 }
 
+#[derive(Debug, Error, Diagnostic)]
+#[error("artifact verification incomplete: {skipped} artifacts skipped")]
+#[diagnostic(code(rustiq::artifact::verification_incomplete))]
+pub(crate) struct IncompleteVerification {
+    pub skipped: usize,
+}
+
 pub(crate) fn is_non_convergence(error: &Report) -> bool {
     error.chain().any(|cause| {
         matches!(
@@ -28,6 +35,9 @@ pub(crate) fn is_non_convergence(error: &Report) -> bool {
 }
 
 pub(crate) fn for_error(error: &Report) -> ExitCode {
+    if error.is::<IncompleteVerification>() {
+        return ExitCode::from(5);
+    }
     if let Some(batch) = error.downcast_ref::<IncompleteBatch>() {
         if batch.succeeded > 0 {
             return ExitCode::from(4);
@@ -49,6 +59,13 @@ pub(crate) fn for_error(error: &Report) -> ExitCode {
 mod tests {
     use super::*;
     use rustiq_core::calculation::CalculationExecutionError;
+
+    #[test]
+    fn incomplete_verification_returns_five() {
+        let error =
+            Report::new(IncompleteVerification { skipped: 1 }).wrap_err("strict verification");
+        assert_eq!(for_error(&error), ExitCode::from(5));
+    }
 
     #[test]
     fn incomplete_batch_codes_cover_all_outcome_combinations() {

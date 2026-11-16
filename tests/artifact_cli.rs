@@ -580,3 +580,118 @@ fn verification_counts_current_eri_artifact() {
     assert!(text.contains("Failed:       0"), "{text}");
     assert!(text.contains("Skipped:      0"), "{text}");
 }
+
+// Rewrite only the manifest or an artifact payload, leaving snapshot digests intact.
+fn rewrite_verification_bundle(path: &Path, change: impl FnOnce(&mut Value), corrupt: bool) {
+    use std::io::{Read, Write};
+    let mut archive = zip::ZipArchive::new(fs::File::open(path).unwrap()).unwrap();
+    let mut members = Vec::new();
+    for index in 0..archive.len() {
+        let mut member = archive.by_index(index).unwrap();
+        let mut bytes = Vec::new();
+        member.read_to_end(&mut bytes).unwrap();
+        members.push((member.name().unwrap().into_owned(), bytes));
+    }
+    drop(archive);
+    let (_, bytes) = members
+        .iter_mut()
+        .find(|(name, _)| name == "manifest.json")
+        .unwrap();
+    let mut manifest: Value = serde_json::from_slice(bytes).unwrap();
+    change(&mut manifest);
+    *bytes = serde_json::to_vec(&manifest).unwrap();
+    if let Some(unknown) = manifest["calculations"][0]["artifacts"].get("future") {
+        let path = unknown["path"].as_str().unwrap();
+        if !members.iter().any(|(name, _)| name == path) {
+            let original = manifest["calculations"][0]["artifacts"]["ao_eri"]["path"]
+                .as_str()
+                .unwrap();
+            let payload = members
+                .iter()
+                .find(|(name, _)| name == original)
+                .unwrap()
+                .1
+                .clone();
+            members.push((path.to_owned(), payload));
+        }
+    }
+    if corrupt {
+        let payload = manifest["calculations"][0]["artifacts"]["ao_eri"]["path"]
+            .as_str()
+            .unwrap();
+        let (_, bytes) = members
+            .iter_mut()
+            .find(|(name, _)| name == payload)
+            .unwrap();
+        bytes[0] ^= 1;
+    }
+    let mut writer = zip::ZipWriter::new(fs::File::create(path).unwrap());
+    for (name, bytes) in members {
+        writer
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(&bytes).unwrap();
+    }
+    writer.finish().unwrap();
+}
+
+#[test]
+fn strict_verification_reports_skips_and_prioritizes_failures() {
+    let directory = fixture();
+    let root = directory.path();
+    calculate(root, &["--artifact", "verify.rustiq"]);
+    let original = fs::read(root.join("verify.rustiq")).unwrap();
+    for unsupported_representation in [false, true] {
+        fs::write(root.join("verify.rustiq"), &original).unwrap();
+        rewrite_verification_bundle(
+            &root.join("verify.rustiq"),
+            |manifest| {
+                let artifacts = manifest["calculations"][0]["artifacts"]
+                    .as_object_mut()
+                    .unwrap();
+                if unsupported_representation {
+                    artifacts.get_mut("ao_eri").unwrap()["representation"] = json!("future-v2");
+                } else {
+                    let mut unknown = artifacts["ao_eri"].clone();
+                    unknown["representation"] = json!("future-v2");
+                    let path = unknown["path"].as_str().unwrap();
+                    unknown["path"] =
+                        json!(format!("{}/future.bin", path.rsplit_once('/').unwrap().0));
+                    artifacts.insert("future".into(), unknown);
+                }
+            },
+            false,
+        );
+        for strict in [false, true] {
+            let mut args = vec!["artifact", "verify", "verify.rustiq"];
+            if strict {
+                args.push("--strict");
+            }
+            let output = command(root, &args);
+            assert_eq!(
+                output.status.code(),
+                Some(if strict { 5 } else { 0 }),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("Skipped:      1"));
+        }
+        if !unsupported_representation {
+            rewrite_verification_bundle(&root.join("verify.rustiq"), |_| {}, true);
+            let output = command(root, &["artifact", "verify", "verify.rustiq", "--strict"]);
+            assert_eq!(
+                output.status.code(),
+                Some(1),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("Failed:       1"));
+        }
+    }
+    fs::write(root.join("verify.rustiq"), &original).unwrap();
+    assert!(
+        command(root, &["artifact", "verify", "verify.rustiq", "--strict"])
+            .status
+            .success()
+    );
+}

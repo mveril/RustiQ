@@ -35,6 +35,9 @@ pub(crate) struct InspectCommand {
 #[derive(Debug, clap::Args)]
 pub(crate) struct VerifyCommand {
     path: PathBuf,
+    /// Return exit code 5 if artifacts are skipped and no verification fails.
+    #[arg(long)]
+    strict: bool,
 }
 
 #[derive(Serialize)]
@@ -180,10 +183,12 @@ impl Runnable for VerifyCommand {
         writeln!(io::stdout().lock(),
             "Verification summary\n  Calculations: {calculation_count}\n  Verified:     {verified}\n  Failed:       {}\n  Skipped:      {skipped}", errors.len()
         ).into_diagnostic()?;
-        if errors.is_empty() {
-            Ok(())
-        } else {
+        if !errors.is_empty() {
             Err(VerificationFailures { errors }.into())
+        } else if self.strict && skipped > 0 {
+            Err(crate::cli::exit_status::IncompleteVerification { skipped }.into())
+        } else {
+            Ok(())
         }
     }
 }
