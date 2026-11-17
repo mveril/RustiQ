@@ -13,7 +13,6 @@ use crate::{
 
 pub(super) const HF_PATH: &str = "orbitals/converged-hf.json";
 pub(super) const HF_REPRESENTATION: &str = "rustiq-converged-hf-orbitals-v1";
-pub(super) const LEGACY_NPY_REPRESENTATION: &str = "rustiq-converged-hf-npy-v1";
 const MAX_HF_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Converged HF orbitals, independently owned and cheap to clone. Contains no AO integrals.
@@ -328,11 +327,7 @@ impl Artifact for ConvergedHfArtifact {
         let Some(a) = data.manifest.artifacts.get(Self::NAME) else {
             return Ok(None);
         };
-        if !matches!(
-            a.representation.as_str(),
-            HF_REPRESENTATION | LEGACY_NPY_REPRESENTATION | "rustiq-converged-hf-v1"
-        ) || a.path.as_str() != HF_PATH
-        {
+        if !matches!(a.representation.as_str(), HF_REPRESENTATION) || a.path.as_str() != HF_PATH {
             return Err(ArtifactError::UnsupportedRepresentation(
                 a.representation.clone(),
             ));
@@ -350,16 +345,10 @@ impl Artifact for ConvergedHfArtifact {
         if metadata.size != a.size || metadata.digest != a.digest {
             return Err(ArtifactError::IntegrityMismatch(a.path.to_string()));
         }
-        let record = if a.representation == "rustiq-converged-hf-v1" {
-            source
-                .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
-                .map_err(|e| invalid(&e.to_string()))?
-        } else {
-            let record: HfRecord<HfOrbitals<StoredChannel>> = source
-                .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
-                .map_err(|e| invalid(&e.to_string()))?;
-            record.restore(source)?
-        };
+        let record: HfRecord<HfOrbitals<StoredChannel>> = source
+            .read_json(RelativePath::new(HF_PATH), MAX_HF_BYTES)
+            .map_err(|e| invalid(&e.to_string()))?;
+        let record = record.restore(source)?;
         let value = ConvergedHf(Arc::new(record));
         value.validate(data)?;
         Ok(Some(value))
@@ -376,12 +365,7 @@ impl RustiQData {
                 .manifest
                 .artifacts
                 .get(ConvergedHfArtifact::NAME)
-                .is_some_and(|a| {
-                    matches!(
-                        a.representation.as_str(),
-                        HF_REPRESENTATION | LEGACY_NPY_REPRESENTATION | "rustiq-converged-hf-v1"
-                    )
-                }))
+                .is_some_and(|a| matches!(a.representation.as_str(), HF_REPRESENTATION)))
             && ConvergedHfArtifact::is_compatible(self, calculation)
     }
 }

@@ -339,7 +339,6 @@ impl RustiQData {
                 && matches!(
                     artifact.representation.as_str(),
                     super::hf_artifact::HF_REPRESENTATION
-                        | super::hf_artifact::LEGACY_NPY_REPRESENTATION
                 )
             {
                 super::hf_artifact::copy_payloads(source, &mut destination)?;
