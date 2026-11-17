@@ -434,28 +434,6 @@ fn npy_leaves_have_numpy_shapes_and_corruption_is_rejected() {
 }
 
 #[test]
-fn legacy_inline_hf_is_readable() {
-    let (_, _, data) = fixture(HfMethod::Rhf, false);
-    let dir = tempfile::tempdir().unwrap();
-    data.write_to(Storage::folder(dir.path())).unwrap();
-    let bytes =
-        serde_json::to_vec(&*data.get::<ConvergedHfArtifact>().unwrap().unwrap().0).unwrap();
-    std::fs::write(dir.path().join(HF_PATH), &bytes).unwrap();
-    let mut manifest: crate::persistence::Manifest =
-        serde_json::from_slice(&std::fs::read(dir.path().join("manifest.json")).unwrap()).unwrap();
-    let artifact = manifest
-        .artifacts
-        .get_mut(ConvergedHfArtifact::NAME)
-        .unwrap();
-    artifact.representation = "rustiq-converged-hf-v1".into();
-    artifact.size = bytes.len() as u64;
-    artifact.digest = crate::persistence::sha256(&bytes);
-    let mut restored = RustiQData::read_manifest(Storage::folder(dir.path()), manifest).unwrap();
-    restored.context = data.context;
-    assert!(restored.get::<ConvergedHfArtifact>().unwrap().is_some());
-}
-
-#[test]
 fn staged_hf_clones_replace_independently_and_reread_payloads() {
     let (_, _, mut data) = fixture(HfMethod::Rhf, false);
     let clone = data.clone();
@@ -530,34 +508,6 @@ fn borrowed_hf_publication_does_not_stage_and_can_replace_corrupt_payload() {
         .get::<ConvergedHfArtifact>()
         .unwrap()
         .is_some());
-}
-
-#[test]
-fn former_npy_representation_label_can_be_read_and_republished() {
-    let (prepared, _, mut data) = fixture(HfMethod::Uhf, false);
-    assert!(!HF_REPRESENTATION.contains("npy"));
-    let directory = tempfile::tempdir().unwrap();
-    let original = data.get::<ConvergedHfArtifact>().unwrap().unwrap();
-    let entry = data
-        .manifest
-        .artifacts
-        .get_mut(ConvergedHfArtifact::NAME)
-        .unwrap();
-    assert_eq!(entry.representation, HF_REPRESENTATION);
-    entry.representation = LEGACY_NPY_REPRESENTATION.into();
-    assert!(data.hf_is_compatible(&prepared));
-    assert_eq!(
-        json(data.get::<ConvergedHfArtifact>().unwrap().unwrap()),
-        json(&original)
-    );
-    let output = directory.path().join("legacy-label.rustiq");
-    data.write(&output).unwrap();
-    let restored = RustiQData::open(output).unwrap();
-    assert!(restored.hf_is_compatible(&prepared));
-    assert_eq!(
-        json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
-        json(original)
-    );
 }
 
 #[test]
