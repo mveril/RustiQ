@@ -782,7 +782,7 @@ fn hf_bundle(root: &Path, unrestricted: bool) {
 }
 
 #[test]
-fn verification_reads_rhf_uhf_and_legacy_npy_representations() {
+fn verification_reads_rhf_uhf_and_skips_unknown_npy_artifact() {
     for unrestricted in [false, true] {
         let directory = fixture();
         let root = directory.path();
@@ -800,8 +800,19 @@ fn verification_reads_rhf_uhf_and_legacy_npy_representations() {
                     args.push("--strict");
                 }
                 let output = command(root, &args);
-                assert_verification(&output, 0, "Verification successful", [2, 0, 0]);
-                assert_eq!(output.stderr, b"");
+                if legacy {
+                    assert_verification(
+                        &output,
+                        if strict { 1 } else { 0 },
+                        "Verification incomplete",
+                        [1, 0, 1],
+                    );
+                } else {
+                    assert_verification(&output, 0, "Verification successful", [2, 0, 0]);
+                }
+                if !legacy {
+                    assert_eq!(output.stderr, b"");
+                }
             }
         }
     }
@@ -907,38 +918,16 @@ fn verification_empty_and_fatal_archives() {
 }
 
 #[test]
-fn verification_reads_legacy_inline_hf() {
-    use rustiq_core::persistence::ConvergedHfArtifact;
+fn verification_skips_legacy_inline_hf_representation() {
     let directory = fixture();
     let root = directory.path();
     hf_bundle(root, false);
-    let data = RustiQData::open(root.join("hf.rustiq")).unwrap();
-    let hf = data.get::<ConvergedHfArtifact>().unwrap().unwrap();
-    let energies = hf.energies();
-    let convergence = hf.convergence();
-    // Reconstruct the former inline JSON layout from public read-only accessors.
-    let bytes = serde_json::to_vec(&json!({
-        "version": hf.version(), "identity": hf.identity(),
-        "basis_dimension": hf.basis_dimension(), "effective_rank": hf.effective_rank(),
-        "iterations": hf.iterations(), "electronic_energy": energies[0],
-        "nuclear_repulsion_energy": energies[1], "total_energy": energies[2],
-        "delta_energy": convergence[0], "residual_norm": convergence[1],
-        "linear_dependency_threshold": hf.linear_dependency_threshold(),
-        "spin": hf.spin(), "orbitals": hf.orbitals()
-    }))
-    .unwrap();
-    drop(data);
-    edit_bundle(&root.join("hf.rustiq"), |manifest, members| {
-        let artifact = &mut manifest["calculations"][0]["artifacts"]["converged_hf"];
-        let path = artifact["path"].as_str().unwrap();
-        members.iter_mut().find(|(name, _)| name == path).unwrap().1 = bytes.clone();
-        artifact["representation"] = json!("rustiq-converged-hf-v1");
-        artifact["size"] = json!(bytes.len());
-        artifact["digest"] = json!(rustiq_core::persistence::sha256(&bytes));
+    edit_bundle(&root.join("hf.rustiq"), |manifest, _| {
+        manifest["calculations"][0]["artifacts"]["converged_hf"]["representation"] =
+            json!("rustiq-converged-hf-v1");
     });
-    let output = command(root, &["artifact", "verify", "hf.rustiq", "--strict"]);
-    assert_verification(&output, 0, "Verification successful", [2, 0, 0]);
-    assert_eq!(output.stderr, b"");
+    let output = command(root, &["artifact", "verify", "hf.rustiq"]);
+    assert_verification(&output, 0, "Verification incomplete", [1, 0, 1]);
 }
 
 #[test]

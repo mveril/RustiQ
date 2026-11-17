@@ -146,12 +146,7 @@ impl Runnable for VerifyCommand {
                 let reason = match name {
                     AoEriArtifact::NAME if representation == "rustiq-compact-eri-v1" => None,
                     ConvergedHfArtifact::NAME
-                        if matches!(
-                            representation,
-                            "rustiq-converged-hf-orbitals-v1"
-                                | "rustiq-converged-hf-npy-v1"
-                                | "rustiq-converged-hf-v1"
-                        ) =>
+                        if representation == "rustiq-converged-hf-orbitals-v1" =>
                     {
                         None
                     }

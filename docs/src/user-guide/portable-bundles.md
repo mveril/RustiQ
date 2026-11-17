@@ -93,8 +93,7 @@ The command verifies supported `ao_eri` and `converged_hf` artifacts through
 their artifact readers. AO ERI checks cover payload hashes, NPY encoding, dimensions,
 and consistency with the declared AO basis. HF checks cover metadata, referenced
 payload integrity, array shapes, occupations, finite values, and context identity.
-Current HF orbital representations and the legacy NPY and inline JSON
-representations are supported.
+HF verification supports the `rustiq-converged-hf-orbitals-v1` representation.
 
 The summary on stdout counts calculations and logical artifacts, rather than
 individual files. Diagnostics go to stderr. For the H₂ bundle created above:
