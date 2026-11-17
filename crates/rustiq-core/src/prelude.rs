@@ -45,5 +45,6 @@ pub use crate::{
     },
     config::{HfConfig, HfMethod, IntegralConfig, Located, MoleculeConfig, Mp2Config},
     molecules::{Atom, Geometry, GeometryParseError, Units},
+    persistence::RestoreFromRustiQ,
     Element,
 };

@@ -18,6 +18,13 @@ pub(crate) enum StorageError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum PortableError {
+    #[error("required artifact is missing: {0}")]
+    MissingArtifact(&'static str),
+    #[error("HF reference mismatch: expected {expected:?}, found {actual:?}")]
+    HfReferenceMismatch {
+        expected: crate::config::ResolvedHfMethod,
+        actual: crate::config::ResolvedHfMethod,
+    },
     #[error("AO ERI is incompatible with the prepared calculation")]
     IncompatibleEri,
     #[error("portable artifact I/O failed: {0}")]

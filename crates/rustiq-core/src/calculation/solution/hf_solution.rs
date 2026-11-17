@@ -18,7 +18,8 @@ use crate::{
 /// For an unconverged solution, retained orbitals are diagnostic snapshots. They are
 /// not guaranteed to diagonalize the final Fock matrix or reproduce the last damped
 /// density and its reported energy. Final canonical orbitals are guaranteed only
-/// for converged solutions.
+/// for converged solutions produced by SCF. Restored solutions trust the persisted
+/// convergence and orbital data without repeating canonicality checks.
 ///
 /// ```compile_fail
 /// use rustiq_core::calculation::{HfSolution, Restricted, Unrestricted};
@@ -87,7 +88,8 @@ impl<R: HfReference, State> HfSolution<R, State> {
 
     /// Borrows orbital energies in Hartree in the reference-specific representation.
     /// Entries correspond to the coefficient columns. Final-Fock canonicality is
-    /// guaranteed only for converged solutions.
+    /// guaranteed for converged solutions produced by SCF; restoration trusts the
+    /// persisted orbital data without independently checking canonicality.
     #[must_use]
     pub fn orbital_energies(&self) -> &OrbitalEnergies<R> {
         self.0.orbital_energies()
@@ -102,7 +104,7 @@ impl<R: HfReference, State> HfSolution<R, State> {
         self.0.occupations()
     }
 
-    pub(super) fn new(
+    pub(crate) fn new(
         method: R::Method,
         persistence_identity: Option<crate::persistence::Sha256Digest>,
         scf: ScfResult,

@@ -59,3 +59,5 @@ pub(crate) const SCIENTIFIC_IDENTITY_VERSION: u32 = 1;
 
 mod scf;
 pub use scf::PersistScf;
+mod restore;
+pub use restore::RestoreFromRustiQ;

@@ -12,9 +12,10 @@ Commands using `rustiq` assume the executable is installed or available on
 A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
 lets users rerun saved calculations or reuse compatible AO ERIs in new ones
-without carrying a machine-local cache. The bundle does not save a
-Hartree–Fock wavefunction through the CLI or skip a new SCF run.
-The Rust API can additionally store converged RHF/UHF orbitals, as described below.
+without carrying a machine-local cache. CLI reruns always start a new SCF run;
+the CLI does not save a Hartree–Fock wavefunction. The Rust API can additionally
+store converged RHF/UHF orbitals and restore a solution for MP2 without repeating
+SCF, as described below.
 
 ## Create and inspect a bundle
 
@@ -295,14 +296,70 @@ cargo run -p rustiq-chem-core --example persist_hf --no-default-features
 ```
 
 The example writes into a temporary directory and verifies the restored RHF
-coefficients. The API checks context identity, dimensions, occupations, finite
-values, convergence metadata, and payload integrity on first access. These
+coefficients and MP2 correlation energy. The API checks context identity, dimensions, occupations, finite
+values, convergence metadata, and payload integrity on each typed access. These
 checks do not independently establish physical validity or orbital orthonormality.
 `hf_is_compatible` checks context compatibility without verifying the payload.
-Reading the artifact does not reconstruct an executable HF solution, supply AO
-integrals, run MP2, restart SCF, or restore DIIS. CLI capture/reuse and MP2 reuse
-remain future work. The current CLI `artifact verify` supports AO ERIs and
-rejects HF artifacts as unsupported; use the typed Rust getter to verify HF.
+Reading the artifact alone does not construct an executable solution. To restore
+one for MP2, the same calculation entry must also contain compatible AO ERIs.
+The current CLI `artifact verify` supports AO ERIs and rejects HF artifacts as
+unsupported; use the typed Rust getter to verify HF.
+
+### Restoring a solution for MP2
+
+The public `RestoreFromRustiQ` trait constructs an owned object from a
+`RustiQData` entry. `RustiQData::restore::<T>()` delegates to that trait.
+Converged `RhfSolution`, `UhfSolution`, and `AnyHfSolution` implement it:
+
+```rust,ignore
+use rustiq_core::{persistence::RustiQData, prelude::*};
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let data = RustiQData::open("calculation.rustiq")?;
+let hf: RhfSolution = data.restore()?;
+// Equivalent: RhfSolution::restore_from_rustiq(&data)?
+let mp2 = hf.mp2(Mp2Config::default())?;
+println!("MP2 correlation energy: {} Hartree", mp2.correlation_energy);
+# Ok(())
+# }
+```
+
+Use `UhfSolution` for an unrestricted calculation. When the reference is selected
+at runtime, restore `AnyHfSolution` and match its typed variants before calling
+`.mp2()`:
+
+```rust,ignore
+let hf: AnyHfSolution = data.restore()?;
+let mp2 = match hf {
+    AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default())?,
+    AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default())?,
+    _ => return Err("unsupported HF reference".into()),
+};
+```
+
+Restoration validates the HF artifact, its context, and the compatible AO ERI
+payload. Missing, unsupported, incompatible, or corrupt required artifacts are
+errors; requesting RHF from a UHF entry, or vice versa, also returns an error.
+It does not run SCF or compute missing ERIs. It rebuilds the density from the
+occupied orbitals and recomputes the kinetic and nuclear-attraction integrals
+to reconstruct the energy decomposition. The electron-repulsion component is
+the stored electronic energy minus the reconstructed kinetic and nuclear-attraction
+components. Because final orbital and SCF densities can differ within the
+convergence tolerance, these components can differ from the original summary.
+Original HF energies and convergence diagnostics are retained; execution timings
+are not persisted and are zero in
+the restored summary. These checks trust the persisted convergence record;
+they do not independently certify orbital canonicality or physical validity.
+
+The restored solution owns its scientific data and remains usable after the
+bundle is closed. Restoration does not modify the source. The offline
+`persist_hf` example above saves both artifacts, reopens the bundle, restores
+RHF, and compares the resulting MP2 correlation energy with the original
+solution within `1e-12` Eh. It uses a temporary directory that is removed on
+exit, closes the bundle before MP2, and prints HF total, MP2 correlation, and
+MP2 total energies (HF total plus MP2 correlation). This checks the persistence
+round trip for the bundled H2/STO-3G case, rather than independent scientific
+accuracy. SCF/DIIS restart and automatic CLI HF capture/reuse remain future work.
 
 The resolved context preserves effective normalized AO components and their
 ordering. Original shell/contraction metadata is incomplete and must be added
