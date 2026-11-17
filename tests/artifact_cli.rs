@@ -803,7 +803,7 @@ fn verification_reads_rhf_uhf_and_skips_unknown_npy_artifact() {
                 if legacy {
                     assert_verification(
                         &output,
-                        if strict { 1 } else { 0 },
+                        if strict { 5 } else { 0 },
                         "Verification incomplete",
                         [1, 0, 1],
                     );
