@@ -1,5 +1,5 @@
-Cargo.lock SHA-256: 2a1954c2ec99b6e87db533afbdd2e3d57caaaec25452083c8310ff2f821730ac
-Notice inputs SHA-256: 911b204bcfd6752d237e8ae735612b807bcbe52013a872b01f843c3897c6bc7b
+Cargo.lock SHA-256: a307011f655c69cf022827424e2b9df83126610c8555e572a8f585fcd528e80d
+Notice inputs SHA-256: f317c110ce184525cb68eefbd87c9353b0a31f3b5f55a463f25be8e0c07f1ddf
 Corresponding source: https://github.com/mveril/RustiQ/releases/download/v0.1.0-beta.2.dev/rustiq-corresponding-source.tar.gz
 
 RustiQ third-party licenses
@@ -4079,7 +4079,6 @@ Used by:
   clap_mangen 0.3.3 — https://github.com/clap-rs/clap
   colorchoice 1.0.5 — https://github.com/rust-cli/anstyle.git
   crc32fast 1.5.4 — https://github.com/srijs/rust-crc32fast
-  humantime 2.4.0 — https://github.com/chronotope/humantime
   is_terminal_polyfill 1.70.2 — https://github.com/polyfill-rs/is_terminal_polyfill
   jni-sys 0.4.1 — https://github.com/jni-rs/jni-sys
   once_cell_polyfill 1.70.2 — https://github.com/polyfill-rs/once_cell_polyfill
@@ -33520,42 +33519,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-PACKAGE: humantime 2.4.0
-Declared license: MIT OR Apache-2.0
-Repository: https://github.com/chronotope/humantime
-Authors: (not declared)
-
-FILE: LICENSE-APACHE
-Identical text reproduced above: anstream 1.0.0 / LICENSE-APACHE
-
-FILE: LICENSE-MIT
-Copyright (c) 2016 The humantime Developers
-
-Includes parts of http date with the following copyright:
-Copyright (c) 2016 Pyfisch
-
-Includes portions of musl libc with the following copyright:
-Copyright © 2005-2013 Rich Felker
-
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 PACKAGE: hybrid-array 0.4.15
 Declared license: MIT OR Apache-2.0

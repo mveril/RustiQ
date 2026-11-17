@@ -129,52 +129,52 @@ where
         writeln!(
             self.writer,
             "  Setup total: {}",
-            humantime::format_duration(result.timings.setup.total)
+            crate::cli::ux::format_duration(result.timings.setup.total)
         )?;
         writeln!(
             self.writer,
             "    Core Hamiltonian: {}",
-            humantime::format_duration(result.timings.setup.core_hamiltonian)
+            crate::cli::ux::format_duration(result.timings.setup.core_hamiltonian)
         )?;
         writeln!(
             self.writer,
             "    Overlap matrix: {}",
-            humantime::format_duration(result.timings.setup.overlap)
+            crate::cli::ux::format_duration(result.timings.setup.overlap)
         )?;
         writeln!(
             self.writer,
             "    Orthogonalizer: {}",
-            humantime::format_duration(result.timings.setup.orthogonalizer)
+            crate::cli::ux::format_duration(result.timings.setup.orthogonalizer)
         )?;
         writeln!(
             self.writer,
             "    Electron repulsion integrals: {}",
-            humantime::format_duration(result.timings.setup.electron_repulsion_integrals)
+            crate::cli::ux::format_duration(result.timings.setup.electron_repulsion_integrals)
         )?;
         writeln!(
             self.writer,
             "    Density guess: {}",
-            humantime::format_duration(result.timings.setup.density_guess)
+            crate::cli::ux::format_duration(result.timings.setup.density_guess)
         )?;
         writeln!(
             self.writer,
             "    Initial orbitals: {}",
-            humantime::format_duration(result.timings.setup.initial_orbitals)
+            crate::cli::ux::format_duration(result.timings.setup.initial_orbitals)
         )?;
         writeln!(
             self.writer,
             "  SCF iterations: {}",
-            humantime::format_duration(result.timings.iterations)
+            crate::cli::ux::format_duration(result.timings.iterations)
         )?;
         writeln!(
             self.writer,
             "  Final energy details: {}",
-            humantime::format_duration(result.timings.final_energy_details)
+            crate::cli::ux::format_duration(result.timings.final_energy_details)
         )?;
         writeln!(
             self.writer,
             "  Total wall time: {}",
-            humantime::format_duration(result.timings.total)
+            crate::cli::ux::format_duration(result.timings.total)
         )?;
         Ok(())
     }

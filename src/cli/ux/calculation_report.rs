@@ -88,7 +88,7 @@ impl<W: Write> CalculationReporter<W> {
                 "{} {} basis functions in {}",
                 crate::cli::color::title("Constructed"),
                 basis.nbasis(),
-                humantime::format_duration(elapsed)
+                crate::cli::ux::format_duration(elapsed)
             )
         });
     }

@@ -109,7 +109,7 @@ delegate.workspace = true
 thiserror.workspace = true
 rand.workspace = true
 tabled = "0.22"
-humantime = "2"
+jiff = { version = "0.2.39", default-features = false, features = ["std"] }
 rusty-figlet = { version = "0.3", default-features = false }
 bat = { workspace = true, features = ["paging"] }
 cfg-if = "1"
