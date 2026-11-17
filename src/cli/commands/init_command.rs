@@ -69,14 +69,14 @@ pub struct InitCommand {
 
 // Both paths are canonical absolute paths. Different filesystem roots cannot
 // be represented by a relative path (for example different Windows drives).
-fn relative_geometry(input: &Path, directory: &Path) -> PathBuf {
+fn relative_geometry(input: &Path, directory: &Path) -> miette::Result<PathBuf> {
     let shared = input
         .components()
         .zip(directory.components())
         .take_while(|(a, b)| a == b)
         .count();
     if shared == 0 {
-        return input.to_path_buf();
+        return Ok(input.to_path_buf());
     }
     let mut result = PathBuf::new();
     for _ in directory.components().skip(shared) {
@@ -85,7 +85,11 @@ fn relative_geometry(input: &Path, directory: &Path) -> PathBuf {
     for component in input.components().skip(shared) {
         result.push(component.as_os_str());
     }
-    result
+    let portable = relative_path::RelativePathBuf::from_path(&result)
+        .map_err(|_| miette!("Geometry path cannot be represented as a portable UTF-8 path"))?;
+    crate::runfile::resolved::validate_geometry_path(portable.as_str())
+        .map_err(|message| miette!("{message}"))?;
+    Ok(PathBuf::from(portable.as_str()))
 }
 
 impl Runnable for InitCommand {
@@ -165,7 +169,7 @@ impl Runnable for InitCommand {
         }
         let run = RunFile {
             molecule: MoleculeConfig {
-                geometry: relative_geometry(&input, &directory),
+                geometry: relative_geometry(&input, &directory)?,
                 charge: self.charge,
                 multiplicity,
                 units,
@@ -220,22 +224,55 @@ mod tests {
     use crate::runfile::parser::parse_runfile;
     use clap::Parser;
 
+    #[cfg(windows)]
+    #[test]
+    fn relative_geometry_supports_windows_drives() {
+        assert_eq!(
+            relative_geometry(Path::new(r"C:\data\molecule.xyz"), Path::new(r"D:\runs")).unwrap(),
+            PathBuf::from(r"C:\data\molecule.xyz")
+        );
+        assert_eq!(
+            relative_geometry(
+                Path::new(r"C:\project\data\molecule.xyz"),
+                Path::new(r"C:\project\runs")
+            )
+            .unwrap(),
+            PathBuf::from("../data/molecule.xyz")
+        );
+    }
+
     #[test]
     fn relative_geometry_uses_shared_directory_prefix() {
         assert_eq!(
             relative_geometry(
                 Path::new("/work/project/data/molecule.xyz"),
                 Path::new("/work/project/runs/job"),
-            ),
+            )
+            .unwrap(),
             PathBuf::from("../../data/molecule.xyz")
         );
         assert_eq!(
             relative_geometry(
                 Path::new("/work/project/runs/job/molecule.xyz"),
                 Path::new("/work/project/runs/job"),
-            ),
+            )
+            .unwrap(),
             PathBuf::from("molecule.xyz")
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn geometry_on_another_drive_remains_absolute() {
+        for (input, directory) in [
+            (r"D:\data\molecule.xyz", r"C:\runs"),
+            (r"\\?\D:\data\molecule.xyz", r"\\?\C:\runs"),
+        ] {
+            assert_eq!(
+                relative_geometry(Path::new(input), Path::new(directory)).unwrap(),
+                PathBuf::from(input)
+            );
+        }
     }
 
     fn command(input: &Path, output: &Path, extra: &[&str]) -> InitCommand {
@@ -479,6 +516,8 @@ mod tests {
         assert_eq!(temp.path().join(run.molecule.geometry), input);
         let link = temp.path().join("link.toml");
         std::os::unix::fs::symlink(&output, &link).unwrap();
-        assert!(command(&input, &link, &["--force"]).run().is_err());
+        let valid_input = temp.path().join("molecule.xyz");
+        fs::write(&valid_input, "1\nH\nH 0 0 0\n").unwrap();
+        assert!(command(&valid_input, &link, &["--force"]).run().is_err());
     }
 }

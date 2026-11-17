@@ -308,11 +308,12 @@ fn single_nickel_sample_runs_transparently_like_toml() {
 fn mp2_human_memory_budget_reaches_cli_and_preserves_json() {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("memory.toml");
-    let geometry = repo_root().join("samples/h2/molecule.xyz");
-    let prefix = format!(
-        "[molecule]\ngeometry = {:?}\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n",
-        geometry.to_str().unwrap()
-    );
+    fs::copy(
+        repo_root().join("samples/h2/molecule.xyz"),
+        directory.path().join("molecule.xyz"),
+    )
+    .unwrap();
+    let prefix = "[molecule]\ngeometry = \"molecule.xyz\"\n[basis]\nname = \"sto-3g\"\n[method.hf]\n[method.mp2]\n";
     fs::write(&path, format!("{prefix}memory_limit = \"1 KiB\"\n")).unwrap();
     let sample = path.to_str().unwrap();
     let output = json_output(sample);

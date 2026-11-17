@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Geometry paths in TOML and Nickel accept relative and native absolute paths.
+  Prefer `/` separators in relative paths for portability. `rustiq init`
+  generates relative paths when possible and falls back to absolute paths
+  across filesystem roots, including separate Windows drives.
+
 ## [0.1.0-beta.1] - 2026-11-12
 
 

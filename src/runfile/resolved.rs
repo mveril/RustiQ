@@ -15,10 +15,26 @@ pub struct ResolvedCalculationConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedMoleculeConfig {
+    #[serde(deserialize_with = "deserialize_geometry_path")]
     pub geometry: PathBuf,
     pub charge: i32,
     pub multiplicity: NonZeroU8,
     pub units: Units,
+}
+
+fn deserialize_geometry_path<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<PathBuf, D::Error> {
+    let path = String::deserialize(deserializer)?;
+    validate_geometry_path(&path).map_err(serde::de::Error::custom)?;
+    Ok(PathBuf::from(path))
+}
+
+pub(crate) fn validate_geometry_path(path: &str) -> Result<(), &'static str> {
+    if path.is_empty() {
+        return Err("molecule.geometry must be a non-empty file path");
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -195,10 +211,10 @@ impl IntoIterator for ResolvedInput {
 
 impl ResolvedCalculationConfig {
     pub fn resource_path(&self, input: Option<&std::path::Path>) -> PathBuf {
-        input
+        let base = input
             .and_then(std::path::Path::parent)
-            .unwrap_or_else(|| std::path::Path::new("."))
-            .join(&self.molecule.geometry)
+            .unwrap_or_else(|| std::path::Path::new("."));
+        base.join(&self.molecule.geometry)
     }
 
     pub fn molecule_config(&self) -> rustiq_core::config::MoleculeConfig {
@@ -404,11 +420,6 @@ mod tests {
             std::path::Path::new(".").join("../molecule.xyz")
         );
         assert_eq!(std::env::current_dir().unwrap(), cwd);
-        calculation.molecule.geometry = temporary.path().join("molecule.xyz");
-        assert_eq!(
-            calculation.resource_path(Some(&directory.join("calculation.toml"))),
-            calculation.molecule.geometry
-        );
     }
 
     #[test]
@@ -423,6 +434,36 @@ mod tests {
             Err(ResolutionError::UnsupportedBatch { count: 2 })
         ));
         assert_eq!(batch.calculations().len(), 2);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_absolute_geometry_ignores_input_drive() {
+        let mut calculation = resolved();
+        for geometry in [
+            r"D:\data\molecule.xyz",
+            "D:/data/molecule.xyz",
+            r"\\server\share\molecule.xyz",
+        ] {
+            calculation.molecule.geometry = geometry.into();
+            assert_eq!(
+                calculation.resource_path(Some(std::path::Path::new(r"C:\runs\input.toml"))),
+                PathBuf::from(geometry)
+            );
+        }
+    }
+
+    #[test]
+    fn absolute_geometry_is_not_rebased() {
+        let mut calculation = resolved();
+        let temp = tempfile::tempdir().unwrap();
+        let geometry = temp.path().join("molecule.xyz");
+        calculation.molecule.geometry = geometry.clone();
+        assert_eq!(
+            calculation.resource_path(Some(std::path::Path::new("other/input.toml"))),
+            geometry
+        );
+        assert_eq!(calculation.resource_path(None), geometry);
     }
 
     #[test]

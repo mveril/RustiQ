@@ -274,10 +274,13 @@ fn test_cli_h2_sample_converges_and_prints_reference_energy() {
     assert!(stdout.contains("SCF converged after 2 iterations."));
     assert!(stdout.contains("Total Energy (including nuclear repulsion): -1.116759 Hartree"));
     assert!(stdout.contains("Overlap effective rank: 2/2 (0 discarded"));
+    let stdout = stdout.replace('\\', "/");
     let expected_geometry = Path::new("samples/h2/sto-3g")
-        .join("../molecule.xyz")
+        .join("..")
+        .join("molecule.xyz")
         .display()
-        .to_string();
+        .to_string()
+        .replace('\\', "/");
     assert!(stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")));
     assert!(stdout.contains("  Atoms         2"));
     assert!(stdout.contains("  Charge        0"));
@@ -533,12 +536,15 @@ fn test_cli_h2_mp2_fails_when_hf_does_not_converge() {
     prepare_basis_store(&temp_root);
 
     let toml_path = temp_root.join("calculation.toml");
-    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join("h2")
-        .join("molecule.xyz")
-        .to_string_lossy()
-        .replace('\\', "/");
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("samples")
+            .join("h2")
+            .join("molecule.xyz"),
+        temp_root.join("molecule.xyz"),
+    )
+    .unwrap();
+    let molecule_path = "molecule.xyz";
     fs::write(
         &toml_path,
         format!(
@@ -687,12 +693,15 @@ fn test_cli_uhf_mp2_fails_when_hf_does_not_converge() {
     prepare_basis_store(&temp_root);
 
     let toml_path = temp_root.join("calculation.toml");
-    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join("oh")
-        .join("oh.xyz")
-        .to_string_lossy()
-        .replace('\\', "/");
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("samples")
+            .join("oh")
+            .join("oh.xyz"),
+        temp_root.join("oh.xyz"),
+    )
+    .unwrap();
+    let molecule_path = "oh.xyz";
     fs::write(
         &toml_path,
         format!(
@@ -734,12 +743,12 @@ fn test_cli_rejects_removed_output_section() {
     prepare_basis_store(&temp_root);
 
     let toml_path = temp_root.join("calculation.toml");
-    let molecule_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join("h2")
-        .join("molecule.xyz")
-        .to_string_lossy()
-        .replace('\\', "/");
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/h2/molecule.xyz"),
+        temp_root.join("molecule.xyz"),
+    )
+    .unwrap();
+    let molecule_path = "molecule.xyz";
     fs::write(
         &toml_path,
         format!(
@@ -877,7 +886,7 @@ fn test_cli_run_reports_grouped_geometry_diagnostics() {
     )
     .unwrap();
     let toml_path = temp_root.join("calculation.toml");
-    let geometry_path = geometry_path.to_string_lossy().replace('\\', "/");
+    let geometry_path = "broken.xyz";
     fs::write(
         &toml_path,
         format!(
@@ -907,7 +916,7 @@ fn test_cli_run_reports_geometry_atom_count_diagnostic() {
     let geometry_path = temp_root.join("broken.xyz");
     fs::write(&geometry_path, "two\nBroken molecule\nH 0.0 0.0 0.0\n").unwrap();
     let toml_path = temp_root.join("calculation.toml");
-    let geometry_path = geometry_path.to_string_lossy().replace('\\', "/");
+    let geometry_path = "broken.xyz";
     fs::write(
         &toml_path,
         format!(
@@ -1278,10 +1287,13 @@ fn run_resolves_file_resources_and_cli_cache_from_their_own_directories() {
         .unwrap();
     assert_success(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = stdout.replace('\\', "/");
     let expected_geometry = Path::new("../inputs/nested")
-        .join("../molecule.xyz")
+        .join("..")
+        .join("molecule.xyz")
         .display()
-        .to_string();
+        .to_string()
+        .replace('\\', "/");
     assert!(
         stdout.contains(&format!("Calculation\n  Geometry      {expected_geometry}")),
         "{stdout}"

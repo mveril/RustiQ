@@ -101,6 +101,7 @@ indicatif = { version = "0.18", optional = true }
 nalgebra.workspace = true
 mendeleev.workspace = true
 rayon.workspace = true
+relative-path.workspace = true
 tokio = { workspace = true, features = ["rt"], optional = true }
 serde_json.workspace = true
 serde.workspace = true
