@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-632f141a.js";
+            window.path_to_searchindex_js = "../searchindex-7d5a72be.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -385,8 +385,7 @@ and validates the payload again and returns an independently owned value.
 <code>ArtifactRef::new::&lt;ConvergedHfArtifact&gt;(&amp;value)</code> also supports direct borrowed
 publication without staging. Republishing stored HF data streams its NPY files
 without retaining decoded orbital arrays.</p>
-<p>The HF representation label is <code>rustiq-converged-hf-orbitals-v1</code>; readers retain
-support for the former <code>rustiq-converged-hf-npy-v1</code> label with the same layout.</p>
+<p>The only supported HF representation label is <code>rustiq-converged-hf-orbitals-v1</code>.</p>
 <p>Orbital arrays are stored as NumPy-compatible NPY files. For RHF, each
 calculation entry contains:</p>
 <pre><code class="language-text">orbitals/
