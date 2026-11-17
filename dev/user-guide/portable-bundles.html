@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-a08b65e3.js";
+            window.path_to_searchindex_js = "../searchindex-b11317f7.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -194,9 +194,10 @@ Commands using <code>rustiq</code> assume the executable is installed or availab
 <p>A <code>.rustiq</code> bundle is a portable snapshot of RustiQ calculation inputs and
 optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
 lets users rerun saved calculations or reuse compatible AO ERIs in new ones
-without carrying a machine-local cache. The bundle does not save a
-Hartree–Fock wavefunction through the CLI or skip a new SCF run.
-The Rust API can additionally store converged RHF/UHF orbitals, as described below.</p>
+without carrying a machine-local cache. CLI reruns always start a new SCF run;
+the CLI does not save a Hartree–Fock wavefunction. The Rust API can additionally
+store converged RHF/UHF orbitals and restore a solution for MP2 without repeating
+SCF, as described below.</p>
 <h2 id="create-and-inspect-a-bundle"><a class="header" href="#create-and-inspect-a-bundle">Create and inspect a bundle</a></h2>
 <h3 id="release-binary"><a class="header" href="#release-binary">Release binary</a></h3>
 <p>First follow the local-input workflow in the
@@ -423,14 +424,59 @@ two electrons each; UHF channels carry one electron per occupied orbital.</p>
 <pre><code class="language-sh">cargo run -p rustiq-chem-core --example persist_hf --no-default-features
 </code></pre>
 <p>The example writes into a temporary directory and verifies the restored RHF
-coefficients. The API checks context identity, dimensions, occupations, finite
-values, convergence metadata, and payload integrity on first access. These
+coefficients and MP2 correlation energy. The API checks context identity, dimensions, occupations, finite
+values, convergence metadata, and payload integrity on each typed access. These
 checks do not independently establish physical validity or orbital orthonormality.
 <code>hf_is_compatible</code> checks context compatibility without verifying the payload.
-Reading the artifact does not reconstruct an executable HF solution, supply AO
-integrals, run MP2, restart SCF, or restore DIIS. CLI capture/reuse and MP2 reuse
-remain future work. The current CLI <code>artifact verify</code> supports AO ERIs and
-rejects HF artifacts as unsupported; use the typed Rust getter to verify HF.</p>
+Reading the artifact alone does not construct an executable solution. To restore
+one for MP2, the same calculation entry must also contain compatible AO ERIs.
+The current CLI <code>artifact verify</code> supports AO ERIs and rejects HF artifacts as
+unsupported; use the typed Rust getter to verify HF.</p>
+<h3 id="restoring-a-solution-for-mp2"><a class="header" href="#restoring-a-solution-for-mp2">Restoring a solution for MP2</a></h3>
+<p>The public <code>RestoreFromRustiQ</code> trait constructs an owned object from a
+<code>RustiQData</code> entry. <code>RustiQData::restore::&lt;T&gt;()</code> delegates to that trait.
+Converged <code>RhfSolution</code>, <code>UhfSolution</code>, and <code>AnyHfSolution</code> implement it:</p>
+<pre><code class="language-rust ignore">use rustiq_core::{persistence::RustiQData, prelude::*};
+
+<span class="boring">fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+</span>let data = RustiQData::open("calculation.rustiq")?;
+let hf: RhfSolution = data.restore()?;
+// Equivalent: RhfSolution::restore_from_rustiq(&amp;data)?
+let mp2 = hf.mp2(Mp2Config::default())?;
+println!("MP2 correlation energy: {} Hartree", mp2.correlation_energy);
+<span class="boring">Ok(())
+</span><span class="boring">}</span></code></pre>
+<p>Use <code>UhfSolution</code> for an unrestricted calculation. When the reference is selected
+at runtime, restore <code>AnyHfSolution</code> and match its typed variants before calling
+<code>.mp2()</code>:</p>
+<pre><code class="language-rust ignore">let hf: AnyHfSolution = data.restore()?;
+let mp2 = match hf {
+    AnyHfSolution::Restricted(hf) =&gt; hf.mp2(Mp2Config::default())?,
+    AnyHfSolution::Unrestricted(hf) =&gt; hf.mp2(Mp2Config::default())?,
+    _ =&gt; return Err("unsupported HF reference".into()),
+};</code></pre>
+<p>Restoration validates the HF artifact, its context, and the compatible AO ERI
+payload. Missing, unsupported, incompatible, or corrupt required artifacts are
+errors; requesting RHF from a UHF entry, or vice versa, also returns an error.
+It does not run SCF or compute missing ERIs. It rebuilds the density from the
+occupied orbitals and recomputes the kinetic and nuclear-attraction integrals
+to reconstruct the energy decomposition. The electron-repulsion component is
+the stored electronic energy minus the reconstructed kinetic and nuclear-attraction
+components. Because final orbital and SCF densities can differ within the
+convergence tolerance, these components can differ from the original summary.
+Original HF energies and convergence diagnostics are retained; execution timings
+are not persisted and are zero in
+the restored summary. These checks trust the persisted convergence record;
+they do not independently certify orbital canonicality or physical validity.</p>
+<p>The restored solution owns its scientific data and remains usable after the
+bundle is closed. Restoration does not modify the source. The offline
+<code>persist_hf</code> example above saves both artifacts, reopens the bundle, restores
+RHF, and compares the resulting MP2 correlation energy with the original
+solution within <code>1e-12</code> Eh. It uses a temporary directory that is removed on
+exit, closes the bundle before MP2, and prints HF total, MP2 correlation, and
+MP2 total energies (HF total plus MP2 correlation). This checks the persistence
+round trip for the bundled H2/STO-3G case, rather than independent scientific
+accuracy. SCF/DIIS restart and automatic CLI HF capture/reuse remain future work.</p>
 <p>The resolved context preserves effective normalized AO components and their
 ordering. Original shell/contraction metadata is incomplete and must be added
 before a Molden exporter can be implemented. See the
