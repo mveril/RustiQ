@@ -588,7 +588,7 @@ impl RunCommand {
                 stdout,
                 "{} {}",
                 cli::color::title("Basis file loaded in"),
-                humantime::format_duration(step_start.elapsed())
+                crate::cli::ux::format_duration(step_start.elapsed())
             )
             .map_err(ReportWriteError)
             .map_err(CalculationExecutionError::fatal)?;

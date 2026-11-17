@@ -16,6 +16,9 @@ The first sample resolves to neutral singlet H₂, RHF, STO-3G, and two basis
 functions. Input coordinates are Angstrom; resolved coordinates are Bohr.
 Energies are in Hartree.
 
+Elapsed timings use Jiff’s human-readable duration format, for example
+`1m 1s 2ms 3µs 4ns`. These are wall-clock measurements and vary between runs.
+
 - **Electronic energy:** electronic kinetic energy, electron–nuclear attraction,
   and electron–electron interaction at the HF level.
 - **Nuclear repulsion energy:** repulsion between the fixed nuclei.
