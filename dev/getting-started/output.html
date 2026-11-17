@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b11317f7.js";
+            window.path_to_searchindex_js = "../searchindex-632f141a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -185,39 +185,29 @@
                         <h1 id="interpreting-output"><a class="header" href="#interpreting-output">Interpreting output</a></h1>
 <p>The standard <code>run</code> report has three visible parts:</p>
 <ul>
-<li>
-<p><strong>Requested options:</strong> a canonical TOML representation of the requested
+<li><strong>Requested options:</strong> a canonical TOML representation of the requested
 calculation and a canonical XYZ representation of its input geometry. These
 show the options after parsing and normalization; they do not reproduce the
-original source text or comments.</p>
-</li>
-<li>
-<p><strong>Resolved settings:</strong> a concise summary of the scientific setup used for the
+original source text or comments.</li>
+<li><strong>Resolved settings:</strong> a concise summary of the scientific setup used for the
 calculation, including atom count, charge, multiplicity, coordinate units,
-resolved HF method, and basis name and size.</p>
-</li>
-<li>
-<p><strong>Numerical results:</strong> SCF convergence information, energy values, overlap
+resolved HF method, and basis name and size.</li>
+<li><strong>Numerical results:</strong> SCF convergence information, energy values, overlap
 rank, energy components, and timings. The H₂ sample’s total HF energy is
 reported as <code>-1.116759</code> Hartree.
 The first sample resolves to neutral singlet H₂, RHF, STO-3G, and two basis
 functions. Input coordinates are Angstrom; resolved coordinates are Bohr.
-Energies are in Hartree.</p>
-</li>
-<li>
-<p><strong>Electronic energy:</strong> electronic kinetic energy, electron–nuclear attraction,
-and electron–electron interaction at the HF level.</p>
-</li>
-<li>
-<p><strong>Nuclear repulsion energy:</strong> repulsion between the fixed nuclei.</p>
-</li>
-<li>
-<p><strong>Total HF energy:</strong> electronic energy plus nuclear repulsion.</p>
-</li>
-<li>
-<p><strong>SCF convergence:</strong> the iterative solution met its configured criterion.
-This does not establish basis completeness or accuracy against experiment.</p>
-</li>
+Energies are in Hartree.</li>
+</ul>
+<p>Elapsed timings use Jiff’s human-readable duration format, for example
+<code>1m 1s 2ms 3µs 4ns</code>. These are wall-clock measurements and vary between runs.</p>
+<ul>
+<li><strong>Electronic energy:</strong> electronic kinetic energy, electron–nuclear attraction,
+and electron–electron interaction at the HF level.</li>
+<li><strong>Nuclear repulsion energy:</strong> repulsion between the fixed nuclei.</li>
+<li><strong>Total HF energy:</strong> electronic energy plus nuclear repulsion.</li>
+<li><strong>SCF convergence:</strong> the iterative solution met its configured criterion.
+This does not establish basis completeness or accuracy against experiment.</li>
 </ul>
 <p>With colors enabled, section titles are cyan, successful SCF convergence is
 green, and displayed energy values are yellow. The same energy-value styling is
