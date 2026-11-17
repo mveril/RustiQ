@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7d5a72be.js";
+            window.path_to_searchindex_js = "../searchindex-d3af9ee4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -229,7 +229,10 @@ std.array.map
 </code></pre>
 <p>To run this study with only the release binary, save the H₂ geometry below as
 <code>molecule.xyz</code> and save the study above as <code>study.ncl</code> in the same working
-directory. The study’s <code>molecule.geometry = "molecule.xyz"</code> path is relative
+directory. Geometry paths may be relative or absolute using the host platform syntax;
+prefer relative paths with <code>/</code> separators for portability.
+Absolute paths are used directly. The study’s
+<code>molecule.geometry = "molecule.xyz"</code> path is relative
 to that file. Both STO-3G and 6-31G must be available. Download them as shown
 below, or import independently obtained local files when offline with
 <code>rustiq basis import /path/to/sto-3g.json /path/to/6-31g.json</code>.</p>

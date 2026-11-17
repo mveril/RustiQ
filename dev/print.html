@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7d5a72be.js";
+            window.path_to_searchindex_js = "searchindex-d3af9ee4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-de272c4b.js"></script>
@@ -1043,7 +1043,13 @@ rustiq cache list --cache-dir ./rustiq-cache
 cache. The cache can be used as a fallback when a portable bundle has no
 compatible AO ERI; it is not itself a portable <code>.rustiq</code> bundle. See the
 <a href="#portable-calculation-bundles">portable bundle guide</a> for that reuse order.</p>
-<p>The geometry path is resolved relative to the TOML file. If the input is read
+<p>Geometry paths may be relative or absolute, using the host platform’s path
+syntax. Prefer relative paths with <code>/</code> separators, for example
+<code>../molecule.xyz</code>, to keep inputs portable across platforms. <code>rustiq init</code>
+generates this form when possible and retains an absolute path when the XYZ
+file and output are on different filesystem roots (for example separate
+Windows drives). Absolute paths are used directly; relative paths are
+resolved from the TOML file’s directory. If the input is read
 from standard input, its geometry path is resolved from the current working
 directory. Geometry file structure and coordinate units are explained in the
 <a href="#geometry-files">geometry guide</a>.</p>
@@ -1463,7 +1469,10 @@ std.array.map
 </code></pre>
 <p>To run this study with only the release binary, save the H₂ geometry below as
 <code>molecule.xyz</code> and save the study above as <code>study.ncl</code> in the same working
-directory. The study’s <code>molecule.geometry = "molecule.xyz"</code> path is relative
+directory. Geometry paths may be relative or absolute using the host platform syntax;
+prefer relative paths with <code>/</code> separators for portability.
+Absolute paths are used directly. The study’s
+<code>molecule.geometry = "molecule.xyz"</code> path is relative
 to that file. Both STO-3G and 6-31G must be available. Download them as shown
 below, or import independently obtained local files when offline with
 <code>rustiq basis import /path/to/sto-3g.json /path/to/6-31g.json</code>.</p>
