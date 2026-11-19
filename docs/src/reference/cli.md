@@ -530,3 +530,12 @@ Strict verification returns `5` for skips without failures; failures return `1`
 in either mode. Unsupported payloads are not checked. See the
 [portable bundle guide](../user-guide/portable-bundles.md#create-and-inspect-a-bundle)
 for the canonical verification contract, supported artifacts, and limitations.
+
+`rustiq init molecule.xyz -o calculation.toml` creates TOML;
+`rustiq init molecule.xyz -o calculation.ncl` creates a single-calculation
+Nickel record. Run either with `rustiq run calculation.toml` or
+`rustiq run calculation.ncl`, respectively. The `.ncl` extension is matched
+without regard to case. Any other extension, including an unusual extension
+such as `.custom`, or no extension, produces TOML, matching `run` selection.
+Without `--output`, `init` creates `calculation.toml`. Prefer `.toml` or `.ncl`
+to make the format explicit. The destination parent directory must exist.

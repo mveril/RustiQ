@@ -210,3 +210,12 @@ Windows output uses adaptive terminal support, including legacy consoles.
 The implementation and focused checks are in
 [color.rs](https://github.com/mveril/RustiQ/blob/main/src/cli/color.rs)
 and the JSON integration tests. See the JSON section above for pretty output.
+
+`rustiq init molecule.xyz -o calculation.toml` creates TOML;
+`rustiq init molecule.xyz -o calculation.ncl` creates a single-calculation
+Nickel record. Run either with `rustiq run calculation.toml` or
+`rustiq run calculation.ncl`, respectively. The `.ncl` extension is matched
+without regard to case. Any other extension, including an unusual extension
+such as `.custom`, or no extension, produces TOML, matching `run` selection.
+Without `--output`, `init` creates `calculation.toml`. Prefer `.toml` or `.ncl`
+to make the format explicit. The destination parent directory must exist.

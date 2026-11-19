@@ -124,3 +124,12 @@ For structured outcomes, see [JSON output](json-output.md).
 To save a study's calculation entries and reusable AO ERIs in one portable
 bundle, see [portable calculation bundles](portable-bundles.md).
 See the [glossary](../glossary.md) for Nickel and calculation terminology.
+
+`rustiq init molecule.xyz -o calculation.toml` creates TOML;
+`rustiq init molecule.xyz -o calculation.ncl` creates a single-calculation
+Nickel record. Run either with `rustiq run calculation.toml` or
+`rustiq run calculation.ncl`, respectively. The `.ncl` extension is matched
+without regard to case. Any other extension, including an unusual extension
+such as `.custom`, or no extension, produces TOML, matching `run` selection.
+Without `--output`, `init` creates `calculation.toml`. Prefer `.toml` or `.ncl`
+to make the format explicit. The destination parent directory must exist.
