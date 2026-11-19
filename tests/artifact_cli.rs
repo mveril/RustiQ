@@ -3,7 +3,9 @@
     reason = "Integration tests fail immediately on unexpected fixture errors"
 )]
 
-use rustiq_core::persistence::{AoEriArtifact, RustiQBundle, RustiQData};
+use rustiq_core::persistence::{
+    AoEriArtifact, ConvergedHfArtifact, HfOrbitals, RustiQBundle, RustiQData,
+};
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -353,6 +355,39 @@ fn nickel_matches_each_calculation_and_writes_only_the_current_collection() {
 }
 
 #[test]
+fn publishes_converged_orbitals_for_rhf_and_uhf_mp2() {
+    let directory = fixture();
+    let root = directory.path();
+    for (method, mp2) in [("Rhf", ""), ("Uhf", "[method.mp2]\n")] {
+        let runfile = format!(
+            "[molecule]\ngeometry = 'molecule.xyz'\n[basis]\nname = 'sto-3g'\n[method.hf]\nmethod = '{method}'\n{mp2}"
+        );
+        fs::write(root.join("run.toml"), runfile).unwrap();
+        let path = format!("{method}.rustiq");
+        let result = calculate(root, &["--artifact", &path]);
+        assert_eq!(result["calculation"]["mp2"].is_object(), !mp2.is_empty());
+        let data = RustiQData::open(root.join(&path)).unwrap();
+        let hf = data.get::<ConvergedHfArtifact>().unwrap().unwrap();
+        assert_eq!(matches!(hf.orbitals(), HfOrbitals::Rhf(_)), method == "Rhf");
+        assert_eq!(
+            hf.energies()[2].to_bits(),
+            result["calculation"]["hf"]["total_energy"]
+                .as_f64()
+                .unwrap()
+                .to_bits()
+        );
+        assert!(data.get::<AoEriArtifact>().unwrap().is_some());
+        let verified = command(root, &["artifact", "verify", &path]);
+        assert!(
+            verified.status.success(),
+            "{}",
+            String::from_utf8_lossy(&verified.stderr)
+        );
+        assert!(String::from_utf8_lossy(&verified.stdout).contains("Verified:     2"));
+    }
+}
+
+#[test]
 fn non_converged_batch_publishes_eri_but_any_execution_failure_blocks_publication() {
     let directory = fixture();
     let root = directory.path();
@@ -378,9 +413,12 @@ fn non_converged_batch_publishes_eri_but_any_execution_failure_blocks_publicatio
     assert_eq!(value["calculations"][0]["status"], "non_converged");
     let bundle = RustiQBundle::open(root.join("state.rustiq")).unwrap();
     assert_eq!(bundle.calculations().len(), 2);
-    for data in bundle.calculations() {
+    for (index, data) in bundle.calculations().iter().enumerate() {
         assert!(data.get::<AoEriArtifact>().unwrap().is_some());
-        assert_eq!(data.artifact_representations().count(), 1);
+        assert_eq!(
+            data.get::<ConvergedHfArtifact>().unwrap().is_some(),
+            index == 1
+        );
     }
     drop(bundle);
     let bytes = fs::read(root.join("state.rustiq")).unwrap();
@@ -565,7 +603,7 @@ fn reuse_without_publication_does_not_need_temporary_storage() {
 }
 
 #[test]
-fn verification_counts_current_eri_artifact() {
+fn verification_counts_current_artifacts() {
     let directory = fixture();
     let root = directory.path();
     calculate(root, &["--artifact", "verify.rustiq"]);
@@ -578,7 +616,7 @@ fn verification_counts_current_eri_artifact() {
     let text = String::from_utf8_lossy(&output.stdout);
     assert!(text.starts_with("Verification successful"), "{text}");
     assert_eq!(output.stderr, b"");
-    assert!(text.contains("Verified:     1"), "{text}");
+    assert!(text.contains("Verified:     2"), "{text}");
     assert!(text.contains("Failed:       0"), "{text}");
     assert!(text.contains("Skipped:      0"), "{text}");
 }
@@ -658,7 +696,7 @@ fn strict_verification_reports_skips_and_prioritizes_failures() {
                 &output,
                 if strict { 5 } else { 0 },
                 "Verification incomplete",
-                [usize::from(!unsupported_representation), 0, 1],
+                [1 + usize::from(!unsupported_representation), 0, 1],
             );
             let stderr = String::from_utf8_lossy(&output.stderr);
             for text in [
