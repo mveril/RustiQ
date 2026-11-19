@@ -264,6 +264,25 @@ fn standalone_manual_workflows_run_offline() {
         .unwrap();
     assert!((correlation - -0.013_138).abs() < 1e-6);
     fs::create_dir(root.join("inputs")).unwrap();
+    fs::create_dir(root.join("inputs/generated")).unwrap();
+    let geometry = "h2 %{1}.xyz";
+    fs::copy(root.join("h2.xyz"), root.join(geometry)).unwrap();
+    for destination in [
+        "inputs/generated/calculation.toml",
+        "inputs/generated/calculation.ncl",
+        "inputs/generated/uppercase.NCL",
+    ] {
+        run(&["init", geometry, "--mp2", "-o", destination]);
+        let content = fs::read_to_string(root.join(destination)).unwrap();
+        assert!(content.contains("../../h2 "), "{content}");
+        if !destination.ends_with(".toml") {
+            assert!(content.trim().starts_with('['), "{content}");
+            assert!(content.trim().ends_with(']'), "{content}");
+        }
+        let output = run(&["run", destination, "--no-auto-download", "--format", "json"]);
+        let result: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(result["calculation"]["mp2"], mp2["calculation"]["mp2"]);
+    }
     fs::write(root.join("oh.xyz"), include_str!("../samples/oh/oh.xyz")).unwrap();
     fs::write(
         root.join("inputs/oh.toml"),
