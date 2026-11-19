@@ -1148,3 +1148,79 @@ fn verification_json_lists_valid_invalid_unknown_and_unsupported_artifacts() {
         }
     }
 }
+
+#[test]
+fn molden_exports_one_selected_calculation_without_ao_eris() {
+    let directory = fixture();
+    let root = directory.path();
+    hf_bundle(root, false);
+    let hf = RustiQData::open(root.join("hf.rustiq")).unwrap();
+    let orbitals = hf.get::<ConvergedHfArtifact>().unwrap().unwrap();
+    let prepared = hf.prepare_calculation().unwrap();
+    let mut first = RustiQData::from_calculation(&prepared).unwrap();
+    first.set::<ConvergedHfArtifact>(&orbitals).unwrap();
+    first.write(root.join("orbitals.rustiq")).unwrap();
+
+    let export = |bundle, options: &[&str]| {
+        let mut args = vec!["artifact", "export", bundle, "--format", "molden"];
+        args.extend_from_slice(options);
+        command(root, &args)
+    };
+    let rhf = export("orbitals.rustiq", &[]);
+    assert!(
+        rhf.status.success(),
+        "{}",
+        String::from_utf8_lossy(&rhf.stderr)
+    );
+    let text = String::from_utf8_lossy(&rhf.stdout);
+    assert!(text.starts_with("[Molden Format]\n[Atoms] AU\n"));
+    assert!(text.contains(" Spin= Alpha\n Occup= 2\n"));
+    assert!(!text.contains("Spin= Beta"));
+
+    fs::remove_file(root.join("hf.rustiq")).unwrap();
+    hf_bundle(root, true);
+    let second = RustiQData::open(root.join("hf.rustiq")).unwrap();
+    let missing = RustiQData::from_calculation(&prepared).unwrap();
+    RustiQBundle::new(vec![first, second, missing])
+        .unwrap()
+        .write(root.join("multi.rustiq"))
+        .unwrap();
+    let original = fs::read(root.join("multi.rustiq")).unwrap();
+    let selected = export("multi.rustiq", &["--calculation", "0"]);
+    assert!(selected.status.success());
+    assert_eq!(selected.stdout, rhf.stdout);
+    let selected = export("multi.rustiq", &["--calculation", "1"]);
+    assert!(selected.status.success());
+    let text = String::from_utf8_lossy(&selected.stdout);
+    assert!(text.contains(" Spin= Alpha\n Occup= 1\n"));
+    assert!(text.contains(" Spin= Beta\n Occup= 1\n"));
+    assert_eq!(text.matches("[MO]").count(), 1);
+
+    for (options, message) in [
+        (&[][..], "Use --calculation"),
+        (&["--calculation", "3"][..], "index 3 is out of range"),
+        (
+            &["--calculation", "2"][..],
+            "no saved converged HF orbitals",
+        ),
+    ] {
+        let failure = export("multi.rustiq", options);
+        assert_eq!(failure.status.code(), Some(1));
+        assert!(failure.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&failure.stderr).contains(message));
+    }
+    assert_eq!(fs::read(root.join("multi.rustiq")).unwrap(), original);
+
+    edit_bundle(&root.join("multi.rustiq"), |manifest, _| {
+        manifest["calculations"][1]["artifacts"]["converged_hf"]["size"] = json!(0);
+    });
+    let unaffected = export("multi.rustiq", &["--calculation", "0"]);
+    assert!(unaffected.status.success());
+    assert_eq!(unaffected.stdout, rhf.stdout);
+    let corrupt = export("multi.rustiq", &["--calculation", "1"]);
+    assert_eq!(corrupt.status.code(), Some(1));
+    assert!(corrupt.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&corrupt.stderr);
+    assert!(stderr.contains("converged HF artifact for calculation 1"));
+    assert!(stderr.contains("integrity check failed"));
+}

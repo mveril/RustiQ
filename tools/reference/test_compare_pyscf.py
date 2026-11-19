@@ -150,3 +150,136 @@ def test_workspace_budgets_select_different_blocks(
     # Each budget is also independently compared with PySCF by the canonical
     # frozen-core parametrization above; this checks the two Rust executions.
     assert results[0] == pytest.approx(results[1], abs=1e-12, rel=0)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["h2-sto-3g-rhf", "h2o-cc-pvdz-rhf", "oh-sto-3g-uhf", "h2-plus-sto-3g-uhf"],
+)
+def test_molden_export_matches_pyscf(
+    name: str, tmp_path: Path, rustiq_env: dict[str, str]
+) -> None:
+    import io
+    import json
+    import os
+    import zipfile
+
+    import numpy as np
+    from pyscf import scf
+    from pyscf.tools import molden
+
+    case = next(case for case in compare_pyscf.CASES if case.name == name)
+    binary = os.environ.get("RUSTIQ_BIN")
+    prefix = [binary] if binary else ["cargo", "run", "--quiet", "--"]
+    bundle = tmp_path / "calculation.rustiq"
+    output = compare_pyscf.run_command(
+        [
+            *prefix,
+            "run",
+            str(case.runfile),
+            "--artifact",
+            str(bundle),
+            "--format",
+            "json",
+        ],
+        env=rustiq_env,
+    )
+    hf = json.loads(output)["calculation"]["hf"]
+    assert hf["converged"]
+    text = compare_pyscf.run_command(
+        [
+            *prefix,
+            "artifact",
+            "export",
+            str(bundle),
+            "--format",
+            "molden",
+            "--calculation",
+            "0",
+        ],
+        env=rustiq_env,
+    )
+    filename = tmp_path / "orbitals.molden"
+    filename.write_text(text, encoding="ascii")
+    mol, energies, coefficients, occupations, _, _ = molden.load(filename)
+    mol.charge = case.charge  # Molden encodes electron counts through MO occupations.
+    assert mol.nao_nr() == case.ao_dimension
+    assert mol.nelec == compare_pyscf.electron_counts(case)
+
+    overlap = mol.intor_symmetric("int1e_ovlp")
+    unrestricted = case.method == "uhf"
+    channels = (
+        zip(energies, coefficients, occupations, strict=True)
+        if unrestricted
+        else [(energies, coefficients, occupations)]
+    )
+    for index, (orbital_energies, orbitals, occupation) in enumerate(channels):
+        count = mol.nelec[index]
+        np.testing.assert_array_equal(
+            occupation,
+            np.r_[
+                np.full(count, 1 if unrestricted else 2),
+                np.zeros(len(occupation) - count),
+            ],
+        )
+        np.testing.assert_allclose(
+            orbitals.T @ overlap @ orbitals,
+            np.eye(orbitals.shape[1]),
+            atol=1e-10,
+            rtol=0,
+        )
+        assert np.isfinite(orbital_energies).all()
+
+    # Evaluate the stored and imported basis functions independently at off-axis
+    # points. This catches AO permutations and phases even for virtual orbitals.
+    points = np.array([[0.28, -0.35, 0.93], [1.11, 0.62, -0.74], [-0.85, 0.41, 1.52]])
+    with zipfile.ZipFile(bundle) as archive:
+        entry = "calculations/calculation-0"
+        context = json.loads(archive.read(f"{entry}/calculation.json"))
+        ao_values = []
+        for ao in context["basis"]:
+            delta = points - ao["center"]
+            radius_squared = (delta**2).sum(axis=1)
+            value = np.zeros(len(points))
+            for component in ao["components"]:
+                angular = np.prod(delta ** component["angular_momentum"], axis=1)
+                for primitive in component["primitives"]:
+                    value += (
+                        angular
+                        * primitive["coefficient"]
+                        * np.exp(-primitive["exponent"] * radius_squared)
+                    )
+            ao_values.append(value)
+        stored_ao = np.array(ao_values).T
+        imported_ao = mol.eval_gto("GTOval_cart" if mol.cart else "GTOval_sph", points)
+        paths = (
+            ["coefficients/alpha.npy", "coefficients/beta.npy"]
+            if unrestricted
+            else ["coefficients.npy"]
+        )
+        energy_paths = (
+            ["energies/alpha.npy", "energies/beta.npy"]
+            if unrestricted
+            else ["energies.npy"]
+        )
+        imported_channels = coefficients if unrestricted else (coefficients,)
+        imported_energies = energies if unrestricted else (energies,)
+        for path, energy_path, imported, orbital_energies in zip(
+            paths, energy_paths, imported_channels, imported_energies, strict=True
+        ):
+            stored = np.load(io.BytesIO(archive.read(f"{entry}/orbitals/{path}")))
+            stored_energies = np.load(
+                io.BytesIO(archive.read(f"{entry}/orbitals/{energy_path}"))
+            )
+            np.testing.assert_array_equal(orbital_energies, stored_energies)
+            np.testing.assert_allclose(
+                imported_ao @ imported, stored_ao @ stored, atol=1e-10, rtol=0
+            )
+
+    # Evaluate the exported density directly, then compare with an independent SCF.
+    mf = scf.UHF(mol) if unrestricted else scf.RHF(mol)
+    density = mf.make_rdm1(coefficients, occupations)
+    reconstructed = mf.energy_tot(dm=density)
+    reference, _, _ = compare_pyscf.pyscf_result(case)
+    assert reconstructed == pytest.approx(hf["total_energy"], abs=1e-8, rel=0)
+    assert reconstructed == pytest.approx(reference, abs=case.tolerance, rel=0)

@@ -417,11 +417,35 @@ round trip for the bundled H2/STO-3G case, rather than independent scientific
 accuracy. SCF/DIIS restart and automatic reuse of the stored HF solution by the CLI
 remain future work.
 
-The resolved context preserves effective normalized AO components and their
-ordering. Original shell/contraction metadata is incomplete and must be added
-before a Molden exporter can be implemented. See the
-[HF artifact contract](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md#converged-hf-artifact-v1)
-for the versioned representation and limits.
+## Export orbitals to Molden
+
+After saving a converged HF calculation to `h2.rustiq`, export it for use in
+software that reads the [Molden format](https://www.theochem.ru.nl/molden/molden_format.html).
+
+```sh
+rustiq artifact export h2.rustiq --format molden --calculation 0 > h2.molden
+```
+
+Running from a repository checkout, use `cargo run --locked --` in place of
+`rustiq`. The index is zero-based in manifest order, as displayed by
+`artifact inspect`. You can omit it for a single-calculation bundle. For a
+bundle with multiple entries, choose one index per exported file.
+
+The exporter uses the saved orbitals, resolved geometry, and effective AO
+basis. It does not need the original basis file or AO ERIs, and it leaves
+the input bundle read-only. Coordinates are in Bohr and orbital energies are in
+Hartree. Restricted HF writes one set of spatial orbitals with occupation 2
+for each occupied orbital. Unrestricted HF writes alpha and beta orbitals,
+each with occupation 1 for occupied orbitals. In both cases, virtual orbitals
+have occupation 0, and the export includes only orbital columns retained by HF.
+
+Supported shells are Cartesian s through g and real spherical d. The
+exporter checks that the stored AO components can be grouped into contracted
+shells, converts primitive coefficients to the Molden convention, and
+reorders the MO coefficient rows to match. It rejects mixed spherical and
+Cartesian representations of d and higher shells, as well as functions it
+cannot associate with distinct atomic centers. Orbital symmetry labels are
+written as `A` because the bundle does not store point-group assignments.
 
 ## Publication and failures
 
