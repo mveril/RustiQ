@@ -532,8 +532,7 @@ in either mode. Unsupported payloads are not checked. See the
 for the canonical verification contract, supported artifacts, and limitations.
 
 `rustiq init molecule.xyz -o calculation.toml` creates TOML;
-`rustiq init molecule.xyz -o calculation.ncl` creates a single-calculation
-Nickel record. Run either with `rustiq run calculation.toml` or
+`rustiq init molecule.xyz -o calculation.ncl` creates a Nickel list containing one calculation. Run either with `rustiq run calculation.toml` or
 `rustiq run calculation.ncl`, respectively. The `.ncl` extension is matched
 without regard to case. Any other extension, including an unusual extension
 such as `.custom`, or no extension, produces TOML, matching `run` selection.

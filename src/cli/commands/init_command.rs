@@ -195,7 +195,17 @@ impl Runnable for InitCommand {
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("ncl"))
         {
-            document.render_nickel()
+            document.render_nickel().map(|record| {
+                format!(
+                    "[\n{}\n]\n",
+                    record
+                        .trim_end()
+                        .lines()
+                        .map(|line| format!("  {line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            })
         } else {
             document.render()
         }
@@ -263,6 +273,22 @@ mod tests {
         assert_eq!(resolved.calculations().len(), 1);
     }
 
+    #[test]
+    fn init_nickel_generates_a_single_item_list() {
+        let temp = tempfile::tempdir().unwrap();
+        let input = temp.path().join("molecule.xyz");
+        let output = temp.path().join("calculation.ncl");
+        fs::write(&input, "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
+        command(&input, &output, &["--mp2"]).run().unwrap();
+        let content = fs::read_to_string(output).unwrap();
+        assert!(content.trim_start().starts_with('['));
+        assert!(content.trim_end().ends_with(']'));
+        let resolved = crate::runfile::parser::resolve_nickel("calculation.ncl", &content).unwrap();
+        assert_eq!(resolved.calculations().len(), 1);
+        let run = &resolved.calculations()[0];
+        assert_eq!(run.molecule.geometry, Path::new("molecule.xyz"));
+        assert!(run.method.mp2.is_some());
+    }
     #[test]
     fn relative_geometry_uses_shared_directory_prefix() {
         assert_eq!(
