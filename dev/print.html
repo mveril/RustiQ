@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-d3af9ee4.js";
+            window.path_to_searchindex_js = "searchindex-2784c438.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-de272c4b.js"></script>
@@ -1700,15 +1700,63 @@ validation.</p>
 payload in the bundle:</p>
 <pre><code class="language-sh">rustiq artifact verify h2.rustiq
 </code></pre>
-<p>The command checks compact AO ERI payload hashes, NPY encoding, array dimensions,
-and consistency with the declared AO basis. It reports the number of verified
-payloads and calculations on standard output, and exits unsuccessfully if a
-payload is invalid or has an unsupported representation. A bundle with no
-numerical payloads can successfully report zero verified payloads. Verification
-does not execute the calculation or establish that the scientific method or
-result is valid. For the H₂ bundle created above, the output is:</p>
-<pre><code class="language-text">Verified 1 payload(s) across 1 calculation(s).
+<p>The command checks supported <code>ao_eri</code> and <code>converged_hf</code> payloads without
+materializing integral or orbital arrays. AO ERI checks cover payload hashes, NPY encoding, dimensions,
+and consistency with the declared AO basis. HF checks cover metadata, referenced
+payload integrity, array shapes, occupations, finite values, and context identity.
+HF verification supports the <code>rustiq-converged-hf-orbitals-v1</code> representation.
+Verification limits NPY headers to 64 KiB.</p>
+<p>The summary on stdout counts calculations and logical artifacts, rather than
+individual files. Diagnostics go to stderr. For the H₂ bundle created above:</p>
+<pre><code class="language-text">Verification successful
+  Calculations: 1
+  Verified:     1
+  Failed:       0
+  Skipped:      0
+  Calculation 0, artifact ao_eri (rustiq-compact-eri-v1): Valid
 </code></pre>
+<p>Text is the default and can be selected explicitly with <code>--format text</code>.
+Use <code>rustiq artifact verify h2.rustiq --format json</code> for a single
+<a href="https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json">versioned JSON summary</a>
+on stdout. It includes the counts and an entry for every declared artifact
+with its calculation index, name, representation, and status. The statuses
+are <code>valid</code>, <code>invalid</code>, <code>unknown_artifact</code>, and <code>unsupported_representation</code>.
+Invalid entries include an <code>errors</code> array with the error chain. Diagnostics
+remain on stderr and <code>--strict</code> applies to either output format.</p>
+<p>The first line distinguishes three outcomes:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Status</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Verification successful</code></td><td>Every declared artifact passed; none failed or were skipped.</td></tr>
+<tr><td><code>Verification incomplete</code></td><td>No supported artifact failed, but at least one artifact was skipped.</td></tr>
+<tr><td><code>Verification failed</code></td><td>At least one supported artifact failed, regardless of skips.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Unknown artifact names and known artifacts with unsupported representations are
+skipped with warnings. Their payloads are <strong>not checked</strong>: an older reader’s
+inability to interpret a representation is not evidence of corruption. Supported
+artifacts with invalid metadata or payloads fail verification. A missing
+payload or a size mismatch is reported for that artifact. Independent failures
+are collected and reported together, with a summary after traversal.
+A fatal archive error that prevents opening or traversal can stop without a summary.
+Calculation indices in diagnostics are zero-based.</p>
+<p>By default, exit code <code>0</code> means all supported artifacts passed; unsupported
+artifacts may still have been skipped. Use <code>rustiq artifact verify PATH --strict</code>
+to require exhaustive verification: skips without failures return <code>5</code>, reported
+as a warning rather than evidence of corruption. Any supported artifact failure
+or fatal archive error returns <code>1</code> in either mode. Failures take precedence over
+skips. Strict mode returns <code>0</code> when every artifact passes.</p>
+<p>A bundle without numerical artifacts returns <code>0</code> in either mode, with all three
+artifact counters at zero and an explicit message:
+<code>No numerical artifacts declared; no numerical payload was verified.</code></p>
+<p>Verification does not run the calculation or independently establish scientific
+correctness, physical validity, orbital orthonormality, or adequacy of the method
+and basis. Successful verification means the supported stored data passed its
+reader’s integrity and validation checks.</p>
 <h2 id="rerun-a-saved-calculation"><a class="header" href="#rerun-a-saved-calculation">Rerun a saved calculation</a></h2>
 <p>Run a <code>.rustiq</code> bundle directly to reconstruct and execute its archived
 calculation settings, without the original runfile, geometry file, or basis
@@ -1871,8 +1919,11 @@ checks do not independently establish physical validity or orbital orthonormalit
 <code>hf_is_compatible</code> checks context compatibility without verifying the payload.
 Reading the artifact alone does not construct an executable solution. To restore
 one for MP2, the same calculation entry must also contain compatible AO ERIs.
-The current CLI <code>artifact verify</code> supports AO ERIs and rejects HF artifacts as
-unsupported; use the typed Rust getter to verify HF.</p>
+In Rust, <code>RustiQData::check::&lt;A&gt;()</code> checks one typed artifact and returns
+<code>Ok(false)</code> when it is absent. <code>RustiQBundle::check()</code> returns an
+<code>ArtifactCheckSummary</code> with the outcome of every declared artifact.</p>
+<p>The CLI <code>artifact verify</code> uses <code>RustiQBundle::check_archive()</code> to verify the
+archive and report individual artifact failures.</p>
 <h3 id="restoring-a-solution-for-mp2"><a class="header" href="#restoring-a-solution-for-mp2">Restoring a solution for MP2</a></h3>
 <p>The public <code>RestoreFromRustiQ</code> trait constructs an owned object from a
 <code>RustiQData</code> entry. <code>RustiQData::restore::&lt;T&gt;()</code> delegates to that trait.
@@ -2347,7 +2398,7 @@ installs the generated assets but disables both generators in its executable.</p
 <tr><td><code>rustiq cache list [--cache-dir DIR]</code></td><td>Inspect AO ERI cache entries and their validation status.</td></tr>
 <tr><td><code>rustiq cache remove &lt;NAME-OR-FINGERPRINT&gt; [--cache-dir DIR]</code> / <code>--all</code></td><td>Remove selected or all AO ERI cache entries.</td></tr>
 <tr><td><code>rustiq artifact inspect &lt;PATH&gt; [--format FORMAT]</code></td><td>Inspect portable <code>.rustiq</code> calculation snapshots and artifact metadata.</td></tr>
-<tr><td><code>rustiq artifact verify &lt;PATH&gt;</code></td><td>Check hashes and decode supported numerical payloads in a portable <code>.rustiq</code> bundle.</td></tr>
+<tr><td><code>rustiq artifact verify &lt;PATH&gt; [--strict] [--format text|json]</code></td><td>Check hashes and validate supported numerical payloads in a portable <code>.rustiq</code> bundle.</td></tr>
 <tr><td><code>rustiq geometry info [XYZ]</code></td><td>Print basic geometry information; read XYZ from standard input when no path is given.</td></tr>
 <tr><td><code>rustiq geometry rotate</code>, <code>translate</code>, <code>center</code>, <code>oriente</code>, <code>isometry</code></td><td>Transform a geometry and write the result; each subcommand has its own help.</td></tr>
 </tbody>
@@ -2408,19 +2459,22 @@ in that result and fatal orchestration failures stop the campaign before renderi
 directory. Pass the same <code>--cache-dir</code> to <code>cache list</code> or <code>cache remove</code> to
 manage entries from a run that used a custom cache root.</p>
 <p>The CLI reports input, basis, preparation, and calculation errors as diagnostics.
-Exit codes follow the Unix convention: zero means complete success; any nonzero
-code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.</p>
+Exit codes follow the Unix convention: nonzero means the command did not fully
+succeed. In normal artifact verification, zero permits unsupported artifacts to
+be skipped; use <code>--strict</code> to require exhaustive verification. Codes 3–5 are
+RustiQ-specific.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Code</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>0</code></td><td>All requested calculations succeeded. Help and version requests also return zero.</td></tr>
+<tr><td><code>0</code></td><td>All requested calculations succeeded, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.</td></tr>
 <tr><td><code>1</code></td><td>General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error.</td></tr>
 <tr><td><code>2</code></td><td>Invalid command-line arguments.</td></tr>
 <tr><td><code>3</code></td><td>No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.</td></tr>
 <tr><td><code>4</code></td><td>A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.</td></tr>
+<tr><td><code>5</code></td><td>Strict artifact verification is incomplete: artifacts were skipped and no supported artifact failed.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2594,11 +2648,10 @@ check supported payloads eagerly; otherwise, execution checks a payload when
 its scientific stage selects and reads it. Inspection does not execute
 calculations or establish scientific validity. JSON output follows the
 <a href="https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json">artifact inspection V1 schema</a>.
-<code>artifact verify PATH</code> eagerly reads and validates supported numerical
-payloads. It currently checks compact AO ERI payload hashes, NPY encoding,
-array dimensions, and consistency with the declared AO basis. It reports an
-error for an invalid payload or unsupported representation. Verification does
-not run a calculation or establish scientific validity.
+<code>artifact verify PATH</code> checks supported AO ERI and converged HF payloads
+without allocating their numerical arrays. It reports the status of each
+declared artifact. Use <code>--format json</code> for the
+<a href="https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json">artifact verification V1 schema</a>.
 The archive captures exact bytes of the main input and geometry files as shared
 provenance; it does not capture Nickel’s full import graph. See the
 <a href="https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md">persistence specification</a>
@@ -2609,6 +2662,13 @@ calculation schema or the batch schema. <code>schema_version</code> identifies t
 contract; schemas, rather than this manual, define the complete field sets.
 The <a href="#json-output">JSON guide</a> describes output selection,
 standard output behavior, failure cases, and the existing automated checks.</p>
+<p>Artifact verification prints <code>Verification successful</code>, <code>Verification incomplete</code>,
+or <code>Verification failed</code> and aligned counters on stdout; diagnostics go to stderr.
+Normal verification returns <code>0</code> if no supported artifact fails, even with skips.
+Strict verification returns <code>5</code> for skips without failures; failures return <code>1</code>
+in either mode. Unsupported payloads are not checked. See the
+<a href="#create-and-inspect-a-bundle">portable bundle guide</a>
+for the canonical verification contract, supported artifacts, and limitations.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="existing-calculation-workflows"><a class="header" href="#existing-calculation-workflows">Existing calculation workflows</a></h1>
 <p>For a concise catalog of shipped commands, input settings, JSON behavior, and
@@ -2829,6 +2889,9 @@ and <a href="https://github.com/mveril/RustiQ/blob/main/schemas/batch-output-v1.
 </li>
 <li>
 <p><a href="https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json">Artifact inspection JSON schema</a>.</p>
+</li>
+<li>
+<p><a href="https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json">Artifact verification JSON schema</a>.</p>
 </li>
 <li>
 <p><a href="https://github.com/mveril/RustiQ/tree/main/src/runfile/nickel">Embedded Nickel schema</a>:
