@@ -167,9 +167,12 @@ fn evaluate_input_with_context(
 pub(crate) fn export_toml(json: &str) -> Result<String, super::output::RenderError> {
     let mut context = Context::new();
     let rebuild = include_str!("nickel/rebuild-data.ncl");
+    // Preserve literal interpolation markers in the Nickel string carrying JSON.
     let source = format!(
         "({rebuild}) (std.deserialize 'Json {})",
-        serde_json::to_string(json).expect("serializing a string cannot fail")
+        serde_json::to_string(json)
+            .expect("serializing a string cannot fail")
+            .replace("%{", "\\%{")
     );
     let value = context.eval(&source, true).map_err(|error| {
         super::output::RenderError(context.configuration_error(None, error).message)
