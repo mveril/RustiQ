@@ -1206,7 +1206,7 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
     ] {
         let failure = export("multi.rustiq", options);
         assert_eq!(failure.status.code(), Some(1));
-        assert!(failure.stdout.is_empty());
+        assert_eq!(failure.stdout, b"");
         assert!(String::from_utf8_lossy(&failure.stderr).contains(message));
     }
     assert_eq!(fs::read(root.join("multi.rustiq")).unwrap(), original);
@@ -1219,7 +1219,7 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
     assert_eq!(unaffected.stdout, rhf.stdout);
     let corrupt = export("multi.rustiq", &["--calculation", "1"]);
     assert_eq!(corrupt.status.code(), Some(1));
-    assert!(corrupt.stdout.is_empty());
+    assert_eq!(corrupt.stdout, b"");
     let stderr = String::from_utf8_lossy(&corrupt.stderr);
     assert!(stderr.contains("converged HF artifact for calculation 1"));
     assert!(stderr.contains("integrity check failed"));

@@ -238,7 +238,7 @@ impl Shell {
         let patterns: Vec<&[Component]> = if spherical {
             spherical_d.to_vec()
         } else {
-            cartesian.iter().map(|row| row.as_slice()).collect()
+            cartesian.iter().map(<[Component; 1]>::as_slice).collect()
         };
         if rows.len() != patterns.len()
             || rows
