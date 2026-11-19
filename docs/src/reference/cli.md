@@ -291,7 +291,7 @@ Important options:
 | `--auto-download` / `--no-auto-download`      | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
 | `--cache-dir DIR`                             | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching.                                                                                                                                |
 | `--reuse PATH`                                | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation.                                                                                                                                                                     |
-| `--artifact PATH`                             | Write the current calculation or batch as a portable `.rustiq` bundle, independently of text or JSON output.                                                                                                                                                     |
+| `--artifact PATH`                             | Write a portable `.rustiq` bundle with AO ERIs and converged HF data for the current calculation or batch.                                                                                                                                                     |
 
 Output presentation is selected exclusively by the CLI `--format text|json` option.
 The TOML and Nickel calculation contracts do not accept an `output` section.
@@ -363,7 +363,7 @@ inspect the exit code and, when available, individual JSON outcomes; see the
 | Nickel                    | One calculation or an ordered study/batch; see the checked-in [study example](../user-guide/nickel-studies.md).                                                                                                                                                                                                 |
 | JSON                      | Versioned single-calculation and batch results, selected with `run --format json`; schemas are linked below.                                                                                                                                                                                                    |
 | AO ERI cache              | Optional local reuse through `[cache].enabled` and `--cache-dir`; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral.                                                                                                                                                    |
-| Portable `.rustiq` bundle | Create with `run --artifact`, rerun with `run FILE.rustiq`, reuse artifacts with `run INPUT --reuse FILE.rustiq`, inspect with `artifact inspect`, and validate stored AO ERIs with `artifact verify`. Reruns start a fresh HF calculation. See the [portable bundle guide](../user-guide/portable-bundles.md). |
+| Portable `.rustiq` bundle | Create with `run --artifact`, rerun with `run FILE.rustiq`, reuse artifacts with `run INPUT --reuse FILE.rustiq`, inspect with `artifact inspect`, and validate stored AO ERIs and converged HF with `artifact verify`. Reruns start a fresh HF calculation. See the [portable bundle guide](../user-guide/portable-bundles.md). |
 | Scientific status         | Experimental; selected checks do not establish research-grade correctness. See [scientific scope and limitations](../scientific-scope.md).                                                                                                                                                                      |
 
 Basis downloads and online basis listing require a build with the `online`
@@ -480,8 +480,9 @@ publication of the collection and leave the destination unchanged. An HF-only
 non-converged result can contribute its AO ERI. A Nickel batch containing only
 non-converged HF-only results can publish its bundle even though the command
 exits unsuccessfully. If MP2 was requested but HF does not converge, execution
-fails and the bundle is not published. HF orbitals, SCF restart state, DIIS
-history, and MP2 results are not persisted.
+fails and the bundle is not published. Successful runs save converged HF
+orbitals and convergence metadata, including the HF reference used for MP2.
+SCF restart state, DIIS history, and MP2 results are not persisted.
 
 When `--reuse` or `--artifact` is used, JSON calculation results include an
 optional `artifacts` array. `decision` reports archive selection (`reused`,

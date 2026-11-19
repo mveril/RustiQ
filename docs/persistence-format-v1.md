@@ -728,7 +728,9 @@ The examples read and write archives in the ignored
 
 `run --artifact PATH` writes the current non-empty calculation collection using
 this V1 format. TOML and single Nickel inputs produce one entry; Nickel batches
-produce one entry per requested calculation. Exact main-input and geometry bytes
+produce one entry per requested calculation. The CLI stores AO ERIs
+for every result and a converged HF artifact when available, including the
+HF reference of a successful MP2 calculation. Exact main-input and geometry bytes
 are optional shared provenance, not scientific compatibility inputs. Imports are
 not recursively captured.
 

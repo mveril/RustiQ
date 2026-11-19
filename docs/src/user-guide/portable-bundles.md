@@ -59,7 +59,9 @@ cargo run --locked -- run samples/h2/sto-3g/calculation.toml --artifact h2.rusti
 
 `--artifact` writes the current calculation collection as a new bundle,
 independently of text or JSON result output. For a Nickel study, the bundle
-contains one entry for each requested calculation.
+contains one entry for each requested calculation. Each entry stores AO ERIs
+and, when HF converges, the HF orbitals and convergence metadata. This also
+applies to the HF reference of a successful MP2 run.
 
 Inspect a bundle without the original runfile, geometry file, or basis store:
 
@@ -102,10 +104,11 @@ individual files. Diagnostics go to stderr. For the H₂ bundle created above:
 ```text
 Verification successful
   Calculations: 1
-  Verified:     1
+  Verified:     2
   Failed:       0
   Skipped:      0
   Calculation 0, artifact ao_eri (rustiq-compact-eri-v1): Valid
+  Calculation 0, artifact converged_hf (rustiq-converged-hf-orbitals-v1): Valid
 ```
 
 Text is the default and can be selected explicitly with `--format text`.
@@ -411,7 +414,8 @@ solution within `1e-12` Eh. It uses a temporary directory that is removed on
 exit, closes the bundle before MP2, and prints HF total, MP2 correlation, and
 MP2 total energies (HF total plus MP2 correlation). This checks the persistence
 round trip for the bundled H2/STO-3G case, rather than independent scientific
-accuracy. SCF/DIIS restart and automatic CLI HF capture/reuse remain future work.
+accuracy. SCF/DIIS restart and automatic reuse of the stored HF solution by the CLI
+remain future work.
 
 The resolved context preserves effective normalized AO components and their
 ordering. Original shell/contraction metadata is incomplete and must be added

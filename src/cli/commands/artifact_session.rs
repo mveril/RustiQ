@@ -8,7 +8,9 @@ use std::{
 use miette::{miette, IntoDiagnostic};
 use rustiq_core::{
     calculation::{CalculationEvent, CalculationResult, EriCacheAction, PreparedCalculation},
-    persistence::{AoEriArtifact, Artifact, RustiQBundle, RustiQData},
+    persistence::{
+        AoEriArtifact, Artifact, ConvergedHf, ConvergedHfArtifact, RustiQBundle, RustiQData,
+    },
 };
 use serde::Serialize;
 
@@ -126,6 +128,10 @@ impl ArtifactSession {
         let mut data = RustiQData::from_calculation(prepared).into_diagnostic()?;
         data.set::<AoEriArtifact>(result.hf.ao_eri())
             .into_diagnostic()?;
+        if let Some(solution) = result.hf.as_converged() {
+            let hf = ConvergedHf::from_solution(solution).into_diagnostic()?;
+            data.set::<ConvergedHfArtifact>(&hf).into_diagnostic()?;
+        }
         for (name, bytes) in sources {
             data.add_source(name, bytes).into_diagnostic()?;
         }
