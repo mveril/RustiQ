@@ -423,17 +423,22 @@ After saving a converged HF calculation to `h2.rustiq`, export it for use in
 software that reads the [Molden format](https://www.theochem.ru.nl/molden/molden_format.html).
 
 ```sh
-rustiq artifact export h2.rustiq --format molden --calculation 0 > h2.molden
+rustiq artifact export h2.rustiq --format molden --calculation 0 -o h2.molden
 ```
 
 Running from a repository checkout, use `cargo run --locked --` in place of
 `rustiq`. The index is zero-based in manifest order, as displayed by
 `artifact inspect`. You can omit it for a single-calculation bundle. For a
-bundle with multiple entries, choose one index per exported file.
+bundle with multiple entries, choose one index per exported file. With
+`-o FILE` or `--output FILE`, RustiQ creates or overwrites the destination file.
+Omit the option to write to standard output. The destination cannot point to
+the input bundle.
 
 The exporter uses the saved orbitals, resolved geometry, and effective AO
 basis. It does not need the original basis file or AO ERIs, and it leaves
-the input bundle read-only. Coordinates are in Bohr and orbital energies are in
+the input bundle read-only. If the saved HF orbitals are missing or invalid,
+or the basis cannot be represented, RustiQ reports an error before opening the
+output file. Coordinates are in Bohr and orbital energies are in
 Hartree. Restricted HF writes one set of spatial orbitals with occupation 2
 for each occupied orbital. Unrestricted HF writes alpha and beta orbitals,
 each with occupation 1 for occupied orbitals. In both cases, virtual orbitals

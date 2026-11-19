@@ -186,7 +186,8 @@ def test_molden_export_matches_pyscf(
     )
     hf = json.loads(output)["calculation"]["hf"]
     assert hf["converged"]
-    text = compare_pyscf.run_command(
+    filename = tmp_path / "orbitals.molden"
+    stdout = compare_pyscf.run_command(
         [
             *prefix,
             "artifact",
@@ -196,11 +197,12 @@ def test_molden_export_matches_pyscf(
             "molden",
             "--calculation",
             "0",
+            "-o",
+            str(filename),
         ],
         env=rustiq_env,
     )
-    filename = tmp_path / "orbitals.molden"
-    filename.write_text(text, encoding="ascii")
+    assert stdout == ""
     mol, energies, coefficients, occupations, _, _ = molden.load(filename)
     mol.charge = case.charge  # Molden encodes electron counts through MO occupations.
     assert mol.nao_nr() == case.ao_dimension

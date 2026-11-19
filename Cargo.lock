@@ -4698,6 +4698,7 @@ dependencies = [
  "rstest",
  "rustiq-chem-core",
  "rusty-figlet",
+ "same-file",
  "serde",
  "serde_json",
  "supports-hyperlinks",

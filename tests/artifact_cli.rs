@@ -1196,6 +1196,30 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
     assert!(text.contains(" Spin= Beta\n Occup= 1\n"));
     assert_eq!(text.matches("[MO]").count(), 1);
 
+    let output = root.join("orbitals.molden");
+    for (index, option, expected) in [
+        ("1", "-o", &selected.stdout),
+        ("0", "--output", &rhf.stdout),
+    ] {
+        let written = export(
+            "multi.rustiq",
+            &["--calculation", index, option, "orbitals.molden"],
+        );
+        assert!(written.status.success());
+        assert_eq!(written.stdout, b"");
+        assert_eq!(&fs::read(&output).unwrap(), expected);
+    }
+
+    fs::hard_link(root.join("multi.rustiq"), root.join("linked.rustiq")).unwrap();
+    for path in ["multi.rustiq", "linked.rustiq"] {
+        let failure = export("multi.rustiq", &["--calculation", "0", "-o", path]);
+        assert_eq!(failure.status.code(), Some(1));
+        assert_eq!(failure.stdout, b"");
+        assert!(
+            String::from_utf8_lossy(&failure.stderr).contains("must not replace the input bundle")
+        );
+    }
+
     for (options, message) in [
         (&[][..], "Use --calculation"),
         (&["--calculation", "3"][..], "index 3 is out of range"),
@@ -1209,6 +1233,13 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
         assert_eq!(failure.stdout, b"");
         assert!(String::from_utf8_lossy(&failure.stderr).contains(message));
     }
+    for path in ["missing.molden", "orbitals.molden"] {
+        let missing = export("multi.rustiq", &["--calculation", "2", "-o", path]);
+        assert_eq!(missing.status.code(), Some(1));
+        assert_eq!(missing.stdout, b"");
+    }
+    assert!(!root.join("missing.molden").exists());
+    assert_eq!(fs::read(&output).unwrap(), rhf.stdout);
     assert_eq!(fs::read(root.join("multi.rustiq")).unwrap(), original);
 
     edit_bundle(&root.join("multi.rustiq"), |manifest, _| {

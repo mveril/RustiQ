@@ -1,6 +1,7 @@
 use std::{
+    fs::OpenOptions,
     io::{self, BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use clap::{Args, ValueEnum};
@@ -22,12 +23,15 @@ enum ExportFormat {
 pub(crate) struct ExportCommand {
     /// Portable .rustiq bundle.
     path: PathBuf,
-    /// Export format written to standard output.
+    /// Select the export format.
     #[arg(long, value_enum)]
     format: ExportFormat,
     /// Zero-based calculation index. Required for bundles with multiple calculations.
     #[arg(long)]
     calculation: Option<usize>,
+    /// File to write. Writes to standard output when omitted.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
 }
 
 impl Runnable for ExportCommand {
@@ -59,18 +63,49 @@ impl Runnable for ExportCommand {
             .wrap_err_with(|| {
                 format!("could not read the converged HF artifact for calculation {index}")
             })?
-            .ok_or_else(|| miette!("Calculation {index} has no saved converged HF orbitals."))?;
+            .ok_or_else(|| {
+                miette!(
+                    "Calculation {index} has no saved converged HF orbitals. Save a converged HF calculation with rustiq run --artifact to export its orbitals."
+                )
+            })?;
 
         match self.format {
             ExportFormat::Molden => {
                 let basis = MoldenBasis::from_context(context)
                     .wrap_err_with(|| format!("could not export calculation {index} to Molden"))?;
-                let mut output = BufWriter::new(io::stdout().lock());
-                basis.write(&hf, &mut output).into_diagnostic()?;
-                output.flush().into_diagnostic()
+                if let Some(path) = &self.output {
+                    let file = open_export_file(&self.path, path)?;
+                    basis
+                        .write(&hf, file.as_file())
+                        .into_diagnostic()
+                        .wrap_err_with(|| format!("could not write Molden file {}", path.display()))
+                } else {
+                    basis.write(&hf, io::stdout().lock()).into_diagnostic()
+                }
             }
         }
     }
+}
+
+fn open_export_file(input: &Path, output: &Path) -> miette::Result<same_file::Handle> {
+    let input_file = same_file::Handle::from_path(input).into_diagnostic()?;
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(output)
+        .and_then(same_file::Handle::from_file)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("could not open Molden output {}", output.display()))?;
+    // Compare the open handles before truncating, including symlinks and hard links.
+    if file == input_file {
+        return Err(miette!("Molden output must not replace the input bundle."));
+    }
+    file.as_file()
+        .set_len(0)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("could not truncate Molden output {}", output.display()))?;
+    Ok(file)
 }
 
 struct MoldenBasis {
@@ -146,7 +181,8 @@ impl MoldenBasis {
         })
     }
 
-    fn write(&self, hf: &ConvergedHf, mut output: impl Write) -> io::Result<()> {
+    fn write(&self, hf: &ConvergedHf, output: impl Write) -> io::Result<()> {
+        let mut output = BufWriter::new(output);
         writeln!(output, "[Molden Format]\n[Atoms] AU")?;
         for (index, &(number, [x, y, z])) in self.atoms.iter().enumerate() {
             let element = Element::list()
@@ -178,12 +214,13 @@ impl MoldenBasis {
         }
         writeln!(output, "[MO]")?;
         match hf.orbitals() {
-            HfOrbitals::Rhf(rhf) => self.write_channel(&rhf.shared, "Alpha", 2, output),
+            HfOrbitals::Rhf(rhf) => self.write_channel(&rhf.shared, "Alpha", 2, &mut output)?,
             HfOrbitals::Uhf(uhf) => {
                 self.write_channel(uhf.channels.alpha(), "Alpha", 1, &mut output)?;
-                self.write_channel(uhf.channels.beta(), "Beta", 1, output)
+                self.write_channel(uhf.channels.beta(), "Beta", 1, &mut output)?;
             }
         }
+        output.flush()
     }
 
     fn write_channel(
