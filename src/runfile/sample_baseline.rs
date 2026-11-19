@@ -633,6 +633,23 @@ fn every_valid_sample_has_expected_scientific_configuration(#[case] case: usize)
     assert_eq!(parsed.runfile.cache.enabled, expected.cache_enabled);
 }
 
+const POST_SCF_SAMPLE: &str = "h2/sto-3g/postscf.toml";
+
+#[test]
+fn post_scf_sample_has_expected_mp2_configuration() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join(POST_SCF_SAMPLE);
+    let source = std::fs::read_to_string(path).unwrap();
+    let config = super::parser::resolve_post_scf(POST_SCF_SAMPLE, &source).unwrap();
+    let mp2 = config.mp2.unwrap();
+    assert_eq!(mp2.frozen_orbitals.value, 0);
+    assert_eq!(
+        mp2.memory_limit.value,
+        rustiq_core::config::MemoryLimit::Fixed(bytesize::ByteSize::gib(1))
+    );
+}
+
 #[test]
 fn valid_sample_set_matches_baseline_cases() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
@@ -644,6 +661,7 @@ fn valid_sample_set_matches_baseline_cases() {
         .iter()
         .map(|case| case.path.to_owned())
         .collect();
+    covered_files.push(POST_SCF_SAMPLE.to_owned());
     covered_files.sort();
     assert_eq!(
         actual_files, covered_files,

@@ -53,14 +53,20 @@ fn serialize_json<T: Serialize>(value: &T, pretty: bool) -> serde_json::Result<V
 
 /// Use the same JSON presentation for single calculations and Nickel batches.
 pub(crate) fn print_json<T: Serialize>(value: &T, pretty: bool) -> miette::Result<()> {
-    let json = serialize_json(value, pretty).into_diagnostic()?;
     if pretty {
+        let json = serialize_json(value, true).into_diagnostic()?;
         bat::print_json(&json)
     } else {
-        let mut stdout = io::stdout().lock();
-        stdout.write_all(&json).into_diagnostic()?;
-        writeln!(stdout).into_diagnostic()
+        print_plain_json(value, false)
     }
+}
+
+/// Writes JSON without terminal styling, including in pretty mode.
+pub(crate) fn print_plain_json<T: Serialize>(value: &T, pretty: bool) -> miette::Result<()> {
+    let json = serialize_json(value, pretty).into_diagnostic()?;
+    let mut stdout = io::stdout().lock();
+    stdout.write_all(&json).into_diagnostic()?;
+    writeln!(stdout).into_diagnostic()
 }
 
 #[allow(

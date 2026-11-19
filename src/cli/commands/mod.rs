@@ -8,6 +8,7 @@ mod docs_command;
 #[cfg(any(feature = "manpages", feature = "completions"))]
 mod generate_command;
 mod init_command;
+mod post_scf;
 mod run_command;
 pub(crate) use run_command::{validate_run_arguments, RunCommand};
 mod geometry_command;

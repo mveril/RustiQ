@@ -131,6 +131,13 @@ impl RustiQData {
         self.request.as_ref()
     }
 
+    /// Returns the resolved HF method from portable context without loading
+    /// artifacts. This describes the reference type, regardless of convergence.
+    #[must_use]
+    pub fn resolved_hf_method(&self) -> Option<crate::config::ResolvedHfMethod> {
+        self.context.as_ref().map(CalculationContext::hf_method)
+    }
+
     /// Rebuilds an executable calculation from the resolved context in this portable archive.
     /// The archive becomes a read-only source of typed artifacts for normal execution.
     /// Payloads are loaded and verified only when their scientific stage needs them.

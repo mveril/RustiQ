@@ -26,6 +26,12 @@ impl CalculationExecutionError {
     pub fn cause(&self) -> &CalculationError {
         &self.cause
     }
+    /// Takes the scientific error and releases any retained HF solution.
+    #[must_use]
+    pub fn into_cause(self) -> CalculationError {
+        self.cause
+    }
+
     #[must_use]
     pub fn hf(&self) -> Option<&HfOutcome> {
         self.hf.as_ref()
