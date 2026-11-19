@@ -94,6 +94,7 @@ materializing integral or orbital arrays. AO ERI checks cover payload hashes, NP
 and consistency with the declared AO basis. HF checks cover metadata, referenced
 payload integrity, array shapes, occupations, finite values, and context identity.
 HF verification supports the `rustiq-converged-hf-orbitals-v1` representation.
+Verification limits NPY headers to 64 KiB.
 
 The summary on stdout counts calculations and logical artifacts, rather than
 individual files. Diagnostics go to stderr. For the H₂ bundle created above:
@@ -107,7 +108,8 @@ Verification successful
   Calculation 0, artifact ao_eri (rustiq-compact-eri-v1): Valid
 ```
 
-Use `rustiq artifact verify h2.rustiq --json` for a single
+Text is the default and can be selected explicitly with `--format text`.
+Use `rustiq artifact verify h2.rustiq --format json` for a single
 [versioned JSON summary](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json)
 on stdout. It includes the counts and an entry for every declared artifact
 with its calculation index, name, representation, and status. The statuses
@@ -126,8 +128,9 @@ The first line distinguishes three outcomes:
 Unknown artifact names and known artifacts with unsupported representations are
 skipped with warnings. Their payloads are **not checked**: an older reader's
 inability to interpret a representation is not evidence of corruption. Supported
-artifacts with invalid metadata or payloads fail verification. Independent
-failures are collected and reported together, with a summary after traversal.
+artifacts with invalid metadata or payloads fail verification. A missing
+payload or a size mismatch is reported for that artifact. Independent failures
+are collected and reported together, with a summary after traversal.
 A fatal archive error that prevents opening or traversal can stop without a summary.
 Calculation indices in diagnostics are zero-based.
 
@@ -351,8 +354,8 @@ In Rust, `RustiQData::check::<A>()` checks one typed artifact and returns
 `Ok(false)` when it is absent. `RustiQBundle::check()` returns an
 `ArtifactCheckSummary` with the outcome of every declared artifact.
 
-The CLI `artifact verify` supports AO ERIs and converged RHF/UHF artifacts
-through the typed Rust getters.
+The CLI `artifact verify` uses `RustiQBundle::check_archive()` to verify the
+archive and report individual artifact failures.
 
 ### Restoring a solution for MP2
 

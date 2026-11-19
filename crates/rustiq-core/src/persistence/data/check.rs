@@ -1,7 +1,8 @@
 use super::{
     hf_artifact::HF_REPRESENTATION, AoEriArtifact, Artifact, ConvergedHfArtifact, RustiQBundle,
 };
-use crate::persistence::{ArtifactError, COMPACT_ERI_REPRESENTATION};
+use crate::persistence::{ArtifactError, PortableError, COMPACT_ERI_REPRESENTATION};
+use std::path::Path;
 
 /// The outcome of checking a single declared artifact.
 #[derive(Debug)]
@@ -36,6 +37,16 @@ pub struct ArtifactCheckSummary {
 }
 
 impl RustiQBundle {
+    /// Opens a portable archive and checks each declared artifact.
+    /// Missing members and size mismatches for supported artifacts are reported
+    /// individually, so verification can continue with the remaining artifacts.
+    ///
+    /// # Errors
+    /// Returns an error if the archive structure, manifest, snapshots, or provenance are invalid.
+    pub fn check_archive(path: impl AsRef<Path>) -> Result<ArtifactCheckSummary, PortableError> {
+        Ok(Self::open_inner(path.as_ref(), false)?.check())
+    }
+
     /// Checks all supported numerical payloads without materializing their arrays.
     /// Unknown names and unsupported representations are reported without reading their payloads.
     #[must_use]

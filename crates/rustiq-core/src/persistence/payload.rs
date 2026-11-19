@@ -153,12 +153,16 @@ impl<T: NpyConvert> Payload for CheckedNpy<T> {
         reference: PayloadRef,
         shape: Self::Shape,
     ) -> Result<Self, ArtifactError> {
-        use super::npy::map_npy_value_read_error;
+        use std::io::Read;
+
+        use super::npy::{map_npy_value_read_error, read_bounded_header};
         use super::NpyError;
 
         with_npy(storage, stem, &reference, |reader| {
-            let reader = std::io::BufReader::new(reader);
-            let npy = npyz::NpyFile::new(reader).map_err(NpyError::Read)?;
+            let mut reader = std::io::BufReader::new(reader);
+            let header = read_bounded_header(&mut reader)?;
+            let npy = npyz::NpyFile::new(std::io::Cursor::new(header).chain(reader))
+                .map_err(NpyError::Read)?;
             T::check_shape(&npy, shape)?;
             let values = npy
                 .data::<f64>()
@@ -288,6 +292,37 @@ mod tests {
     use super::*;
     use nalgebra::{DMatrix, DVector};
     use proptest::strategy::Strategy;
+
+    #[test]
+    fn orbital_check_bounds_the_npy_header() {
+        use super::super::{NpyError, StorageError};
+
+        let directory = tempfile::tempdir().unwrap();
+        let mut storage = Storage::folder(directory.path());
+        let path = "energies.npy";
+        let metadata = storage
+            .write_artifact::<ArtifactError, _>(RelativePath::new(path), |writer| {
+                writer
+                    .write_all(b"\x93NUMPY\x02\x00")
+                    .map_err(StorageError::from)?;
+                writer
+                    .write_all(&65_537_u32.to_le_bytes())
+                    .map_err(StorageError::from)?;
+                Ok(())
+            })
+            .unwrap();
+        let reference = PayloadRef {
+            path: path.into(),
+            size: metadata.size,
+            digest: metadata.digest,
+        };
+        let result = CheckedNpy::<DVector<f64>>::load(&storage, "energies", reference, (2, 1));
+        assert!(matches!(
+            result,
+            Err(ArtifactError::Npy(NpyError::Read(error)))
+                if error.to_string() == "NPY header exceeds 64 KiB"
+        ));
+    }
 
     #[test]
     fn check_rejects_nonfinite_orbitals_with_valid_integrity() {

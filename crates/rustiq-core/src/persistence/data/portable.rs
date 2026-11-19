@@ -52,7 +52,10 @@ impl RustiQData {
         Ok(data)
     }
 
-    pub(crate) fn validate_portable(mut data: Self) -> Result<Self, PortableError> {
+    pub(super) fn validate_portable(
+        mut data: Self,
+        validate_artifact_sizes: bool,
+    ) -> Result<Self, PortableError> {
         if data.manifest.kind != ManifestKind::Portable {
             return Err(PortableError::UnsupportedVersion);
         }
@@ -101,7 +104,7 @@ impl RustiQData {
             {
                 return Err(ArtifactError::InvalidPath(artifact.path.to_string()).into());
             }
-            if source.artifact_size(&artifact.path)? != artifact.size {
+            if validate_artifact_sizes && source.artifact_size(&artifact.path)? != artifact.size {
                 return Err(ArtifactError::IntegrityMismatch(artifact.path.to_string()).into());
             }
             if let ArtifactAttributes::AoEri(attributes) = &artifact.attributes {

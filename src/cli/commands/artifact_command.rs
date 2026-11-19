@@ -36,9 +36,9 @@ pub(crate) struct VerifyCommand {
     /// Return exit code 5 if artifacts are skipped and no verification fails.
     #[arg(long)]
     strict: bool,
-    /// Write a versioned JSON summary to stdout.
-    #[arg(long)]
-    json: bool,
+    /// Select human-readable text or versioned JSON for the verification summary.
+    #[arg(long, value_enum, default_value_t = CalculationOutputFormat::Text)]
+    format: CalculationOutputFormat,
 }
 
 #[derive(Serialize)]
@@ -179,8 +179,8 @@ impl VerificationReport {
 
 impl Runnable for VerifyCommand {
     fn run(&self) -> CommandResult {
-        let bundle = RustiQBundle::open(&self.path).into_diagnostic()?;
-        let summary = bundle.check();
+        let summary = RustiQBundle::check_archive(&self.path).into_diagnostic()?;
+        let json = matches!(self.format, CalculationOutputFormat::Json);
         let mut report = VerificationReport {
             schema_version: 1,
             kind: "artifact-verification",
@@ -206,7 +206,7 @@ impl Runnable for VerifyCommand {
                 Invalid(error) => {
                     entry.status = "invalid";
                     let source = miette::Report::from_err(error);
-                    if self.json {
+                    if json {
                         entry.errors = source.chain().map(ToString::to_string).collect();
                     }
                     errors.push(VerificationFailure {
@@ -253,7 +253,7 @@ impl Runnable for VerifyCommand {
             "successful"
         };
         let mut stdout = io::stdout().lock();
-        if self.json {
+        if json {
             serde_json::to_writer(&mut stdout, &report).into_diagnostic()?;
             writeln!(stdout).into_diagnostic()?;
         } else {

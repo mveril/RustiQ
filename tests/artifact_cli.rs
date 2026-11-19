@@ -869,6 +869,46 @@ fn verification_collects_independent_failures_and_retains_integrity_paths() {
 }
 
 #[test]
+fn verification_reports_a_size_mismatch_and_checks_the_remaining_artifact() {
+    let directory = fixture();
+    let root = directory.path();
+    hf_bundle(root, false);
+    let path = root.join("hf.rustiq");
+    edit_bundle(&path, |manifest, _| {
+        let size = &mut manifest["calculations"][0]["artifacts"]["ao_eri"]["size"];
+        *size = json!(size.as_u64().unwrap() + 1);
+    });
+    assert!(RustiQBundle::open(&path).is_err());
+
+    let text = command(
+        root,
+        &["artifact", "verify", "hf.rustiq", "--format", "text"],
+    );
+    assert_verification(&text, 1, "Verification failed", [1, 1, 0]);
+
+    let output = command(
+        root,
+        &[
+            "artifact",
+            "verify",
+            "hf.rustiq",
+            "--strict",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["status"], "failed");
+    assert_eq!(report["artifacts"][0]["status"], "invalid");
+    assert_eq!(report["artifacts"][1]["status"], "valid");
+    assert!(report["artifacts"][0]["errors"][0]
+        .as_str()
+        .unwrap()
+        .contains("integrity check failed"));
+}
+
+#[test]
 fn verification_decoding_failure_is_not_a_skip() {
     let directory = fixture();
     let root = directory.path();
@@ -1029,7 +1069,14 @@ fn verification_json_lists_valid_invalid_unknown_and_unsupported_artifacts() {
         }
         let output = command(
             root,
-            &["artifact", "verify", "hf.rustiq", "--strict", "--json"],
+            &[
+                "artifact",
+                "verify",
+                "hf.rustiq",
+                "--strict",
+                "--format",
+                "json",
+            ],
         );
         assert_eq!(
             output.status.code(),

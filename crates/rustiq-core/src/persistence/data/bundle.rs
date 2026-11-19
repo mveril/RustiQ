@@ -71,7 +71,14 @@ impl RustiQBundle {
     ///
     /// Returns an error if archive structure, context, references, or provenance are invalid or cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
-        let storage = Storage::open_zip(path.as_ref())?;
+        Self::open_inner(path.as_ref(), true)
+    }
+
+    pub(super) fn open_inner(
+        path: &Path,
+        validate_artifact_sizes: bool,
+    ) -> Result<Self, PortableError> {
+        let storage = Storage::open_zip(path)?;
         let manifest: PortableManifest = storage
             .read_json(RelativePath::new(MANIFEST_PATH), MAX_MANIFEST_BYTES)
             .map_err(crate::persistence::PersistenceReadError::from)?;
@@ -118,7 +125,10 @@ impl RustiQBundle {
             };
             let data =
                 RustiQData::read_manifest(Storage::scoped(storage.clone(), prefix), internal)?;
-            calculations.push(RustiQData::validate_portable(data)?);
+            calculations.push(RustiQData::validate_portable(
+                data,
+                validate_artifact_sizes,
+            )?);
         }
         Ok(Self {
             calculations,

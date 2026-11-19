@@ -109,12 +109,8 @@ pub(crate) fn read_compact_eri(
     CompactEri::try_read_with_shape(reader, basis_functions)
 }
 
-/// Validates the small NPY header and exact payload length before allocating values.
-pub(crate) fn checked_eri_prefix(
-    reader: &mut dyn Read,
-    basis_functions: usize,
-    file_size: u64,
-) -> Result<Vec<u8>, NpyError> {
+/// Reads a complete NPY header, including its prefix, with a bounded allocation.
+pub(super) fn read_bounded_header(reader: &mut dyn Read) -> Result<Vec<u8>, NpyError> {
     let mut prefix = [0_u8; 8];
     reader.read_exact(&mut prefix).map_err(NpyError::Read)?;
     if &prefix[..6] != b"\x93NUMPY" || !matches!((prefix[6], prefix[7]), (1..=3, 0)) {
@@ -143,6 +139,16 @@ pub(crate) fn checked_eri_prefix(
     reader
         .read_exact(&mut header[8 + length_bytes..])
         .map_err(NpyError::Read)?;
+    Ok(header)
+}
+
+/// Validates the small NPY header and exact payload length before allocating values.
+pub(crate) fn checked_eri_prefix(
+    reader: &mut dyn Read,
+    basis_functions: usize,
+    file_size: u64,
+) -> Result<Vec<u8>, NpyError> {
+    let header = read_bounded_header(reader)?;
     if !validate_compact_eri_header(std::io::Cursor::new(&header), basis_functions, file_size) {
         return Err(NpyError::Read(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
