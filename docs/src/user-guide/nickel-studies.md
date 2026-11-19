@@ -129,6 +129,8 @@ See the [glossary](../glossary.md) for Nickel and calculation terminology.
 `rustiq init molecule.xyz -o calculation.ncl` creates a Nickel list containing one calculation. Run either with `rustiq run calculation.toml` or
 `rustiq run calculation.ncl`, respectively. The `.ncl` extension is matched
 without regard to case. Any other extension, including an unusual extension
-such as `.custom`, or no extension, produces TOML, matching `run` selection.
+such as `.custom`, or no extension, produces TOML. Avoid `.rustiq` for
+`init` output. Although `init` writes TOML with that extension, `run`
+reserves it for portable archives and matches it without regard to case.
 Without `--output`, `init` creates `calculation.toml`. Prefer `.toml` or `.ncl`
 to make the format explicit. The destination parent directory must exist.
