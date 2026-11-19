@@ -5,9 +5,7 @@ use std::{
 
 use clap::Subcommand;
 use miette::{miette, Diagnostic, IntoDiagnostic};
-use rustiq_core::persistence::{
-    AoEriArtifact, Artifact, ConvergedHfArtifact, RustiQBundle, RustiQData,
-};
+use rustiq_core::persistence::{ArtifactCheckStatus, RustiQBundle};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -38,6 +36,9 @@ pub(crate) struct VerifyCommand {
     /// Return exit code 5 if artifacts are skipped and no verification fails.
     #[arg(long)]
     strict: bool,
+    /// Write a versioned JSON summary to stdout.
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Serialize)]
@@ -123,91 +124,148 @@ struct VerificationWarning {
     help: &'static str,
 }
 
-fn verify_payload<A: Artifact>(data: &RustiQData) -> miette::Result<()> {
-    data.get::<A>()
-        .into_diagnostic()?
-        .ok_or_else(|| miette!("declared artifact payload is missing"))?;
-    Ok(())
+#[derive(Serialize)]
+struct VerificationReport {
+    schema_version: u32,
+    kind: &'static str,
+    status: &'static str,
+    calculation_count: usize,
+    verified: usize,
+    failed: usize,
+    skipped: usize,
+    artifacts: Vec<VerificationEntry>,
+}
+
+#[derive(Serialize)]
+struct VerificationEntry {
+    calculation_index: usize,
+    name: String,
+    representation: String,
+    status: &'static str,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    errors: Vec<String>,
+}
+
+impl VerificationReport {
+    fn write_text(&self, mut output: impl Write) -> io::Result<()> {
+        writeln!(
+            output,
+            "Verification {}\n  Calculations: {}\n  Verified:     {}\n  Failed:       {}\n  Skipped:      {}",
+            self.status, self.calculation_count, self.verified, self.failed, self.skipped
+        )?;
+        if self.artifacts.is_empty() {
+            writeln!(
+                output,
+                "  No numerical artifacts declared; no numerical payload was verified."
+            )?;
+        }
+        for entry in &self.artifacts {
+            let status = match entry.status {
+                "valid" => "Valid",
+                "invalid" => "Invalid",
+                "unknown_artifact" => "Unknown artifact",
+                "unsupported_representation" => "Unsupported representation",
+                _ => "Unchecked",
+            };
+            writeln!(
+                output,
+                "  Calculation {}, artifact {} ({}): {status}",
+                entry.calculation_index, entry.name, entry.representation
+            )?;
+        }
+        Ok(())
+    }
 }
 
 impl Runnable for VerifyCommand {
     fn run(&self) -> CommandResult {
         let bundle = RustiQBundle::open(&self.path).into_diagnostic()?;
-        let calculation_count = bundle.calculations().len();
-        let mut verified = 0;
-        let mut skipped = 0;
+        let summary = bundle.check();
+        let mut report = VerificationReport {
+            schema_version: 1,
+            kind: "artifact-verification",
+            status: "successful",
+            calculation_count: summary.calculation_count,
+            verified: 0,
+            failed: 0,
+            skipped: 0,
+            artifacts: Vec::with_capacity(summary.artifacts.len()),
+        };
         let mut errors = Vec::new();
-
-        for (calculation_index, data) in bundle.into_calculations().into_iter().enumerate() {
-            for (name, representation) in data.artifact_representations() {
-                // Match representation labels before reading: UnsupportedRepresentation
-                // from a typed reader can also mean invalid metadata (for example
-                // an HF path), which must remain a failure rather than a skip.
-                let reason = match name {
-                    AoEriArtifact::NAME if representation == "rustiq-compact-eri-v1" => None,
-                    ConvergedHfArtifact::NAME
-                        if representation == "rustiq-converged-hf-orbitals-v1" =>
-                    {
-                        None
+        for artifact in summary.artifacts {
+            use ArtifactCheckStatus::{Invalid, UnknownArtifact, UnsupportedRepresentation, Valid};
+            let mut entry = VerificationEntry {
+                calculation_index: artifact.calculation_index,
+                name: artifact.name,
+                representation: artifact.representation,
+                status: "valid",
+                errors: Vec::new(),
+            };
+            match artifact.status {
+                Valid => report.verified += 1,
+                Invalid(error) => {
+                    entry.status = "invalid";
+                    let source = miette::Report::from_err(error);
+                    if self.json {
+                        entry.errors = source.chain().map(ToString::to_string).collect();
                     }
-                    AoEriArtifact::NAME | ConvergedHfArtifact::NAME => {
-                        Some("unsupported representation")
-                    }
-                    _ => Some("unknown artifact"),
-                };
-                if let Some(reason) = reason {
-                    skipped += 1;
-                    crate::cli::ux::diagnostics::emit_warning(VerificationWarning {
-                        calculation_index,
-                        name: name.to_owned(),
-                        representation: representation.to_owned(),
-                        reason,
-                        help: if reason == "unknown artifact" {
-                            "This RustiQ version does not recognize the artifact name. Its payload was not checked."
-                        } else {
-                            "This RustiQ version cannot read this representation. Its payload was not checked; an unsupported representation is not evidence of corruption."
-                        },
-                    })?;
-                    continue;
-                }
-
-                let result = match name {
-                    AoEriArtifact::NAME => verify_payload::<AoEriArtifact>(&data),
-                    _ => verify_payload::<ConvergedHfArtifact>(&data),
-                };
-                match result {
-                    Ok(()) => verified += 1,
-                    Err(source) => errors.push(VerificationFailure {
-                        calculation_index,
-                        name: name.to_owned(),
-                        representation: representation.to_owned(),
+                    errors.push(VerificationFailure {
+                        calculation_index: entry.calculation_index,
+                        name: entry.name.clone(),
+                        representation: entry.representation.clone(),
                         source: source.into(),
-                    }),
+                    });
+                }
+                status => {
+                    let (label, reason, help) = match status {
+                        UnknownArtifact => (
+                            "unknown_artifact",
+                            "unknown artifact",
+                            "This RustiQ version does not recognize the artifact name. Its payload was not checked.",
+                        ),
+                        UnsupportedRepresentation => (
+                            "unsupported_representation",
+                            "unsupported representation",
+                            "This RustiQ version cannot read this representation. Its payload was not checked; an unsupported representation is not evidence of corruption.",
+                        ),
+                        _ => ("unchecked", "unsupported check outcome", "Its payload was not checked."),
+                    };
+                    entry.status = label;
+                    report.skipped += 1;
+                    crate::cli::ux::diagnostics::emit_warning(VerificationWarning {
+                        calculation_index: entry.calculation_index,
+                        name: entry.name.clone(),
+                        representation: entry.representation.clone(),
+                        reason,
+                        help,
+                    })?;
                 }
             }
+            report.artifacts.push(entry);
         }
-        let status = if !errors.is_empty() {
-            "Verification failed"
-        } else if skipped > 0 {
-            "Verification incomplete"
+
+        report.failed = errors.len();
+        report.status = if report.failed > 0 {
+            "failed"
+        } else if report.skipped > 0 {
+            "incomplete"
         } else {
-            "Verification successful"
+            "successful"
         };
         let mut stdout = io::stdout().lock();
-        writeln!(stdout,
-            "{status}\n  Calculations: {calculation_count}\n  Verified:     {verified}\n  Failed:       {}\n  Skipped:      {skipped}", errors.len()
-        ).into_diagnostic()?;
-        if verified == 0 && skipped == 0 && errors.is_empty() {
-            writeln!(
-                stdout,
-                "  No numerical artifacts declared; no numerical payload was verified."
-            )
-            .into_diagnostic()?;
+        if self.json {
+            serde_json::to_writer(&mut stdout, &report).into_diagnostic()?;
+            writeln!(stdout).into_diagnostic()?;
+        } else {
+            report.write_text(&mut stdout).into_diagnostic()?;
         }
         if !errors.is_empty() {
             Err(VerificationFailures { errors }.into())
-        } else if self.strict && skipped > 0 {
-            Err(crate::cli::exit_status::IncompleteVerification { skipped }.into())
+        } else if self.strict && report.skipped > 0 {
+            Err(crate::cli::exit_status::IncompleteVerification {
+                skipped: report.skipped,
+            }
+            .into())
         } else {
             Ok(())
         }

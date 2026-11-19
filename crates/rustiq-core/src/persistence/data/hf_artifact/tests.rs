@@ -116,6 +116,8 @@ fn rhf_uhf_and_reduced_rank_roundtrip_without_integrals() {
             let mut bundle = RustiQBundle::open(&path).unwrap();
             let restored = &mut bundle.calculations_mut()[0];
             assert!(restored.staged.is_empty());
+            assert!(restored.check::<ConvergedHfArtifact>().unwrap());
+            assert!(!restored.check::<AoEriArtifact>().unwrap());
             assert!(restored.get::<AoEriArtifact>().unwrap().is_none());
             assert_eq!(
                 json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
@@ -410,6 +412,7 @@ fn npy_leaves_have_numpy_shapes_and_corruption_is_rejected() {
                         .unwrap();
                 restored.context = data.context.clone();
                 assert!(restored.get::<ConvergedHfArtifact>().is_err());
+                assert!(restored.check::<ConvergedHfArtifact>().is_err());
                 std::fs::write(&path, original).unwrap();
             }
         }

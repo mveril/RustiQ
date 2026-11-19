@@ -991,3 +991,75 @@ fn verification_respects_explicit_color_modes() {
         assert!(String::from_utf8_lossy(&output.stdout).starts_with("Verification incomplete"));
     }
 }
+
+#[test]
+fn verification_json_lists_valid_invalid_unknown_and_unsupported_artifacts() {
+    let directory = fixture();
+    let root = directory.path();
+    hf_bundle(root, false);
+    rewrite_verification_bundle(
+        &root.join("hf.rustiq"),
+        |manifest| {
+            let artifacts = manifest["calculations"][0]["artifacts"]
+                .as_object_mut()
+                .unwrap();
+            let mut unknown = artifacts["ao_eri"].clone();
+            let path = unknown["path"].as_str().unwrap();
+            unknown["path"] = json!(format!("{}/future.bin", path.rsplit_once('/').unwrap().0));
+            unknown["representation"] = json!("future-v2");
+            artifacts.insert("future".into(), unknown);
+            artifacts.get_mut("converged_hf").unwrap()["representation"] = json!("future-v2");
+        },
+        false,
+    );
+
+    let original = fs::read(root.join("hf.rustiq")).unwrap();
+    let schema: Value = serde_json::from_str(include_str!(
+        "../schemas/artifact-verification-v1.schema.json"
+    ))
+    .unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for (corrupt, status, code, ao_status) in [
+        (false, "incomplete", 5, "valid"),
+        (true, "failed", 1, "invalid"),
+    ] {
+        fs::write(root.join("hf.rustiq"), &original).unwrap();
+        if corrupt {
+            rewrite_verification_bundle(&root.join("hf.rustiq"), |_| {}, true);
+        }
+        let output = command(
+            root,
+            &["artifact", "verify", "hf.rustiq", "--strict", "--json"],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(code),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validator.validate(&report).unwrap();
+        assert_eq!(report["status"], status);
+        assert_eq!(report["calculation_count"], 1);
+        assert_eq!(report["verified"], usize::from(!corrupt));
+        assert_eq!(report["failed"], usize::from(corrupt));
+        assert_eq!(report["skipped"], 2);
+        let entries = report["artifacts"].as_array().unwrap();
+        assert_eq!(entries.len(), 3);
+        for (entry, (name, status)) in entries.iter().zip([
+            ("ao_eri", ao_status),
+            ("converged_hf", "unsupported_representation"),
+            ("future", "unknown_artifact"),
+        ]) {
+            assert_eq!(entry["calculation_index"], 0);
+            assert_eq!(entry["name"], name);
+            assert_eq!(entry["status"], status);
+        }
+        if corrupt {
+            assert!(entries[0]["errors"][0]
+                .as_str()
+                .unwrap()
+                .contains("integrity check failed"));
+        }
+    }
+}

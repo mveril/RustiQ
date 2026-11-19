@@ -19,13 +19,17 @@ pub(crate) trait NpyConvert: Sized {
 
     fn decode_with_shape<R: Read>(npy: NpyFile<R>, shape: Self::Shape) -> Result<Self, NpyError>;
 
+    fn check_shape(npy: &NpyFile<impl Read>, shape: Self::Shape) -> Result<(), NpyError> {
+        let expected = Self::npy_shape(shape)?;
+        check_npy_shape(expected.as_ref(), npy.shape())
+    }
+
     /// Checks a parsed header before decoding any array values.
     fn try_from_npy_with_shape<R: Read>(
         npy: NpyFile<R>,
         shape: Self::Shape,
     ) -> Result<Self, NpyError> {
-        let expected = Self::npy_shape(shape)?;
-        check_npy_shape(expected.as_ref(), npy.shape())?;
+        Self::check_shape(&npy, shape)?;
         Self::decode_with_shape(npy, shape)
     }
 
@@ -261,7 +265,7 @@ impl<T: npyz::Deserialize + Default, R: Read> Iterator for ExactNpyValues<T, R> 
 
 impl<T: npyz::Deserialize + Default, R: Read> ExactSizeIterator for ExactNpyValues<T, R> {}
 
-fn map_npy_value_read_error(error: std::io::Error) -> NpyError {
+pub(super) fn map_npy_value_read_error(error: std::io::Error) -> NpyError {
     if error.kind() == std::io::ErrorKind::InvalidData {
         NpyError::InvalidDtype(error.to_string())
     } else {

@@ -17,3 +17,6 @@ mod portable;
 
 mod bundle;
 pub use bundle::{AoEriReuse, RustiQBundle};
+
+mod check;
+pub use check::{ArtifactCheck, ArtifactCheckStatus, ArtifactCheckSummary};

@@ -16,6 +16,7 @@ These documents remain the sources of truth:
 - [Calculation JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/calculation-output-v1.schema.json)
   and [batch JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/batch-output-v1.schema.json).
 - [Artifact inspection JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
+- [Artifact verification JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json).
 - [Embedded Nickel schema](https://github.com/mveril/RustiQ/tree/main/src/runfile/nickel):
   input defaults and validation.
 - [Rustdoc](../development/contributing.md): public Rust API reference.

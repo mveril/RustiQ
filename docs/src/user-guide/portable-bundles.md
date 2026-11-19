@@ -89,8 +89,8 @@ payload in the bundle:
 rustiq artifact verify h2.rustiq
 ```
 
-The command verifies supported `ao_eri` and `converged_hf` artifacts through
-their artifact readers. AO ERI checks cover payload hashes, NPY encoding, dimensions,
+The command checks supported `ao_eri` and `converged_hf` payloads without
+materializing integral or orbital arrays. AO ERI checks cover payload hashes, NPY encoding, dimensions,
 and consistency with the declared AO basis. HF checks cover metadata, referenced
 payload integrity, array shapes, occupations, finite values, and context identity.
 HF verification supports the `rustiq-converged-hf-orbitals-v1` representation.
@@ -104,7 +104,16 @@ Verification successful
   Verified:     1
   Failed:       0
   Skipped:      0
+  Calculation 0, artifact ao_eri (rustiq-compact-eri-v1): Valid
 ```
+
+Use `rustiq artifact verify h2.rustiq --json` for a single
+[versioned JSON summary](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json)
+on stdout. It includes the counts and an entry for every declared artifact
+with its calculation index, name, representation, and status. The statuses
+are `valid`, `invalid`, `unknown_artifact`, and `unsupported_representation`.
+Invalid entries include an `errors` array with the error chain. Diagnostics
+remain on stderr and `--strict` applies to either output format.
 
 The first line distinguishes three outcomes:
 
@@ -338,6 +347,10 @@ checks do not independently establish physical validity or orbital orthonormalit
 `hf_is_compatible` checks context compatibility without verifying the payload.
 Reading the artifact alone does not construct an executable solution. To restore
 one for MP2, the same calculation entry must also contain compatible AO ERIs.
+In Rust, `RustiQData::check::<A>()` checks one typed artifact and returns
+`Ok(false)` when it is absent. `RustiQBundle::check()` returns an
+`ArtifactCheckSummary` with the outcome of every declared artifact.
+
 The CLI `artifact verify` supports AO ERIs and converged RHF/UHF artifacts
 through the typed Rust getters.
 

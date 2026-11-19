@@ -248,7 +248,7 @@ installs the generated assets but disables both generators in its executable.
 | `rustiq cache list [--cache-dir DIR]`                                   | Inspect AO ERI cache entries and their validation status.                                                                                                |
 | `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries.                                                                                                             |
 | `rustiq artifact inspect <PATH> [--format FORMAT]`                      | Inspect portable `.rustiq` calculation snapshots and artifact metadata.                                                                                  |
-| `rustiq artifact verify <PATH> [--strict]`                                         | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
+| `rustiq artifact verify <PATH> [--strict] [--json]`                                         | Check hashes and validate supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
 | `rustiq geometry info [XYZ]`                                            | Print basic geometry information; read XYZ from standard input when no path is given.                                                                    |
 | `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry`  | Transform a geometry and write the result; each subcommand has its own help.                                                                             |
 
@@ -505,10 +505,10 @@ check supported payloads eagerly; otherwise, execution checks a payload when
 its scientific stage selects and reads it. Inspection does not execute
 calculations or establish scientific validity. JSON output follows the
 [artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
-`artifact verify PATH` eagerly reads and validates supported numerical
-payloads. It currently checks compact AO ERI payload hashes, NPY encoding,
-array dimensions, and consistency with the declared AO basis. It aggregates errors for invalid supported payloads. Verification does
-not run a calculation or establish scientific validity.
+`artifact verify PATH` checks supported AO ERI and converged HF payloads
+without allocating their numerical arrays. It reports the status of each
+declared artifact. Use `--json` for the
+[artifact verification V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json).
 The archive captures exact bytes of the main input and geometry files as shared
 provenance; it does not capture Nickel's full import graph. See the
 [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)

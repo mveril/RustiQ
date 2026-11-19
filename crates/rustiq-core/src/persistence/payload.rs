@@ -116,6 +116,16 @@ fn checked(
     Ok(())
 }
 
+fn with_npy<T>(
+    storage: &Storage,
+    stem: &str,
+    reference: &PayloadRef,
+    read: impl FnOnce(&mut dyn std::io::Read) -> Result<T, ArtifactError>,
+) -> Result<T, ArtifactError> {
+    checked(storage, stem, "npy", reference)?;
+    storage.with_artifact(RelativePath::new(&reference.path), read)
+}
+
 impl<T: NpyConvert> Payload for T {
     type Reference = PayloadRef;
     type Shape = T::Shape;
@@ -125,9 +135,42 @@ impl<T: NpyConvert> Payload for T {
         reference: PayloadRef,
         shape: Self::Shape,
     ) -> Result<Self, ArtifactError> {
-        checked(storage, stem, "npy", &reference)?;
-        storage.with_artifact::<_, ArtifactError, _>(RelativePath::new(&reference.path), |reader| {
+        with_npy(storage, stem, &reference, |reader| {
             Ok(T::try_read_with_shape(reader, shape)?)
+        })
+    }
+}
+
+/// Reads the same NPY payload as `T`, verifying finite values without storing them.
+pub(crate) struct CheckedNpy<T>(std::marker::PhantomData<T>);
+
+impl<T: NpyConvert> Payload for CheckedNpy<T> {
+    type Reference = PayloadRef;
+    type Shape = T::Shape;
+    fn load(
+        storage: &Storage,
+        stem: &str,
+        reference: PayloadRef,
+        shape: Self::Shape,
+    ) -> Result<Self, ArtifactError> {
+        use super::npy::map_npy_value_read_error;
+        use super::NpyError;
+
+        with_npy(storage, stem, &reference, |reader| {
+            let reader = std::io::BufReader::new(reader);
+            let npy = npyz::NpyFile::new(reader).map_err(NpyError::Read)?;
+            T::check_shape(&npy, shape)?;
+            let values = npy
+                .data::<f64>()
+                .map_err(|error| NpyError::InvalidDtype(error.to_string()))?;
+            for value in values {
+                if !value.map_err(map_npy_value_read_error)?.is_finite() {
+                    return Err(ArtifactError::InvalidMetadata(
+                        "NPY payload contains a nonfinite value".into(),
+                    ));
+                }
+            }
+            Ok(Self(std::marker::PhantomData))
         })
     }
 }
@@ -245,6 +288,21 @@ mod tests {
     use super::*;
     use nalgebra::{DMatrix, DVector};
     use proptest::strategy::Strategy;
+
+    #[test]
+    fn check_rejects_nonfinite_orbitals_with_valid_integrity() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut storage = Storage::folder(directory.path());
+        let values = [1.0, f64::NAN];
+        let reference = values
+            .as_slice()
+            .save_payload(&mut storage, "energies")
+            .unwrap();
+        assert!(matches!(
+            CheckedNpy::<DVector<f64>>::load(&storage, "energies", reference, (2, 1)),
+            Err(ArtifactError::InvalidMetadata(_))
+        ));
+    }
 
     proptest::proptest! {
         #[test]
