@@ -1,5 +1,6 @@
 use super::RunFile;
 use serde::Serialize;
+use std::fmt::Write;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Defaults {
@@ -95,14 +96,17 @@ impl TomlOutput<'_> {
                 serde_json::Value::Object(fields) => {
                     let mut text = String::from("{\n");
                     for (key, value) in fields {
-                        text.push_str(&format!(
-                            "{}{} = {},\n",
+                        writeln!(
+                            text,
+                            "{}{} = {},",
                             "  ".repeat(depth + 1),
                             key,
                             render(value, depth + 1)
-                        ));
+                        )
+                        .expect("writing to a String cannot fail");
                     }
-                    text.push_str(&format!("{}}}", "  ".repeat(depth)));
+                    write!(text, "{}}}", "  ".repeat(depth))
+                        .expect("writing to a String cannot fail");
                     text
                 }
                 serde_json::Value::String(value) => format!(
