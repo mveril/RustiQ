@@ -24,8 +24,9 @@ mod storage;
 pub use crate::eri::CompactEri;
 pub use checksum::{sha256, sha256_reader, verify_sha256, Sha256Digest, Sha256DigestParseError};
 pub use data::{
-    AoEriArtifact, AoEriReuse, Artifact, ArtifactRef, ConvergedHf, ConvergedHfArtifact,
-    HfOrbitalChannel, HfOrbitals, RhfOrbitals, RustiQBundle, RustiQData, UhfOrbitals,
+    AoEriArtifact, AoEriReuse, Artifact, ArtifactCheck, ArtifactCheckStatus, ArtifactCheckSummary,
+    ArtifactRef, ConvergedHf, ConvergedHfArtifact, HfOrbitalChannel, HfOrbitals, RhfOrbitals,
+    RustiQBundle, RustiQData, UhfOrbitals,
 };
 pub use eri_cache::{EriCache, EriCacheEntry};
 pub use error::{ArtifactError, NpyError, PortableError};

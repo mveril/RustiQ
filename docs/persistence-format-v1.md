@@ -767,6 +767,16 @@ they are frontend policy, absent from the scientific snapshots. The CLI
 reference documents commands and JSON presentation.
 
 
+`RustiQData::check::<A>()` verifies a declared artifact without materializing
+its numerical arrays. `RustiQBundle::check()` reports a result for each
+declared artifact. It records unsupported representations and unknown names
+without reading their payloads. `RustiQBundle::check_archive()` opens an
+archive for verification and reports missing members and size mismatches
+as individual failures for supported artifacts. The CLI exposes these
+results through `artifact verify --format json` and its
+[JSON schema](../schemas/artifact-verification-v1.schema.json).
+
+
 ## Converged HF artifact V1
 
 A portable calculation entry may contain `converged_hf`, with representation

@@ -45,6 +45,19 @@ impl RustiQData {
         A::get(self)
     }
 
+    /// Validates a declared artifact without materializing its numerical arrays.
+    /// Returns `Ok(false)` when the artifact is absent.
+    ///
+    /// # Errors
+    /// Returns an error for unsupported, invalid, corrupt or unreadable payloads.
+    pub fn check<A: Artifact>(&self) -> Result<bool, ArtifactError> {
+        if !A::is_present(self) {
+            return Ok(false);
+        }
+        A::check(self)?;
+        Ok(true)
+    }
+
     /// Borrows and immediately stages a known scientific artifact on disk.
     ///
     /// # Errors
@@ -182,6 +195,19 @@ impl RustiQData {
     /// # Errors
     /// Returns an error for missing, invalid, corrupt or unreadable artifacts.
     pub fn read_eri(&self) -> Result<CompactEri, ArtifactError> {
+        self.with_checked_eri(super::super::npy::read_checked_compact_eri)
+    }
+
+    pub(super) fn check_eri(&self) -> Result<(), ArtifactError> {
+        self.with_checked_eri(|reader, basis, size| {
+            super::super::npy::checked_eri_prefix(reader, basis, size).map(|_| ())
+        })
+    }
+
+    fn with_checked_eri<T>(
+        &self,
+        read: impl FnOnce(&mut dyn std::io::Read, usize, u64) -> Result<T, crate::persistence::NpyError>,
+    ) -> Result<T, ArtifactError> {
         let artifact = self
             .manifest
             .artifacts
@@ -211,11 +237,7 @@ impl RustiQData {
             let hashing = super::super::checksum::DigestReader::new(reader);
             // Buffer above the hasher so NPY's small reads hash blocks rather than individual values.
             let mut reader = std::io::BufReader::with_capacity(64 * 1024, hashing);
-            let value = super::super::npy::read_checked_compact_eri(
-                &mut reader,
-                attributes.basis_functions,
-                artifact.size,
-            );
+            let value = read(&mut reader, attributes.basis_functions, artifact.size);
             std::io::copy(&mut reader, &mut std::io::sink()).map_err(StorageError::from)?;
             let (size, digest) = reader.into_inner().finish();
             if size != artifact.size || digest != artifact.digest {

@@ -116,6 +116,16 @@ fn checked(
     Ok(())
 }
 
+fn with_npy<T>(
+    storage: &Storage,
+    stem: &str,
+    reference: &PayloadRef,
+    read: impl FnOnce(&mut dyn std::io::Read) -> Result<T, ArtifactError>,
+) -> Result<T, ArtifactError> {
+    checked(storage, stem, "npy", reference)?;
+    storage.with_artifact(RelativePath::new(&reference.path), read)
+}
+
 impl<T: NpyConvert> Payload for T {
     type Reference = PayloadRef;
     type Shape = T::Shape;
@@ -125,9 +135,46 @@ impl<T: NpyConvert> Payload for T {
         reference: PayloadRef,
         shape: Self::Shape,
     ) -> Result<Self, ArtifactError> {
-        checked(storage, stem, "npy", &reference)?;
-        storage.with_artifact::<_, ArtifactError, _>(RelativePath::new(&reference.path), |reader| {
+        with_npy(storage, stem, &reference, |reader| {
             Ok(T::try_read_with_shape(reader, shape)?)
+        })
+    }
+}
+
+/// Reads the same NPY payload as `T`, verifying finite values without storing them.
+pub(crate) struct CheckedNpy<T>(std::marker::PhantomData<T>);
+
+impl<T: NpyConvert> Payload for CheckedNpy<T> {
+    type Reference = PayloadRef;
+    type Shape = T::Shape;
+    fn load(
+        storage: &Storage,
+        stem: &str,
+        reference: PayloadRef,
+        shape: Self::Shape,
+    ) -> Result<Self, ArtifactError> {
+        use std::io::Read;
+
+        use super::npy::{map_npy_value_read_error, read_bounded_header};
+        use super::NpyError;
+
+        with_npy(storage, stem, &reference, |reader| {
+            let mut reader = std::io::BufReader::new(reader);
+            let header = read_bounded_header(&mut reader)?;
+            let npy = npyz::NpyFile::new(std::io::Cursor::new(header).chain(reader))
+                .map_err(NpyError::Read)?;
+            T::check_shape(&npy, shape)?;
+            let values = npy
+                .data::<f64>()
+                .map_err(|error| NpyError::InvalidDtype(error.to_string()))?;
+            for value in values {
+                if !value.map_err(map_npy_value_read_error)?.is_finite() {
+                    return Err(ArtifactError::InvalidMetadata(
+                        "NPY payload contains a nonfinite value".into(),
+                    ));
+                }
+            }
+            Ok(Self(std::marker::PhantomData))
         })
     }
 }
@@ -245,6 +292,52 @@ mod tests {
     use super::*;
     use nalgebra::{DMatrix, DVector};
     use proptest::strategy::Strategy;
+
+    #[test]
+    fn orbital_check_bounds_the_npy_header() {
+        use super::super::{NpyError, StorageError};
+
+        let directory = tempfile::tempdir().unwrap();
+        let mut storage = Storage::folder(directory.path());
+        let path = "energies.npy";
+        let metadata = storage
+            .write_artifact::<ArtifactError, _>(RelativePath::new(path), |writer| {
+                writer
+                    .write_all(b"\x93NUMPY\x02\x00")
+                    .map_err(StorageError::from)?;
+                writer
+                    .write_all(&65_537_u32.to_le_bytes())
+                    .map_err(StorageError::from)?;
+                Ok(())
+            })
+            .unwrap();
+        let reference = PayloadRef {
+            path: path.into(),
+            size: metadata.size,
+            digest: metadata.digest,
+        };
+        let result = CheckedNpy::<DVector<f64>>::load(&storage, "energies", reference, (2, 1));
+        assert!(matches!(
+            result,
+            Err(ArtifactError::Npy(NpyError::Read(error)))
+                if error.to_string() == "NPY header exceeds 64 KiB"
+        ));
+    }
+
+    #[test]
+    fn check_rejects_nonfinite_orbitals_with_valid_integrity() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut storage = Storage::folder(directory.path());
+        let values = [1.0, f64::NAN];
+        let reference = values
+            .as_slice()
+            .save_payload(&mut storage, "energies")
+            .unwrap();
+        assert!(matches!(
+            CheckedNpy::<DVector<f64>>::load(&storage, "energies", reference, (2, 1)),
+            Err(ArtifactError::InvalidMetadata(_))
+        ));
+    }
 
     proptest::proptest! {
         #[test]

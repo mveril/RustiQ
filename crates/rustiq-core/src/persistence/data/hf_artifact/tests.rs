@@ -116,6 +116,8 @@ fn rhf_uhf_and_reduced_rank_roundtrip_without_integrals() {
             let mut bundle = RustiQBundle::open(&path).unwrap();
             let restored = &mut bundle.calculations_mut()[0];
             assert!(restored.staged.is_empty());
+            assert!(restored.check::<ConvergedHfArtifact>().unwrap());
+            assert!(!restored.check::<AoEriArtifact>().unwrap());
             assert!(restored.get::<AoEriArtifact>().unwrap().is_none());
             assert_eq!(
                 json(restored.get::<ConvergedHfArtifact>().unwrap().unwrap()),
@@ -410,6 +412,7 @@ fn npy_leaves_have_numpy_shapes_and_corruption_is_rejected() {
                         .unwrap();
                 restored.context = data.context.clone();
                 assert!(restored.get::<ConvergedHfArtifact>().is_err());
+                assert!(restored.check::<ConvergedHfArtifact>().is_err());
                 std::fs::write(&path, original).unwrap();
             }
         }
@@ -466,10 +469,10 @@ fn staged_hf_clones_replace_independently_and_reread_payloads() {
 
 #[test]
 fn borrowed_hf_publication_does_not_stage_and_can_replace_corrupt_payload() {
+    let directory = tempfile::tempdir().unwrap();
     let (prepared, _, data) = fixture(HfMethod::Uhf, false);
     let value = data.get::<ConvergedHfArtifact>().unwrap().unwrap();
     let entry = RustiQData::from_calculation(&prepared).unwrap();
-    let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("borrowed.rustiq");
     entry
         .write_with_artifacts(
@@ -508,6 +511,23 @@ fn borrowed_hf_publication_does_not_stage_and_can_replace_corrupt_payload() {
         .get::<ConvergedHfArtifact>()
         .unwrap()
         .is_some());
+}
+
+#[test]
+fn unsupported_npy_representation_label_is_rejected() {
+    let (prepared, _, mut data) = fixture(HfMethod::Uhf, false);
+    let entry = data
+        .manifest
+        .artifacts
+        .get_mut(ConvergedHfArtifact::NAME)
+        .unwrap();
+    assert_eq!(entry.representation, HF_REPRESENTATION);
+    entry.representation = "rustiq-converged-hf-npy-v1".into();
+    assert!(!data.hf_is_compatible(&prepared));
+    assert!(matches!(
+        data.get::<ConvergedHfArtifact>(),
+        Err(ArtifactError::UnsupportedRepresentation(_))
+    ));
 }
 
 #[test]

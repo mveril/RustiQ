@@ -21,10 +21,7 @@ where
         ])
     }
 
-    fn try_from_npy_with_shape<R: Read>(
-        npy: NpyFile<R>,
-        shape: Self::Shape,
-    ) -> Result<Self, NpyError> {
+    fn check_shape(npy: &NpyFile<impl Read>, shape: Self::Shape) -> Result<(), NpyError> {
         shape
             .0
             .checked_mul(shape.1)
@@ -44,7 +41,7 @@ where
         {
             return Err(NpyError::InvalidMatrixShape(expected.into()));
         }
-        Self::decode_with_shape(npy, shape)
+        Ok(())
     }
 
     fn decode_with_shape<R: Read>(

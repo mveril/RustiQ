@@ -23,5 +23,7 @@ pub trait Artifact: private::Sealed {
     #[doc(hidden)]
     fn get(data: &RustiQData) -> Result<Option<Self::Value>, ArtifactError>;
     #[doc(hidden)]
+    fn check(data: &RustiQData) -> Result<(), ArtifactError>;
+    #[doc(hidden)]
     fn borrow(value: &Self::Value) -> ArtifactRef<'_>;
 }

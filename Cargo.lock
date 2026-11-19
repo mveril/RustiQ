@@ -4710,6 +4710,7 @@ dependencies = [
  "toml_edit",
  "vergen-gix",
  "webbrowser",
+ "zip",
 ]
 
 [[package]]

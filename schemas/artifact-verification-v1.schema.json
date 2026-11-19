@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mveril/RustiQ/schemas/artifact-verification-v1.schema.json",
+  "title": "RustiQ artifact verification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "status",
+    "calculation_count",
+    "verified",
+    "failed",
+    "skipped",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "artifact-verification"
+    },
+    "status": {
+      "enum": [
+        "successful",
+        "incomplete",
+        "failed"
+      ]
+    },
+    "calculation_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verified": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skipped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "calculation_index",
+          "name",
+          "representation",
+          "status"
+        ],
+        "properties": {
+          "calculation_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "representation": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "valid",
+              "invalid",
+              "unknown_artifact",
+              "unsupported_representation",
+              "unchecked"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "if": {
+          "properties": {
+            "status": {
+              "const": "invalid"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "errors"
+          ]
+        },
+        "else": {
+          "not": {
+            "required": [
+              "errors"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

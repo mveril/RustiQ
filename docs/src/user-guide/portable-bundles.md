@@ -89,17 +89,66 @@ payload in the bundle:
 rustiq artifact verify h2.rustiq
 ```
 
-The command checks compact AO ERI payload hashes, NPY encoding, array dimensions,
-and consistency with the declared AO basis. It reports the number of verified
-payloads and calculations on standard output, and exits unsuccessfully if a
-payload is invalid or has an unsupported representation. A bundle with no
-numerical payloads can successfully report zero verified payloads. Verification
-does not execute the calculation or establish that the scientific method or
-result is valid. For the H₂ bundle created above, the output is:
+The command checks supported `ao_eri` and `converged_hf` payloads without
+materializing integral or orbital arrays. AO ERI checks cover payload hashes, NPY encoding, dimensions,
+and consistency with the declared AO basis. HF checks cover metadata, referenced
+payload integrity, array shapes, occupations, finite values, and context identity.
+HF verification supports the `rustiq-converged-hf-orbitals-v1` representation.
+Verification limits NPY headers to 64 KiB.
+
+The summary on stdout counts calculations and logical artifacts, rather than
+individual files. Diagnostics go to stderr. For the H₂ bundle created above:
 
 ```text
-Verified 1 payload(s) across 1 calculation(s).
+Verification successful
+  Calculations: 1
+  Verified:     1
+  Failed:       0
+  Skipped:      0
+  Calculation 0, artifact ao_eri (rustiq-compact-eri-v1): Valid
 ```
+
+Text is the default and can be selected explicitly with `--format text`.
+Use `rustiq artifact verify h2.rustiq --format json` for a single
+[versioned JSON summary](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json)
+on stdout. It includes the counts and an entry for every declared artifact
+with its calculation index, name, representation, and status. The statuses
+are `valid`, `invalid`, `unknown_artifact`, and `unsupported_representation`.
+Invalid entries include an `errors` array with the error chain. Diagnostics
+remain on stderr and `--strict` applies to either output format.
+
+The first line distinguishes three outcomes:
+
+| Status | Meaning |
+| --- | --- |
+| `Verification successful` | Every declared artifact passed; none failed or were skipped. |
+| `Verification incomplete` | No supported artifact failed, but at least one artifact was skipped. |
+| `Verification failed` | At least one supported artifact failed, regardless of skips. |
+
+Unknown artifact names and known artifacts with unsupported representations are
+skipped with warnings. Their payloads are **not checked**: an older reader's
+inability to interpret a representation is not evidence of corruption. Supported
+artifacts with invalid metadata or payloads fail verification. A missing
+payload or a size mismatch is reported for that artifact. Independent failures
+are collected and reported together, with a summary after traversal.
+A fatal archive error that prevents opening or traversal can stop without a summary.
+Calculation indices in diagnostics are zero-based.
+
+By default, exit code `0` means all supported artifacts passed; unsupported
+artifacts may still have been skipped. Use `rustiq artifact verify PATH --strict`
+to require exhaustive verification: skips without failures return `5`, reported
+as a warning rather than evidence of corruption. Any supported artifact failure
+or fatal archive error returns `1` in either mode. Failures take precedence over
+skips. Strict mode returns `0` when every artifact passes.
+
+A bundle without numerical artifacts returns `0` in either mode, with all three
+artifact counters at zero and an explicit message:
+`No numerical artifacts declared; no numerical payload was verified.`
+
+Verification does not run the calculation or independently establish scientific
+correctness, physical validity, orbital orthonormality, or adequacy of the method
+and basis. Successful verification means the supported stored data passed its
+reader's integrity and validation checks.
 
 ## Rerun a saved calculation
 
@@ -301,8 +350,12 @@ checks do not independently establish physical validity or orbital orthonormalit
 `hf_is_compatible` checks context compatibility without verifying the payload.
 Reading the artifact alone does not construct an executable solution. To restore
 one for MP2, the same calculation entry must also contain compatible AO ERIs.
-The current CLI `artifact verify` supports AO ERIs and rejects HF artifacts as
-unsupported; use the typed Rust getter to verify HF.
+In Rust, `RustiQData::check::<A>()` checks one typed artifact and returns
+`Ok(false)` when it is absent. `RustiQBundle::check()` returns an
+`ArtifactCheckSummary` with the outcome of every declared artifact.
+
+The CLI `artifact verify` uses `RustiQBundle::check_archive()` to verify the
+archive and report individual artifact failures.
 
 ### Restoring a solution for MP2
 

@@ -248,7 +248,7 @@ installs the generated assets but disables both generators in its executable.
 | `rustiq cache list [--cache-dir DIR]`                                   | Inspect AO ERI cache entries and their validation status.                                                                                                |
 | `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries.                                                                                                             |
 | `rustiq artifact inspect <PATH> [--format FORMAT]`                      | Inspect portable `.rustiq` calculation snapshots and artifact metadata.                                                                                  |
-| `rustiq artifact verify <PATH>`                                         | Check hashes and decode supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
+| `rustiq artifact verify <PATH> [--strict] [--format text\|json]`                           | Check hashes and validate supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
 | `rustiq geometry info [XYZ]`                                            | Print basic geometry information; read XYZ from standard input when no path is given.                                                                    |
 | `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry`  | Transform a geometry and write the result; each subcommand has its own help.                                                                             |
 
@@ -308,16 +308,19 @@ directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
 manage entries from a run that used a custom cache root.
 
 The CLI reports input, basis, preparation, and calculation errors as diagnostics.
-Exit codes follow the Unix convention: zero means complete success; any nonzero
-code means the command did not fully succeed. Codes 3 and 4 are RustiQ-specific.
+Exit codes follow the Unix convention: nonzero means the command did not fully
+succeed. In normal artifact verification, zero permits unsupported artifacts to
+be skipped; use `--strict` to require exhaustive verification. Codes 3–5 are
+RustiQ-specific.
 
 | Code | Meaning                                                                                                                                         |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | All requested calculations succeeded. Help and version requests also return zero.                                                               |
+| `0`  | All requested calculations succeeded, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.                                                               |
 | `1`  | General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error. |
 | `2`  | Invalid command-line arguments.                                                                                                                 |
 | `3`  | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.                                     |
 | `4`  | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.                      |
+| `5`  | Strict artifact verification is incomplete: artifacts were skipped and no supported artifact failed. |
 
 These codes apply to TOML, Nickel, and `.rustiq` inputs, with text or JSON output.
 A calculation succeeds only when the complete requested method succeeds: converged
@@ -502,11 +505,10 @@ check supported payloads eagerly; otherwise, execution checks a payload when
 its scientific stage selects and reads it. Inspection does not execute
 calculations or establish scientific validity. JSON output follows the
 [artifact inspection V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
-`artifact verify PATH` eagerly reads and validates supported numerical
-payloads. It currently checks compact AO ERI payload hashes, NPY encoding,
-array dimensions, and consistency with the declared AO basis. It reports an
-error for an invalid payload or unsupported representation. Verification does
-not run a calculation or establish scientific validity.
+`artifact verify PATH` checks supported AO ERI and converged HF payloads
+without allocating their numerical arrays. It reports the status of each
+declared artifact. Use `--format json` for the
+[artifact verification V1 schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json).
 The archive captures exact bytes of the main input and geometry files as shared
 provenance; it does not capture Nickel's full import graph. See the
 [persistence specification](https://github.com/mveril/RustiQ/blob/main/docs/persistence-format-v1.md)
@@ -519,3 +521,11 @@ calculation schema or the batch schema. `schema_version` identifies the
 contract; schemas, rather than this manual, define the complete field sets.
 The [JSON guide](../user-guide/json-output.md) describes output selection,
 standard output behavior, failure cases, and the existing automated checks.
+
+Artifact verification prints `Verification successful`, `Verification incomplete`,
+or `Verification failed` and aligned counters on stdout; diagnostics go to stderr.
+Normal verification returns `0` if no supported artifact fails, even with skips.
+Strict verification returns `5` for skips without failures; failures return `1`
+in either mode. Unsupported payloads are not checked. See the
+[portable bundle guide](../user-guide/portable-bundles.md#create-and-inspect-a-bundle)
+for the canonical verification contract, supported artifacts, and limitations.
