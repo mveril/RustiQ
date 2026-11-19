@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2784c438.js";
+            window.path_to_searchindex_js = "../searchindex-14e6c26a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -449,7 +449,7 @@ JSON output suppresses progress and writes only the result document.</p>
 <tr><td><code>--auto-download</code> / <code>--no-auto-download</code></td><td>In online builds, allow or disable fetching a missing basis for this run. These override <code>RUSTIQ_AUTO_DOWNLOAD</code>; without either flag, <code>1</code> or <code>true</code> (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases.</td></tr>
 <tr><td><code>--cache-dir DIR</code></td><td>Choose the AO ERI cache root for this run. The input must also set <code>[cache].enabled = true</code>; this option does not enable caching.</td></tr>
 <tr><td><code>--reuse PATH</code></td><td>Read a portable <code>.rustiq</code> bundle and reuse the first compatible AO ERI for each calculation.</td></tr>
-<tr><td><code>--artifact PATH</code></td><td>Write the current calculation or batch as a portable <code>.rustiq</code> bundle, independently of text or JSON output.</td></tr>
+<tr><td><code>--artifact PATH</code></td><td>Write a portable <code>.rustiq</code> bundle with AO ERIs and converged HF data for the current calculation or batch.</td></tr>
 </tbody>
 </table>
 </div>
@@ -523,7 +523,7 @@ inspect the exit code and, when available, individual JSON outcomes; see the
 <tr><td>Nickel</td><td>One calculation or an ordered study/batch; see the checked-in <a href="../user-guide/nickel-studies.html">study example</a>.</td></tr>
 <tr><td>JSON</td><td>Versioned single-calculation and batch results, selected with <code>run --format json</code>; schemas are linked below.</td></tr>
 <tr><td>AO ERI cache</td><td>Optional local reuse through <code>[cache].enabled</code> and <code>--cache-dir</code>; entries can be listed or removed. AO ERI means atomic-orbital electron-repulsion integral.</td></tr>
-<tr><td>Portable <code>.rustiq</code> bundle</td><td>Create with <code>run --artifact</code>, rerun with <code>run FILE.rustiq</code>, reuse artifacts with <code>run INPUT --reuse FILE.rustiq</code>, inspect with <code>artifact inspect</code>, and validate stored AO ERIs with <code>artifact verify</code>. Reruns start a fresh HF calculation. See the <a href="../user-guide/portable-bundles.html">portable bundle guide</a>.</td></tr>
+<tr><td>Portable <code>.rustiq</code> bundle</td><td>Create with <code>run --artifact</code>, rerun with <code>run FILE.rustiq</code>, reuse artifacts with <code>run INPUT --reuse FILE.rustiq</code>, inspect with <code>artifact inspect</code>, and validate stored AO ERIs and converged HF with <code>artifact verify</code>. Reruns start a fresh HF calculation. See the <a href="../user-guide/portable-bundles.html">portable bundle guide</a>.</td></tr>
 <tr><td>Scientific status</td><td>Experimental; selected checks do not establish research-grade correctness. See <a href="../scientific-scope.html">scientific scope and limitations</a>.</td></tr>
 </tbody>
 </table>
@@ -632,8 +632,9 @@ publication of the collection and leave the destination unchanged. An HF-only
 non-converged result can contribute its AO ERI. A Nickel batch containing only
 non-converged HF-only results can publish its bundle even though the command
 exits unsuccessfully. If MP2 was requested but HF does not converge, execution
-fails and the bundle is not published. HF orbitals, SCF restart state, DIIS
-history, and MP2 results are not persisted.</p>
+fails and the bundle is not published. Successful runs save converged HF
+orbitals and convergence metadata, including the HF reference used for MP2.
+SCF restart state, DIIS history, and MP2 results are not persisted.</p>
 <p>When <code>--reuse</code> or <code>--artifact</code> is used, JSON calculation results include an
 optional <code>artifacts</code> array. <code>decision</code> reports archive selection (<code>reused</code>,
 <code>missing</code>, or <code>incompatible</code>); <code>origin</code> reports the ERI actually used
