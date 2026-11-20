@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14e6c26a.js";
+            window.path_to_searchindex_js = "../searchindex-06fd118e.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -374,6 +374,15 @@ Explicit <code>always</code> or <code>never</code> overrides <code>NO_COLOR</cod
 The implementation and focused checks are in
 <a href="https://github.com/mveril/RustiQ/blob/main/src/cli/color.rs">color.rs</a>
 and the JSON integration tests. See the JSON section above for pretty output.</p>
+<p><code>rustiq init samples/h2/molecule.xyz -o calculation.toml</code> creates TOML;
+<code>rustiq init samples/h2/molecule.xyz -o calculation.ncl</code> creates a Nickel list containing one calculation. Run either with <code>rustiq run calculation.toml</code> or
+<code>rustiq run calculation.ncl</code>, respectively. The <code>.ncl</code> extension is matched
+without regard to case. Any other extension, including an unusual extension
+such as <code>.custom</code>, or no extension, produces TOML. Avoid <code>.rustiq</code> for
+<code>init</code> output. Although <code>init</code> writes TOML with that extension, <code>run</code>
+reserves it for portable archives and matches it without regard to case.
+Without <code>--output</code>, <code>init</code> creates <code>calculation.toml</code>. Prefer <code>.toml</code> or <code>.ncl</code>
+to make the format explicit. The destination parent directory must exist.</p>
 
                     </main>
 
