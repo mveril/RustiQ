@@ -14,6 +14,7 @@ mod checksum;
 mod data;
 mod eri_cache;
 mod error;
+mod export;
 mod identity;
 mod manifest;
 mod npy;
@@ -31,6 +32,7 @@ pub use data::{
 pub use eri_cache::{EriCache, EriCacheEntry};
 pub use error::{ArtifactError, NpyError, PortableError};
 pub(crate) use error::{ManifestError, PersistenceReadError, PersistenceWriteError, StorageError};
+pub use export::{ArtifactExport, ExportError, ExportFormat};
 #[allow(
     unused_imports,
     reason = "Re-exports are retained across feature configurations and internal consumers"

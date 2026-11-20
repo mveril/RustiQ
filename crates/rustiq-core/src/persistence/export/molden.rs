@@ -1,114 +1,13 @@
-use std::{
-    fs::OpenOptions,
-    io::{self, BufWriter, Write},
-    path::{Path, PathBuf},
-};
+use std::io::{self, BufWriter, Write};
 
-use clap::{Args, ValueEnum};
 use mendeleev::Element;
-use miette::{miette, IntoDiagnostic, WrapErr};
-use rustiq_core::persistence::{
-    CalculationContext, ConvergedHf, ConvergedHfArtifact, HfOrbitalChannel, HfOrbitals, ResolvedAo,
-    RustiQBundle,
+
+use super::ExportError;
+use crate::persistence::{
+    CalculationContext, ConvergedHf, HfOrbitalChannel, HfOrbitals, ResolvedAo,
 };
 
-use crate::cli::commands::{CommandResult, Runnable};
-
-#[derive(Clone, Copy, Debug, ValueEnum)]
-enum ExportFormat {
-    Molden,
-}
-
-#[derive(Debug, Args)]
-pub(crate) struct ExportCommand {
-    /// Portable .rustiq bundle.
-    path: PathBuf,
-    /// Select the export format.
-    #[arg(long, value_enum)]
-    format: ExportFormat,
-    /// Zero-based calculation index. Required for bundles with multiple calculations.
-    #[arg(long)]
-    calculation: Option<usize>,
-    /// File to write. Writes to standard output when omitted.
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-}
-
-impl Runnable for ExportCommand {
-    fn run(&self) -> CommandResult {
-        let bundle = RustiQBundle::open_for_restore(&self.path).into_diagnostic()?;
-        let calculations = bundle.calculations();
-        let index = match self.calculation {
-            Some(index) => index,
-            None if calculations.len() == 1 => 0,
-            None => {
-                return Err(miette!(
-                    "This bundle contains {} calculations. Use --calculation with a zero-based index.",
-                    calculations.len()
-                ));
-            }
-        };
-        let data = calculations.get(index).ok_or_else(|| {
-            miette!(
-                "Calculation index {index} is out of range. Use a zero-based index from 0 to {}.",
-                calculations.len() - 1
-            )
-        })?;
-        let context = data
-            .calculation()
-            .ok_or_else(|| miette!("Calculation {index} has no resolved context."))?;
-        let hf = data
-            .get::<ConvergedHfArtifact>()
-            .into_diagnostic()
-            .wrap_err_with(|| {
-                format!("could not read the converged HF artifact for calculation {index}")
-            })?
-            .ok_or_else(|| {
-                miette!(
-                    "Calculation {index} has no saved converged HF orbitals. Save a converged HF calculation with rustiq run --artifact to export its orbitals."
-                )
-            })?;
-
-        match self.format {
-            ExportFormat::Molden => {
-                let basis = MoldenBasis::from_context(context)
-                    .wrap_err_with(|| format!("could not export calculation {index} to Molden"))?;
-                if let Some(path) = &self.output {
-                    let file = open_export_file(&self.path, path)?;
-                    basis
-                        .write(&hf, file.as_file())
-                        .into_diagnostic()
-                        .wrap_err_with(|| format!("could not write Molden file {}", path.display()))
-                } else {
-                    basis.write(&hf, io::stdout().lock()).into_diagnostic()
-                }
-            }
-        }
-    }
-}
-
-fn open_export_file(input: &Path, output: &Path) -> miette::Result<same_file::Handle> {
-    let input_file = same_file::Handle::from_path(input).into_diagnostic()?;
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(output)
-        .and_then(same_file::Handle::from_file)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("could not open Molden output {}", output.display()))?;
-    // Compare the open handles before truncating, including symlinks and hard links.
-    if file == input_file {
-        return Err(miette!("Molden output must not replace the input bundle."));
-    }
-    file.as_file()
-        .set_len(0)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("could not truncate Molden output {}", output.display()))?;
-    Ok(file)
-}
-
-struct MoldenBasis {
+pub(super) struct MoldenBasis {
     atoms: Vec<(u32, [f64; 3])>,
     shells: Vec<Vec<Shell>>,
     ao_order: Vec<usize>,
@@ -121,7 +20,7 @@ struct Shell {
 }
 
 impl MoldenBasis {
-    fn from_context(context: &CalculationContext) -> miette::Result<Self> {
+    pub(super) fn from_context(context: &CalculationContext) -> Result<Self, ExportError> {
         let atoms: Vec<_> = context.atoms().collect();
         let mut aos = context.basis().enumerate().peekable();
         let mut shells = Vec::with_capacity(atoms.len());
@@ -136,11 +35,16 @@ impl MoldenBasis {
                 let angular = ao
                     .components()
                     .next()
-                    .ok_or_else(|| miette!("AO {} has no Cartesian components.", offset + 1))?
+                    .ok_or_else(|| {
+                        ExportError::UnsupportedBasis(format!(
+                            "AO {} has no Cartesian components",
+                            offset + 1
+                        ))
+                    })?
                     .angular_momentum();
                 let l: u32 = angular.into_iter().map(u32::from).sum();
                 let cartesian = cartesian_components(l).ok_or_else(|| {
-                    miette!("Molden export supports angular momentum only through g.")
+                    ExportError::UnsupportedBasis("angular momentum above g".into())
                 })?;
                 // In a real spherical d shell, RustiQ's first AO is xy (m = -2).
                 // In a Cartesian d shell, the first AO is zz.
@@ -150,27 +54,30 @@ impl MoldenBasis {
                 let shell =
                     Shell::from_rows(&rows, position, l, spherical, cartesian, &mut ao_order)
                         .ok_or_else(|| {
-                            miette!(
-                                "AOs starting at row {} do not form a Molden shell.",
+                            ExportError::UnsupportedBasis(format!(
+                                "AOs starting at row {} do not form a Molden shell",
                                 offset + 1
-                            )
+                            ))
                         })?;
                 if l >= 2 && *spherical_d.get_or_insert(spherical) != spherical {
-                    return Err(miette!("Molden export requires a consistent Cartesian or spherical representation for d and higher shells."));
+                    return Err(ExportError::UnsupportedBasis(
+                        "mixed Cartesian and spherical representations for d and higher shells"
+                            .into(),
+                    ));
                 }
                 atom_shells.push(shell);
             }
             if atom_shells.is_empty() {
-                return Err(miette!(
-                    "Could not associate basis shells with atom {}.",
+                return Err(ExportError::UnsupportedBasis(format!(
+                    "could not associate basis shells with atom {}",
                     index + 1
-                ));
+                )));
             }
             shells.push(atom_shells);
         }
         if aos.next().is_some() {
-            return Err(miette!(
-                "The stored basis contains AOs outside the ordered atomic shells."
+            return Err(ExportError::UnsupportedBasis(
+                "the stored basis contains AOs outside the ordered atomic shells".into(),
             ));
         }
         Ok(Self {
@@ -181,7 +88,7 @@ impl MoldenBasis {
         })
     }
 
-    fn write(&self, hf: &ConvergedHf, output: impl Write) -> io::Result<()> {
+    pub(super) fn write(&self, hf: &ConvergedHf, output: impl Write) -> io::Result<()> {
         let mut output = BufWriter::new(output);
         writeln!(output, "[Molden Format]\n[Atoms] AU")?;
         for (index, &(number, [x, y, z])) in self.atoms.iter().enumerate() {

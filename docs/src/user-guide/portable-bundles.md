@@ -452,6 +452,12 @@ Cartesian representations of d and higher shells, as well as functions it
 cannot associate with distinct atomic centers. Orbital symmetry labels are
 written as `A` because the bundle does not store point-group assignments.
 
+Rust callers use the same exporter through
+`data.export(ExportFormat::Molden)?.write_to(writer)?`, with `ExportFormat`
+from `rustiq_core::persistence`. Call `export` to validate the selected
+`RustiQData` and load its saved orbitals, then call `write_to` to stream the
+result to any `std::io::Write` destination.
+
 ## Publication and failures
 
 `--artifact` publishes the current requested collection; it does not append to

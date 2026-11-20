@@ -1,4 +1,4 @@
-mod molden;
+mod export;
 
 use std::{
     io::{self, Write},
@@ -24,7 +24,7 @@ pub(crate) enum ArtifactCommands {
     /// Verify the stored payloads in a portable bundle.
     Verify(VerifyCommand),
     /// Export saved converged HF orbitals from a portable bundle.
-    Export(molden::ExportCommand),
+    Export(export::ExportCommand),
 }
 
 #[derive(Debug, clap::Args)]

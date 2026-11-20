@@ -4,7 +4,8 @@
 )]
 
 use rustiq_core::persistence::{
-    AoEriArtifact, ConvergedHfArtifact, HfOrbitals, RustiQBundle, RustiQData,
+    AoEriArtifact, ConvergedHfArtifact, ExportError, ExportFormat, HfOrbitals, RustiQBundle,
+    RustiQData,
 };
 use serde_json::{json, Value};
 use std::{
@@ -1147,6 +1148,37 @@ fn verification_json_lists_valid_invalid_unknown_and_unsupported_artifacts() {
                 .contains("integrity check failed"));
         }
     }
+}
+
+#[test]
+fn molden_export_api_matches_cli_output() {
+    let directory = fixture();
+    let root = directory.path();
+    hf_bundle(root, false);
+    let data = RustiQData::open(root.join("hf.rustiq")).unwrap();
+    let cli = command(
+        root,
+        &["artifact", "export", "hf.rustiq", "--format", "molden"],
+    );
+    assert!(
+        cli.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cli.stderr)
+    );
+
+    let mut output = Vec::new();
+    data.export(ExportFormat::Molden)
+        .unwrap()
+        .write_to(&mut output)
+        .unwrap();
+    assert_eq!(output, cli.stdout);
+
+    let prepared = data.prepare_calculation().unwrap();
+    let missing = RustiQData::from_calculation(&prepared).unwrap();
+    assert!(matches!(
+        missing.export(ExportFormat::Molden),
+        Err(ExportError::MissingOrbitals)
+    ));
 }
 
 #[test]
