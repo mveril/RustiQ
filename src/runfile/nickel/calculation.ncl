@@ -75,11 +75,7 @@ let Hf = {
   method | {
     # HF is always materialized after resolution, even when omitted by input.
     hf | Hf | default = {},
-    mp2 | Nullable {
-      frozen_orbitals | IntegerBetween 0 9223372036854775807 | default = 0,
-      # Byte-size parsing remains a shared Rust domain responsibility.
-      memory_limit | String | default = "auto",
-    } | default = null,
+    mp2 | Nullable (import "mp2.ncl") | default = null,
   } | default = {},
   integrals | { schwarz_threshold | NonNegative | default = 0.000000000001 } | default = {},
   cache | { enabled | Bool | default = false } | default = {},

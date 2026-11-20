@@ -32,6 +32,27 @@ impl RustiQData {
         Ok(data)
     }
 
+    /// Updates the portable request and resolved context for a completed MP2 calculation.
+    /// The archived HF reference and AO integrals remain compatible.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the portable snapshots are missing or the MP2 configuration
+    /// cannot be represented.
+    pub fn with_mp2(mut self, config: crate::config::Mp2Config) -> Result<Self, PortableError> {
+        let request = self.request.as_mut().ok_or_else(|| {
+            PortableError::InvalidCalculation("MP2 export requires a portable request".into())
+        })?;
+        let context = self.context.as_mut().ok_or_else(|| {
+            PortableError::InvalidCalculation("MP2 export requires a portable context".into())
+        })?;
+        request.mp2 = Some(config);
+        context.0.set_mp2(config)?;
+        RequestSnapshot::from_request(request)?;
+        context.0.validate_request(request)?;
+        Ok(self)
+    }
+
     /// Opens a portable archive and validates its context and artifact index.
     /// Numerical payloads are verified and decoded on demand on each access.
     /// Multi-calculation archives require [`super::RustiQBundle::open`].
@@ -129,6 +150,13 @@ impl RustiQData {
     #[must_use]
     pub fn request(&self) -> Option<&crate::calculation::CalculationRequest> {
         self.request.as_ref()
+    }
+
+    /// Returns the resolved HF method from portable context without loading
+    /// artifacts. This describes the reference type, regardless of convergence.
+    #[must_use]
+    pub fn resolved_hf_method(&self) -> Option<crate::config::ResolvedHfMethod> {
+        self.context.as_ref().map(CalculationContext::hf_method)
     }
 
     /// Rebuilds an executable calculation from the resolved context in this portable archive.

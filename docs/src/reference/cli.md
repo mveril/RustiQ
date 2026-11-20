@@ -286,12 +286,25 @@ Important options:
 | Option                                        | Behavior                                                                                                                                                                                                                                                         |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--format FORMAT` (`text` or `json`)          | Select text output (default) or versioned JSON. JSON result data is written to standard output.                                                                                                                                                                  |
-| `--pretty`                                    | Pretty-print single-calculation or batch JSON, optionally with syntax highlighting. Requires `--format json`.                                                                                                                                                    |
+| `--pretty`                                    | Pretty-print JSON. Single-calculation and ordinary batch reports can use syntax highlighting. Requires `--format json`.                                                                                                                                                    |
 | `--color MODE` (`auto`, `always`, or `never`) | Control ANSI colors globally; also accepts `RUSTIQ_COLOR`. Use `--color never` when redirecting pretty JSON.                                                                                                                                                     |
 | `--auto-download` / `--no-auto-download`      | In online builds, allow or disable fetching a missing basis for this run. These override `RUSTIQ_AUTO_DOWNLOAD`; without either flag, `1` or `true` (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases. |
 | `--cache-dir DIR`                             | Choose the AO ERI cache root for this run. The input must also set `[cache].enabled = true`; this option does not enable caching.                                                                                                                                |
 | `--reuse PATH`                                | Read a portable `.rustiq` bundle and reuse the first compatible AO ERI for each calculation.                                                                                                                                                                     |
 | `--artifact PATH`                             | Write a portable `.rustiq` bundle with AO ERIs and converged HF data for the current calculation or batch.                                                                                                                                                     |
+| `--post-scf TOML` | Run Post-HF methods using converged HF references in the input `.rustiq` bundle. The TOML accepts only configured Post-HF method tables such as `[method.mp2]`. |
+| `--calculation INDEX` | With `--post-scf`, select one calculation by its zero-based manifest index. Defaults to all entries in manifest order. |
+| `--method METHOD` | With `--post-scf`, select a method explicitly configured in the TOML. Repeat to select several methods. Defaults to all configured methods. MP2 is currently supported. |
+
+With `--post-scf`, the CLI uses the archived converged orbitals and AO ERIs,
+and rejects HF, geometry and basis overrides in the TOML. The archive rerun
+option restrictions above also apply, with one exception. `--artifact PATH`
+writes successful post-SCF entries with the archived HF inputs and applied
+MP2 settings to a new bundle. Text and JSON both send diagnostics to
+stderr. The [Post-HF JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/post-scf-output-v1.schema.json)
+defines independent `succeeded`, `skipped` and `failed` outcomes under each
+calculation's original `source_index`. Use `--format json --pretty` for
+indented output. See the [bundle example](../user-guide/portable-bundles.md#run-mp2-from-saved-hartreefock).
 
 Output presentation is selected exclusively by the CLI `--format text|json` option.
 The TOML and Nickel calculation contracts do not accept an `output` section.
@@ -315,15 +328,21 @@ RustiQ-specific.
 
 | Code | Meaning                                                                                                                                         |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | All requested calculations succeeded, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.                                                               |
+| `0`  | All requested calculations succeeded, at least one Post-HF pair succeeded and the rest were skipped, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.                                                               |
 | `1`  | General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error. |
 | `2`  | Invalid command-line arguments.                                                                                                                 |
 | `3`  | No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.                                     |
 | `4`  | A completed batch contains both successful and unsuccessful calculations, including non-convergence or recoverable errors.                      |
 | `5`  | Strict artifact verification is incomplete: artifacts were skipped and no supported artifact failed. |
 
+For Post-HF campaigns, missing prerequisites produce warnings, and numerical
+errors and corrupt requested payloads produce errors. If no requested method
+succeeds, the command returns `1`. If some succeed and others fail, it returns
+`4`. A completed campaign writes the full JSON report before returning its
+exit status.
+
 These codes apply to TOML, Nickel, and `.rustiq` inputs, with text or JSON output.
-A calculation succeeds only when the complete requested method succeeds: converged
+Without `--post-scf`, a calculation succeeds only when the complete requested method succeeds: converged
 HF followed by an MP2 error is not a successful calculation. MP2 blocked by HF
 non-convergence counts as non-convergence, so a single such run returns `3`.
 Input validation before execution returns `1`; CLI argument validation returns `2`.
@@ -335,8 +354,8 @@ covered by `publication_error_keeps_complete_calculation_and_batch_json`.
 
 A single HF-only calculation that reaches its iteration limit still returns its
 final-iteration result, with `converged: false` in JSON, but exits with `3`.
-MP2 requires converged HF; a single MP2 run blocked by non-convergence reports a
-diagnostic without result JSON. Recoverable per-entry errors in a batch do not
+During fresh HF+MP2 execution, HF non-convergence produces a diagnostic
+without result JSON for a single calculation. Recoverable per-entry errors in a batch do not
 prevent later entries from running. The batch JSON records each outcome, and a
 valid JSON document can accompany a nonzero exit code. Output fields remain
 defined by the [versioned schemas](index.md#authoritative-references).

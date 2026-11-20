@@ -466,6 +466,17 @@ impl Snapshot {
         Ok(())
     }
 
+    pub(super) fn set_mp2(
+        &mut self,
+        config: crate::config::Mp2Config,
+    ) -> Result<(), PortableError> {
+        self.mp2 = Some(Mp2 {
+            frozen_orbitals: u64::try_from(config.frozen_orbitals.value)
+                .map_err(|error| PortableError::InvalidCalculation(error.to_string()))?,
+        });
+        Ok(())
+    }
+
     pub(crate) fn hf_identity(&self) -> Result<super::Sha256Digest, serde_json::Error> {
         // V1 uses the explicit snapshot wire encoding, excluding the downstream MP2 request.
         let mut context = self.clone();

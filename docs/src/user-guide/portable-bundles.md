@@ -10,12 +10,10 @@ Commands using `rustiq` assume the executable is installed or available on
 [CLI reference](../reference/cli.md).
 
 A `.rustiq` bundle is a portable snapshot of RustiQ calculation inputs and
-optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
-lets users rerun saved calculations or reuse compatible AO ERIs in new ones
-without carrying a machine-local cache. CLI reruns always start a new SCF run;
-the CLI does not save a Hartree–Fock wavefunction. The Rust API can additionally
-store converged RHF/UHF orbitals and restore a solution for MP2 without repeating
-SCF, as described below.
+optional scientific artifacts, including atomic-orbital electron-repulsion
+integrals (AO ERIs) and converged Hartree–Fock orbitals. Use it to rerun a
+calculation, reuse compatible AO ERIs in a new calculation, or run MP2 from
+a saved RHF or UHF reference.
 
 ## Create and inspect a bundle
 
@@ -153,6 +151,61 @@ correctness, physical validity, orbital orthonormality, or adequacy of the metho
 and basis. Successful verification means the supported stored data passed its
 reader's integrity and validation checks.
 
+## Run MP2 from saved Hartree–Fock
+
+Create a bundle as shown above. From the repository root, use the checked-in
+method configuration. With a release binary, save these settings to
+`postscf.toml` and pass that path instead of the sample path.
+
+```toml
+{{#include ../../../samples/h2/sto-3g/postscf.toml}}
+```
+
+```sh
+rustiq run h2.rustiq --post-scf samples/h2/sto-3g/postscf.toml
+rustiq run h2.rustiq --post-scf samples/h2/sto-3g/postscf.toml --calculation 0 --method mp2 --format json
+```
+
+Both commands evaluate the saved H₂ reference. The text report shows the MP2
+correlation, electronic and total energies in Hartree. The total includes
+nuclear repulsion. See [MP2](mp2.md) for the frozen-orbital convention and
+what the workspace memory limit covers.
+
+For a study bundle, the default is to run every configured method on every
+calculation in manifest order. Use `--calculation 2` to select the third
+entry, or repeat `--method METHOD` to select several configured methods when
+available. MP2 is currently the only supported method. The configuration
+contains only Post-HF method tables. Geometry, basis and HF settings come
+from the bundle, so the original geometry and basis files are unnecessary.
+
+Each calculation uses one restored converged reference and its stored AO ERIs
+for the requested methods. Restoration can rebuild one-electron quantities.
+It does not run SCF or reconstruct AO ERIs. An unfinished SCF calculation
+cannot be restarted this way. A plain `rustiq run h2.rustiq` starts a fresh
+SCF run using the archived inputs.
+
+When a calculation and method pair lacks a usable reference or prerequisite, RustiQ warns on stderr
+with its original zero-based calculation index and method name, then continues.
+A campaign with at least one success and only skips otherwise exits with code
+`0`. If nothing succeeds it exits with code `1`. A failed execution or a corrupt archived payload needed by a selected method
+is an error. If other pairs succeed, the exit code is `4`
+and the successful results are kept. JSON includes each pair's status and
+summary counts, even when a completed campaign exits with an error.
+
+To save the combined request in a new bundle, run:
+
+```sh
+rustiq run h2.rustiq --post-scf samples/h2/sto-3g/postscf.toml --artifact h2-mp2.rustiq
+```
+
+The output contains successful calculations in input manifest order. Each
+entry combines the archived HF inputs and the applied MP2 settings in its
+`requested` snapshot. This snapshot matches an equivalent direct Nickel
+study, including normalized defaults. The output carries the archived
+HF solution, AO ERIs, and source provenance, including the post-SCF TOML.
+Existing destinations are rejected, and a campaign with no successes leaves
+no output bundle.
+
 ## Rerun a saved calculation
 
 Run a `.rustiq` bundle directly to reconstruct and execute its archived
@@ -271,7 +324,7 @@ defines the complete identity.
 | Geometry, effective AO basis, or Schwarz screening | Incompatible; RustiQ checks the local cache, then recomputes if needed. |
 
 CLI-created bundles store scientific input snapshots and optional AO ERIs.
-They do not yet capture converged HF orbitals. Save the result JSON separately
+They capture converged HF orbitals when available. Save the result JSON separately
 when reported results matter. Neither API stores density matrices, DIIS history,
 or MP2 results.
 Captured input and geometry bytes are provenance for inspection; they do not
@@ -414,8 +467,8 @@ solution within `1e-12` Eh. It uses a temporary directory that is removed on
 exit, closes the bundle before MP2, and prints HF total, MP2 correlation, and
 MP2 total energies (HF total plus MP2 correlation). This checks the persistence
 round trip for the bundled H2/STO-3G case, rather than independent scientific
-accuracy. SCF/DIIS restart and automatic reuse of the stored HF solution by the CLI
-remain future work.
+accuracy. The CLI can restore stored HF explicitly with `--post-scf`. SCF and DIIS
+restart remain future work.
 
 The resolved context preserves effective normalized AO components and their
 ordering. Original shell/contraction metadata is incomplete and must be added

@@ -68,3 +68,7 @@ cargo clippy --offline --workspace --all-targets --all-features -- -D warnings
 
 The accepted `Random` density guess syntax remains unchanged: its distribution
 must be specified explicitly, as before the Nickel migration.
+
+Method-only TOML for `run --post-scf` reuses the MP2 contract in `mp2.ncl`.
+The Post-HF frontend resolves the method table independently of the full
+calculation contract.
