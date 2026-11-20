@@ -129,7 +129,7 @@ pub(super) fn run(
     campaign.print(format, pretty)?;
     let status = campaign.finish();
     let publication = artifact.map_or(Ok(()), |path| {
-        publish_artifact(path, &bundle, &campaign, settings.mp2, (config, &source))
+        publish_artifact(path, &bundle, &campaign, (config, &source))
     });
     campaign.emit_diagnostics((config, &source))?;
     publication?;
@@ -140,24 +140,24 @@ fn publish_artifact(
     path: &Path,
     source: &RustiQBundle,
     campaign: &Campaign,
-    mp2: Option<rustiq_core::config::Mp2Config>,
     config: (&Path, &str),
 ) -> miette::Result<()> {
-    let Some(mp2) = mp2 else {
-        return Ok(());
-    };
     let entries = campaign
         .calculations
         .iter()
-        .filter(|calculation| {
-            calculation.methods.iter().any(|(_, outcome)| {
-                matches!(outcome, Outcome::Succeeded(ScientificResult::Mp2 { .. }))
-            })
-        })
-        .map(|calculation| {
-            source.calculations()[calculation.source_index]
-                .clone()
-                .with_mp2(mp2)
+        .filter_map(|calculation| {
+            let mut results = calculation
+                .methods
+                .iter()
+                .filter_map(|(_, outcome)| match outcome {
+                    Outcome::Succeeded(result) => Some(result),
+                    _ => None,
+                });
+            let first = results.next()?;
+            let data = source.calculations()[calculation.source_index].clone();
+            Some(first.update_snapshot(data).and_then(|data| {
+                results.try_fold(data, |data, result| result.update_snapshot(data))
+            }))
         })
         .collect::<Result<Vec<_>, _>>()
         .into_diagnostic()?;

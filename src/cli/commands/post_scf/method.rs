@@ -3,6 +3,7 @@ use miette::miette;
 use rustiq_core::{
     calculation::{AnyHfSolution, Mp2Calculation, Mp2Result},
     config::{Mp2Config, ResolvedHfMethod},
+    persistence::{PortableError, RustiQData},
 };
 
 use super::{Outcome, Skip};
@@ -35,12 +36,23 @@ pub(super) enum Request {
 
 pub(super) enum ScientificResult {
     Mp2 {
+        config: Mp2Config,
         reference: ResolvedHfMethod,
         result: Mp2Result,
         nuclear_repulsion_energy: f64,
     },
     #[cfg(test)]
     RestrictedProbe,
+}
+
+impl ScientificResult {
+    pub(super) fn update_snapshot(&self, data: RustiQData) -> Result<RustiQData, PortableError> {
+        match self {
+            Self::Mp2 { config, .. } => data.with_mp2(*config),
+            #[cfg(test)]
+            Self::RestrictedProbe => Ok(data),
+        }
+    }
 }
 
 impl Request {
@@ -134,6 +146,7 @@ fn execute_mp2(reference: &AnyHfSolution, config: Mp2Config) -> Outcome {
                 return Outcome::Failed(miette!("MP2 produced a non-finite energy"));
             }
             Outcome::Succeeded(ScientificResult::Mp2 {
+                config,
                 reference: reference.method(),
                 result,
                 nuclear_repulsion_energy,

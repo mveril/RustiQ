@@ -4,7 +4,7 @@ use std::{
 };
 
 use miette::{Diagnostic, IntoDiagnostic, NamedSource, Report};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{Campaign, Outcome, ScientificResult, Skip, Summary};
 use crate::cli::{
@@ -66,9 +66,26 @@ struct JsonMethod<'a> {
 #[derive(Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 enum JsonOutcome<'a> {
-    Succeeded { result: serde_json::Value },
+    Succeeded { result: JsonScientificResult },
     Skipped { diagnostic: JsonDiagnostic<'a> },
     Failed { diagnostic: JsonDiagnostic<'a> },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+enum JsonScientificResult {
+    Mp2(JsonMp2Result),
+    #[cfg(test)]
+    RestrictedProbe {},
+}
+
+#[derive(Deserialize, Serialize)]
+struct JsonMp2Result {
+    reference: String,
+    correlation_energy: f64,
+    electronic_energy: f64,
+    nuclear_repulsion_energy: f64,
+    total_energy: f64,
 }
 
 #[derive(Serialize)]
@@ -196,21 +213,22 @@ impl<'a> From<&'a Outcome> for JsonOutcome<'a> {
 }
 
 impl ScientificResult {
-    fn json(&self) -> serde_json::Value {
+    fn json(&self) -> JsonScientificResult {
         match self {
             Self::Mp2 {
                 reference,
                 result,
                 nuclear_repulsion_energy,
-            } => serde_json::json!({
-                "reference": format!("{reference:?}").to_ascii_uppercase(),
-                "correlation_energy": result.correlation_energy,
-                "electronic_energy": result.electronic_energy,
-                "nuclear_repulsion_energy": nuclear_repulsion_energy,
-                "total_energy": result.electronic_energy + nuclear_repulsion_energy,
+                ..
+            } => JsonScientificResult::Mp2(JsonMp2Result {
+                reference: format!("{reference:?}").to_ascii_uppercase(),
+                correlation_energy: result.correlation_energy,
+                electronic_energy: result.electronic_energy,
+                nuclear_repulsion_energy: *nuclear_repulsion_energy,
+                total_energy: result.electronic_energy + nuclear_repulsion_energy,
             }),
             #[cfg(test)]
-            Self::RestrictedProbe => serde_json::json!({}),
+            Self::RestrictedProbe => JsonScientificResult::RestrictedProbe {},
         }
     }
 
@@ -220,6 +238,7 @@ impl ScientificResult {
                 reference,
                 result,
                 nuclear_repulsion_energy,
+                ..
             } => {
                 writeln!(writer, "  HF reference: {reference:?}")?;
                 writeln!(
@@ -252,4 +271,23 @@ pub(super) fn skip_message(source_index: usize, method: super::Method, skip: Ski
         skip,
     }
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::JsonScientificResult;
+
+    #[test]
+    fn mp2_result_round_trips_without_an_extra_tag() {
+        let expected = serde_json::json!({
+            "reference": "RHF",
+            "correlation_energy": -0.02,
+            "electronic_energy": -1.8,
+            "nuclear_repulsion_energy": 0.7,
+            "total_energy": -1.1,
+        });
+        let result: JsonScientificResult = serde_json::from_value(expected.clone()).unwrap();
+        assert!(matches!(result, JsonScientificResult::Mp2(_)));
+        assert_eq!(serde_json::to_value(result).unwrap(), expected);
+    }
 }
