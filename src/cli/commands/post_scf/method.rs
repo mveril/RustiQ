@@ -1,12 +1,11 @@
 //! Method identifiers, prerequisites and typed dispatch for the campaign.
 use miette::miette;
 use rustiq_core::{
-    calculation::{AnyHfSolution, Mp2Calculation, Mp2Result},
     config::{Mp2Config, ResolvedHfMethod},
-    persistence::{PortableError, RustiQData},
+    persistence::{PortableError, PostScfError, PostScfMp2Result, PostScfSession, RustiQData},
 };
 
-use super::{Outcome, Skip};
+use super::{Outcome, RestoreError, Skip};
 use crate::runfile::resolved::PostScfMethods;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -35,12 +34,7 @@ pub(super) enum Request {
 }
 
 pub(super) enum ScientificResult {
-    Mp2 {
-        config: Mp2Config,
-        reference: ResolvedHfMethod,
-        result: Mp2Result,
-        nuclear_repulsion_energy: f64,
-    },
+    Mp2(PostScfMp2Result),
     #[cfg(test)]
     RestrictedProbe,
 }
@@ -48,7 +42,7 @@ pub(super) enum ScientificResult {
 impl ScientificResult {
     pub(super) fn update_snapshot(&self, data: RustiQData) -> Result<RustiQData, PortableError> {
         match self {
-            Self::Mp2 { config, .. } => data.with_mp2(*config),
+            Self::Mp2(result) => result.update_snapshot(data),
             #[cfg(test)]
             Self::RestrictedProbe => Ok(data),
         }
@@ -97,62 +91,51 @@ impl Request {
         }
     }
 
-    pub(super) fn check_prerequisites(
-        &self,
-        data: &rustiq_core::persistence::RustiQData,
-    ) -> Result<(), Skip> {
-        let reference = data.resolved_hf_method();
-        let supported = match self {
-            Self::Mp2(_) => matches!(
-                reference,
-                Some(ResolvedHfMethod::Rhf | ResolvedHfMethod::Uhf)
-            ),
-            #[cfg(test)]
-            Self::RestrictedProbe => matches!(reference, Some(ResolvedHfMethod::Rhf)),
-        };
-        if supported {
-            return Ok(());
-        }
-        Err(unsupported(reference))
-    }
-
-    pub(super) fn execute(&self, reference: &AnyHfSolution) -> Outcome {
+    pub(super) fn execute(&self, session: &mut PostScfSession<'_>) -> Outcome {
         match self {
-            Self::Mp2(config) => execute_mp2(reference, *config),
+            Self::Mp2(config) => outcome(session.run(config).map(ScientificResult::Mp2)),
             #[cfg(test)]
-            Self::RestrictedProbe => Outcome::Succeeded(ScientificResult::RestrictedProbe),
+            Self::RestrictedProbe => outcome(session.run(&RestrictedProbe)),
         }
     }
 }
 
-fn execute_mp2(reference: &AnyHfSolution, config: Mp2Config) -> Outcome {
-    let result = match reference {
-        AnyHfSolution::Restricted(hf) => Mp2Calculation::mp2(hf, config),
-        AnyHfSolution::Unrestricted(hf) => Mp2Calculation::mp2(hf, config),
-        _ => return Outcome::Skipped(unsupported(Some(reference.method()))),
-    };
-    let nuclear_repulsion_energy = reference.summary().scf.nuclear_repulsion_energy;
+fn outcome<E>(result: Result<ScientificResult, PostScfError<E>>) -> Outcome
+where
+    E: miette::Diagnostic + Send + Sync + 'static,
+{
     match result {
-        Ok(result) => {
-            if ![
-                result.correlation_energy,
-                result.electronic_energy,
-                nuclear_repulsion_energy,
-                result.electronic_energy + nuclear_repulsion_energy,
-            ]
-            .into_iter()
-            .all(f64::is_finite)
-            {
-                return Outcome::Failed(miette!("MP2 produced a non-finite energy"));
-            }
-            Outcome::Succeeded(ScientificResult::Mp2 {
-                config,
-                reference: reference.method(),
-                result,
-                nuclear_repulsion_energy,
-            })
+        Ok(result) => Outcome::Succeeded(result),
+        Err(PostScfError::UnsupportedReference(reference)) => {
+            Outcome::Skipped(unsupported(reference))
         }
-        Err(error) => Outcome::Failed(error.into_cause().into()),
+        Err(PostScfError::Restore(error)) => match RestoreError::from(error.as_ref()) {
+            RestoreError::Skipped(skip) => Outcome::Skipped(skip),
+            RestoreError::Failed => {
+                Outcome::Failed(miette!("could not restore the saved HF reference: {error}"))
+            }
+        },
+        Err(PostScfError::Execution(error)) => Outcome::Failed(miette::Report::new(error)),
+    }
+}
+
+#[cfg(test)]
+struct RestrictedProbe;
+
+#[cfg(test)]
+impl rustiq_core::persistence::PostScfMethod for RestrictedProbe {
+    type Output = ScientificResult;
+    type Error = std::convert::Infallible;
+
+    fn supports(&self, reference: ResolvedHfMethod) -> bool {
+        reference == ResolvedHfMethod::Rhf
+    }
+
+    fn execute(
+        &self,
+        _reference: &rustiq_core::calculation::AnyHfSolution,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(ScientificResult::RestrictedProbe)
     }
 }
 

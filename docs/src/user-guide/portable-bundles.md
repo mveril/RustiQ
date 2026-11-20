@@ -432,18 +432,22 @@ println!("MP2 correlation energy: {} Hartree", mp2.correlation_energy);
 # }
 ```
 
-Use `UhfSolution` for an unrestricted calculation. When the reference is selected
-at runtime, restore `AnyHfSolution` and match its typed variants before calling
-`.mp2()`:
+Use `UhfSolution` for an unrestricted calculation. To select the HF reference at
+runtime, create a `PostScfSession` for the archived entry:
 
 ```rust,ignore
-let hf: AnyHfSolution = data.restore()?;
-let mp2 = match hf {
-    AnyHfSolution::Restricted(hf) => hf.mp2(Mp2Config::default())?,
-    AnyHfSolution::Unrestricted(hf) => hf.mp2(Mp2Config::default())?,
-    _ => return Err("unsupported HF reference".into()),
-};
+use rustiq_core::{config::Mp2Config, persistence::PostScfSession};
+
+let mut session = PostScfSession::new(&data);
+let mp2 = session.run(&Mp2Config::default())?;
+let output = mp2.update_snapshot(data)?;
 ```
+
+A session restores the compatible converged HF reference on its first eligible
+request and shares it across subsequent methods on that entry. Implement
+`PostScfMethod` to supply another method with its own output and error types.
+The CLI uses the same session and handles method selection, reporting and bundle
+publication.
 
 Restoration validates the HF artifact, its context, and the compatible AO ERI
 payload. Missing, unsupported, incompatible, or corrupt required artifacts are

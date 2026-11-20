@@ -5,11 +5,9 @@ mod report;
 use std::{fs, path::Path};
 
 use miette::{miette, Diagnostic, IntoDiagnostic, Report, WrapErr};
-use rustiq_core::{
-    calculation::AnyHfSolution,
-    persistence::{
-        Artifact, ArtifactError, ConvergedHfArtifact, PortableError, RustiQBundle, RustiQData,
-    },
+use rustiq_core::persistence::{
+    Artifact, ArtifactError, ConvergedHfArtifact, PortableError, PostScfSession, RustiQBundle,
+    RustiQData,
 };
 
 use self::method::{Method, Request, ScientificResult};
@@ -57,12 +55,12 @@ struct NoSuccess {
 #[derive(Debug)]
 enum RestoreError {
     Skipped(Skip),
-    Failed(PortableError),
+    Failed,
 }
 
-impl From<PortableError> for RestoreError {
-    fn from(error: PortableError) -> Self {
-        let help = match &error {
+impl From<&PortableError> for RestoreError {
+    fn from(error: &PortableError) -> Self {
+        let help = match error {
             PortableError::MissingArtifact(_) => {
                 "Create a bundle with converged HF and AO ERIs using rustiq run --artifact."
             }
@@ -70,7 +68,7 @@ impl From<PortableError> for RestoreError {
             | PortableError::Artifact(ArtifactError::UnsupportedRepresentation(_)) => {
                 "Create a bundle with a supported reference and matching artifacts."
             }
-            _ => return Self::Failed(error),
+            _ => return Self::Failed,
         };
         Self::Skipped(Skip {
             reason: match error {
@@ -124,7 +122,6 @@ pub(super) fn run(
             .enumerate()
             .filter(|(index, _)| source_index.is_none_or(|selected| *index == selected)),
         &requests,
-        RustiQData::restore::<AnyHfSolution>,
     );
     campaign.print(format, pretty)?;
     let status = campaign.finish();
@@ -182,29 +179,15 @@ fn publish_artifact(
 fn execute<'a>(
     entries: impl Iterator<Item = (usize, &'a RustiQData)>,
     requests: &[Request],
-    mut restore: impl FnMut(&RustiQData) -> Result<AnyHfSolution, PortableError>,
 ) -> Campaign {
     let mut summary = Summary::default();
     let calculations = entries
         .map(|(source_index, data)| {
-            // The reference lives for one calculation. Only eligible methods trigger
-            // restoration and all of them borrow the same solution.
-            let mut reference = None;
+            let mut session = PostScfSession::new(data);
             let methods = requests
                 .iter()
                 .map(|request| {
-                    let outcome = match request.check_prerequisites(data) {
-                        Err(skip) => Outcome::Skipped(skip),
-                        Ok(()) => match reference
-                            .get_or_insert_with(|| restore(data).map_err(RestoreError::from))
-                        {
-                            Ok(reference) => request.execute(reference),
-                            Err(RestoreError::Skipped(skip)) => Outcome::Skipped(skip.clone()),
-                            Err(RestoreError::Failed(error)) => Outcome::Failed(miette!(
-                                "could not restore the saved HF reference: {error}"
-                            )),
-                        },
-                    };
+                    let outcome = request.execute(&mut session);
                     match &outcome {
                         Outcome::Succeeded(_) => summary.succeeded += 1,
                         Outcome::Skipped(_) => summary.skipped += 1,
@@ -255,8 +238,6 @@ impl Campaign {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
-
     use super::*;
     use rustiq_core::{
         config::{HfConfig, HfMethod, Mp2Config},
@@ -285,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn methods_share_one_restore_and_keep_independent_outcomes() {
+    fn methods_keep_independent_outcomes() {
         let entries = [
             entry(HfMethod::Rhf, true),
             entry(HfMethod::Uhf, true),
@@ -299,14 +280,8 @@ mod tests {
             .write(&path)
             .unwrap();
         let bundle = RustiQBundle::open_for_restore(path).unwrap();
-        let restores = Cell::new(0);
-        let restore = |data: &RustiQData| {
-            restores.set(restores.get() + 1);
-            data.restore::<AnyHfSolution>()
-        };
         let requests = [Request::RestrictedProbe, Request::Mp2(Mp2Config::default())];
-        let campaign = execute(bundle.calculations().iter().enumerate(), &requests, restore);
-        assert_eq!(restores.get(), 3);
+        let campaign = execute(bundle.calculations().iter().enumerate(), &requests);
         assert_eq!(campaign.summary.succeeded, 3);
         assert_eq!(campaign.summary.skipped, 3);
         assert_eq!(campaign.summary.failed, 0);
@@ -334,13 +309,7 @@ mod tests {
             }
         }
 
-        restores.set(0);
-        let selected = execute(
-            [(1, &bundle.calculations()[1])].into_iter(),
-            &requests[..1],
-            restore,
-        );
-        assert_eq!(restores.get(), 0);
+        let selected = execute([(1, &bundle.calculations()[1])].into_iter(), &requests[..1]);
         assert_eq!(selected.summary.skipped, 1);
         assert!(selected.finish().unwrap_err().is::<NoSuccess>());
 
@@ -348,12 +317,7 @@ mod tests {
         let mut invalid = Mp2Config::default();
         invalid.frozen_orbitals = 1.into();
         let requests = [Request::Mp2(invalid), Request::RestrictedProbe];
-        let selected = execute(
-            [(0, &bundle.calculations()[0])].into_iter(),
-            &requests,
-            restore,
-        );
-        assert_eq!(restores.get(), 1);
+        let selected = execute([(0, &bundle.calculations()[0])].into_iter(), &requests);
         assert_eq!(selected.summary.failed, 1);
         assert_eq!(selected.summary.succeeded, 1);
         let status = selected.finish().unwrap_err();
@@ -366,9 +330,7 @@ mod tests {
 
     #[test]
     fn an_empty_plan_cannot_succeed() {
-        let campaign = execute(std::iter::empty(), &[], |_| {
-            Err(PortableError::UnsupportedVersion)
-        });
+        let campaign = execute(std::iter::empty(), &[]);
         assert!(campaign.finish().unwrap_err().is::<NoSuccess>());
     }
 }

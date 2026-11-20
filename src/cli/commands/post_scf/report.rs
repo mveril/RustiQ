@@ -215,12 +215,12 @@ impl<'a> From<&'a Outcome> for JsonOutcome<'a> {
 impl ScientificResult {
     fn json(&self) -> JsonScientificResult {
         match self {
-            Self::Mp2 {
+            Self::Mp2(rustiq_core::persistence::PostScfMp2Result {
                 reference,
                 result,
                 nuclear_repulsion_energy,
                 ..
-            } => JsonScientificResult::Mp2(JsonMp2Result {
+            }) => JsonScientificResult::Mp2(JsonMp2Result {
                 reference: format!("{reference:?}").to_ascii_uppercase(),
                 correlation_energy: result.correlation_energy,
                 electronic_energy: result.electronic_energy,
@@ -234,12 +234,12 @@ impl ScientificResult {
 
     fn write_text(&self, writer: &mut impl Write) -> io::Result<()> {
         match self {
-            Self::Mp2 {
+            Self::Mp2(rustiq_core::persistence::PostScfMp2Result {
                 reference,
                 result,
                 nuclear_repulsion_energy,
                 ..
-            } => {
+            }) => {
                 writeln!(writer, "  HF reference: {reference:?}")?;
                 writeln!(
                     writer,
