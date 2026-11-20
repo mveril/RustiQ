@@ -264,6 +264,7 @@ fn standalone_manual_workflows_run_offline() {
         .unwrap();
     assert!((correlation - -0.013_138).abs() < 1e-6);
     fs::create_dir(root.join("inputs")).unwrap();
+    verify_generated_init_inputs(root, &run, &mp2);
     fs::write(root.join("oh.xyz"), include_str!("../samples/oh/oh.xyz")).unwrap();
     fs::write(
         root.join("inputs/oh.toml"),
@@ -300,4 +301,34 @@ fn standalone_manual_workflows_run_offline() {
     fs::remove_file(root.join("calculation.toml")).unwrap();
     let rerun = run(&["run", "h2.rustiq"]);
     assert!(rerun.contains("-1.116759"), "{rerun}");
+}
+
+// Ensure generated TOML and Nickel inputs resolve to equivalent calculations.
+fn verify_generated_init_inputs(
+    root: &Path,
+    run: &impl Fn(&[&str]) -> String,
+    mp2: &serde_json::Value,
+) {
+    fs::create_dir(root.join("inputs/generated")).unwrap();
+    let geometry = "h2 %{1}.xyz";
+    fs::copy(root.join("h2.xyz"), root.join(geometry)).unwrap();
+    for destination in [
+        "inputs/generated/calculation.toml",
+        "inputs/generated/calculation.ncl",
+        "inputs/generated/uppercase.NCL",
+    ] {
+        run(&["init", geometry, "--mp2", "-o", destination]);
+        let content = fs::read_to_string(root.join(destination)).unwrap();
+        assert!(content.contains("../../h2 "), "{content}");
+        if Path::new(destination)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("ncl"))
+        {
+            assert!(content.trim().starts_with('['), "{content}");
+            assert!(content.trim().ends_with(']'), "{content}");
+        }
+        let output = run(&["run", destination, "--no-auto-download", "--format", "json"]);
+        let result: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(result["calculation"]["mp2"], mp2["calculation"]["mp2"]);
+    }
 }

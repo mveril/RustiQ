@@ -1,5 +1,6 @@
 use super::RunFile;
 use serde::Serialize;
+use std::fmt::Write;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Defaults {
@@ -86,10 +87,48 @@ impl RunFile {
 }
 impl TomlOutput<'_> {
     pub(crate) fn render(&self) -> Result<String, RenderError> {
+        to_string(&self.data()?)
+    }
+
+    pub(crate) fn render_nickel(&self) -> Result<String, RenderError> {
+        fn render(value: &serde_json::Value, depth: usize) -> String {
+            match value {
+                serde_json::Value::Object(fields) => {
+                    let mut text = String::from("{\n");
+                    for (key, value) in fields {
+                        writeln!(
+                            text,
+                            "{}{} = {},",
+                            "  ".repeat(depth + 1),
+                            key,
+                            render(value, depth + 1)
+                        )
+                        .expect("writing to a String cannot fail");
+                    }
+                    write!(text, "{}}}", "  ".repeat(depth))
+                        .expect("writing to a String cannot fail");
+                    text
+                }
+                serde_json::Value::String(value) => format!(
+                    "\"{}\"",
+                    value
+                        .replace('\\', "\\\\")
+                        .replace("%{", "\\%{")
+                        .replace('\"', "\\\"")
+                        .replace('\n', "\\n")
+                        .replace('\r', "\\r")
+                ),
+                _ => value.to_string(),
+            }
+        }
+        Ok(format!("{}\n", render(&self.data()?, 0)))
+    }
+
+    fn data(&self) -> Result<serde_json::Value, RenderError> {
         let mut item =
             serde_json::to_value(self.value).map_err(|error| RenderError(error.to_string()))?;
         if self.defaults == Defaults::Include {
-            return to_string(&item);
+            return Ok(item);
         }
         // Nickel supplies one resolved default tree for field comparisons.
         let defaults =
@@ -129,7 +168,7 @@ impl TomlOutput<'_> {
                 remove_field(&mut item, &path);
             }
         }
-        to_string(&item)
+        Ok(item)
     }
 }
 
