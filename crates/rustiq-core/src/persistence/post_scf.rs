@@ -145,6 +145,10 @@ mod tests {
     use crate::{
         calculation::CalculationBuilder, molecules::Geometry, test_utils::load_minimal_basis_file,
     };
+    use crate::{
+        eri::CompactEri,
+        persistence::{ConvergedHf, ConvergedHfArtifact, RustiQBundle},
+    };
 
     struct Unsupported;
 
@@ -159,6 +163,56 @@ mod tests {
         fn execute(&self, _reference: &AnyHfSolution) -> Result<Self::Output, Self::Error> {
             Ok(())
         }
+    }
+
+    struct IntegralProbe;
+
+    impl PostScfMethod for IntegralProbe {
+        type Output = CompactEri;
+        type Error = std::convert::Infallible;
+
+        fn supports(&self, _reference: ResolvedHfMethod) -> bool {
+            true
+        }
+
+        fn execute(&self, reference: &AnyHfSolution) -> Result<Self::Output, Self::Error> {
+            Ok(reference.ao_eri().clone())
+        }
+    }
+
+    #[test]
+    fn eligible_methods_share_the_restored_reference() {
+        let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
+        let basis = load_minimal_basis_file();
+        let prepared = CalculationBuilder::new(&geometry, &basis)
+            .prepare()
+            .unwrap();
+        let mut data = RustiQData::from_calculation(&prepared).unwrap();
+        let solution = prepared.run_hf().unwrap().into_converged().unwrap();
+        data.set::<ConvergedHfArtifact>(&ConvergedHf::from_solution(&solution).unwrap())
+            .unwrap();
+        data.set_eri(solution.ao_eri()).unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hf.rustiq");
+        RustiQBundle::new(vec![data]).unwrap().write(&path).unwrap();
+        let bundle = RustiQBundle::open_for_restore(path).unwrap();
+        let mut session = PostScfSession::new(&bundle.calculations()[0]);
+
+        let first = session.run(&IntegralProbe).unwrap();
+        assert!(matches!(
+            session.run(&Unsupported),
+            Err(PostScfError::UnsupportedReference(_))
+        ));
+        session.run(&Mp2Config::default()).unwrap();
+        let second = session.run(&IntegralProbe).unwrap();
+
+        // The probe keeps the shared allocation alive so a second restore
+        // cannot pass by reusing its address.
+        assert!(std::ptr::eq(
+            first.ordered_values(),
+            second.ordered_values()
+        ));
     }
 
     #[test]

@@ -204,7 +204,8 @@ entry combines the archived HF inputs and the applied MP2 settings in its
 study, including normalized defaults. The output carries the archived
 HF solution, AO ERIs, and source provenance, including the post-SCF TOML.
 Existing destinations are rejected, and a campaign with no successes leaves
-no output bundle.
+no output bundle. The source bundle stays in read-only use throughout the
+campaign.
 
 ## Rerun a saved calculation
 
