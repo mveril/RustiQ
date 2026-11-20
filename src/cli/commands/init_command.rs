@@ -38,10 +38,13 @@ enum GeometryUnits {
 }
 
 #[derive(Debug, Args)]
+#[command(
+    after_help = "Examples:\n  rustiq init molecule.xyz\n  rustiq init molecule.xyz -o calculation.toml\n  rustiq init molecule.xyz -o calculation.ncl\n  rustiq init molecule.xyz --mp2 -o calculation.ncl\n  rustiq init molecule.xyz -o calculation\n  rustiq init molecule.xyz -o calculation.custom\n\nOutput format:\n  .ncl (case-insensitive) generates Nickel.\n  All other extensions, or no extension, generate TOML.\n  Without --output, the destination is calculation.toml.\n  Use .toml or .ncl to make the format explicit."
+)]
 pub struct InitCommand {
     /// XYZ geometry file to reference in the calculation
     input: PathBuf,
-    /// Calculation file to create (parent directory must exist)
+    /// Calculation file to create: .ncl selects Nickel, otherwise TOML (parent must exist)
     #[arg(short, long, default_value = "calculation.toml")]
     output: PathBuf,
     /// Replace an existing calculation file
@@ -187,7 +190,26 @@ impl Runnable for InitCommand {
             integrals: IntegralConfig::default(),
             cache: CacheConfig::default(),
         };
-        let content = run.output(Defaults::Omit).render().into_diagnostic()?;
+        let document = run.output(Defaults::Omit);
+        let content = if output
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("ncl"))
+        {
+            document.render_nickel().map(|record| {
+                format!(
+                    "[\n{}\n]\n",
+                    record
+                        .trim_end()
+                        .lines()
+                        .map(|line| format!("  {line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            })
+        } else {
+            document.render()
+        }
+        .into_diagnostic()?;
         let mut temporary = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
         temporary.write_all(content.as_bytes()).into_diagnostic()?;
         temporary.flush().into_diagnostic()?;
@@ -241,6 +263,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn nickel_output_resolves_like_toml() {
+        let source =
+            "[molecule]\ngeometry = \"molecule.xyz\"\n[basis]\nname = \"sto-3g\"\n[method.hf]\n";
+        let run = parse_runfile("input.toml", source).unwrap();
+        let nickel = run.runfile.output(Defaults::Omit).render_nickel().unwrap();
+        let resolved = crate::runfile::parser::resolve_nickel("input.ncl", &nickel).unwrap();
+        assert_eq!(resolved.calculations().len(), 1);
+    }
+
+    #[test]
+    fn init_nickel_generates_a_single_item_list() {
+        let temp = tempfile::tempdir().unwrap();
+        let input = temp.path().join("molecule.xyz");
+        let output = temp.path().join("calculation.ncl");
+        fs::write(&input, "2\nH2\nH 0 0 0\nH 0 0 0.74\n").unwrap();
+        command(&input, &output, &["--mp2"]).run().unwrap();
+        let content = fs::read_to_string(output).unwrap();
+        assert!(content.trim_start().starts_with('['));
+        assert!(content.trim_end().ends_with(']'));
+        let resolved = crate::runfile::parser::resolve_nickel("calculation.ncl", &content).unwrap();
+        assert_eq!(resolved.calculations().len(), 1);
+        let run = &resolved.calculations()[0];
+        assert_eq!(run.molecule.geometry, Path::new("molecule.xyz"));
+        assert!(run.method.mp2.is_some());
+    }
     #[test]
     fn relative_geometry_uses_shared_directory_prefix() {
         assert_eq!(

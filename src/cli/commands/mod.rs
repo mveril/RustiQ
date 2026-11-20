@@ -30,7 +30,7 @@ pub enum Commands {
     /// Write a shell completion script to standard output
     #[cfg(feature = "completions")]
     Completions(generate_command::CompletionsCommand),
-    /// Create a calculation TOML file from an XYZ geometry
+    /// Create a calculation input from an XYZ geometry (TOML by default)
     Init(init_command::InitCommand),
     /// Run a calculation defined in toml format
     Run(RunCommand),
