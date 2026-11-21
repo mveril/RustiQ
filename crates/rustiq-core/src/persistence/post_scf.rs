@@ -1,6 +1,6 @@
 //! Typed post-SCF methods and a session for archived HF references.
 
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use thiserror::Error;
 
@@ -51,12 +51,16 @@ pub enum PostScfError<E> {
     Restore(#[source] Arc<PortableError>),
     #[error(transparent)]
     Execution(E),
+    #[error("the restored SCF solution has an unexpected type")]
+    UnexpectedReferenceType,
 }
+
+type RestoredReference = Result<Box<dyn Any + Send + Sync>, Arc<PortableError>>;
 
 /// Reuses a single lazy restoration for methods executed on an archived entry.
 pub struct PostScfSession<'a> {
     data: &'a RustiQData,
-    reference: Option<Result<AnyHfSolution, Arc<PortableError>>>,
+    reference: Option<RestoredReference>,
 }
 
 impl<'a> PostScfSession<'a> {
@@ -84,9 +88,17 @@ impl<'a> PostScfSession<'a> {
         };
         let reference = self
             .reference
-            .get_or_insert_with(|| self.data.restore().map_err(Arc::new))
+            .get_or_insert_with(|| {
+                self.data
+                    .restore::<AnyHfSolution>()
+                    .map(|solution| Box::new(solution) as Box<dyn Any + Send + Sync>)
+                    .map_err(Arc::new)
+            })
             .as_ref()
             .map_err(|error| PostScfError::Restore(Arc::clone(error)))?;
+        let reference = reference
+            .downcast_ref::<M::Reference>()
+            .ok_or(PostScfError::UnexpectedReferenceType)?;
         execute(method, reference).map_err(PostScfError::Execution)
     }
 }
@@ -261,5 +273,11 @@ mod tests {
             panic!("expected cached restoration failure");
         };
         assert!(Arc::ptr_eq(&first, &second));
+
+        session.reference = Some(Ok(Box::new(())));
+        assert!(matches!(
+            session.run(&config),
+            Err(PostScfError::UnexpectedReferenceType)
+        ));
     }
 }

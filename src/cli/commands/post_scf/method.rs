@@ -115,6 +115,9 @@ where
                 Outcome::Failed(miette!("could not restore the saved HF reference: {error}"))
             }
         },
+        Err(PostScfError::UnexpectedReferenceType) => {
+            Outcome::Failed(miette!("the restored SCF solution has an unexpected type"))
+        }
         Err(PostScfError::Execution(error)) => Outcome::Failed(miette::Report::new(error)),
     }
 }

@@ -457,7 +457,9 @@ request and shares it across subsequent methods on that entry.
 `PostScfMethod` associates each method with the reference description it
 uses to select an executor and the converged solution that executor needs.
 When selection returns `None`, the session skips the method before
-restoring the reference.
+restoring the reference. The session caches the restored solution through
+`Any` and checks its concrete type against the executor's associated
+reference type before calling it. A type mismatch is an execution failure.
 Methods using a Hartree–Fock reference also implement `PostHfMethod`, which
 is the bound required by the current `PostScfSession`. A method using a
 future Kohn–Sham reference could use the same `PostScfMethod` contract
