@@ -441,15 +441,21 @@ println!("MP2 correlation energy: {} Hartree", mp2.correlation_energy);
 # }
 ```
 
-Use `UhfSolution` for an unrestricted calculation. To select the HF reference at
-runtime, create a `PostScfSession` for the archived entry:
+Use `UhfSolution` for an unrestricted calculation. To let the archive select
+RHF or UHF, use the `resume_mp2` example. From the repository root, create a
+single calculation HF bundle, then run the example with two new file paths:
+
+```sh
+cargo run -- run samples/h2/sto-3g/calculation.toml --artifact h2-hf.rustiq
+cargo run -p rustiq-chem-core --no-default-features --example resume_mp2 -- h2-hf.rustiq h2-mp2.rustiq
+```
+
+The example prints the HF reference and both MP2 energies in Hartree.
+It writes a new bundle with the applied MP2 settings, the archived HF
+reference, the AO integrals, and the source provenance.
 
 ```rust,ignore
-use rustiq_core::{config::Mp2Config, persistence::PostScfSession};
-
-let mut session = PostScfSession::new(&data);
-let mp2 = session.run(&Mp2Config::default())?;
-let output = mp2.update_snapshot(data)?;
+{{#include ../../../crates/rustiq-core/examples/resume_mp2.rs}}
 ```
 
 A session restores the compatible converged HF reference on its first eligible
