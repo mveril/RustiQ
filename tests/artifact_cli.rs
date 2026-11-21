@@ -1526,10 +1526,25 @@ fn post_scf_artifact_requested_matches_direct_nickel_study() {
 
 #[test]
 fn post_scf_split_run_matches_full_mp2_calculation() {
+    for (method, reference) in [("Rhf", "RHF"), ("Uhf", "UHF")] {
+        assert_post_scf_split_run_matches_full_mp2_calculation(method, reference);
+    }
+}
+
+fn assert_post_scf_split_run_matches_full_mp2_calculation(method: &str, reference: &str) {
     let dir = fixture();
     let root = dir.path();
     let runfile = root.join("run.toml");
-    let hf_config = fs::read_to_string(&runfile).unwrap();
+    let mut base_config = fs::read_to_string(&runfile).unwrap();
+    if reference == "UHF" {
+        fs::write(
+            root.join("molecule.xyz"),
+            include_str!("../samples/oh/oh.xyz"),
+        )
+        .unwrap();
+        base_config = base_config.replace("[molecule]\n", "[molecule]\nmultiplicity = 2\n");
+    }
+    let hf_config = format!("{base_config}\n[method.hf]\nmethod = '{method}'\n");
     let mp2_config = include_str!("../samples/h2/sto-3g/postscf.toml");
 
     fs::write(&runfile, format!("{hf_config}\n{mp2_config}")).unwrap();
@@ -1559,7 +1574,8 @@ fn post_scf_split_run_matches_full_mp2_calculation() {
     assert_eq!(method["method"], "mp2");
     assert_eq!(method["status"], "succeeded");
     let resumed = &method["result"];
-    assert_eq!(resumed["reference"], full["calculation"]["hf"]["method"]);
+    assert_eq!(full["calculation"]["hf"]["method"], reference);
+    assert_eq!(resumed["reference"], reference);
     for field in ["correlation_energy", "electronic_energy", "total_energy"] {
         approx::assert_abs_diff_eq!(
             resumed[field].as_f64().unwrap(),
@@ -1591,4 +1607,5 @@ fn post_scf_split_run_matches_full_mp2_calculation() {
     assert_eq!(full_hf.energies(), resumed_hf.energies());
     assert_eq!(full_hf.iterations(), resumed_hf.iterations());
     assert_eq!(full_hf.convergence(), resumed_hf.convergence());
+    assert_eq!(full_hf.spin(), resumed_hf.spin());
 }
