@@ -1236,8 +1236,6 @@ fn post_scf_fixture() -> (TempDir, Vec<Value>) {
 fn post_scf_campaign_keeps_indices_and_continues_past_missing_references() {
     let (dir, fresh) = post_scf_fixture();
     let root = dir.path();
-    let path = root.join("campaign.rustiq");
-    let bytes = fs::read(&path).unwrap();
     let out = post_scf(root, "campaign.rustiq", &["--pretty"]);
     let value = post_scf_report(&out);
     assert!(out.status.success());
@@ -1267,7 +1265,14 @@ fn post_scf_campaign_keeps_indices_and_continues_past_missing_references() {
             assert_eq!(method["diagnostic"]["code"], "rustiq::post_scf::skipped");
         }
     }
+}
 
+#[test]
+fn post_scf_exports_selected_reference_and_preserves_source() {
+    let (dir, _) = post_scf_fixture();
+    let root = dir.path();
+    let path = root.join("campaign.rustiq");
+    let bytes = fs::read(&path).unwrap();
     let out = post_scf(
         root,
         "campaign.rustiq",
@@ -1307,6 +1312,13 @@ fn post_scf_campaign_keeps_indices_and_continues_past_missing_references() {
             .resolved_hf_method()
     );
 
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn post_scf_text_reports_mp2_without_running_scf() {
+    let (dir, _) = post_scf_fixture();
+    let root = dir.path();
     let out = command(
         root,
         &[
@@ -1323,8 +1335,12 @@ fn post_scf_campaign_keeps_indices_and_continues_past_missing_references() {
     assert!(text.contains("MP2 correlation energy:"));
     assert!(text.contains("1 succeeded, 0 skipped, 0 failed"));
     assert!(!text.contains("SCF iterations"));
-    assert_eq!(fs::read(&path).unwrap(), bytes);
+}
 
+#[test]
+fn post_scf_rejects_selections_without_a_successful_calculation() {
+    let (dir, _) = post_scf_fixture();
+    let root = dir.path();
     let out = post_scf(root, "campaign.rustiq", &["--calculation", "1"]);
     let value = post_scf_report(&out);
     assert_eq!(out.status.code(), Some(1));

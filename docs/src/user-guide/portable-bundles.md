@@ -460,16 +460,24 @@ the new bundle.
 {{#include ../../../crates/rustiq-core/examples/resume_mp2.rs}}
 ```
 
-A session restores the compatible converged HF reference on its first eligible
-request and shares it across subsequent methods on that entry.
-`PostScfMethod` associates each method with the reference description it
-uses to select an executor and the converged solution that executor needs.
-When selection returns `None`, the session skips the method before
-restoring the reference.
-Methods using a Hartree–Fock reference also implement `PostHfMethod`, which
-is the bound required by the current `PostScfSession`. A method using a
-future Kohn–Sham reference could use the same `PostScfMethod` contract
-with its own reference and restoration code.
+`PostScfMethod` gives each method a reference description, a converged
+solution type, and its own output and error types. Executor selection uses
+the description alone, so a method can decline a reference before the session
+loads scientific data. A method can also choose an execution function specific
+to the reference it accepts.
+
+`PostScfSession` uses the bundle's HF metadata and restores a converged
+`AnyHfSolution` on the first compatible request. It reuses that solution or
+the restoration error on later compatible requests. Method execution errors
+leave the shared reference available. A new HF-based method implements
+`PostScfMethod` with `ResolvedHfMethod` and `AnyHfSolution`, which automatically
+satisfies the session's `PostHfMethod` bound. MP2 requires no changes.
+
+A future reference can use its own description and converged solution type
+with `PostScfMethod`. Running that reference from an archive would also require
+persisted reference metadata, restoration and validation for its scientific
+data, and a caller that connects restoration to executor selection. SCF
+iteration takes place upstream of `ScfSolution`, the generic output model.
 The CLI uses the same session and handles method selection, reporting and bundle
 publication.
 

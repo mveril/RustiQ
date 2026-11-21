@@ -17,7 +17,10 @@ pub type PostScfExecutor<M> =
         &<M as PostScfMethod>::Reference,
     ) -> Result<<M as PostScfMethod>::Output, <M as PostScfMethod>::Error>;
 
-/// A configured method that runs against a converged SCF reference.
+/// A configured method that consumes a converged SCF reference.
+///
+/// The method declares its input, output and error types independently of
+/// persistence and of the algorithm that produced the reference.
 pub trait PostScfMethod {
     /// Reference description available before loading the solution.
     type ReferenceKind;
@@ -26,12 +29,19 @@ pub trait PostScfMethod {
     type Output;
     type Error;
 
-    /// Selects an executor for this reference kind before loading a solution.
-    /// Returns `None` when the method cannot use the reference.
+    /// Selects a typed execution function using the reference description.
+    ///
+    /// The caller can check compatibility before loading the solution and use the
+    /// selected function with a converged reference matching that description.
+    /// Return `None` for unsupported reference kinds.
     fn executor(&self, reference: Self::ReferenceKind) -> Option<PostScfExecutor<Self>>;
 }
 
-/// A post-SCF method whose reference is a converged Hartree–Fock solution.
+/// The reference types accepted by the archived HF session, expressed as a method bound.
+///
+/// Implementing [`PostScfMethod`] with [`ResolvedHfMethod`] and
+/// [`AnyHfSolution`] satisfies this bound automatically. The executor still
+/// decides which HF methods are compatible.
 pub trait PostHfMethod:
     PostScfMethod<ReferenceKind = ResolvedHfMethod, Reference = AnyHfSolution>
 {
@@ -53,7 +63,10 @@ pub enum PostScfError<E> {
     Execution(E),
 }
 
-/// Reuses a single lazy restoration for methods executed on an archived entry.
+/// Runs methods on the converged HF reference stored in one archived entry.
+///
+/// The session uses the bundle's HF metadata and restoration path. It caches
+/// the first restoration result, including a failure, across method calls.
 pub struct PostScfSession<'a> {
     data: &'a RustiQData,
     reference: Option<Result<AnyHfSolution, Arc<PortableError>>>,
@@ -204,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn eligible_methods_share_the_restored_reference() {
+    fn eligible_methods_share_the_restored_reference_after_execution_failure() {
         let geometry = Geometry::from_source("h2.xyz", "2\nH2\nH 0 0 0\nH 1.4 0 0\n").unwrap();
         let basis = load_minimal_basis_file();
         let prepared = CalculationBuilder::new(&geometry, &basis)
@@ -226,6 +239,14 @@ mod tests {
         assert!(matches!(
             session.run(&Unsupported),
             Err(PostScfError::UnsupportedReference(_))
+        ));
+        let invalid_mp2 = Mp2Config {
+            frozen_orbitals: 2.into(),
+            ..Mp2Config::default()
+        };
+        assert!(matches!(
+            session.run(&invalid_mp2),
+            Err(PostScfError::Execution(PostScfMp2Error::Calculation(_)))
         ));
         session.run(&Mp2Config::default()).unwrap();
         let second = session.run(&IntegralProbe).unwrap();
