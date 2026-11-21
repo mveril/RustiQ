@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-06fd118e.js";
+            window.path_to_searchindex_js = "../searchindex-61113085.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -406,6 +406,7 @@ installs the generated assets but disables both generators in its executable.</p
 <tr><td><code>rustiq cache remove &lt;NAME-OR-FINGERPRINT&gt; [--cache-dir DIR]</code> / <code>--all</code></td><td>Remove selected or all AO ERI cache entries.</td></tr>
 <tr><td><code>rustiq artifact inspect &lt;PATH&gt; [--format FORMAT]</code></td><td>Inspect portable <code>.rustiq</code> calculation snapshots and artifact metadata.</td></tr>
 <tr><td><code>rustiq artifact verify &lt;PATH&gt; [--strict] [--format text|json]</code></td><td>Check hashes and validate supported numerical payloads in a portable <code>.rustiq</code> bundle.</td></tr>
+<tr><td><code>rustiq artifact export &lt;PATH&gt; --format molden [--calculation INDEX] [-o FILE]</code></td><td>Export one calculation’s saved converged HF orbitals in Molden format.</td></tr>
 <tr><td><code>rustiq geometry info [XYZ]</code></td><td>Print basic geometry information; read XYZ from standard input when no path is given.</td></tr>
 <tr><td><code>rustiq geometry rotate</code>, <code>translate</code>, <code>center</code>, <code>oriente</code>, <code>isometry</code></td><td>Transform a geometry and write the result; each subcommand has its own help.</td></tr>
 </tbody>
@@ -646,6 +647,13 @@ implicit artifact source for that mode.
 Publication failures are reported on stderr and return a failing exit status.
 Since publication follows scientific execution, JSON for the completed calculation
 or campaign is written before that publication error is returned.</p>
+<p><code>artifact export PATH --format molden</code> writes to standard output by default.
+Use <code>-o FILE</code> or <code>--output FILE</code> to write directly to a file. Use <code>--calculation INDEX</code> for multi-calculation bundles. Indices are
+zero-based and follow the order in <code>artifact inspect</code>. A single-calculation
+bundle defaults to index 0. The selected entry must contain saved converged RHF
+or UHF orbitals. A missing or invalid artifact or an unsupported basis returns
+an error. See the <a href="../user-guide/portable-bundles.html#export-orbitals-to-molden">portable bundle guide</a>
+for an example and supported basis conventions.</p>
 <p><code>artifact inspect PATH</code> displays requested and resolved scientific snapshots,
 producer details, artifact representations, and captured source names and sizes.
 In text mode, canonical TOML and XYZ are syntax-highlighted when color is
