@@ -154,21 +154,68 @@ def test_workspace_budgets_select_different_blocks(
 
 @pytest.mark.parametrize(
     "name",
-    ["h2-sto-3g-rhf", "h2o-cc-pvdz-rhf", "oh-sto-3g-uhf", "h2-plus-sto-3g-uhf"],
+    [
+        "h2-sto-3g-rhf",
+        "h2o-cc-pvdz-rhf",
+        "oh-sto-3g-uhf",
+        "h2-plus-sto-3g-uhf",
+        2,
+        3,
+        4,
+        "mixed-d",
+    ],
 )
 def test_molden_export_matches_pyscf(
-    name: str, tmp_path: Path, rustiq_env: dict[str, str]
+    name: str | int, tmp_path: Path, rustiq_env: dict[str, str]
 ) -> None:
     import io
     import json
     import os
+    import subprocess
     import zipfile
 
     import numpy as np
     from pyscf import scf
     from pyscf.tools import molden
 
-    case = next(case for case in compare_pyscf.CASES if case.name == name)
+    if isinstance(name, int) or name == "mixed-d":
+        basis = json.loads(
+            (compare_pyscf.REPO_ROOT / "tests/data/sto-3g.json").read_text()
+        )
+        helium = basis["elements"]["1"]
+        angular = name if isinstance(name, int) else 2
+        helium["electron_shells"].append(
+            {
+                "function_type": "gto_cartesian",
+                "region": "",
+                "angular_momentum": [angular],
+                "exponents": ["1.2", "0.35"],
+                "coefficients": [["0.7", "0.4"]],
+            }
+        )
+        if name == "mixed-d":
+            helium["electron_shells"].append(
+                dict(helium["electron_shells"][-1], function_type="gto_spherical")
+            )
+        basis["elements"] = {"2": helium}
+        basis_name = f"molden-cart-{name}"
+        store = Path(rustiq_env["RUSTIQ_DATA_HOME"]) / "rustiq/basis_sets"
+        (store / f"{basis_name}.json").write_text(json.dumps(basis))
+        (tmp_path / "molecule.xyz").write_text("1\nHe\nHe 0 0 0\n")
+        runfile = tmp_path / "calculation.toml"
+        runfile.write_text(f'[basis]\nname = "{basis_name}"\n')
+        charge = 0
+        ao_dimension = 1 + (angular + 1) * (angular + 2) // 2
+        electron_counts = (1, 1)
+        unrestricted = False
+    else:
+        case = next(case for case in compare_pyscf.CASES if case.name == name)
+        runfile = case.runfile
+        charge = case.charge
+        ao_dimension = case.ao_dimension
+        electron_counts = compare_pyscf.electron_counts(case)
+        unrestricted = case.method == "uhf"
+
     binary = os.environ.get("RUSTIQ_BIN")
     prefix = [binary] if binary else ["cargo", "run", "--quiet", "--"]
     bundle = tmp_path / "calculation.rustiq"
@@ -176,7 +223,7 @@ def test_molden_export_matches_pyscf(
         [
             *prefix,
             "run",
-            str(case.runfile),
+            str(runfile),
             "--artifact",
             str(bundle),
             "--format",
@@ -187,29 +234,34 @@ def test_molden_export_matches_pyscf(
     hf = json.loads(output)["calculation"]["hf"]
     assert hf["converged"]
     filename = tmp_path / "orbitals.molden"
-    stdout = compare_pyscf.run_command(
-        [
-            *prefix,
-            "artifact",
-            "export",
-            str(bundle),
-            "--format",
-            "molden",
-            "--calculation",
-            "0",
-            "-o",
-            str(filename),
-        ],
-        env=rustiq_env,
-    )
+    export_args = [
+        *prefix,
+        "artifact",
+        "export",
+        str(bundle),
+        "--format",
+        "molden",
+        "--calculation",
+        "0",
+        "-o",
+        str(filename),
+    ]
+    if name == "mixed-d":
+        failed = subprocess.run(
+            export_args, check=False, env=rustiq_env, capture_output=True, text=True
+        )
+        assert failed.returncode == 1
+        assert "mixed Cartesian and spherical representations" in failed.stderr
+        assert not filename.exists()
+        return
+    stdout = compare_pyscf.run_command(export_args, env=rustiq_env)
     assert stdout == ""
     mol, energies, coefficients, occupations, _, _ = molden.load(filename)
-    mol.charge = case.charge  # Molden encodes electron counts through MO occupations.
-    assert mol.nao_nr() == case.ao_dimension
-    assert mol.nelec == compare_pyscf.electron_counts(case)
+    mol.charge = charge  # Molden encodes electron counts through MO occupations.
+    assert mol.nao_nr() == ao_dimension
+    assert mol.nelec == electron_counts
 
     overlap = mol.intor_symmetric("int1e_ovlp")
-    unrestricted = case.method == "uhf"
     channels = (
         zip(energies, coefficients, occupations, strict=True)
         if unrestricted
@@ -282,6 +334,10 @@ def test_molden_export_matches_pyscf(
     mf = scf.UHF(mol) if unrestricted else scf.RHF(mol)
     density = mf.make_rdm1(coefficients, occupations)
     reconstructed = mf.energy_tot(dm=density)
-    reference, _, _ = compare_pyscf.pyscf_result(case)
     assert reconstructed == pytest.approx(hf["total_energy"], abs=1e-8, rel=0)
-    assert reconstructed == pytest.approx(reference, abs=case.tolerance, rel=0)
+    if isinstance(name, int):
+        assert reconstructed == pytest.approx(mf.kernel(), abs=1e-8, rel=0)
+        assert mf.converged
+    else:
+        reference, _, _ = compare_pyscf.pyscf_result(case)
+        assert reconstructed == pytest.approx(reference, abs=case.tolerance, rel=0)

@@ -1,6 +1,5 @@
 use std::{
-    fs::OpenOptions,
-    io,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -65,10 +64,7 @@ impl Runnable for ExportCommand {
         })?;
 
         if let Some(path) = &self.output {
-            let file = open_export_file(&self.path, path)?;
-            export
-                .write_to(file.as_file())
-                .into_diagnostic()
+            write_export_file(&self.path, path, &export)
                 .wrap_err_with(|| format!("could not write export file {}", path.display()))
         } else {
             export.write_to(io::stdout().lock()).into_diagnostic()
@@ -76,23 +72,28 @@ impl Runnable for ExportCommand {
     }
 }
 
-fn open_export_file(input: &Path, output: &Path) -> miette::Result<same_file::Handle> {
-    let input_file = same_file::Handle::from_path(input).into_diagnostic()?;
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(output)
-        .and_then(same_file::Handle::from_file)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("could not open export output {}", output.display()))?;
-    // Compare the open handles before truncating, including symlinks and hard links.
-    if file == input_file {
-        return Err(miette!("Export output must not replace the input bundle."));
-    }
-    file.as_file()
-        .set_len(0)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("could not truncate export output {}", output.display()))?;
-    Ok(file)
+fn write_export_file(
+    input: &Path,
+    output: &Path,
+    export: &rustiq_core::persistence::ArtifactExport,
+) -> miette::Result<()> {
+    // Follow existing symlinks, preserving their target and checking aliases.
+    let output = match fs::canonicalize(output) {
+        Ok(path) => {
+            if same_file::is_same_file(input, &path).into_diagnostic()? {
+                return Err(miette!("Export output must not replace the input bundle."));
+            }
+            path
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => output.to_path_buf(),
+        Err(error) => return Err(error).into_diagnostic(),
+    };
+    let parent = output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut file = tempfile::NamedTempFile::new_in(parent).into_diagnostic()?;
+    export.write_to(file.as_file_mut()).into_diagnostic()?;
+    file.persist(&output).into_diagnostic()?;
+    Ok(())
 }

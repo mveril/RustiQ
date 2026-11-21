@@ -1242,6 +1242,29 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
         assert_eq!(&fs::read(&output).unwrap(), expected);
     }
 
+    fs::create_dir(root.join("directory.molden")).unwrap();
+    let before = fs::read_dir(root).unwrap().count();
+    let failure = export(
+        "multi.rustiq",
+        &["--calculation", "0", "-o", "directory.molden"],
+    );
+    assert_eq!(failure.status.code(), Some(1));
+    assert!(root.join("directory.molden").is_dir());
+    assert_eq!(fs::read_dir(root).unwrap().count(), before);
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink("multi.rustiq", root.join("alias.rustiq")).unwrap();
+        let failure = export(
+            "multi.rustiq",
+            &["--calculation", "0", "-o", "alias.rustiq"],
+        );
+        assert_eq!(failure.status.code(), Some(1));
+        assert!(
+            String::from_utf8_lossy(&failure.stderr).contains("must not replace the input bundle")
+        );
+    }
+
     fs::hard_link(root.join("multi.rustiq"), root.join("linked.rustiq")).unwrap();
     for path in ["multi.rustiq", "linked.rustiq"] {
         let failure = export("multi.rustiq", &["--calculation", "0", "-o", path]);

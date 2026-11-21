@@ -433,6 +433,8 @@ bundle with multiple entries, choose one index per exported file. With
 `-o FILE` or `--output FILE`, RustiQ creates or overwrites the destination file.
 Omit the option to write to standard output. The destination cannot point to
 the input bundle.
+File output is written to a temporary file beside the destination and
+replaces the destination atomically after writing succeeds.
 
 The exporter uses the saved orbitals, resolved geometry, and effective AO
 basis. It does not need the original basis file or AO ERIs, and it leaves
@@ -451,6 +453,9 @@ reorders the MO coefficient rows to match. It rejects mixed spherical and
 Cartesian representations of d and higher shells, as well as functions it
 cannot associate with distinct atomic centers. Orbital symmetry labels are
 written as `A` because the bundle does not store point-group assignments.
+The V1 bundle stores normalized AO components. Export therefore reconstructs
+contracted shells from the AO order and primitive patterns. Explicit shell
+metadata could remove this inference in a future format revision.
 
 Rust callers use the same exporter through
 `data.export(ExportFormat::Molden)?.write_to(writer)?`, with `ExportFormat`
