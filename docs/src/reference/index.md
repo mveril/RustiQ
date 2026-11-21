@@ -15,6 +15,7 @@ These documents remain the sources of truth:
   the portable ZIP/ZIP64 `.rustiq` contract.
 - [Calculation JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/calculation-output-v1.schema.json)
   and [batch JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/batch-output-v1.schema.json).
+- [Post-HF campaign JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/post-scf-output-v1.schema.json).
 - [Artifact inspection JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-inspection-v1.schema.json).
 - [Artifact verification JSON schema](https://github.com/mveril/RustiQ/blob/main/schemas/artifact-verification-v1.schema.json).
 - [Embedded Nickel schema](https://github.com/mveril/RustiQ/tree/main/src/runfile/nickel):

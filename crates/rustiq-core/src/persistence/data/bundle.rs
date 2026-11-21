@@ -65,6 +65,23 @@ impl RustiQBundle {
         })
     }
 
+    /// Builds a new bundle from the supplied entries and this bundle's source provenance.
+    /// Entries retain the supplied order. Exact duplicate sources are stored once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the entries or combined provenance cannot form a portable bundle.
+    pub fn with_calculations(&self, calculations: Vec<RustiQData>) -> Result<Self, PortableError> {
+        let mut bundle = Self::new(calculations)?;
+        for source in &self.sources {
+            if !bundle.sources.contains(source) {
+                bundle.sources.push(source.clone());
+            }
+        }
+        validate_sources(&bundle.sources)?;
+        Ok(bundle)
+    }
+
     /// Opens read-only, validating all snapshots and references without loading arrays.
     ///
     /// # Errors

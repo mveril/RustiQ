@@ -2,7 +2,7 @@
 use crate::runfile::RunFile;
 use miette::IntoDiagnostic;
 
-pub(crate) use super::nickel::resolve_nickel;
+pub(crate) use super::nickel::{resolve_nickel, resolve_post_scf};
 
 #[derive(Debug)]
 pub struct ParsedRunFile {
@@ -65,31 +65,7 @@ pub fn parse_runfile(
     let (resolved, source_map) =
         super::nickel::resolve_toml_with_locations(&source_name, toml_content);
     let resolved = resolved.map_err(|errors| {
-        let diagnostics = errors
-            .into_iter()
-            .map(|error| {
-                let (path, span) = match &source_map {
-                    Some(source_map) => {
-                        source_map.error_location(error.path.as_deref(), &error.message)
-                    }
-                    None => (None, error.span),
-                };
-                let default_label = error
-                    .message
-                    .lines()
-                    .next()
-                    .unwrap_or("invalid configuration");
-                let (message, label) = super::diagnostics::humanized_runfile_error(
-                    error.kind,
-                    path.as_deref(),
-                    &error.message,
-                    default_label,
-                );
-                super::diagnostics::nickel_error(&source_name, toml_content, message, label, span)
-                    .with_details(error.details)
-            })
-            .collect();
-        super::diagnostics::group_nickel_errors(diagnostics)
+        configuration_report(&source_name, toml_content, source_map.as_ref(), errors)
     })?;
     let source_map = source_map.expect("successfully parsed input has source locations");
     let calculation = resolved.single_calculation().into_diagnostic()?;
@@ -161,6 +137,39 @@ pub fn parse_runfile(
         molecule_config,
         integral_config,
     })
+}
+
+pub(super) fn configuration_report(
+    source_name: &str,
+    toml_content: &str,
+    source_map: Option<&super::source_map::TomlSourceMap>,
+    errors: Vec<super::nickel::ConfigurationError>,
+) -> miette::Report {
+    let diagnostics = errors
+        .into_iter()
+        .map(|error| {
+            let (path, span) = match source_map {
+                Some(source_map) => {
+                    source_map.error_location(error.path.as_deref(), &error.message)
+                }
+                None => (None, error.span),
+            };
+            let default_label = error
+                .message
+                .lines()
+                .next()
+                .unwrap_or("invalid configuration");
+            let (message, label) = super::diagnostics::humanized_runfile_error(
+                error.kind,
+                path.as_deref(),
+                &error.message,
+                default_label,
+            );
+            super::diagnostics::nickel_error(source_name, toml_content, message, label, span)
+                .with_details(error.details)
+        })
+        .collect();
+    super::diagnostics::group_nickel_errors(diagnostics)
 }
 
 #[cfg(test)]

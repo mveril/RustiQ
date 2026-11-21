@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RustiQ Post-HF campaign output (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "summary",
+    "calculations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "calculations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/calculation"
+      }
+    }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "succeeded",
+        "skipped",
+        "failed"
+      ],
+      "properties": {
+        "succeeded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_index",
+        "methods"
+      ],
+      "properties": {
+        "source_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "methods": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/method"
+          }
+        }
+      }
+    },
+    "method": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "status",
+            "result"
+          ],
+          "properties": {
+            "method": {
+              "const": "mp2"
+            },
+            "status": {
+              "const": "succeeded"
+            },
+            "result": {
+              "$ref": "#/$defs/mp2"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "status",
+            "diagnostic"
+          ],
+          "properties": {
+            "method": {
+              "const": "mp2"
+            },
+            "status": {
+              "const": "skipped"
+            },
+            "diagnostic": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "message",
+                "help"
+              ],
+              "properties": {
+                "code": {
+                  "const": "rustiq::post_scf::skipped"
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "help": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "status",
+            "diagnostic"
+          ],
+          "properties": {
+            "method": {
+              "const": "mp2"
+            },
+            "status": {
+              "const": "failed"
+            },
+            "diagnostic": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "const": "rustiq::post_scf::failed"
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mp2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "correlation_energy",
+        "electronic_energy",
+        "nuclear_repulsion_energy",
+        "total_energy"
+      ],
+      "properties": {
+        "reference": {
+          "enum": [
+            "RHF",
+            "UHF"
+          ]
+        },
+        "correlation_energy": {
+          "type": "number"
+        },
+        "electronic_energy": {
+          "type": "number"
+        },
+        "nuclear_repulsion_energy": {
+          "type": "number"
+        },
+        "total_energy": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

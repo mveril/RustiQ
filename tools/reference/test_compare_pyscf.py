@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import math
+import os
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
@@ -150,6 +152,70 @@ def test_workspace_budgets_select_different_blocks(
     # Each budget is also independently compared with PySCF by the canonical
     # frozen-core parametrization above; this checks the two Rust executions.
     assert results[0] == pytest.approx(results[1], abs=1e-12, rel=0)
+
+
+@pytest.mark.parametrize("name", ["co-sto-3g-rhf-mp2", "oh-6-31g-uhf-mp2"])
+def test_restored_frozen_core_mp2_matches_fresh_and_pyscf(
+    name: str,
+    tmp_path: Path,
+    rustiq_env: dict[str, str],
+) -> None:
+    original = next(case for case in compare_pyscf.CASES if case.name == name)
+    budget = "32 KiB"
+    case = compare_pyscf.frozen_core_case(original, budget, tmp_path)
+    command = (
+        [os.environ["RUSTIQ_BIN"]]
+        if "RUSTIQ_BIN" in os.environ
+        else ["cargo", "run", "--quiet", "--"]
+    )
+    artifact = tmp_path / "reference.rustiq"
+    fresh = json.loads(
+        compare_pyscf.run_command(
+            [
+                *command,
+                "run",
+                str(case.runfile),
+                "--artifact",
+                str(artifact),
+                "--format",
+                "json",
+            ],
+            env=rustiq_env,
+        )
+    )["calculation"]["mp2"]
+    settings = tmp_path / "postscf.toml"
+    settings.write_text(
+        f'[method.mp2]\nfrozen_orbitals = {case.frozen_orbitals}\nmemory_limit = "{budget}"\n',
+        encoding="utf-8",
+    )
+    report = json.loads(
+        compare_pyscf.run_command(
+            [
+                *command,
+                "run",
+                str(artifact),
+                "--post-scf",
+                str(settings),
+                "--format",
+                "json",
+            ],
+            env=rustiq_env,
+        )
+    )
+    assert report["summary"] == {"succeeded": 1, "skipped": 0, "failed": 0}
+    restored = report["calculations"][0]["methods"][0]["result"]
+    assert restored["reference"] == case.method.upper()
+    for field in ("correlation_energy", "electronic_energy", "total_energy"):
+        assert restored[field] == pytest.approx(fresh[field], abs=1e-12, rel=0)
+    hf, correlation, _ = compare_pyscf.pyscf_result(case)
+    assert correlation is not None
+    assert case.mp2_tolerance is not None
+    assert restored["correlation_energy"] == pytest.approx(
+        correlation, abs=case.mp2_tolerance, rel=0
+    )
+    assert restored["total_energy"] == pytest.approx(
+        hf + correlation, abs=case.tolerance + case.mp2_tolerance, rel=0
+    )
 
 
 @pytest.mark.parametrize(

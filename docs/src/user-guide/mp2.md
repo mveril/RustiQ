@@ -11,9 +11,9 @@ Commands using `rustiq` assume the executable is installed or available on
 
 Second-order Møller–Plesset perturbation theory (MP2) estimates an electron
 correlation correction using molecular orbitals from a converged HF reference.
-It does not replace HF: RustiQ first solves HF, then evaluates MP2. MP2 is
-available with both RHF and UHF references. An unconverged HF result cannot be
-used as an MP2 reference.
+For a fresh calculation, RustiQ solves HF before evaluating MP2. It can also
+[run MP2 from a saved converged reference](portable-bundles.md#run-mp2-from-saved-hartreefock).
+MP2 supports both RHF and UHF references and requires HF convergence.
 
 The checked-in H₂ input requests RHF-MP2 with no frozen orbitals:
 
@@ -180,3 +180,8 @@ perturbative basis is described in
 [Møller and Plesset (1934)](https://journals.aps.org/pr/abstract/10.1103/PhysRev.46.618);
 see also this discussion of problematic MP2 denominators
 ([Lee and Head-Gordon, 2018](https://arxiv.org/abs/1807.06185)).
+
+For a post-SCF campaign, the report contains the numerical MP2 energies.
+The exported portable bundle records the applied MP2 settings with the
+saved HF reference and AO integrals. Keep the campaign report to retain
+the energies and original calculation indices.

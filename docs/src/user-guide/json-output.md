@@ -53,6 +53,14 @@ and `1` when none succeed and any entry has another error. Fatal infrastructure
 errors always return `1`. See the [CLI exit-code contract](../reference/cli.md)
 and [Nickel studies guide](nickel-studies.md) for details.
 
+Post-HF campaigns activated with `--post-scf` use the
+[Post-HF output schema](https://github.com/mveril/RustiQ/blob/main/schemas/post-scf-output-v1.schema.json).
+The report groups method outcomes under each original archive index and counts
+succeeded, skipped and failed pairs. Pretty Post-HF JSON is unstyled. Warnings
+and errors go to stderr. For
+campaign examples and exit codes, see
+[Run MP2 from saved Hartree–Fock](portable-bundles.md#run-mp2-from-saved-hartreefock).
+
 Results include `schema_version`, which lets consuming software select the
 matching contract. The single-calculation contract is
 [`calculation-output-v1.schema.json`](https://github.com/mveril/RustiQ/blob/main/schemas/calculation-output-v1.schema.json);

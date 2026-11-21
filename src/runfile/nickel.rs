@@ -119,7 +119,8 @@ fn evaluate_input_with_context(
 ) -> Result<ResolvedInput, Vec<ConfigurationError>> {
     // Inline the maintained schema so evaluation does not depend on an
     // installed Nickel CLI or runtime paths to package sources.
-    let schema = include_str!("nickel/calculation.ncl");
+    let schema = include_str!("nickel/calculation.ncl")
+        .replace("import \"mp2.ncl\"", include_str!("nickel/mp2.ncl"));
     let rebuild = include_str!("nickel/rebuild-data.ncl");
     let resolve = include_str!("nickel/resolve.ncl")
         .replace("import \"calculation.ncl\"", &format!("({schema})"));
@@ -161,6 +162,49 @@ fn evaluate_input_with_context(
             details: Vec::new(),
         }]
     })
+}
+
+/// Resolves the closed Post-HF TOML contract without creating a calculation.
+pub(crate) fn resolve_post_scf(
+    name: &str,
+    toml: &str,
+) -> miette::Result<super::resolved::PostScfMethods> {
+    let (mut context, locations) = toml_context(name, toml)
+        .map_err(|errors| super::parser::configuration_report(name, toml, None, errors))?;
+    let rebuild = include_str!("nickel/rebuild-data.ncl");
+    let mp2 = include_str!("nickel/mp2.ncl");
+    let source = format!(
+        "(({rebuild}) Input) | {{ method | {{ mp2 | {mp2} | optional }} | default = {{}} }}"
+    );
+    let report = |errors| super::parser::configuration_report(name, toml, Some(&locations), errors);
+    let expr = context
+        .eval(&source, true)
+        .map_err(|error| report(vec![context.configuration_error(None, error)]))?;
+    let json = nickel_lang_core::serialize::to_string(
+        nickel_lang_core::serialize::ExportFormat::Json,
+        &expr,
+    )
+    .map_err(|error| {
+        report(vec![context.configuration_error(
+            None,
+            error.with_pos_table(context.vm.pos_table.clone()).into(),
+        )])
+    })?;
+    let config: super::resolved::PostScfConfig = serde_json::from_str(&json).map_err(|error| {
+        report(vec![ConfigurationError {
+            kind: ConfigurationErrorKind::Domain,
+            path: Some("method.mp2.memory_limit".to_owned()),
+            message: error.to_string(),
+            span: None,
+            details: Vec::new(),
+        }])
+    })?;
+    let mut config = config.into_methods();
+    if let Some(mp2) = &mut config.mp2 {
+        mp2.frozen_orbitals.span = locations.span(&["method", "mp2", "frozen_orbitals"]);
+        mp2.memory_limit.span = locations.span(&["method", "mp2", "memory_limit"]);
+    }
+    Ok(config)
 }
 
 /// Nickel is also the TOML exporter, so no separate configuration parser is linked.

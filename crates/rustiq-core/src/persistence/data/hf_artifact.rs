@@ -383,10 +383,13 @@ impl ConvergedHfArtifact {
         data: &'a RustiQData,
         a: &crate::persistence::ArtifactManifest,
     ) -> Result<(StoredHfRecord, &'a Storage), ArtifactError> {
-        if !matches!(a.representation.as_str(), HF_REPRESENTATION) || a.path.as_str() != HF_PATH {
+        if !matches!(a.representation.as_str(), HF_REPRESENTATION) {
             return Err(ArtifactError::UnsupportedRepresentation(
                 a.representation.clone(),
             ));
+        }
+        if a.path.as_str() != HF_PATH {
+            return Err(ArtifactError::InvalidPath(a.path.to_string()));
         }
         if a.size > MAX_HF_BYTES {
             return Err(invalid("HF payload exceeds size limit"));

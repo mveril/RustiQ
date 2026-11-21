@@ -35,6 +35,18 @@ use super::{CommandResult, Runnable};
 pub struct RunCommand {
     /// TOML or Nickel input, or a portable .rustiq bundle to rerun. If omitted, read TOML from standard input.
     pub input: Option<PathBuf>,
+    /// Execute Post-HF methods on saved references using a method-only TOML file.
+    #[arg(long, value_name = "TOML", requires = "input", conflicts_with_all = ["reuse", "cache_dir", "auto_download", "no_auto_download"])]
+    post_scf: Option<PathBuf>,
+
+    /// Select a zero-based calculation in the Post-HF input bundle.
+    #[arg(long, requires = "post_scf")]
+    calculation: Option<usize>,
+
+    /// Select a configured Post-HF method. May be repeated.
+    #[arg(long = "method", requires = "post_scf", value_name = "METHOD")]
+    methods: Vec<String>,
+
     /// Enable automatic download of basis sets for this execution (the default behavoir is determined by the env variable RUSTIQ_AUTO_DOWNLOAD)
     #[arg(
         long = "auto-download",
@@ -55,7 +67,7 @@ pub struct RunCommand {
     #[arg(long, value_enum, default_value_t = CalculationOutputFormat::Text)]
     format: CalculationOutputFormat,
 
-    /// Pretty-print JSON output and syntax-highlight it when color is enabled.
+    /// Pretty-print JSON output. Non-Post-HF reports can use syntax highlighting.
     #[arg(long)]
     pretty: bool,
 
@@ -67,7 +79,8 @@ pub struct RunCommand {
     #[arg(long, value_name = "PATH")]
     reuse: Option<PathBuf>,
 
-    /// Write a portable snapshot independently of the result output format.
+    /// Write a portable snapshot. With --post-scf, saves the HF reference and applied
+    /// method settings. MP2 energies are reported separately.
     #[arg(long, value_name = "PATH")]
     artifact: Option<PathBuf>,
 }
@@ -260,6 +273,16 @@ impl RunCommand {
 
 impl Runnable for RunCommand {
     fn run(&self) -> CommandResult {
+        if let Some(config) = &self.post_scf {
+            return super::post_scf::run(
+                self.input.as_deref(),
+                config,
+                self.calculation,
+                &self.methods,
+                self.artifact.as_deref(),
+                (self.format, self.pretty),
+            );
+        }
         let json_output = self.format == CalculationOutputFormat::Json;
         if let Some(path) = self.input.as_ref().filter(|path| {
             path.extension()
@@ -766,6 +789,9 @@ mod tests {
         temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", value, || {
             let command = RunCommand {
                 input: None,
+                post_scf: None,
+                calculation: None,
+                methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
@@ -785,6 +811,9 @@ mod tests {
         temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", Some("false"), || {
             let command = RunCommand {
                 input: None,
+                post_scf: None,
+                calculation: None,
+                methods: Vec::new(),
                 auto_download: true,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
@@ -800,6 +829,9 @@ mod tests {
         temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", Some("true"), || {
             let command = RunCommand {
                 input: None,
+                post_scf: None,
+                calculation: None,
+                methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: true,
                 format: CalculationOutputFormat::Text,
@@ -819,6 +851,9 @@ mod tests {
         temp_env::with_var("RUSTIQ_AUTO_DOWNLOAD", Option::<&str>::None, || {
             let command = RunCommand {
                 input: None,
+                post_scf: None,
+                calculation: None,
+                methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: false,
                 format: CalculationOutputFormat::Text,
