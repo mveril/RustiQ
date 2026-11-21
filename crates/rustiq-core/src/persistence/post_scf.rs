@@ -10,6 +10,13 @@ use crate::{
     config::{Mp2Config, ResolvedHfMethod},
 };
 
+/// A selected execution function for a configured method and its typed reference.
+pub type PostScfExecutor<M> =
+    fn(
+        &M,
+        &<M as PostScfMethod>::Reference,
+    ) -> Result<<M as PostScfMethod>::Output, <M as PostScfMethod>::Error>;
+
 /// A configured method that runs against a converged SCF reference.
 pub trait PostScfMethod {
     /// Reference description available before loading the solution.
@@ -19,14 +26,9 @@ pub trait PostScfMethod {
     type Output;
     type Error;
 
-    fn supports(&self, reference: Self::ReferenceKind) -> bool;
-
-    /// Runs the configured method against a supported reference.
-    ///
-    /// # Errors
-    ///
-    /// Returns the method's scientific execution error.
-    fn execute(&self, reference: &Self::Reference) -> Result<Self::Output, Self::Error>;
+    /// Selects an executor for this reference kind before loading a solution.
+    /// Returns `None` when the method cannot use the reference.
+    fn executor(&self, reference: Self::ReferenceKind) -> Option<PostScfExecutor<Self>>;
 }
 
 /// A post-SCF method whose reference is a converged Hartree–Fock solution.
@@ -77,15 +79,15 @@ impl<'a> PostScfSession<'a> {
         method: &M,
     ) -> Result<M::Output, PostScfError<M::Error>> {
         let archived_method = self.data.resolved_hf_method();
-        if !archived_method.is_some_and(|reference| method.supports(reference)) {
+        let Some(execute) = archived_method.and_then(|kind| method.executor(kind)) else {
             return Err(PostScfError::UnsupportedReference(archived_method));
-        }
+        };
         let reference = self
             .reference
             .get_or_insert_with(|| self.data.restore().map_err(Arc::new))
             .as_ref()
             .map_err(|error| PostScfError::Restore(Arc::clone(error)))?;
-        method.execute(reference).map_err(PostScfError::Execution)
+        execute(method, reference).map_err(PostScfError::Execution)
     }
 }
 
@@ -128,35 +130,40 @@ impl PostScfMethod for Mp2Config {
     type Output = PostScfMp2Result;
     type Error = PostScfMp2Error;
 
-    fn supports(&self, reference: ResolvedHfMethod) -> bool {
-        matches!(reference, ResolvedHfMethod::Rhf | ResolvedHfMethod::Uhf)
+    fn executor(&self, reference: ResolvedHfMethod) -> Option<PostScfExecutor<Self>> {
+        match reference {
+            ResolvedHfMethod::Rhf | ResolvedHfMethod::Uhf => Some(execute_mp2),
+        }
     }
+}
 
-    fn execute(&self, reference: &AnyHfSolution) -> Result<Self::Output, Self::Error> {
-        let result = match reference {
-            AnyHfSolution::Restricted(hf) => hf.mp2(*self),
-            AnyHfSolution::Unrestricted(hf) => hf.mp2(*self),
-        }
-        .map_err(crate::calculation::CalculationExecutionError::into_cause)?;
-        let nuclear_repulsion_energy = reference.summary().scf.nuclear_repulsion_energy;
-        if ![
-            result.correlation_energy,
-            result.electronic_energy,
-            nuclear_repulsion_energy,
-            result.electronic_energy + nuclear_repulsion_energy,
-        ]
-        .into_iter()
-        .all(f64::is_finite)
-        {
-            return Err(PostScfMp2Error::NonFiniteEnergy);
-        }
-        Ok(PostScfMp2Result {
-            config: *self,
-            reference: reference.method(),
-            result,
-            nuclear_repulsion_energy,
-        })
+fn execute_mp2(
+    config: &Mp2Config,
+    reference: &AnyHfSolution,
+) -> Result<PostScfMp2Result, PostScfMp2Error> {
+    let result = match reference {
+        AnyHfSolution::Restricted(hf) => hf.mp2(*config),
+        AnyHfSolution::Unrestricted(hf) => hf.mp2(*config),
     }
+    .map_err(crate::calculation::CalculationExecutionError::into_cause)?;
+    let nuclear_repulsion_energy = reference.summary().scf.nuclear_repulsion_energy;
+    if ![
+        result.correlation_energy,
+        result.electronic_energy,
+        nuclear_repulsion_energy,
+        result.electronic_energy + nuclear_repulsion_energy,
+    ]
+    .into_iter()
+    .all(f64::is_finite)
+    {
+        return Err(PostScfMp2Error::NonFiniteEnergy);
+    }
+    Ok(PostScfMp2Result {
+        config: *config,
+        reference: reference.method(),
+        result,
+        nuclear_repulsion_energy,
+    })
 }
 
 #[cfg(test)]
@@ -178,12 +185,8 @@ mod tests {
         type Output = ();
         type Error = std::convert::Infallible;
 
-        fn supports(&self, _reference: ResolvedHfMethod) -> bool {
-            false
-        }
-
-        fn execute(&self, _reference: &AnyHfSolution) -> Result<Self::Output, Self::Error> {
-            Ok(())
+        fn executor(&self, _reference: ResolvedHfMethod) -> Option<PostScfExecutor<Self>> {
+            None
         }
     }
 
@@ -195,12 +198,8 @@ mod tests {
         type Output = CompactEri;
         type Error = std::convert::Infallible;
 
-        fn supports(&self, _reference: ResolvedHfMethod) -> bool {
-            true
-        }
-
-        fn execute(&self, reference: &AnyHfSolution) -> Result<Self::Output, Self::Error> {
-            Ok(reference.ao_eri().clone())
+        fn executor(&self, _reference: ResolvedHfMethod) -> Option<PostScfExecutor<Self>> {
+            Some(|_, reference| Ok(reference.ao_eri().clone()))
         }
     }
 

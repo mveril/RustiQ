@@ -65,5 +65,6 @@ pub use restore::RestoreFromRustiQ;
 
 mod post_scf;
 pub use post_scf::{
-    PostHfMethod, PostScfError, PostScfMethod, PostScfMp2Error, PostScfMp2Result, PostScfSession,
+    PostHfMethod, PostScfError, PostScfExecutor, PostScfMethod, PostScfMp2Error, PostScfMp2Result,
+    PostScfSession,
 };

@@ -129,15 +129,14 @@ impl rustiq_core::persistence::PostScfMethod for RestrictedProbe {
     type Output = ScientificResult;
     type Error = std::convert::Infallible;
 
-    fn supports(&self, reference: ResolvedHfMethod) -> bool {
-        reference == ResolvedHfMethod::Rhf
-    }
-
-    fn execute(
+    fn executor(
         &self,
-        _reference: &rustiq_core::calculation::AnyHfSolution,
-    ) -> Result<Self::Output, Self::Error> {
-        Ok(ScientificResult::RestrictedProbe)
+        reference: ResolvedHfMethod,
+    ) -> Option<rustiq_core::persistence::PostScfExecutor<Self>> {
+        match reference {
+            ResolvedHfMethod::Rhf => Some(|_, _| Ok(ScientificResult::RestrictedProbe)),
+            _ => None,
+        }
     }
 }
 
