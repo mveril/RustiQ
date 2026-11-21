@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-61113085.js";
+            window.path_to_searchindex_js = "../searchindex-960d6199.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -192,12 +192,10 @@ Commands using <code>rustiq</code> assume the executable is installed or availab
 <code>cargo run --locked --</code> prefix described in the
 <a href="../reference/cli.html">CLI reference</a>.</p>
 <p>A <code>.rustiq</code> bundle is a portable snapshot of RustiQ calculation inputs and
-optional reusable atomic-orbital electron-repulsion integrals (AO ERIs). It
-lets users rerun saved calculations or reuse compatible AO ERIs in new ones
-without carrying a machine-local cache. CLI reruns always start a new SCF run;
-the CLI does not save a Hartree–Fock wavefunction. The Rust API can additionally
-store converged RHF/UHF orbitals and restore a solution for MP2 without repeating
-SCF, as described below.</p>
+optional scientific artifacts, including atomic-orbital electron-repulsion
+integrals (AO ERIs) and converged Hartree–Fock orbitals. Use it to rerun a
+calculation, reuse compatible AO ERIs in a new calculation, or run MP2 from
+a saved RHF or UHF reference.</p>
 <h2 id="create-and-inspect-a-bundle"><a class="header" href="#create-and-inspect-a-bundle">Create and inspect a bundle</a></h2>
 <h3 id="release-binary"><a class="header" href="#release-binary">Release binary</a></h3>
 <p>First follow the local-input workflow in the
@@ -318,6 +316,57 @@ artifact counters at zero and an explicit message:
 correctness, physical validity, orbital orthonormality, or adequacy of the method
 and basis. Successful verification means the supported stored data passed its
 reader’s integrity and validation checks.</p>
+<h2 id="run-mp2-from-saved-hartreefock"><a class="header" href="#run-mp2-from-saved-hartreefock">Run MP2 from saved Hartree–Fock</a></h2>
+<p>Create a bundle as shown above. From the repository root, use the checked-in
+method configuration. With a release binary, save these settings to
+<code>postscf.toml</code> and pass that path instead of the sample path.</p>
+<pre><code class="language-toml">[method.mp2]
+frozen_orbitals = 0
+memory_limit = "1 GiB"
+</code></pre>
+<pre><code class="language-sh">rustiq run h2.rustiq --post-scf samples/h2/sto-3g/postscf.toml
+rustiq run h2.rustiq --post-scf samples/h2/sto-3g/postscf.toml --calculation 0 --method mp2 --format json
+</code></pre>
+<p>Both commands evaluate the saved H₂ reference. The text report shows the MP2
+correlation, electronic and total energies in Hartree. The total includes
+nuclear repulsion. See <a href="mp2.html">MP2</a> for the frozen-orbital convention and
+what the workspace memory limit covers.</p>
+<p>For a study bundle, the default is to run every configured method on every
+calculation in manifest order. Use <code>--calculation 2</code> to select the third
+entry, or repeat <code>--method METHOD</code> to select several configured methods when
+available. MP2 is currently the only supported method. The configuration
+contains only Post-HF method tables. Geometry, basis and HF settings come
+from the bundle, so the original geometry and basis files are unnecessary.</p>
+<p>Each calculation uses one restored converged reference and its stored AO ERIs
+for the requested methods. Restoration can rebuild one-electron quantities.
+It does not run SCF or reconstruct AO ERIs. An unfinished SCF calculation
+cannot be restarted this way. A plain <code>rustiq run h2.rustiq</code> starts a fresh
+SCF run using the archived inputs.</p>
+<p>When a calculation and method pair lacks a usable reference or prerequisite, RustiQ warns on stderr
+with its original zero-based calculation index and method name, then continues.
+A campaign with at least one success and only skips otherwise exits with code
+<code>0</code>. If nothing succeeds it exits with code <code>1</code>. A failed execution or a corrupt archived payload needed by a selected method
+is an error. If other pairs succeed, the exit code is <code>4</code>
+and the successful results are kept. JSON includes each pair’s status and
+summary counts, even when a completed campaign exits with an error.</p>
+<p>To save the combined request in a new bundle, run:</p>
+<pre><code class="language-sh">rustiq run h2.rustiq --post-scf samples/h2/sto-3g/postscf.toml --artifact h2-mp2.rustiq
+</code></pre>
+<p>The output contains successful calculations in input manifest order. Each
+entry combines the archived HF inputs and the applied MP2 settings in its
+<code>requested</code> snapshot. This snapshot matches an equivalent direct Nickel
+study, including normalized defaults. The output carries the archived
+HF solution, AO ERIs, and source provenance, including the post-SCF TOML.
+Publication copies only the artifacts required by MP2 and checks their
+integrity. MP2 energies are available in the campaign report only.</p>
+<p>To map exported entries back to their source indices, keep the JSON campaign
+report. Filter its calculations to entries with at least one successful
+method. The remaining <code>source_index</code> values map in order to exported entries
+starting at index zero. A future format revision could record that mapping
+in the bundle itself.
+Existing destinations are rejected, and a campaign with no successes leaves
+no output bundle. The source bundle stays in read-only use throughout the
+campaign.</p>
 <h2 id="rerun-a-saved-calculation"><a class="header" href="#rerun-a-saved-calculation">Rerun a saved calculation</a></h2>
 <p>Run a <code>.rustiq</code> bundle directly to reconstruct and execute its archived
 calculation settings, without the original runfile, geometry file, or basis
@@ -415,7 +464,7 @@ defines the complete identity.</p>
 </table>
 </div>
 <p>CLI-created bundles store scientific input snapshots and optional AO ERIs.
-They do not yet capture converged HF orbitals. Save the result JSON separately
+They capture converged HF orbitals when available. Save the result JSON separately
 when reported results matter. Neither API stores density matrices, DIIS history,
 or MP2 results.
 Captured input and geometry bytes are provenance for inspection; they do not
@@ -499,15 +548,36 @@ let mp2 = hf.mp2(Mp2Config::default())?;
 println!("MP2 correlation energy: {} Hartree", mp2.correlation_energy);
 <span class="boring">Ok(())
 </span><span class="boring">}</span></code></pre>
-<p>Use <code>UhfSolution</code> for an unrestricted calculation. When the reference is selected
-at runtime, restore <code>AnyHfSolution</code> and match its typed variants before calling
-<code>.mp2()</code>:</p>
-<pre><code class="language-rust ignore">let hf: AnyHfSolution = data.restore()?;
-let mp2 = match hf {
-    AnyHfSolution::Restricted(hf) =&gt; hf.mp2(Mp2Config::default())?,
-    AnyHfSolution::Unrestricted(hf) =&gt; hf.mp2(Mp2Config::default())?,
-    _ =&gt; return Err("unsupported HF reference".into()),
-};</code></pre>
+<p>Use <code>UhfSolution</code> for an unrestricted calculation. To let the archive select
+RHF or UHF, use the <code>resume_mp2</code> example. From the repository root, create a
+single calculation HF bundle, then run the example with two new file paths:</p>
+<pre><code class="language-sh">cargo run -- run samples/h2/sto-3g/calculation.toml --artifact h2-hf.rustiq
+cargo run -p rustiq-chem-core --no-default-features --example resume_mp2 -- h2-hf.rustiq h2-mp2.rustiq
+</code></pre>
+<p>The example prints the HF reference and both MP2 energies in Hartree.
+It writes a new bundle with the applied MP2 settings, the archived HF
+reference, the AO integrals, and the source provenance.
+<code>RustiQBundle::with_calculations</code> carries the input bundle’s provenance into
+the new bundle.</p>
+<pre><code class="language-rust ignore">{{#include ../../../crates/rustiq-core/examples/resume_mp2.rs}}</code></pre>
+<p><code>PostScfMethod</code> gives each method a reference description, a converged
+solution type, and its own output and error types. Executor selection uses
+the description alone, so a method can decline a reference before the session
+loads scientific data. A method can also choose an execution function specific
+to the reference it accepts.</p>
+<p><code>PostScfSession</code> uses the bundle’s HF metadata and restores a converged
+<code>AnyHfSolution</code> on the first compatible request. It reuses that solution or
+the restoration error on later compatible requests. Method execution errors
+leave the shared reference available. A new HF-based method implements
+<code>PostScfMethod</code> with <code>ResolvedHfMethod</code> and <code>AnyHfSolution</code>, which automatically
+satisfies the session’s <code>PostHfMethod</code> bound. MP2 requires no changes.</p>
+<p>A future reference can use its own description and converged solution type
+with <code>PostScfMethod</code>. Running that reference from an archive would also require
+persisted reference metadata, restoration and validation for its scientific
+data, and a caller that connects restoration to executor selection. SCF
+iteration takes place upstream of <code>ScfSolution</code>, the generic output model.
+The CLI uses the same session and handles method selection, reporting and bundle
+publication.</p>
 <p>Restoration validates the HF artifact, its context, and the compatible AO ERI
 payload. Missing, unsupported, incompatible, or corrupt required artifacts are
 errors; requesting RHF from a UHF entry, or vice versa, also returns an error.
@@ -529,8 +599,8 @@ solution within <code>1e-12</code> Eh. It uses a temporary directory that is rem
 exit, closes the bundle before MP2, and prints HF total, MP2 correlation, and
 MP2 total energies (HF total plus MP2 correlation). This checks the persistence
 round trip for the bundled H2/STO-3G case, rather than independent scientific
-accuracy. SCF/DIIS restart and automatic reuse of the stored HF solution by the CLI
-remain future work.</p>
+accuracy. The CLI can restore stored HF explicitly with <code>--post-scf</code>. SCF and DIIS
+restart remain future work.</p>
 <h2 id="export-orbitals-to-molden"><a class="header" href="#export-orbitals-to-molden">Export orbitals to Molden</a></h2>
 <p>After saving a converged HF calculation to <code>h2.rustiq</code>, export it for use in
 software that reads the <a href="https://www.theochem.ru.nl/molden/molden_format.html">Molden format</a>.</p>

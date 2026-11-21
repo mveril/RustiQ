@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-61113085.js";
+            window.path_to_searchindex_js = "../searchindex-960d6199.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -222,6 +222,13 @@ and others do not, <code>3</code> when none succeed and all stop because HF did 
 and <code>1</code> when none succeed and any entry has another error. Fatal infrastructure
 errors always return <code>1</code>. See the <a href="../reference/cli.html">CLI exit-code contract</a>
 and <a href="nickel-studies.html">Nickel studies guide</a> for details.</p>
+<p>Post-HF campaigns activated with <code>--post-scf</code> use the
+<a href="https://github.com/mveril/RustiQ/blob/main/schemas/post-scf-output-v1.schema.json">Post-HF output schema</a>.
+The report groups method outcomes under each original archive index and counts
+succeeded, skipped and failed pairs. Pretty Post-HF JSON is unstyled. Warnings
+and errors go to stderr. For
+campaign examples and exit codes, see
+<a href="portable-bundles.html#run-mp2-from-saved-hartreefock">Run MP2 from saved Hartree–Fock</a>.</p>
 <p>Results include <code>schema_version</code>, which lets consuming software select the
 matching contract. The single-calculation contract is
 <a href="https://github.com/mveril/RustiQ/blob/main/schemas/calculation-output-v1.schema.json"><code>calculation-output-v1.schema.json</code></a>;

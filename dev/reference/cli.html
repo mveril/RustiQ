@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-61113085.js";
+            window.path_to_searchindex_js = "../searchindex-960d6199.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-de272c4b.js"></script>
@@ -445,15 +445,28 @@ JSON output suppresses progress and writes only the result document.</p>
 </thead>
 <tbody>
 <tr><td><code>--format FORMAT</code> (<code>text</code> or <code>json</code>)</td><td>Select text output (default) or versioned JSON. JSON result data is written to standard output.</td></tr>
-<tr><td><code>--pretty</code></td><td>Pretty-print single-calculation or batch JSON, optionally with syntax highlighting. Requires <code>--format json</code>.</td></tr>
+<tr><td><code>--pretty</code></td><td>Pretty-print JSON. Single-calculation and ordinary batch reports can use syntax highlighting. Requires <code>--format json</code>.</td></tr>
 <tr><td><code>--color MODE</code> (<code>auto</code>, <code>always</code>, or <code>never</code>)</td><td>Control ANSI colors globally; also accepts <code>RUSTIQ_COLOR</code>. Use <code>--color never</code> when redirecting pretty JSON.</td></tr>
 <tr><td><code>--auto-download</code> / <code>--no-auto-download</code></td><td>In online builds, allow or disable fetching a missing basis for this run. These override <code>RUSTIQ_AUTO_DOWNLOAD</code>; without either flag, <code>1</code> or <code>true</code> (case-insensitive) enables it and other or missing values disable it. Offline builds always use local bases.</td></tr>
 <tr><td><code>--cache-dir DIR</code></td><td>Choose the AO ERI cache root for this run. The input must also set <code>[cache].enabled = true</code>; this option does not enable caching.</td></tr>
 <tr><td><code>--reuse PATH</code></td><td>Read a portable <code>.rustiq</code> bundle and reuse the first compatible AO ERI for each calculation.</td></tr>
 <tr><td><code>--artifact PATH</code></td><td>Write a portable <code>.rustiq</code> bundle with AO ERIs and converged HF data for the current calculation or batch.</td></tr>
+<tr><td><code>--post-scf TOML</code></td><td>Run Post-HF methods using converged HF references in the input <code>.rustiq</code> bundle. The TOML accepts only configured Post-HF method tables such as <code>[method.mp2]</code>.</td></tr>
+<tr><td><code>--calculation INDEX</code></td><td>With <code>--post-scf</code>, select one calculation by its zero-based manifest index. Defaults to all entries in manifest order.</td></tr>
+<tr><td><code>--method METHOD</code></td><td>With <code>--post-scf</code>, select a method explicitly configured in the TOML. Repeat to select several methods. Defaults to all configured methods. MP2 is currently supported.</td></tr>
 </tbody>
 </table>
 </div>
+<p>MP2 energies appear in the campaign report. The exported snapshots record the applied settings.</p>
+<p>With <code>--post-scf</code>, the CLI uses the archived converged orbitals and AO ERIs,
+and rejects HF, geometry and basis overrides in the TOML. The archive rerun
+option restrictions above also apply, with one exception. <code>--artifact PATH</code>
+writes successful post-SCF entries with the archived HF inputs and applied
+MP2 settings to a new bundle. Text and JSON both send diagnostics to
+stderr. The <a href="https://github.com/mveril/RustiQ/blob/main/schemas/post-scf-output-v1.schema.json">Post-HF JSON schema</a>
+defines independent <code>succeeded</code>, <code>skipped</code> and <code>failed</code> outcomes under each
+calculation’s original <code>source_index</code>. Use <code>--format json --pretty</code> for
+indented output. See the <a href="../user-guide/portable-bundles.html#run-mp2-from-saved-hartreefock">bundle example</a>.</p>
 <p>Output presentation is selected exclusively by the CLI <code>--format text|json</code> option.
 The TOML and Nickel calculation contracts do not accept an <code>output</code> section.
 Scientific execution emits a completion event after all requested stages complete.
@@ -477,7 +490,7 @@ RustiQ-specific.</p>
 <tr><th>Code</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>0</code></td><td>All requested calculations succeeded, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.</td></tr>
+<tr><td><code>0</code></td><td>All requested calculations succeeded, at least one Post-HF pair succeeded and the rest were skipped, or artifact verification found no failures (normal mode permits skips). Help and version also return zero.</td></tr>
 <tr><td><code>1</code></td><td>General error, a batch with no successful calculations and at least one error unrelated to HF non-convergence, or a fatal infrastructure error.</td></tr>
 <tr><td><code>2</code></td><td>Invalid command-line arguments.</td></tr>
 <tr><td><code>3</code></td><td>No requested calculation succeeded, and every unsuccessful calculation stopped because HF did not converge.</td></tr>
@@ -486,8 +499,13 @@ RustiQ-specific.</p>
 </tbody>
 </table>
 </div>
+<p>For Post-HF campaigns, missing prerequisites produce warnings, and numerical
+errors and corrupt requested payloads produce errors. If no requested method
+succeeds, the command returns <code>1</code>. If some succeed and others fail, it returns
+<code>4</code>. A completed campaign writes the full JSON report before returning its
+exit status.</p>
 <p>These codes apply to TOML, Nickel, and <code>.rustiq</code> inputs, with text or JSON output.
-A calculation succeeds only when the complete requested method succeeds: converged
+Without <code>--post-scf</code>, a calculation succeeds only when the complete requested method succeeds: converged
 HF followed by an MP2 error is not a successful calculation. MP2 blocked by HF
 non-convergence counts as non-convergence, so a single such run returns <code>3</code>.
 Input validation before execution returns <code>1</code>; CLI argument validation returns <code>2</code>.
@@ -498,8 +516,8 @@ the completed calculation or campaign JSON before returning <code>1</code>; this
 covered by <code>publication_error_keeps_complete_calculation_and_batch_json</code>.</p>
 <p>A single HF-only calculation that reaches its iteration limit still returns its
 final-iteration result, with <code>converged: false</code> in JSON, but exits with <code>3</code>.
-MP2 requires converged HF; a single MP2 run blocked by non-convergence reports a
-diagnostic without result JSON. Recoverable per-entry errors in a batch do not
+During fresh HF+MP2 execution, HF non-convergence produces a diagnostic
+without result JSON for a single calculation. Recoverable per-entry errors in a batch do not
 prevent later entries from running. The batch JSON records each outcome, and a
 valid JSON document can accompany a nonzero exit code. Output fields remain
 defined by the <a href="index.html#authoritative-references">versioned schemas</a>.
