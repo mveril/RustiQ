@@ -1,3 +1,5 @@
+mod export;
+
 use std::{
     io::{self, Write},
     path::PathBuf,
@@ -21,6 +23,8 @@ pub(crate) enum ArtifactCommands {
     Inspect(InspectCommand),
     /// Verify the stored payloads in a portable bundle.
     Verify(VerifyCommand),
+    /// Export saved converged HF orbitals from a portable bundle.
+    Export(export::ExportCommand),
 }
 
 #[derive(Debug, clap::Args)]
@@ -86,6 +90,7 @@ impl Runnable for ArtifactCommands {
         match self {
             Self::Inspect(command) => command.run(),
             Self::Verify(command) => command.run(),
+            Self::Export(command) => command.run(),
         }
     }
 }

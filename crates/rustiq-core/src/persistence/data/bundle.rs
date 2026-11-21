@@ -74,6 +74,18 @@ impl RustiQBundle {
         Self::open_inner(path.as_ref(), true)
     }
 
+    /// Opens a read-only bundle and defers artifact size and integrity checks to
+    /// typed artifact access. This lets consumers report a corrupt requested
+    /// payload against its calculation while continuing with independent entries.
+    /// Use [`Self::open`] to check declared member sizes at open time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the archive structure, snapshots or metadata are invalid.
+    pub fn open_for_restore(path: impl AsRef<Path>) -> Result<Self, PortableError> {
+        Self::open_inner(path.as_ref(), false)
+    }
+
     pub(super) fn open_inner(
         path: &Path,
         validate_artifact_sizes: bool,

@@ -4,7 +4,8 @@
 )]
 
 use rustiq_core::persistence::{
-    AoEriArtifact, ConvergedHfArtifact, HfOrbitals, RustiQBundle, RustiQData,
+    AoEriArtifact, ConvergedHfArtifact, ExportError, ExportFormat, HfOrbitals, RustiQBundle,
+    RustiQData,
 };
 use serde_json::{json, Value};
 use std::{
@@ -1147,4 +1148,165 @@ fn verification_json_lists_valid_invalid_unknown_and_unsupported_artifacts() {
                 .contains("integrity check failed"));
         }
     }
+}
+
+#[test]
+fn molden_export_api_matches_cli_output() {
+    let directory = fixture();
+    let root = directory.path();
+    hf_bundle(root, false);
+    let data = RustiQData::open(root.join("hf.rustiq")).unwrap();
+    let cli = command(
+        root,
+        &["artifact", "export", "hf.rustiq", "--format", "molden"],
+    );
+    assert!(
+        cli.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cli.stderr)
+    );
+
+    let mut output = Vec::new();
+    data.export(ExportFormat::Molden)
+        .unwrap()
+        .write_to(&mut output)
+        .unwrap();
+    assert_eq!(output, cli.stdout);
+
+    let prepared = data.prepare_calculation().unwrap();
+    let missing = RustiQData::from_calculation(&prepared).unwrap();
+    assert!(matches!(
+        missing.export(ExportFormat::Molden),
+        Err(ExportError::MissingOrbitals)
+    ));
+}
+
+#[test]
+fn molden_exports_one_selected_calculation_without_ao_eris() {
+    let directory = fixture();
+    let root = directory.path();
+    hf_bundle(root, false);
+    let hf = RustiQData::open(root.join("hf.rustiq")).unwrap();
+    let orbitals = hf.get::<ConvergedHfArtifact>().unwrap().unwrap();
+    let prepared = hf.prepare_calculation().unwrap();
+    let mut first = RustiQData::from_calculation(&prepared).unwrap();
+    first.set::<ConvergedHfArtifact>(&orbitals).unwrap();
+    first.write(root.join("orbitals.rustiq")).unwrap();
+
+    let export = |bundle, options: &[&str]| {
+        let mut args = vec!["artifact", "export", bundle, "--format", "molden"];
+        args.extend_from_slice(options);
+        command(root, &args)
+    };
+    let rhf = export("orbitals.rustiq", &[]);
+    assert!(
+        rhf.status.success(),
+        "{}",
+        String::from_utf8_lossy(&rhf.stderr)
+    );
+    let text = String::from_utf8_lossy(&rhf.stdout);
+    assert!(text.starts_with("[Molden Format]\n[Atoms] AU\n"));
+    assert!(text.contains(" Spin= Alpha\n Occup= 2\n"));
+    assert!(!text.contains("Spin= Beta"));
+
+    fs::remove_file(root.join("hf.rustiq")).unwrap();
+    hf_bundle(root, true);
+    let second = RustiQData::open(root.join("hf.rustiq")).unwrap();
+    let missing = RustiQData::from_calculation(&prepared).unwrap();
+    RustiQBundle::new(vec![first, second, missing])
+        .unwrap()
+        .write(root.join("multi.rustiq"))
+        .unwrap();
+    let original = fs::read(root.join("multi.rustiq")).unwrap();
+    let selected = export("multi.rustiq", &["--calculation", "0"]);
+    assert!(selected.status.success());
+    assert_eq!(selected.stdout, rhf.stdout);
+    let selected = export("multi.rustiq", &["--calculation", "1"]);
+    assert!(selected.status.success());
+    let text = String::from_utf8_lossy(&selected.stdout);
+    assert!(text.contains(" Spin= Alpha\n Occup= 1\n"));
+    assert!(text.contains(" Spin= Beta\n Occup= 1\n"));
+    assert_eq!(text.matches("[MO]").count(), 1);
+
+    let output = root.join("orbitals.molden");
+    for (index, option, expected) in [
+        ("1", "-o", &selected.stdout),
+        ("0", "--output", &rhf.stdout),
+    ] {
+        let written = export(
+            "multi.rustiq",
+            &["--calculation", index, option, "orbitals.molden"],
+        );
+        assert!(written.status.success());
+        assert_eq!(written.stdout, b"");
+        assert_eq!(&fs::read(&output).unwrap(), expected);
+    }
+
+    fs::create_dir(root.join("directory.molden")).unwrap();
+    let before = fs::read_dir(root).unwrap().count();
+    let failure = export(
+        "multi.rustiq",
+        &["--calculation", "0", "-o", "directory.molden"],
+    );
+    assert_eq!(failure.status.code(), Some(1));
+    assert!(root.join("directory.molden").is_dir());
+    assert_eq!(fs::read_dir(root).unwrap().count(), before);
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink("multi.rustiq", root.join("alias.rustiq")).unwrap();
+        let failure = export(
+            "multi.rustiq",
+            &["--calculation", "0", "-o", "alias.rustiq"],
+        );
+        assert_eq!(failure.status.code(), Some(1));
+        assert!(
+            String::from_utf8_lossy(&failure.stderr).contains("must not replace the input bundle")
+        );
+    }
+
+    fs::hard_link(root.join("multi.rustiq"), root.join("linked.rustiq")).unwrap();
+    for path in ["multi.rustiq", "linked.rustiq"] {
+        let failure = export("multi.rustiq", &["--calculation", "0", "-o", path]);
+        assert_eq!(failure.status.code(), Some(1));
+        assert_eq!(failure.stdout, b"");
+        assert!(
+            String::from_utf8_lossy(&failure.stderr).contains("must not replace the input bundle")
+        );
+    }
+
+    for (options, message) in [
+        (&[][..], "Use --calculation"),
+        (&["--calculation", "3"][..], "index 3 is out of range"),
+        (
+            &["--calculation", "2"][..],
+            "no saved converged HF orbitals",
+        ),
+    ] {
+        let failure = export("multi.rustiq", options);
+        assert_eq!(failure.status.code(), Some(1));
+        assert_eq!(failure.stdout, b"");
+        assert!(String::from_utf8_lossy(&failure.stderr).contains(message));
+    }
+    for path in ["missing.molden", "orbitals.molden"] {
+        let missing = export("multi.rustiq", &["--calculation", "2", "-o", path]);
+        assert_eq!(missing.status.code(), Some(1));
+        assert_eq!(missing.stdout, b"");
+    }
+    assert!(!root.join("missing.molden").exists());
+    assert_eq!(fs::read(&output).unwrap(), rhf.stdout);
+    assert_eq!(fs::read(root.join("multi.rustiq")).unwrap(), original);
+
+    edit_bundle(&root.join("multi.rustiq"), |manifest, _| {
+        manifest["calculations"][1]["artifacts"]["converged_hf"]["size"] = json!(0);
+    });
+    let unaffected = export("multi.rustiq", &["--calculation", "0"]);
+    assert!(unaffected.status.success());
+    assert_eq!(unaffected.stdout, rhf.stdout);
+    let corrupt = export("multi.rustiq", &["--calculation", "1"]);
+    assert_eq!(corrupt.status.code(), Some(1));
+    assert_eq!(corrupt.stdout, b"");
+    let stderr = String::from_utf8_lossy(&corrupt.stderr);
+    assert!(stderr.contains("converged HF artifact for calculation 1"));
+    assert!(stderr.contains("integrity check failed"));
 }
