@@ -1523,3 +1523,72 @@ fn post_scf_artifact_requested_matches_direct_nickel_study() {
         assert_eq!(fs::read(root.join(&resumed)).unwrap(), existing);
     }
 }
+
+#[test]
+fn post_scf_split_run_matches_full_mp2_calculation() {
+    let dir = fixture();
+    let root = dir.path();
+    let runfile = root.join("run.toml");
+    let hf_config = fs::read_to_string(&runfile).unwrap();
+    let mp2_config = include_str!("../samples/h2/sto-3g/postscf.toml");
+
+    fs::write(&runfile, format!("{hf_config}\n{mp2_config}")).unwrap();
+    let full = calculate(root, &["--artifact", "full.rustiq"]);
+
+    fs::write(&runfile, hf_config).unwrap();
+    fs::write(root.join("postscf.toml"), mp2_config).unwrap();
+    let hf = calculate(root, &["--artifact", "hf.rustiq"]);
+    assert!(hf["calculation"].get("mp2").is_none());
+    assert_eq!(full["calculation"]["hf"], hf["calculation"]["hf"]);
+
+    fs::remove_file(runfile).unwrap();
+    fs::remove_file(root.join("molecule.xyz")).unwrap();
+    fs::remove_dir_all(root.join("data")).unwrap();
+    let output = post_scf(root, "hf.rustiq", &["--artifact", "resumed.rustiq"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = post_scf_report(&output);
+    assert_eq!(
+        report["summary"],
+        json!({"succeeded": 1, "skipped": 0, "failed": 0})
+    );
+    let method = &report["calculations"][0]["methods"][0];
+    assert_eq!(method["method"], "mp2");
+    assert_eq!(method["status"], "succeeded");
+    let resumed = &method["result"];
+    assert_eq!(resumed["reference"], full["calculation"]["hf"]["method"]);
+    for field in ["correlation_energy", "electronic_energy", "total_energy"] {
+        approx::assert_abs_diff_eq!(
+            resumed[field].as_f64().unwrap(),
+            full["calculation"]["mp2"][field].as_f64().unwrap(),
+            epsilon = 1e-12,
+        );
+    }
+    assert_eq!(
+        resumed["nuclear_repulsion_energy"],
+        full["calculation"]["hf"]["nuclear_repulsion_energy"]
+    );
+
+    let inspect = |path| success(root, &["artifact", "inspect", path, "--format", "json"]);
+    assert_eq!(
+        inspect("full.rustiq")["calculations"][0]["requested"],
+        inspect("resumed.rustiq")["calculations"][0]["requested"]
+    );
+
+    let archived_hf = |path| {
+        RustiQData::open(root.join(path))
+            .unwrap()
+            .get::<ConvergedHfArtifact>()
+            .unwrap()
+            .unwrap()
+    };
+    let full_hf = archived_hf("full.rustiq");
+    let resumed_hf = archived_hf("resumed.rustiq");
+    assert_eq!(full_hf.identity(), resumed_hf.identity());
+    assert_eq!(full_hf.energies(), resumed_hf.energies());
+    assert_eq!(full_hf.iterations(), resumed_hf.iterations());
+    assert_eq!(full_hf.convergence(), resumed_hf.convergence());
+}
