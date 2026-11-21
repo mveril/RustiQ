@@ -163,12 +163,7 @@ fn publish_artifact(
     if entries.is_empty() {
         return Ok(());
     }
-    let mut output = RustiQBundle::new(entries).into_diagnostic()?;
-    for file in source.sources() {
-        output
-            .add_source(file.original_name(), file.bytes())
-            .into_diagnostic()?;
-    }
+    let mut output = source.with_calculations(entries).into_diagnostic()?;
     output
         .add_source(config.0.to_string_lossy(), config.1.as_bytes())
         .into_diagnostic()?;

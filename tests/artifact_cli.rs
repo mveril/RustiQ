@@ -1209,7 +1209,11 @@ fn post_scf_fixture() -> (TempDir, Vec<Value>) {
         entries.push(RustiQData::open(root.join(name)).unwrap());
     }
     let path = root.join("campaign.rustiq");
-    RustiQBundle::new(entries).unwrap().write(&path).unwrap();
+    let mut campaign = RustiQBundle::new(entries).unwrap();
+    campaign
+        .add_source("campaign.txt", b"campaign source")
+        .unwrap();
+    campaign.write(&path).unwrap();
     edit_bundle(&path, |manifest, _| {
         manifest["calculations"][3]["artifacts"]
             .as_object_mut()
@@ -1290,6 +1294,11 @@ fn post_scf_campaign_keeps_indices_and_continues_past_missing_references() {
 
     let selected = RustiQBundle::open(root.join("selected.rustiq")).unwrap();
     assert_eq!(selected.calculations().len(), 1);
+    let copied_source = selected
+        .sources()
+        .find(|source| source.original_name() == "campaign.txt")
+        .unwrap();
+    assert_eq!(copied_source.bytes(), b"campaign source");
     assert_eq!(
         selected.calculations()[0].resolved_hf_method(),
         RustiQBundle::open(root.join("entry-2.rustiq"))

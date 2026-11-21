@@ -27,10 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mp2.result.electronic_energy + mp2.nuclear_repulsion_energy
     );
 
-    let mut resumed = RustiQBundle::new(vec![mp2.update_snapshot(entry.clone())?])?;
-    for source in bundle.sources() {
-        resumed.add_source(source.original_name(), source.bytes())?;
-    }
+    let mut resumed = bundle.with_calculations(vec![mp2.update_snapshot(entry.clone())?])?;
     resumed.write(output)?;
     Ok(())
 }

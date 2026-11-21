@@ -453,6 +453,8 @@ cargo run -p rustiq-chem-core --no-default-features --example resume_mp2 -- h2-h
 The example prints the HF reference and both MP2 energies in Hartree.
 It writes a new bundle with the applied MP2 settings, the archived HF
 reference, the AO integrals, and the source provenance.
+`RustiQBundle::with_calculations` carries the input bundle's provenance into
+the new bundle.
 
 ```rust,ignore
 {{#include ../../../crates/rustiq-core/examples/resume_mp2.rs}}
