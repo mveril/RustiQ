@@ -114,6 +114,7 @@ jiff = { version = "0.2.39", default-features = false, features = ["std"] }
 rusty-figlet = { version = "0.3", default-features = false }
 bat = { workspace = true, features = ["paging"] }
 cfg-if = "1"
+same-file = "1.0.6"
 tempfile.workspace = true
 # Native in-memory TOML imports and structured diagnostics require the core API.
 nickel-lang-core = { version = "=0.19.0", default-features = false }

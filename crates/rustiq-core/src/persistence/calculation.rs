@@ -162,6 +162,17 @@ impl ResolvedComponent<'_> {
             .iter()
             .map(|p| (p.exponent, p.coefficient))
     }
+
+    /// Returns primitive exponents and coefficients relative to individually
+    /// normalized Cartesian primitives, including any angular component factor.
+    #[must_use = "Consume the iterator to inspect the stored scientific data"]
+    pub fn normalized_primitives(&self) -> impl ExactSizeIterator<Item = (f64, f64)> + '_ {
+        let [x, y, z] = self.angular_momentum().map(u32::from);
+        self.primitives().map(move |(exponent, coefficient)| {
+            let norm = crate::basis::gaussian::basis::gaussian_norm_const(exponent, x, y, z);
+            (exponent, coefficient / norm)
+        })
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
