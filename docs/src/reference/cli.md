@@ -249,6 +249,7 @@ installs the generated assets but disables both generators in its executable.
 | `rustiq cache remove <NAME-OR-FINGERPRINT> [--cache-dir DIR]` / `--all` | Remove selected or all AO ERI cache entries.                                                                                                             |
 | `rustiq artifact inspect <PATH> [--format FORMAT]`                      | Inspect portable `.rustiq` calculation snapshots and artifact metadata.                                                                                  |
 | `rustiq artifact verify <PATH> [--strict] [--format text\|json]`                           | Check hashes and validate supported numerical payloads in a portable `.rustiq` bundle.                                                                     |
+| `rustiq artifact export <PATH> --format molden [--calculation INDEX] [-o FILE]` | Export one calculation's saved converged HF orbitals in Molden format. |
 | `rustiq geometry info [XYZ]`                                            | Print basic geometry information; read XYZ from standard input when no path is given.                                                                    |
 | `rustiq geometry rotate`, `translate`, `center`, `oriente`, `isometry`  | Transform a geometry and write the result; each subcommand has its own help.                                                                             |
 
@@ -516,6 +517,14 @@ implicit artifact source for that mode.
 Publication failures are reported on stderr and return a failing exit status.
 Since publication follows scientific execution, JSON for the completed calculation
 or campaign is written before that publication error is returned.
+
+`artifact export PATH --format molden` writes to standard output by default.
+Use `-o FILE` or `--output FILE` to write directly to a file. Use `--calculation INDEX` for multi-calculation bundles. Indices are
+zero-based and follow the order in `artifact inspect`. A single-calculation
+bundle defaults to index 0. The selected entry must contain saved converged RHF
+or UHF orbitals. A missing or invalid artifact or an unsupported basis returns
+an error. See the [portable bundle guide](../user-guide/portable-bundles.md#export-orbitals-to-molden)
+for an example and supported basis conventions.
 
 `artifact inspect PATH` displays requested and resolved scientific snapshots,
 producer details, artifact representations, and captured source names and sizes.

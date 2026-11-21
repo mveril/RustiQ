@@ -882,12 +882,15 @@ the persisted electronic energy minus these terms. Reconstructed components can
 differ from the original summary because final orbital and SCF densities can
 differ within the convergence tolerance. Persisted HF energies and diagnostics
 are preserved. Unpersisted execution timings are zero. This requires no wire-format change.
-CLI HF capture and reuse, SCF restart, DIIS restart, and Molden export are not
-implemented here.
-Effective AO ordering and normalized primitive components remain available,
-but original shell grouping, contraction provenance, and other export metadata
-must be added in a dedicated step before Molden conversion.
-
+The CLI's `artifact export --format molden` reads the saved HF artifact and
+the resolved context without restoring an executable HF solution. It
+reconstructs representable contracted shells from the effective normalized AO
+components and reorders the orbital coefficient rows for Molden. This requires
+no extra fields in V1 and no AO ERIs. The original shell grouping and
+contraction provenance are still absent. See the
+[portable bundle guide](src/user-guide/portable-bundles.md#export-orbitals-to-molden)
+for supported shells and CLI selection. SCF and DIIS restart remain outside
+the V1 contract.
 
 The generic SCF persistence entry point is `ScfSolution<M, Converged>::to_artifact`,
 available when the method descriptor implements `PersistScf`. Its associated
