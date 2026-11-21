@@ -1,4 +1,4 @@
-//! Run downstream methods against one archived HF reference.
+//! Typed post-SCF methods and a session for archived HF references.
 
 use std::sync::Arc;
 
@@ -10,19 +10,34 @@ use crate::{
     config::{Mp2Config, ResolvedHfMethod},
 };
 
-/// A configured method that can run against a restored converged HF reference.
+/// A configured method that runs against a converged SCF reference.
 pub trait PostScfMethod {
+    /// Reference description available before loading the solution.
+    type ReferenceKind;
+    /// Converged solution consumed by the method through a shared reference.
+    type Reference: ?Sized;
     type Output;
     type Error;
 
-    fn supports(&self, reference: ResolvedHfMethod) -> bool;
+    fn supports(&self, reference: Self::ReferenceKind) -> bool;
 
     /// Runs the configured method against a supported reference.
     ///
     /// # Errors
     ///
     /// Returns the method's scientific execution error.
-    fn execute(&self, reference: &AnyHfSolution) -> Result<Self::Output, Self::Error>;
+    fn execute(&self, reference: &Self::Reference) -> Result<Self::Output, Self::Error>;
+}
+
+/// A post-SCF method whose reference is a converged Hartree–Fock solution.
+pub trait PostHfMethod:
+    PostScfMethod<ReferenceKind = ResolvedHfMethod, Reference = AnyHfSolution>
+{
+}
+
+impl<M> PostHfMethod for M where
+    M: PostScfMethod<ReferenceKind = ResolvedHfMethod, Reference = AnyHfSolution>
+{
 }
 
 /// A prerequisite or execution failure for one post-SCF method.
@@ -57,7 +72,7 @@ impl<'a> PostScfSession<'a> {
     ///
     /// Returns a typed error for an unsupported reference, failed restoration, or
     /// failed method execution. Restoration failures are shared across eligible methods.
-    pub fn run<M: PostScfMethod>(
+    pub fn run<M: PostHfMethod>(
         &mut self,
         method: &M,
     ) -> Result<M::Output, PostScfError<M::Error>> {
@@ -108,6 +123,8 @@ pub enum PostScfMp2Error {
 }
 
 impl PostScfMethod for Mp2Config {
+    type ReferenceKind = ResolvedHfMethod;
+    type Reference = AnyHfSolution;
     type Output = PostScfMp2Result;
     type Error = PostScfMp2Error;
 
@@ -156,6 +173,8 @@ mod tests {
     struct Unsupported;
 
     impl PostScfMethod for Unsupported {
+        type ReferenceKind = ResolvedHfMethod;
+        type Reference = AnyHfSolution;
         type Output = ();
         type Error = std::convert::Infallible;
 
@@ -171,6 +190,8 @@ mod tests {
     struct IntegralProbe;
 
     impl PostScfMethod for IntegralProbe {
+        type ReferenceKind = ResolvedHfMethod;
+        type Reference = AnyHfSolution;
         type Output = CompactEri;
         type Error = std::convert::Infallible;
 

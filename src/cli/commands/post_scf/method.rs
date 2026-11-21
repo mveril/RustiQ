@@ -124,6 +124,8 @@ struct RestrictedProbe;
 
 #[cfg(test)]
 impl rustiq_core::persistence::PostScfMethod for RestrictedProbe {
+    type ReferenceKind = ResolvedHfMethod;
+    type Reference = rustiq_core::calculation::AnyHfSolution;
     type Output = ScientificResult;
     type Error = std::convert::Infallible;
 

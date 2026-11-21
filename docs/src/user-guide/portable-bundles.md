@@ -453,8 +453,13 @@ let output = mp2.update_snapshot(data)?;
 ```
 
 A session restores the compatible converged HF reference on its first eligible
-request and shares it across subsequent methods on that entry. Implement
-`PostScfMethod` to supply another method with its own output and error types.
+request and shares it across subsequent methods on that entry.
+`PostScfMethod` associates each method with the reference description it
+uses to check eligibility and the converged solution it needs to run.
+Methods using a Hartree–Fock reference also implement `PostHfMethod`, which
+is the bound required by the current `PostScfSession`. A method using a
+future Kohn–Sham reference could use the same `PostScfMethod` contract
+with its own reference and restoration code.
 The CLI uses the same session and handles method selection, reporting and bundle
 publication.
 
