@@ -307,18 +307,44 @@ impl ResolvedCalculationConfig {
     }
 
     pub fn mp2_config(&self) -> Option<rustiq_core::config::Mp2Config> {
-        self.method.mp2.as_ref().map(|mp2| {
-            let mut config = rustiq_core::config::Mp2Config::default();
-            config.frozen_orbitals = mp2.frozen_orbitals.into();
-            config.memory_limit = match mp2.memory_limit {
-                crate::config::MemoryLimit::Auto => rustiq_core::config::MemoryLimit::Auto,
-                crate::config::MemoryLimit::Fixed(size) => {
-                    rustiq_core::config::MemoryLimit::Fixed(size)
-                }
+        self.method.mp2.as_ref().map(ResolvedMp2Config::to_core)
+    }
+}
+
+impl ResolvedMp2Config {
+    fn to_core(&self) -> rustiq_core::config::Mp2Config {
+        let mut config = rustiq_core::config::Mp2Config::default();
+        config.frozen_orbitals = self.frozen_orbitals.into();
+        config.memory_limit = match self.memory_limit {
+            crate::config::MemoryLimit::Auto => rustiq_core::config::MemoryLimit::Auto,
+            crate::config::MemoryLimit::Fixed(size) => {
+                rustiq_core::config::MemoryLimit::Fixed(size)
             }
-            .into();
-            config
-        })
+        }
+        .into();
+        config
+    }
+}
+
+#[derive(Deserialize)]
+pub(super) struct PostScfConfig {
+    method: ResolvedPostScfMethods,
+}
+
+#[derive(Deserialize)]
+struct ResolvedPostScfMethods {
+    mp2: Option<ResolvedMp2Config>,
+}
+
+pub(crate) struct PostScfMethods {
+    pub mp2: Option<rustiq_core::config::Mp2Config>,
+}
+
+impl PostScfConfig {
+    pub(super) fn into_methods(self) -> PostScfMethods {
+        PostScfMethods {
+            mp2: self.method.mp2.as_ref().map(ResolvedMp2Config::to_core),
+        }
     }
 }
 

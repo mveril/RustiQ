@@ -1148,3 +1148,524 @@ fn verification_json_lists_valid_invalid_unknown_and_unsupported_artifacts() {
         }
     }
 }
+
+fn post_scf(root: &Path, bundle: &str, extra: &[&str]) -> Output {
+    let mut args = vec![
+        "run",
+        bundle,
+        "--post-scf",
+        "postscf.toml",
+        "--format",
+        "json",
+    ];
+    args.extend_from_slice(extra);
+    command(root, &args)
+}
+
+fn post_scf_report(output: &Output) -> Value {
+    let decoded = serde_json::from_slice(&output.stdout);
+    assert!(
+        decoded.is_ok(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = decoded.unwrap();
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/post-scf-output-v1.schema.json")).unwrap();
+    jsonschema::validator_for(&schema)
+        .unwrap()
+        .validate(&report)
+        .unwrap();
+    report
+}
+
+fn post_scf_fixture() -> (TempDir, Vec<Value>) {
+    let dir = fixture();
+    let root = dir.path();
+    let mut entries = Vec::new();
+    let mut fresh = Vec::new();
+    for (index, settings) in [
+        "[method.mp2]",
+        "[method.hf]\nmax_iterations = 1",
+        "[method.hf]\nmethod = 'Uhf'\n[method.mp2]",
+        "",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        fs::write(
+            root.join("run.toml"),
+            format!("[basis]\nname = 'sto-3g'\n{settings}\n"),
+        )
+        .unwrap();
+        let name = format!("entry-{index}.rustiq");
+        let output = command(
+            root,
+            &["run", "run.toml", "--artifact", &name, "--format", "json"],
+        );
+        assert_eq!(output.status.code(), Some(if index == 1 { 3 } else { 0 }));
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        fresh.push(result["calculation"]["mp2"].clone());
+        entries.push(RustiQData::open(root.join(name)).unwrap());
+    }
+    let path = root.join("campaign.rustiq");
+    let mut campaign = RustiQBundle::new(entries).unwrap();
+    campaign
+        .add_source("campaign.txt", b"campaign source")
+        .unwrap();
+    campaign.write(&path).unwrap();
+    edit_bundle(&path, |manifest, _| {
+        manifest["calculations"][3]["artifacts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ao_eri");
+    });
+    fs::remove_file(root.join("molecule.xyz")).unwrap();
+    fs::remove_file(root.join("run.toml")).unwrap();
+    fs::remove_dir_all(root.join("data")).unwrap();
+    fs::write(
+        root.join("postscf.toml"),
+        include_str!("../samples/h2/sto-3g/postscf.toml"),
+    )
+    .unwrap();
+
+    (dir, fresh)
+}
+
+#[test]
+fn post_scf_campaign_keeps_indices_and_continues_past_missing_references() {
+    let (dir, fresh) = post_scf_fixture();
+    let root = dir.path();
+    let path = root.join("campaign.rustiq");
+    let bytes = fs::read(&path).unwrap();
+    let out = post_scf(root, "campaign.rustiq", &["--pretty"]);
+    let value = post_scf_report(&out);
+    assert!(out.status.success());
+    assert_eq!(
+        value["summary"],
+        json!({"succeeded":2,"skipped":2,"failed":0})
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(stderr.matches("rustiq::post_scf::skipped").count(), 2);
+    assert!(stderr.contains("Calculation 1, method mp2: no persisted converged HF"));
+    assert!(stderr.contains("Calculation 3, method mp2: required artifact is missing: ao_eri"));
+    for (index, calculation) in value["calculations"].as_array().unwrap().iter().enumerate() {
+        assert_eq!(calculation["source_index"], index);
+        let method = &calculation["methods"][0];
+        assert_eq!(method["method"], "mp2");
+        if index % 2 == 0 {
+            assert_eq!(method["status"], "succeeded");
+            for field in ["correlation_energy", "electronic_energy", "total_energy"] {
+                approx::assert_abs_diff_eq!(
+                    method["result"][field].as_f64().unwrap(),
+                    fresh[index][field].as_f64().unwrap(),
+                    epsilon = 1e-12,
+                );
+            }
+        } else {
+            assert_eq!(method["status"], "skipped");
+            assert_eq!(method["diagnostic"]["code"], "rustiq::post_scf::skipped");
+        }
+    }
+
+    let out = post_scf(
+        root,
+        "campaign.rustiq",
+        &[
+            "--calculation",
+            "2",
+            "--method",
+            "mp2",
+            "--method",
+            "mp2",
+            "--artifact",
+            "selected.rustiq",
+        ],
+    );
+    let value = post_scf_report(&out);
+    assert!(out.status.success());
+    assert_eq!(out.stderr, b"");
+    assert_eq!(value["summary"]["succeeded"], 1);
+    assert_eq!(value["calculations"][0]["source_index"], 2);
+    assert_eq!(
+        value["calculations"][0]["methods"][0]["result"]["reference"],
+        "UHF"
+    );
+
+    let selected = RustiQBundle::open(root.join("selected.rustiq")).unwrap();
+    assert_eq!(selected.calculations().len(), 1);
+    let copied_source = selected
+        .sources()
+        .find(|source| source.original_name() == "campaign.txt")
+        .unwrap();
+    assert_eq!(copied_source.bytes(), b"campaign source");
+    assert_eq!(
+        selected.calculations()[0].resolved_hf_method(),
+        RustiQBundle::open(root.join("entry-2.rustiq"))
+            .unwrap()
+            .calculations()[0]
+            .resolved_hf_method()
+    );
+
+    let out = command(
+        root,
+        &[
+            "run",
+            "campaign.rustiq",
+            "--post-scf",
+            "postscf.toml",
+            "--calculation",
+            "0",
+        ],
+    );
+    assert!(out.status.success());
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("MP2 correlation energy:"));
+    assert!(text.contains("1 succeeded, 0 skipped, 0 failed"));
+    assert!(!text.contains("SCF iterations"));
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+
+    let out = post_scf(root, "campaign.rustiq", &["--calculation", "1"]);
+    let value = post_scf_report(&out);
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(
+        value["summary"],
+        json!({"succeeded":0,"skipped":1,"failed":0})
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let warning = stderr.find("rustiq::post_scf::skipped").unwrap();
+    assert!(
+        warning
+            < stderr
+                .find("rustiq::post_scf::no_successful_calculations")
+                .unwrap()
+    );
+
+    let out = post_scf(root, "campaign.rustiq", &["--calculation", "4"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("zero-based index from 0 to 3"));
+}
+
+#[test]
+fn post_scf_pretty_json_is_machine_readable_with_forced_color() {
+    let dir = fixture();
+    let root = dir.path();
+    hf_bundle(root, false);
+    fs::write(root.join("postscf.toml"), "[method.mp2]").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_rustiq"))
+        .current_dir(root)
+        .args([
+            "--color",
+            "always",
+            "run",
+            "hf.rustiq",
+            "--post-scf",
+            "postscf.toml",
+            "--format",
+            "json",
+            "--pretty",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(out.stdout.starts_with(b"{\n  "));
+    assert_eq!(post_scf_report(&out)["summary"]["succeeded"], 1);
+}
+
+#[test]
+fn post_scf_publishes_successes_with_unrelated_corrupt_payload() {
+    let (dir, _) = post_scf_fixture();
+    let root = dir.path();
+    let path = root.join("campaign.rustiq");
+    edit_bundle(&path, |manifest, members| {
+        let artifacts = manifest["calculations"][0]["artifacts"]
+            .as_object_mut()
+            .unwrap();
+        let mut unrelated = artifacts["ao_eri"].clone();
+        unrelated["path"] = json!("calculations/calculation-0/arrays/unrelated.npy");
+        unrelated["attributes"] = json!({});
+        unrelated["representation"] = json!("future-v1");
+        let size = unrelated["size"].as_u64().unwrap();
+        members.push((
+            "calculations/calculation-0/arrays/unrelated.npy".into(),
+            vec![0; usize::try_from(size).unwrap()],
+        ));
+        artifacts.insert("unrelated".into(), unrelated);
+    });
+    let source = RustiQBundle::open_for_restore(&path).unwrap();
+    let mut copy = RustiQBundle::new(vec![source.calculations()[0].clone()]).unwrap();
+    assert!(copy.write(root.join("unfiltered.rustiq")).is_err());
+    assert!(!root.join("unfiltered.rustiq").exists());
+    let original = fs::read(&path).unwrap();
+    let output = post_scf(root, "campaign.rustiq", &["--artifact", "export.rustiq"]);
+    let report = post_scf_report(&output);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let saved = RustiQBundle::open(root.join("export.rustiq")).unwrap();
+    assert_eq!(saved.calculations().len(), 2);
+    for (entry, source_index) in saved.calculations().iter().zip([0, 2]) {
+        let result = &report["calculations"][source_index];
+        assert_eq!(result["source_index"], source_index);
+        assert_eq!(result["methods"][0]["status"], "succeeded");
+        assert!(entry.get::<ConvergedHfArtifact>().unwrap().is_some());
+        assert!(entry.get::<AoEriArtifact>().unwrap().is_some());
+        assert_eq!(entry.artifact_representations().count(), 2);
+        assert_eq!(
+            entry.resolved_hf_method(),
+            RustiQData::open(root.join(format!("entry-{source_index}.rustiq")))
+                .unwrap()
+                .resolved_hf_method()
+        );
+    }
+    assert_eq!(fs::read(path).unwrap(), original);
+}
+
+#[test]
+fn post_scf_reports_corrupt_payloads_as_failures_and_preserves_successful_pairs() {
+    let (dir, _) = post_scf_fixture();
+    let root = dir.path();
+    let path = root.join("campaign.rustiq");
+    for (index, corrupt_size) in [(0, false), (2, true)] {
+        edit_bundle(&path, |manifest, members| {
+            let payload = manifest["calculations"][index]["artifacts"]["ao_eri"]["path"]
+                .as_str()
+                .unwrap();
+            let (_, data) = members
+                .iter_mut()
+                .find(|(name, _)| name == payload)
+                .unwrap();
+            if corrupt_size {
+                data.pop().unwrap();
+            } else {
+                data[0] ^= 1;
+            }
+        });
+        let artifact = format!("export-{index}.rustiq");
+        let out = post_scf(root, "campaign.rustiq", &["--artifact", &artifact]);
+        if index == 0 {
+            let saved = RustiQBundle::open(root.join(&artifact)).unwrap();
+            assert_eq!(saved.calculations().len(), 1);
+        } else {
+            assert!(!root.join(artifact).exists());
+        }
+        assert_eq!(out.status.code(), Some(if index == 0 { 4 } else { 1 }));
+        let value = post_scf_report(&out);
+        assert_eq!(value["summary"]["failed"], if index == 0 { 1 } else { 2 });
+        assert_eq!(
+            value["calculations"][index]["methods"][0]["status"],
+            "failed"
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains(&format!("Calculation {index}, method mp2")));
+        assert!(stderr.contains("integrity check failed"));
+    }
+}
+
+#[test]
+fn post_scf_distinguishes_execution_errors_from_global_configuration_errors() {
+    let dir = fixture();
+    let root = dir.path();
+    hf_bundle(root, false);
+    for (config, message) in [
+        ("[method.mp2]\nfrozen_orbitals = 1", "frozen orbitals"),
+        (
+            "[method.mp2]\nmemory_limit = '1 B'",
+            "MP2 workspace requires",
+        ),
+    ] {
+        fs::write(root.join("postscf.toml"), config).unwrap();
+        let out = post_scf(root, "hf.rustiq", &[]);
+        let value = post_scf_report(&out);
+        assert_eq!(out.status.code(), Some(1));
+        assert_eq!(
+            value["summary"],
+            json!({"succeeded":0,"skipped":0,"failed":1})
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains("rustiq::post_scf::no_successful_calculations"));
+        assert!(stderr.contains(message), "{stderr}");
+        assert!(!stderr.contains("rustiq::post_scf::skipped"));
+    }
+    for (config, args, message) in [
+        ("", &[][..], "No Post-HF methods are configured"),
+        ("", &["--method", "mp2"][..], "is not configured"),
+        ("[method.mp2]", &["--method", "ccsd"][..], "is unavailable"),
+        ("[method.ccsd]", &[][..], "ccsd"),
+        ("[method.hf]", &[][..], "hf"),
+        ("[molecule]", &[][..], "molecule"),
+        (
+            "[method.mp2]\nmemory_limit = 'bad'",
+            &[][..],
+            "memory limit",
+        ),
+        (
+            "[method.mp2]\nfrozen_orbitals = -1",
+            &[][..],
+            "frozen_orbitals",
+        ),
+    ] {
+        fs::write(root.join("postscf.toml"), config).unwrap();
+        let out = post_scf(root, "hf.rustiq", args);
+        assert!(!out.status.success());
+        assert_eq!(out.stdout, b"");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains(message), "{stderr}");
+        assert!(!stderr.contains("rustiq::post_scf::skipped"));
+    }
+}
+
+#[test]
+fn post_scf_artifact_requested_matches_direct_nickel_study() {
+    let dir = fixture();
+    let root = dir.path();
+    calculate(root, &["--artifact", "hf.rustiq"]);
+    for (index, (toml, nickel)) in [
+        ("", "{}"),
+        (
+            "memory_limit = '128 MiB'\nfrozen_orbitals = 0",
+            "{memory_limit = \"128 MiB\", frozen_orbitals = 0}",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        fs::write(root.join("postscf.toml"), format!("[method.mp2]\n{toml}\n")).unwrap();
+        fs::write(
+            root.join("study.ncl"),
+            format!("[{{basis.name = \"sto-3g\", method.mp2 = {nickel}}}]"),
+        )
+        .unwrap();
+        let direct = format!("direct-{index}.rustiq");
+        let resumed = format!("resumed-{index}.rustiq");
+        success(
+            root,
+            &[
+                "run",
+                "study.ncl",
+                "--artifact",
+                &direct,
+                "--format",
+                "json",
+            ],
+        );
+        let out = post_scf(
+            root,
+            "hf.rustiq",
+            &["--calculation", "0", "--artifact", &resumed],
+        );
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let inspect = |path| success(root, &["artifact", "inspect", path, "--format", "json"]);
+        assert_eq!(
+            inspect(&direct)["calculations"][0]["requested"],
+            inspect(&resumed)["calculations"][0]["requested"]
+        );
+        let verify = command(root, &["artifact", "verify", &resumed, "--strict"]);
+        assert!(
+            verify.status.success(),
+            "{}",
+            String::from_utf8_lossy(&verify.stderr)
+        );
+        let existing = fs::read(root.join(&resumed)).unwrap();
+        assert!(!post_scf(root, "hf.rustiq", &["--artifact", &resumed])
+            .status
+            .success());
+        assert_eq!(fs::read(root.join(&resumed)).unwrap(), existing);
+    }
+}
+
+#[test]
+fn post_scf_split_run_matches_full_mp2_calculation() {
+    for (method, reference) in [("Rhf", "RHF"), ("Uhf", "UHF")] {
+        assert_post_scf_split_run_matches_full_mp2_calculation(method, reference);
+    }
+}
+
+fn assert_post_scf_split_run_matches_full_mp2_calculation(method: &str, reference: &str) {
+    let dir = fixture();
+    let root = dir.path();
+    let runfile = root.join("run.toml");
+    let mut base_config = fs::read_to_string(&runfile).unwrap();
+    if reference == "UHF" {
+        fs::write(
+            root.join("molecule.xyz"),
+            include_str!("../samples/oh/oh.xyz"),
+        )
+        .unwrap();
+        base_config = base_config.replace("[molecule]\n", "[molecule]\nmultiplicity = 2\n");
+    }
+    let hf_config = format!("{base_config}\n[method.hf]\nmethod = '{method}'\n");
+    let mp2_config = include_str!("../samples/h2/sto-3g/postscf.toml");
+
+    fs::write(&runfile, format!("{hf_config}\n{mp2_config}")).unwrap();
+    let full = calculate(root, &["--artifact", "full.rustiq"]);
+
+    fs::write(&runfile, hf_config).unwrap();
+    fs::write(root.join("postscf.toml"), mp2_config).unwrap();
+    let hf = calculate(root, &["--artifact", "hf.rustiq"]);
+    assert!(hf["calculation"].get("mp2").is_none());
+    assert_eq!(full["calculation"]["hf"], hf["calculation"]["hf"]);
+
+    fs::remove_file(runfile).unwrap();
+    fs::remove_file(root.join("molecule.xyz")).unwrap();
+    fs::remove_dir_all(root.join("data")).unwrap();
+    let output = post_scf(root, "hf.rustiq", &["--artifact", "resumed.rustiq"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = post_scf_report(&output);
+    assert_eq!(
+        report["summary"],
+        json!({"succeeded": 1, "skipped": 0, "failed": 0})
+    );
+    let method = &report["calculations"][0]["methods"][0];
+    assert_eq!(method["method"], "mp2");
+    assert_eq!(method["status"], "succeeded");
+    let resumed = &method["result"];
+    assert_eq!(full["calculation"]["hf"]["method"], reference);
+    assert_eq!(resumed["reference"], reference);
+    for field in ["correlation_energy", "electronic_energy", "total_energy"] {
+        approx::assert_abs_diff_eq!(
+            resumed[field].as_f64().unwrap(),
+            full["calculation"]["mp2"][field].as_f64().unwrap(),
+            epsilon = 1e-12,
+        );
+    }
+    assert_eq!(
+        resumed["nuclear_repulsion_energy"],
+        full["calculation"]["hf"]["nuclear_repulsion_energy"]
+    );
+
+    let inspect = |path| success(root, &["artifact", "inspect", path, "--format", "json"]);
+    assert_eq!(
+        inspect("full.rustiq")["calculations"][0]["requested"],
+        inspect("resumed.rustiq")["calculations"][0]["requested"]
+    );
+
+    let archived_hf = |path| {
+        RustiQData::open(root.join(path))
+            .unwrap()
+            .get::<ConvergedHfArtifact>()
+            .unwrap()
+            .unwrap()
+    };
+    let full_hf = archived_hf("full.rustiq");
+    let resumed_hf = archived_hf("resumed.rustiq");
+    assert_eq!(full_hf.identity(), resumed_hf.identity());
+    assert_eq!(full_hf.energies(), resumed_hf.energies());
+    assert_eq!(full_hf.iterations(), resumed_hf.iterations());
+    assert_eq!(full_hf.convergence(), resumed_hf.convergence());
+    assert_eq!(full_hf.spin(), resumed_hf.spin());
+}

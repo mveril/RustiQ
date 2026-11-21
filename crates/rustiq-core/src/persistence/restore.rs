@@ -24,6 +24,11 @@ use super::{PortableError, RustiQData};
 /// # }
 /// ```
 ///
+/// When running several Post-HF methods, restore once per bundle entry and
+/// borrow the same typed solution for each method. Use a runtime
+/// [`AnyHfSolution`](crate::calculation::AnyHfSolution) when the reference type
+/// is selected by the archived calculation.
+///
 /// Unconverged solutions cannot be restored through this contract:
 ///
 /// ```compile_fail

@@ -65,6 +65,23 @@ impl RustiQBundle {
         })
     }
 
+    /// Builds a new bundle from the supplied entries and this bundle's source provenance.
+    /// Entries retain the supplied order. Exact duplicate sources are stored once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the entries or combined provenance cannot form a portable bundle.
+    pub fn with_calculations(&self, calculations: Vec<RustiQData>) -> Result<Self, PortableError> {
+        let mut bundle = Self::new(calculations)?;
+        for source in &self.sources {
+            if !bundle.sources.contains(source) {
+                bundle.sources.push(source.clone());
+            }
+        }
+        validate_sources(&bundle.sources)?;
+        Ok(bundle)
+    }
+
     /// Opens read-only, validating all snapshots and references without loading arrays.
     ///
     /// # Errors
@@ -72,6 +89,18 @@ impl RustiQBundle {
     /// Returns an error if archive structure, context, references, or provenance are invalid or cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortableError> {
         Self::open_inner(path.as_ref(), true)
+    }
+
+    /// Opens a read-only bundle and defers artifact size and integrity checks to
+    /// typed artifact access. This lets consumers report a corrupt requested
+    /// payload against its calculation while continuing with independent entries.
+    /// Use [`Self::open`] to check declared member sizes at open time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the archive structure, snapshots or metadata are invalid.
+    pub fn open_for_restore(path: impl AsRef<Path>) -> Result<Self, PortableError> {
+        Self::open_inner(path.as_ref(), false)
     }
 
     pub(super) fn open_inner(
