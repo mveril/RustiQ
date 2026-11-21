@@ -79,7 +79,8 @@ pub struct RunCommand {
     #[arg(long, value_name = "PATH")]
     reuse: Option<PathBuf>,
 
-    /// Write a portable snapshot independently of the result output format.
+    /// Write a portable snapshot. With --post-scf, saves the HF reference and applied
+    /// method settings. MP2 energies are reported separately.
     #[arg(long, value_name = "PATH")]
     artifact: Option<PathBuf>,
 }

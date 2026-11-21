@@ -85,12 +85,15 @@ pub struct PostScfMp2Result {
 
 impl PostScfMp2Result {
     /// Records the applied MP2 settings in the requested and resolved snapshots.
+    /// Keeps the HF reference and AO integrals needed to rerun MP2.
     ///
     /// # Errors
     ///
     /// Returns an error if the snapshots are missing or the settings cannot be represented.
     pub fn update_snapshot(&self, data: RustiQData) -> Result<RustiQData, PortableError> {
-        data.with_mp2(self.config)
+        let mut data = data.with_mp2(self.config)?;
+        data.retain_mp2_reference();
+        Ok(data)
     }
 }
 

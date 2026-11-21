@@ -203,6 +203,14 @@ entry combines the archived HF inputs and the applied MP2 settings in its
 `requested` snapshot. This snapshot matches an equivalent direct Nickel
 study, including normalized defaults. The output carries the archived
 HF solution, AO ERIs, and source provenance, including the post-SCF TOML.
+Publication copies only the artifacts required by MP2 and checks their
+integrity. MP2 energies are available in the campaign report only.
+
+To map exported entries back to their source indices, keep the JSON campaign
+report. Filter its calculations to entries with at least one successful
+method. The remaining `source_index` values map in order to exported entries
+starting at index zero. A future format revision could record that mapping
+in the bundle itself.
 Existing destinations are rejected, and a campaign with no successes leaves
 no output bundle. The source bundle stays in read-only use throughout the
 campaign.

@@ -296,6 +296,8 @@ Important options:
 | `--calculation INDEX` | With `--post-scf`, select one calculation by its zero-based manifest index. Defaults to all entries in manifest order. |
 | `--method METHOD` | With `--post-scf`, select a method explicitly configured in the TOML. Repeat to select several methods. Defaults to all configured methods. MP2 is currently supported. |
 
+MP2 energies appear in the campaign report. The exported snapshots record the applied settings.
+
 With `--post-scf`, the CLI uses the archived converged orbitals and AO ERIs,
 and rejects HF, geometry and basis overrides in the TOML. The archive rerun
 option restrictions above also apply, with one exception. `--artifact PATH`

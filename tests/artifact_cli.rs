@@ -1368,6 +1368,57 @@ fn post_scf_pretty_json_is_machine_readable_with_forced_color() {
 }
 
 #[test]
+fn post_scf_publishes_successes_with_unrelated_corrupt_payload() {
+    let (dir, _) = post_scf_fixture();
+    let root = dir.path();
+    let path = root.join("campaign.rustiq");
+    edit_bundle(&path, |manifest, members| {
+        let artifacts = manifest["calculations"][0]["artifacts"]
+            .as_object_mut()
+            .unwrap();
+        let mut unrelated = artifacts["ao_eri"].clone();
+        unrelated["path"] = json!("calculations/calculation-0/arrays/unrelated.npy");
+        unrelated["attributes"] = json!({});
+        unrelated["representation"] = json!("future-v1");
+        let size = unrelated["size"].as_u64().unwrap();
+        members.push((
+            "calculations/calculation-0/arrays/unrelated.npy".into(),
+            vec![0; usize::try_from(size).unwrap()],
+        ));
+        artifacts.insert("unrelated".into(), unrelated);
+    });
+    let source = RustiQBundle::open_for_restore(&path).unwrap();
+    let mut copy = RustiQBundle::new(vec![source.calculations()[0].clone()]).unwrap();
+    assert!(copy.write(root.join("unfiltered.rustiq")).is_err());
+    assert!(!root.join("unfiltered.rustiq").exists());
+    let original = fs::read(&path).unwrap();
+    let output = post_scf(root, "campaign.rustiq", &["--artifact", "export.rustiq"]);
+    let report = post_scf_report(&output);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let saved = RustiQBundle::open(root.join("export.rustiq")).unwrap();
+    assert_eq!(saved.calculations().len(), 2);
+    for (entry, source_index) in saved.calculations().iter().zip([0, 2]) {
+        let result = &report["calculations"][source_index];
+        assert_eq!(result["source_index"], source_index);
+        assert_eq!(result["methods"][0]["status"], "succeeded");
+        assert!(entry.get::<ConvergedHfArtifact>().unwrap().is_some());
+        assert!(entry.get::<AoEriArtifact>().unwrap().is_some());
+        assert_eq!(entry.artifact_representations().count(), 2);
+        assert_eq!(
+            entry.resolved_hf_method(),
+            RustiQData::open(root.join(format!("entry-{source_index}.rustiq")))
+                .unwrap()
+                .resolved_hf_method()
+        );
+    }
+    assert_eq!(fs::read(path).unwrap(), original);
+}
+
+#[test]
 fn post_scf_reports_corrupt_payloads_as_failures_and_preserves_successful_pairs() {
     let (dir, _) = post_scf_fixture();
     let root = dir.path();

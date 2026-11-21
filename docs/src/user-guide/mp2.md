@@ -180,3 +180,8 @@ perturbative basis is described in
 [Møller and Plesset (1934)](https://journals.aps.org/pr/abstract/10.1103/PhysRev.46.618);
 see also this discussion of problematic MP2 denominators
 ([Lee and Head-Gordon, 2018](https://arxiv.org/abs/1807.06185)).
+
+For a post-SCF campaign, the report contains the numerical MP2 energies.
+The exported portable bundle records the applied MP2 settings with the
+saved HF reference and AO integrals. Keep the campaign report to retain
+the energies and original calculation indices.

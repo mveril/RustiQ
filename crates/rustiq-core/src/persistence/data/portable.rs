@@ -53,6 +53,13 @@ impl RustiQData {
         Ok(self)
     }
 
+    /// Projects a completed MP2 entry onto the saved HF reference and AO integrals.
+    pub(crate) fn retain_mp2_reference(&mut self) {
+        let required = |name: &str| matches!(name, AO_ERI_ARTIFACT | super::HF_ARTIFACT);
+        self.manifest.artifacts.retain(|name, _| required(name));
+        self.staged.retain(|name, _| required(name));
+    }
+
     /// Opens a portable archive and validates its context and artifact index.
     /// Numerical payloads are verified and decoded on demand on each access.
     /// Multi-calculation archives require [`super::RustiQBundle::open`].

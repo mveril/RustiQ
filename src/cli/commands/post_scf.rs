@@ -152,6 +152,8 @@ fn publish_artifact(
                 });
             let first = results.next()?;
             let data = source.calculations()[calculation.source_index].clone();
+            // Each supported method owns a single settings table. Methods that share
+            // settings must agree before their snapshots can be combined.
             Some(first.update_snapshot(data).and_then(|data| {
                 results.try_fold(data, |data, result| result.update_snapshot(data))
             }))
