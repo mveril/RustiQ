@@ -1193,7 +1193,7 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
     first.set::<ConvergedHfArtifact>(&orbitals).unwrap();
     first.write(root.join("orbitals.rustiq")).unwrap();
 
-    let export = |bundle, options: &[&str]| {
+    let export = |bundle: &str, options: &[&str]| {
         let mut args = vec!["artifact", "export", bundle, "--format", "molden"];
         args.extend_from_slice(options);
         command(root, &args)
@@ -1228,11 +1228,45 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
     assert!(text.contains(" Spin= Beta\n Occup= 1\n"));
     assert_eq!(text.matches("[MO]").count(), 1);
 
-    let output = root.join("orbitals.molden");
-    for (index, option, expected) in [
-        ("1", "-o", &selected.stdout),
-        ("0", "--output", &rhf.stdout),
+    assert_molden_file_publication(root, export, &rhf.stdout, &selected.stdout, &original);
+
+    for (options, message) in [
+        (&[][..], "Use --calculation"),
+        (&["--calculation", "3"][..], "index 3 is out of range"),
+        (
+            &["--calculation", "2"][..],
+            "no saved converged HF orbitals",
+        ),
     ] {
+        let failure = export("multi.rustiq", options);
+        assert_eq!(failure.status.code(), Some(1));
+        assert_eq!(failure.stdout, b"");
+        assert!(String::from_utf8_lossy(&failure.stderr).contains(message));
+    }
+
+    edit_bundle(&root.join("multi.rustiq"), |manifest, _| {
+        manifest["calculations"][1]["artifacts"]["converged_hf"]["size"] = json!(0);
+    });
+    let unaffected = export("multi.rustiq", &["--calculation", "0"]);
+    assert!(unaffected.status.success());
+    assert_eq!(unaffected.stdout, rhf.stdout);
+    let corrupt = export("multi.rustiq", &["--calculation", "1"]);
+    assert_eq!(corrupt.status.code(), Some(1));
+    assert_eq!(corrupt.stdout, b"");
+    let stderr = String::from_utf8_lossy(&corrupt.stderr);
+    assert!(stderr.contains("converged HF artifact for calculation 1"));
+    assert!(stderr.contains("integrity check failed"));
+}
+
+fn assert_molden_file_publication(
+    root: &Path,
+    export: impl Fn(&str, &[&str]) -> Output,
+    rhf: &[u8],
+    uhf: &[u8],
+    original: &[u8],
+) {
+    let output = root.join("orbitals.molden");
+    for (index, option, expected) in [("1", "-o", uhf), ("0", "--output", rhf)] {
         let written = export(
             "multi.rustiq",
             &["--calculation", index, option, "orbitals.molden"],
@@ -1275,38 +1309,12 @@ fn molden_exports_one_selected_calculation_without_ao_eris() {
         );
     }
 
-    for (options, message) in [
-        (&[][..], "Use --calculation"),
-        (&["--calculation", "3"][..], "index 3 is out of range"),
-        (
-            &["--calculation", "2"][..],
-            "no saved converged HF orbitals",
-        ),
-    ] {
-        let failure = export("multi.rustiq", options);
-        assert_eq!(failure.status.code(), Some(1));
-        assert_eq!(failure.stdout, b"");
-        assert!(String::from_utf8_lossy(&failure.stderr).contains(message));
-    }
     for path in ["missing.molden", "orbitals.molden"] {
         let missing = export("multi.rustiq", &["--calculation", "2", "-o", path]);
         assert_eq!(missing.status.code(), Some(1));
         assert_eq!(missing.stdout, b"");
     }
     assert!(!root.join("missing.molden").exists());
-    assert_eq!(fs::read(&output).unwrap(), rhf.stdout);
+    assert_eq!(fs::read(&output).unwrap(), rhf);
     assert_eq!(fs::read(root.join("multi.rustiq")).unwrap(), original);
-
-    edit_bundle(&root.join("multi.rustiq"), |manifest, _| {
-        manifest["calculations"][1]["artifacts"]["converged_hf"]["size"] = json!(0);
-    });
-    let unaffected = export("multi.rustiq", &["--calculation", "0"]);
-    assert!(unaffected.status.success());
-    assert_eq!(unaffected.stdout, rhf.stdout);
-    let corrupt = export("multi.rustiq", &["--calculation", "1"]);
-    assert_eq!(corrupt.status.code(), Some(1));
-    assert_eq!(corrupt.stdout, b"");
-    let stderr = String::from_utf8_lossy(&corrupt.stderr);
-    assert!(stderr.contains("converged HF artifact for calculation 1"));
-    assert!(stderr.contains("integrity check failed"));
 }
