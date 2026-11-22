@@ -521,7 +521,9 @@ or campaign is written before that publication error is returned.
 `artifact export PATH --format molden` writes to standard output by default.
 Use `-o FILE` or `--output FILE` to write to a file; existing files are
 preserved unless `--force` is supplied. Geometry transformations likewise
-require `--force` to replace an existing `--output` file.
+require `--force` to replace an existing `--output` file. Geometry
+outputs are published atomically; existing symbolic links retain their targets
+when replacing the target file with `--force`.
 Use `--calculation INDEX` for multi-calculation bundles. Indices are
 zero-based and follow the order in `artifact inspect`. A single-calculation
 bundle defaults to index 0. The selected entry must contain saved converged RHF

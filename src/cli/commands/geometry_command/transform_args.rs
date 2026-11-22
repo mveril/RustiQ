@@ -1,6 +1,11 @@
+use std::{
+    fs,
+    io::{self, stdin},
+    path::{Path, PathBuf},
+};
+
 use clap::Args;
-use miette::IntoDiagnostic;
-use std::{fs::OpenOptions, io::stdin, path::PathBuf};
+use miette::{miette, IntoDiagnostic};
 
 use rustiq_core::molecules::Geometry;
 
@@ -28,19 +33,60 @@ impl TransformArgs {
         };
         f(&mut geometry)?;
         if let Some(output) = &self.output {
+            // Resolve an existing alias before replacing its target, not the link.
+            let output = match fs::canonicalize(output) {
+                Ok(path) => path,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    match fs::symlink_metadata(output) {
+                        Ok(_) => {
+                            return Err(miette!(
+                                "Geometry output {} is a dangling symbolic link",
+                                output.display()
+                            ));
+                        }
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                            output.to_path_buf()
+                        }
+                        Err(error) => return Err(error).into_diagnostic(),
+                    }
+                }
+                Err(error) => return Err(error).into_diagnostic(),
+            };
+            if !self.output_options.force && output.exists() {
+                return Err(miette!(
+                    "Geometry output {} already exists; use --force to replace it",
+                    output.display()
+                ));
+            }
+            let parent = output
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."));
+            let mut temporary = tempfile::NamedTempFile::new_in(parent).into_diagnostic()?;
             geometry
-                .to_writer(
-                    OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .create_new(!self.output_options.force)
-                        .truncate(self.output_options.force)
-                        .open(output)
-                        .into_diagnostic()?,
-                )
+                .to_writer(temporary.as_file_mut())
                 .into_diagnostic()?;
+            let publication = if self.output_options.force {
+                temporary.persist(&output)
+            } else {
+                temporary.persist_noclobber(&output)
+            };
+            publication.map_err(|error| {
+                if error.error.kind() == io::ErrorKind::AlreadyExists {
+                    miette!(
+                        "Geometry output {} already exists; use --force to replace it",
+                        output.display()
+                    )
+                } else {
+                    miette!(
+                        "could not publish geometry {}: {}",
+                        output.display(),
+                        error.error
+                    )
+                }
+            })?;
         } else {
-            geometry.to_writer(std::io::stdout()).into_diagnostic()?;
+            geometry.to_writer(io::stdout()).into_diagnostic()?;
         }
         Ok(())
     }

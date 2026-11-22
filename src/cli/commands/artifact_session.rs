@@ -35,6 +35,32 @@ impl ArtifactReport {
     }
 }
 
+/// Resolve an artifact output once so regular runs and Post-SCF share the same
+/// no-clobber and symbolic-link behavior.
+pub(crate) fn resolve_artifact_destination(
+    reuse: Option<&Path>,
+    path: &Path,
+    force: bool,
+) -> miette::Result<(PathBuf, bool)> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => {
+            let canonical = fs::canonicalize(path).into_diagnostic()?;
+            let source = reuse.map(fs::canonicalize).transpose().into_diagnostic()?;
+            if source.as_ref() != Some(&canonical) && !force {
+                return Err(miette!(
+                    "artifact destination already exists: {}",
+                    path.display()
+                ));
+            }
+            Ok((canonical, true))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok((path.to_path_buf(), false))
+        }
+        Err(error) => Err(error).into_diagnostic(),
+    }
+}
+
 pub(crate) struct ArtifactSession {
     source: RefCell<Option<RustiQBundle>>,
     snapshots: RefCell<Vec<RustiQData>>,
@@ -53,26 +79,12 @@ impl ArtifactSession {
             .map(RustiQBundle::open)
             .transpose()
             .into_diagnostic()?;
-        let source_path = reuse.map(fs::canonicalize).transpose().into_diagnostic()?;
-        let mut destination = artifact.map(Path::to_path_buf);
-        let mut replace = false;
-        if let Some(path) = artifact {
-            match fs::symlink_metadata(path) {
-                Ok(_) => {
-                    let canonical = fs::canonicalize(path).into_diagnostic()?;
-                    if source_path.as_ref() != Some(&canonical) && !force {
-                        return Err(miette!(
-                            "artifact destination already exists: {}",
-                            path.display()
-                        ));
-                    }
-                    destination = Some(canonical);
-                    replace = true;
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error).into_diagnostic(),
-            }
-        }
+        let (destination, replace) = if let Some(path) = artifact {
+            let (path, replace) = resolve_artifact_destination(reuse, path, force)?;
+            (Some(path), replace)
+        } else {
+            (None, false)
+        };
         Ok(Self {
             source: RefCell::new(source),
             snapshots: RefCell::new(Vec::new()),

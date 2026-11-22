@@ -234,6 +234,36 @@ fn same_path_replacement_retains_new_request_and_failure_preserves_source() {
 }
 
 #[test]
+fn forced_artifact_replacement_preserves_previous_bytes_on_failure() {
+    let directory = fixture();
+    let root = directory.path();
+    calculate(root, &["--artifact", "result.rustiq"]);
+    let path = root.join("result.rustiq");
+    let original = fs::read(&path).unwrap();
+
+    let refused = command(root, &["run", "run.toml", "--artifact", "result.rustiq"]);
+    assert!(!refused.status.success());
+    assert_eq!(fs::read(&path).unwrap(), original);
+
+    fs::write(root.join("run.toml"), "[basis]\nname = 'missing-basis'\n").unwrap();
+    let failed = command(
+        root,
+        &["run", "run.toml", "--artifact", "result.rustiq", "--force"],
+    );
+    assert!(!failed.status.success());
+    assert_eq!(fs::read(&path).unwrap(), original);
+
+    fs::write(
+        root.join("run.toml"),
+        "[molecule]\ngeometry = 'changed.xyz'\n[basis]\nname = 'sto-3g'\n",
+    )
+    .unwrap();
+    calculate(root, &["--artifact", "result.rustiq", "--force"]);
+    assert_ne!(fs::read(&path).unwrap(), original);
+    assert!(RustiQBundle::open(&path).is_ok());
+}
+
+#[test]
 fn corrupt_selected_payload_is_an_error_and_invalid_archive_fails_before_execution() {
     let directory = fixture();
     let root = directory.path();
@@ -1314,6 +1344,71 @@ fn post_scf_exports_selected_reference_and_preserves_source() {
     );
 
     assert_eq!(fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn post_scf_force_replaces_other_destinations_but_never_the_source() {
+    let (directory, _) = post_scf_fixture();
+    let root = directory.path();
+    let source = root.join("campaign.rustiq");
+    let original_source = fs::read(&source).unwrap();
+    let destination = root.join("existing.rustiq");
+    fs::write(&destination, b"previous output").unwrap();
+
+    let rejected = post_scf(root, "campaign.rustiq", &["--artifact", "existing.rustiq"]);
+    assert!(!rejected.status.success());
+    assert_eq!(fs::read(&destination).unwrap(), b"previous output");
+
+    let forced = post_scf(
+        root,
+        "campaign.rustiq",
+        &["--artifact", "existing.rustiq", "--force"],
+    );
+    assert!(
+        forced.status.success(),
+        "{}",
+        String::from_utf8_lossy(&forced.stderr)
+    );
+    assert!(RustiQBundle::open(&destination).is_ok());
+
+    for forbidden in ["campaign.rustiq", "linked-source.rustiq"] {
+        if forbidden == "linked-source.rustiq" {
+            fs::hard_link(&source, root.join(forbidden)).unwrap();
+        }
+        let rejected = post_scf(root, "campaign.rustiq", &["--artifact", forbidden, "--force"]);
+        assert!(!rejected.status.success());
+        assert!(String::from_utf8_lossy(&rejected.stderr).contains("must not replace"));
+    }
+    assert_eq!(fs::read(&source).unwrap(), original_source);
+}
+
+#[cfg(unix)]
+#[test]
+fn post_scf_force_preserves_symbolic_output_alias() {
+    let (directory, _) = post_scf_fixture();
+    let root = directory.path();
+    fs::write(root.join("target.rustiq"), b"previous output").unwrap();
+    std::os::unix::fs::symlink("target.rustiq", root.join("alias.rustiq")).unwrap();
+
+    let rejected = post_scf(root, "campaign.rustiq", &["--artifact", "alias.rustiq"]);
+    assert!(!rejected.status.success());
+    assert_eq!(fs::read(root.join("target.rustiq")).unwrap(), b"previous output");
+
+    let forced = post_scf(
+        root,
+        "campaign.rustiq",
+        &["--artifact", "alias.rustiq", "--force"],
+    );
+    assert!(
+        forced.status.success(),
+        "{}",
+        String::from_utf8_lossy(&forced.stderr)
+    );
+    assert!(fs::symlink_metadata(root.join("alias.rustiq"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert!(RustiQBundle::open(root.join("target.rustiq")).is_ok());
 }
 
 #[test]

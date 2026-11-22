@@ -96,12 +96,16 @@ pub(super) fn run(
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("rustiq"))
         })
         .ok_or_else(|| miette!("--post-scf requires a .rustiq input bundle"))?;
-    if let Some(path) = artifact {
-        if path.exists() && same_file::is_same_file(input, path).into_diagnostic()? {
-            return Err(miette!("Post-HF output must not replace the input bundle"));
-        }
-        super::artifact_session::ArtifactSession::open(None, Some(path), force)?;
-    }
+    let destination = artifact
+        .map(|path| {
+            let (path, replace) =
+                super::artifact_session::resolve_artifact_destination(None, path, force)?;
+            if replace && same_file::is_same_file(input, &path).into_diagnostic()? {
+                return Err(miette!("Post-HF output must not replace the input bundle"));
+            }
+            Ok((path, replace))
+        })
+        .transpose()?;
     let source = fs::read_to_string(config)
         .into_diagnostic()
         .wrap_err_with(|| format!("could not read Post-HF configuration {}", config.display()))?;
@@ -128,8 +132,8 @@ pub(super) fn run(
     );
     campaign.print(format, pretty)?;
     let status = campaign.finish();
-    let publication = artifact.map_or(Ok(()), |path| {
-        publish_artifact(path, &bundle, &campaign, (config, &source), force)
+    let publication = destination.as_ref().map_or(Ok(()), |(path, replace)| {
+        publish_artifact(path, &bundle, &campaign, (config, &source), *replace)
     });
     campaign.emit_diagnostics((config, &source))?;
     publication?;
@@ -141,7 +145,7 @@ fn publish_artifact(
     source: &RustiQBundle,
     campaign: &Campaign,
     config: (&Path, &str),
-    force: bool,
+    replace: bool,
 ) -> miette::Result<()> {
     let entries = campaign
         .calculations
@@ -171,7 +175,7 @@ fn publish_artifact(
     output
         .add_source(config.0.to_string_lossy(), config.1.as_bytes())
         .into_diagnostic()?;
-    (if force {
+    (if replace {
         output.replace(path)
     } else {
         output.write(path)
