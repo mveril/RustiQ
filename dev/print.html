@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-960d6199.js";
+            window.path_to_searchindex_js = "searchindex-c80ccdbc.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-de272c4b.js"></script>
@@ -2072,9 +2072,9 @@ software that reads the <a href="https://www.theochem.ru.nl/molden/molden_format
 <code>rustiq</code>. The index is zero-based in manifest order, as displayed by
 <code>artifact inspect</code>. You can omit it for a single-calculation bundle. For a
 bundle with multiple entries, choose one index per exported file. With
-<code>-o FILE</code> or <code>--output FILE</code>, RustiQ creates or overwrites the destination file.
-Omit the option to write to standard output. The destination cannot point to
-the input bundle.
+<code>-o FILE</code> or <code>--output FILE</code>, RustiQ creates the destination and refuses to
+overwrite an existing file. Add <code>--force</code> to replace it. Omit the output option
+to write to standard output. The destination cannot point to the input bundle.
 File output is written to a temporary file beside the destination and
 replaces the destination atomically after writing succeeds.</p>
 <p>The exporter uses the saved orbitals, resolved geometry, and effective AO
@@ -2103,10 +2103,10 @@ from <code>rustiq_core::persistence</code>. Call <code>export</code> to validate
 result to any <code>std::io::Write</code> destination.</p>
 <h2 id="publication-and-failures"><a class="header" href="#publication-and-failures">Publication and failures</a></h2>
 <p><code>--artifact</code> publishes the current requested collection; it does not append to
-the source bundle. A new destination must not exist. An existing destination is
-accepted only when it resolves to the explicit <code>--reuse</code> source, in which case
-RustiQ replaces that bundle after producing a complete validated snapshot.
-Other existing destinations are left untouched.</p>
+the source bundle. RustiQ replaces the explicit <code>--reuse</code> source when both
+options point to the same bundle. Pass <code>--force</code> to replace another existing
+destination. Post-SCF output requires a separate destination from the input
+bundle, even with <code>--force</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -2764,8 +2764,8 @@ rustiq run samples/h2/sto-3g/calculation.toml --reuse h2.rustiq --artifact h2.ru
 </code></pre>
 <p>Publication captures the current requested calculation collection and its
 compatible known artifacts. It does not append history. An existing destination
-is accepted only when it resolves to the explicit <code>--reuse</code> source; otherwise
-the command fails without replacing it. Publication happens after every requested
+is accepted when it resolves to the explicit <code>--reuse</code> source or when you pass
+<code>--force</code>. With <code>--post-scf</code>, <code>--force</code> can replace a separate output bundle. Publication happens after every requested
 calculation produces a result. Preparation or execution errors prevent
 publication of the collection and leave the destination unchanged. An HF-only
 non-converged result can contribute its AO ERI. A Nickel batch containing only
@@ -2786,7 +2786,12 @@ Publication failures are reported on stderr and return a failing exit status.
 Since publication follows scientific execution, JSON for the completed calculation
 or campaign is written before that publication error is returned.</p>
 <p><code>artifact export PATH --format molden</code> writes to standard output by default.
-Use <code>-o FILE</code> or <code>--output FILE</code> to write directly to a file. Use <code>--calculation INDEX</code> for multi-calculation bundles. Indices are
+Use <code>-o FILE</code> or <code>--output FILE</code> to write to a file; existing files are
+preserved unless <code>--force</code> is supplied. Geometry transformations likewise
+require <code>--force</code> to replace an existing <code>--output</code> file. Geometry
+outputs are published atomically; existing symbolic links retain their targets
+when replacing the target file with <code>--force</code>.
+Use <code>--calculation INDEX</code> for multi-calculation bundles. Indices are
 zero-based and follow the order in <code>artifact inspect</code>. A single-calculation
 bundle defaults to index 0. The selected entry must contain saved converged RHF
 or UHF orbitals. A missing or invalid artifact or an unsupported basis returns
