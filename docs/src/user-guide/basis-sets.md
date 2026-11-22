@@ -99,3 +99,7 @@ agreement, basis quality, and physical validity are distinct checks; see
 See the [glossary](../glossary.md) for shared basis vocabulary.
 
 Next: [TOML configuration](configuration.md).
+
+If an offline calculation reports a missing basis, import the matching Basis Set
+Exchange JSON file with `rustiq basis import <file.json>` and rerun the calculation.
+Use `rustiq basis list` to check the names available in the local store.

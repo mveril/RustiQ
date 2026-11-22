@@ -1965,3 +1965,13 @@ fn assert_molden_file_publication(
     assert_eq!(fs::read(&output).unwrap(), rhf);
     assert_eq!(fs::read(root.join("multi.rustiq")).unwrap(), original);
 }
+
+#[test]
+fn offline_missing_basis_explains_how_to_import_it() {
+    let dir = fixture();
+    fs::remove_file(dir.path().join("data/rustiq/basis_sets/sto-3g.json")).unwrap();
+    let output = command(dir.path(), &["run", "run.toml", "--no-auto-download"]);
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains("rustiq basis import"), "{diagnostic}");
+}

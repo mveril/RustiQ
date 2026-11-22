@@ -265,7 +265,7 @@ impl RunCommand {
             Ok(basis)
         } else {
             Err(miette!(
-                "Basis {} not found in {}",
+                "Basis {} not found in {}. Import a Basis Set Exchange JSON file with `rustiq basis import <file.json>`.",
                 name,
                 store.path().display()
             ))
