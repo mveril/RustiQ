@@ -528,6 +528,23 @@ const SAMPLE_EXPECTATIONS: &[SampleExpectation] = &[
         }),
         cache_enabled: false,
     },
+    SampleExpectation {
+        path: "benzene/sto-3g/calculation.toml",
+        geometry: "../benzene.xyz",
+        basis: "sto-3g",
+        hf_method: HfMethod::Auto,
+        charge: 0,
+        multiplicity: 1,
+        max_iterations: 150,
+        convergence_threshold: 1e-10,
+        diis: DiisExpectation {
+            enabled: true,
+            max_history: 10,
+        },
+        guess: GuessExpectation::CoreHamiltonian,
+        mp2: None,
+        cache_enabled: false,
+    },
 ];
 
 #[rstest::rstest]
@@ -556,6 +573,7 @@ const SAMPLE_EXPECTATIONS: &[SampleExpectation] = &[
 #[case::new_reference_3(22)]
 #[case::new_reference_4(23)]
 #[case::new_reference_5(24)]
+#[case::benzene_sto_3g(25)]
 fn every_valid_sample_has_expected_scientific_configuration(#[case] case: usize) {
     let expected = SAMPLE_EXPECTATIONS[case];
     let file = expected.path;
