@@ -16,6 +16,13 @@ mod runnable;
 use basis_command::BasisCommands;
 use cache_command::CacheCommands;
 use clap::Subcommand;
+
+#[derive(clap::Args, Debug, Clone, Copy, Default)]
+pub(crate) struct OutputOptions {
+    /// Replace an existing output file.
+    #[arg(short, long)]
+    pub(crate) force: bool,
+}
 use geometry_command::GeometryCommands;
 #[cfg(feature = "online")]
 pub(crate) use runnable::AsyncRunnable;
