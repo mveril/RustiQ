@@ -796,8 +796,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation_selection: super::bundle_selection::BundleCalculationSelection::default(
-                ),
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: false,
@@ -820,8 +820,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation_selection: super::bundle_selection::BundleCalculationSelection::default(
-                ),
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: true,
                 no_auto_download: false,
@@ -840,8 +840,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation_selection: super::bundle_selection::BundleCalculationSelection::default(
-                ),
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: true,
@@ -864,8 +864,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation_selection: super::bundle_selection::BundleCalculationSelection::default(
-                ),
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: false,
