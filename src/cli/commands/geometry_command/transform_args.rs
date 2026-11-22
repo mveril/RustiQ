@@ -45,7 +45,7 @@ impl TransformArgs {
                             ));
                         }
                         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                            output.to_path_buf()
+                            output.clone()
                         }
                         Err(error) => return Err(error).into_diagnostic(),
                     }

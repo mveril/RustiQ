@@ -48,7 +48,7 @@ fn geometry_outputs_require_force_and_preserve_existing_data() {
     );
     let written = fs::read(root.join("output.xyz")).unwrap();
     assert_ne!(written, original);
-    assert!(String::from_utf8(written).unwrap().contains("H"));
+    assert!(String::from_utf8(written).unwrap().contains('H'));
 
     let refused_again = geometry_command(root, &["--dx", "2", "-o", "output.xyz"]);
     assert!(!refused_again.status.success());
