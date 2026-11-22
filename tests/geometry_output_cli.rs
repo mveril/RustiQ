@@ -35,12 +35,12 @@ fn geometry_outputs_require_force_and_preserve_existing_data() {
     let original = b"previous geometry";
     fs::write(root.join("output.xyz"), original).unwrap();
 
-    let rejected = geometry_command(root, &["--x", "1", "-o", "output.xyz"]);
+    let rejected = geometry_command(root, &["--dx", "1", "-o", "output.xyz"]);
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("--force"));
     assert_eq!(fs::read(root.join("output.xyz")).unwrap(), original);
 
-    let accepted = geometry_command(root, &["--x", "1", "-o", "output.xyz", "--force"]);
+    let accepted = geometry_command(root, &["--dx", "1", "-o", "output.xyz", "--force"]);
     assert!(
         accepted.status.success(),
         "{}",
@@ -50,7 +50,7 @@ fn geometry_outputs_require_force_and_preserve_existing_data() {
     assert_ne!(written, original);
     assert!(String::from_utf8(written).unwrap().contains("H"));
 
-    let refused_again = geometry_command(root, &["--x", "2", "-o", "output.xyz"]);
+    let refused_again = geometry_command(root, &["--dx", "2", "-o", "output.xyz"]);
     assert!(!refused_again.status.success());
 }
 
@@ -60,7 +60,7 @@ fn failed_geometry_transform_does_not_change_destination() {
     let root = directory.path();
     fs::write(root.join("output.xyz"), b"untouched").unwrap();
     fs::write(root.join("input.xyz"), b"invalid geometry").unwrap();
-    let failed = geometry_command(root, &["--x", "1", "-o", "output.xyz", "--force"]);
+    let failed = geometry_command(root, &["--dx", "1", "-o", "output.xyz", "--force"]);
     assert!(!failed.status.success());
     assert_eq!(fs::read(root.join("output.xyz")).unwrap(), b"untouched");
 }
@@ -77,7 +77,7 @@ fn forced_geometry_output_replaces_target_without_removing_alias() {
     assert!(!refused.status.success());
     assert_eq!(fs::read(root.join("target.xyz")).unwrap(), b"old target");
 
-    let written = geometry_command(root, &["--x", "1", "-o", "alias.xyz", "--force"]);
+    let written = geometry_command(root, &["--dx", "1", "-o", "alias.xyz", "--force"]);
     assert!(
         written.status.success(),
         "{}",

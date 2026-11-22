@@ -1375,7 +1375,11 @@ fn post_scf_force_replaces_other_destinations_but_never_the_source() {
         if forbidden == "linked-source.rustiq" {
             fs::hard_link(&source, root.join(forbidden)).unwrap();
         }
-        let rejected = post_scf(root, "campaign.rustiq", &["--artifact", forbidden, "--force"]);
+        let rejected = post_scf(
+            root,
+            "campaign.rustiq",
+            &["--artifact", forbidden, "--force"],
+        );
         assert!(!rejected.status.success());
         assert!(String::from_utf8_lossy(&rejected.stderr).contains("must not replace"));
     }
@@ -1392,7 +1396,10 @@ fn post_scf_force_preserves_symbolic_output_alias() {
 
     let rejected = post_scf(root, "campaign.rustiq", &["--artifact", "alias.rustiq"]);
     assert!(!rejected.status.success());
-    assert_eq!(fs::read(root.join("target.rustiq")).unwrap(), b"previous output");
+    assert_eq!(
+        fs::read(root.join("target.rustiq")).unwrap(),
+        b"previous output"
+    );
 
     let forced = post_scf(
         root,
