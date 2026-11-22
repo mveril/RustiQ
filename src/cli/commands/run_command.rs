@@ -805,7 +805,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
-                output_options: Default::default(),
+                output_options: crate::cli::commands::OutputOptions::default(),
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -828,7 +828,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
-                output_options: Default::default(),
+                output_options: crate::cli::commands::OutputOptions::default(),
             };
 
             assert!(command.resolve_auto_download());
@@ -847,7 +847,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
-                output_options: Default::default(),
+                output_options: crate::cli::commands::OutputOptions::default(),
             };
 
             assert!(!command.resolve_auto_download());
@@ -870,7 +870,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
-                output_options: Default::default(),
+                output_options: crate::cli::commands::OutputOptions::default(),
             };
 
             assert!(!command.resolve_auto_download());
