@@ -44,9 +44,7 @@ impl TransformArgs {
                                 output.display()
                             ));
                         }
-                        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                            output.clone()
-                        }
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => output.clone(),
                         Err(error) => return Err(error).into_diagnostic(),
                     }
                 }
