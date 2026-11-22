@@ -2,6 +2,7 @@ mod artifact_command;
 pub(crate) mod artifact_session;
 mod basis_command;
 pub(crate) mod batch_orchestration;
+mod bundle_selection;
 mod cache_command;
 pub(crate) mod calculation_result;
 mod docs_command;
