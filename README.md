@@ -6,26 +6,22 @@
 [![Manual](https://img.shields.io/badge/docs-manual-blue)](https://mveril.github.io/RustiQ/)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](DISTRIBUTION.md)
 
-RustiQ is an experimental Rust quantum chemistry application and reusable
-`rustiq-chem-core` library. RustiQ-authored source is licensed under MIT OR
-Apache-2.0. Executables include LGPL libraries, third-party notices and access
-to corresponding sources. See [distribution terms](DISTRIBUTION.md).
-It supports RHF, UHF,
-MP2, XYZ geometries, Gaussian basis sets, TOML/Nickel inputs, sequential studies,
-versioned JSON output, and portable `.rustiq` bundles with reuse of atomic-orbital
-electron-repulsion integrals (AO ERIs).
+RustiQ is an experimental quantum chemistry program for fixed-geometry
+calculations with Gaussian basis sets. It supports restricted Hartree–Fock
+(RHF) for closed-shell molecules, unrestricted Hartree–Fock (UHF) for
+open-shell systems, and MP2 correlation energies from either reference.
 
-Do not use results for research conclusions without independent validation
-against established quantum chemistry packages.
+Supply an XYZ geometry and a TOML or Nickel calculation input. Use the
+terminal report or versioned JSON for numerical results. A portable
+`.rustiq` bundle saves the resolved inputs, converged HF orbitals, and
+available AO integrals. You can reuse the saved reference for MP2 without a
+second SCF run or export the orbitals in Molden format.
 
-## Purpose
-
-RustiQ explores what modern Rust software engineering can bring to quantum
-chemistry through strong typing, memory safety, explicit error handling,
-modularity, and maintainability. These engineering goals go hand in hand with
-scientific correctness, numerical validation, and performance; RustiQ does not
-claim superiority over mature quantum chemistry packages or established
-Fortran implementations.
+Start with the [water, hydroxyl radical, and benzene tutorials](docs/src/user-guide/examples.md).
+The [PySCF reference suite](tools/reference/README.md) documents the comparisons
+and their tolerances. Check results independently before drawing research
+conclusions. HF omits electron correlation, and MP2 can be unreliable for
+strongly correlated systems. See the [scientific scope](docs/src/scientific-scope.md).
 
 ## Quick start
 
@@ -34,7 +30,7 @@ and [the first H₂ calculation](https://mveril.github.io/RustiQ/getting-started
 Release archives contain the executable and licenses; obtain basis data and
 create calculation inputs as shown in those guides.
 
-Once the beta is published, install it from crates.io with
+To install beta.1 from crates.io, use
 `cargo install --locked rustiq-chem --version '=0.1.0-beta.1'`, or install the
 tagged flake’s default package with
 `nix profile install 'github:mveril/RustiQ/v0.1.0-beta.1'`.

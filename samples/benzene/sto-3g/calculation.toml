@@ -1,0 +1,19 @@
+[basis]
+name = "sto-3g"
+
+[molecule]
+geometry = "../benzene.xyz"
+charge = 0
+multiplicity = 1
+units = "Angstrom"
+
+[method.hf]
+max_iterations = 150
+convergence_threshold = 1e-10
+
+[method.hf.guess]
+type = "CoreHamiltonian"
+
+[method.hf.diis]
+enabled = true
+max_history = 10
