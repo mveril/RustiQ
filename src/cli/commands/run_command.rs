@@ -41,9 +41,9 @@ pub struct RunCommand {
     #[arg(long, value_name = "TOML", requires = "input", conflicts_with_all = ["reuse", "cache_dir", "auto_download", "no_auto_download"])]
     post_scf: Option<PathBuf>,
 
-    /// Select a zero-based calculation in the Post-HF input bundle.
-    #[arg(long, requires = "post_scf")]
-    calculation: Option<usize>,
+    /// Select a calculation in the Post-HF input bundle.
+    #[command(flatten)]
+    calculation_selection: super::bundle_selection::BundleCalculationSelection,
 
     /// Select a configured Post-HF method. May be repeated.
     #[arg(long = "method", requires = "post_scf", value_name = "METHOD")]
@@ -279,7 +279,7 @@ impl Runnable for RunCommand {
             return super::post_scf::run(
                 self.input.as_deref(),
                 config,
-                self.calculation,
+                self.calculation_selection.calculation,
                 &self.methods,
                 (self.artifact.as_deref(), self.output_options.force),
                 (self.format, self.pretty),
@@ -796,7 +796,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation: None,
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: false,
@@ -819,7 +820,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation: None,
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: true,
                 no_auto_download: false,
@@ -838,7 +840,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation: None,
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: true,
@@ -861,7 +864,8 @@ mod tests {
             let command = RunCommand {
                 input: None,
                 post_scf: None,
-                calculation: None,
+                calculation_selection:
+                    super::super::bundle_selection::BundleCalculationSelection::default(),
                 methods: Vec::new(),
                 auto_download: false,
                 no_auto_download: false,

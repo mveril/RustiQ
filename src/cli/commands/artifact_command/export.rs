@@ -7,6 +7,7 @@ use clap::{Args, ValueEnum};
 use miette::{miette, IntoDiagnostic, WrapErr};
 use rustiq_core::persistence::{ExportError, ExportFormat, RustiQBundle};
 
+use crate::cli::commands::bundle_selection::BundleCalculationSelection;
 use crate::cli::commands::{CommandResult, Runnable};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -23,9 +24,8 @@ pub(crate) struct ExportCommand {
     /// Select the export format.
     #[arg(long, value_enum)]
     format: CliExportFormat,
-    /// Zero-based calculation index. Required for bundles with multiple calculations.
-    #[arg(long)]
-    calculation: Option<usize>,
+    #[command(flatten)]
+    calculation_selection: BundleCalculationSelection,
     /// File to write. Writes to standard output when omitted.
     #[arg(short, long)]
     output: Option<PathBuf>,
@@ -35,22 +35,8 @@ impl Runnable for ExportCommand {
     fn run(&self) -> CommandResult {
         let bundle = RustiQBundle::open_for_restore(&self.path).into_diagnostic()?;
         let calculations = bundle.calculations();
-        let index = match self.calculation {
-            Some(index) => index,
-            None if calculations.len() == 1 => 0,
-            None => {
-                return Err(miette!(
-                    "This bundle contains {} calculations. Use --calculation with a zero-based index.",
-                    calculations.len()
-                ));
-            }
-        };
-        let data = calculations.get(index).ok_or_else(|| {
-            miette!(
-                "Calculation index {index} is out of range. Use a zero-based index from 0 to {}.",
-                calculations.len() - 1
-            )
-        })?;
+        let index = self.calculation_selection.single(calculations.len())?;
+        let data = &calculations[index];
         let format = match self.format {
             CliExportFormat::Molden => ExportFormat::Molden,
         };
