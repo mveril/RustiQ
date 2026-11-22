@@ -87,7 +87,7 @@ pub(super) fn run(
     config: &Path,
     source_index: Option<usize>,
     methods: &[String],
-    artifact: Option<&Path>,
+    (artifact, force): (Option<&Path>, bool),
     (format, pretty): (CalculationOutputFormat, bool),
 ) -> miette::Result<()> {
     let input = input
@@ -97,7 +97,10 @@ pub(super) fn run(
         })
         .ok_or_else(|| miette!("--post-scf requires a .rustiq input bundle"))?;
     if let Some(path) = artifact {
-        super::artifact_session::ArtifactSession::open(None, Some(path))?;
+        if path.exists() && same_file::is_same_file(input, path).into_diagnostic()? {
+            return Err(miette!("Post-HF output must not replace the input bundle"));
+        }
+        super::artifact_session::ArtifactSession::open(None, Some(path), force)?;
     }
     let source = fs::read_to_string(config)
         .into_diagnostic()
@@ -126,7 +129,7 @@ pub(super) fn run(
     campaign.print(format, pretty)?;
     let status = campaign.finish();
     let publication = artifact.map_or(Ok(()), |path| {
-        publish_artifact(path, &bundle, &campaign, (config, &source))
+        publish_artifact(path, &bundle, &campaign, (config, &source), force)
     });
     campaign.emit_diagnostics((config, &source))?;
     publication?;
@@ -138,6 +141,7 @@ fn publish_artifact(
     source: &RustiQBundle,
     campaign: &Campaign,
     config: (&Path, &str),
+    force: bool,
 ) -> miette::Result<()> {
     let entries = campaign
         .calculations
@@ -167,10 +171,13 @@ fn publish_artifact(
     output
         .add_source(config.0.to_string_lossy(), config.1.as_bytes())
         .into_diagnostic()?;
-    output
-        .write(path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("could not publish Post-HF artifact {}", path.display()))
+    (if force {
+        output.replace(path)
+    } else {
+        output.write(path)
+    })
+    .into_diagnostic()
+    .wrap_err_with(|| format!("could not publish Post-HF artifact {}", path.display()))
 }
 
 fn execute<'a>(

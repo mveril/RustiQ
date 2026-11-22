@@ -33,6 +33,8 @@ use super::{CommandResult, Runnable};
 
 #[derive(clap::Args, Debug)] // Allows this structure to be used with Clap
 pub struct RunCommand {
+    #[command(flatten)]
+    output_options: super::OutputOptions,
     /// TOML or Nickel input, or a portable .rustiq bundle to rerun. If omitted, read TOML from standard input.
     pub input: Option<PathBuf>,
     /// Execute Post-HF methods on saved references using a method-only TOML file.
@@ -279,7 +281,7 @@ impl Runnable for RunCommand {
                 config,
                 self.calculation,
                 &self.methods,
-                self.artifact.as_deref(),
+                (self.artifact.as_deref(), self.output_options.force),
                 (self.format, self.pretty),
             );
         }
@@ -319,7 +321,11 @@ impl Runnable for RunCommand {
             }
             return self.execute_portable_batch(calculations, json_output);
         }
-        let artifacts = ArtifactSession::open(self.reuse.as_deref(), self.artifact.as_deref())?;
+        let artifacts = ArtifactSession::open(
+            self.reuse.as_deref(),
+            self.artifact.as_deref(),
+            self.output_options.force,
+        )?;
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
@@ -799,6 +805,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
+                output_options: Default::default(),
             };
 
             assert_eq!(command.resolve_auto_download(), expected);
@@ -821,6 +828,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
+                output_options: Default::default(),
             };
 
             assert!(command.resolve_auto_download());
@@ -839,6 +847,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
+                output_options: Default::default(),
             };
 
             assert!(!command.resolve_auto_download());
@@ -861,6 +870,7 @@ mod tests {
                 cache_dir: None,
                 reuse: None,
                 artifact: None,
+                output_options: Default::default(),
             };
 
             assert!(!command.resolve_auto_download());

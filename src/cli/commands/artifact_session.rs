@@ -44,7 +44,11 @@ pub(crate) struct ArtifactSession {
 }
 
 impl ArtifactSession {
-    pub(crate) fn open(reuse: Option<&Path>, artifact: Option<&Path>) -> miette::Result<Self> {
+    pub(crate) fn open(
+        reuse: Option<&Path>,
+        artifact: Option<&Path>,
+        force: bool,
+    ) -> miette::Result<Self> {
         let source = reuse
             .map(RustiQBundle::open)
             .transpose()
@@ -56,7 +60,7 @@ impl ArtifactSession {
             match fs::symlink_metadata(path) {
                 Ok(_) => {
                     let canonical = fs::canonicalize(path).into_diagnostic()?;
-                    if source_path.as_ref() != Some(&canonical) {
+                    if source_path.as_ref() != Some(&canonical) && !force {
                         return Err(miette!(
                             "artifact destination already exists: {}",
                             path.display()

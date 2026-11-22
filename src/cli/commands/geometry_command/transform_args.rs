@@ -1,6 +1,6 @@
 use clap::Args;
 use miette::IntoDiagnostic;
-use std::{fs::File, io::stdin, path::PathBuf};
+use std::{fs::OpenOptions, io::stdin, path::PathBuf};
 
 use rustiq_core::molecules::Geometry;
 
@@ -12,6 +12,8 @@ pub struct TransformArgs {
     /// XYZ geometry file to write. Writes to standard output when omitted.
     #[clap(default_value = None, short = 'o', long)]
     pub output: Option<PathBuf>,
+    #[command(flatten)]
+    pub(crate) output_options: super::super::OutputOptions,
 }
 
 impl TransformArgs {
@@ -27,7 +29,15 @@ impl TransformArgs {
         f(&mut geometry)?;
         if let Some(output) = &self.output {
             geometry
-                .to_writer(File::create(output).into_diagnostic()?)
+                .to_writer(
+                    OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .create_new(!self.output_options.force)
+                        .truncate(self.output_options.force)
+                        .open(output)
+                        .into_diagnostic()?,
+                )
                 .into_diagnostic()?;
         } else {
             geometry.to_writer(std::io::stdout()).into_diagnostic()?;

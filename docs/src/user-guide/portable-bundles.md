@@ -519,9 +519,9 @@ Running from a repository checkout, use `cargo run --locked --` in place of
 `rustiq`. The index is zero-based in manifest order, as displayed by
 `artifact inspect`. You can omit it for a single-calculation bundle. For a
 bundle with multiple entries, choose one index per exported file. With
-`-o FILE` or `--output FILE`, RustiQ creates or overwrites the destination file.
-Omit the option to write to standard output. The destination cannot point to
-the input bundle.
+`-o FILE` or `--output FILE`, RustiQ creates the destination and refuses to
+overwrite an existing file. Add `--force` to replace it. Omit the output option
+to write to standard output. The destination cannot point to the input bundle.
 File output is written to a temporary file beside the destination and
 replaces the destination atomically after writing succeeds.
 
@@ -555,10 +555,10 @@ result to any `std::io::Write` destination.
 ## Publication and failures
 
 `--artifact` publishes the current requested collection; it does not append to
-the source bundle. A new destination must not exist. An existing destination is
-accepted only when it resolves to the explicit `--reuse` source, in which case
-RustiQ replaces that bundle after producing a complete validated snapshot.
-Other existing destinations are left untouched.
+the source bundle. RustiQ replaces the explicit `--reuse` source when both
+options point to the same bundle. Pass `--force` to replace another existing
+destination. Post-SCF output requires a separate destination from the input
+bundle, even with `--force`.
 
 | Run outcome | Bundle behavior |
 | --- | --- |

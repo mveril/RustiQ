@@ -16,6 +16,8 @@ enum CliExportFormat {
 
 #[derive(Debug, Args)]
 pub(crate) struct ExportCommand {
+    #[command(flatten)]
+    output_options: super::super::OutputOptions,
     /// Portable .rustiq bundle.
     path: PathBuf,
     /// Select the export format.
@@ -64,7 +66,7 @@ impl Runnable for ExportCommand {
         })?;
 
         if let Some(path) = &self.output {
-            write_export_file(&self.path, path, &export)
+            write_export_file(&self.path, path, &export, self.output_options.force)
                 .wrap_err_with(|| format!("could not write export file {}", path.display()))
         } else {
             export.write_to(io::stdout().lock()).into_diagnostic()
@@ -76,6 +78,7 @@ fn write_export_file(
     input: &Path,
     output: &Path,
     export: &rustiq_core::persistence::ArtifactExport,
+    force: bool,
 ) -> miette::Result<()> {
     // Follow existing symlinks, preserving their target and checking aliases.
     let output = match fs::canonicalize(output) {
@@ -92,8 +95,27 @@ fn write_export_file(
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
+    if !force && output.exists() {
+        return Err(miette!(
+            "Export output {} already exists. Use --force to replace it.",
+            output.display()
+        ));
+    }
     let mut file = tempfile::NamedTempFile::new_in(parent).into_diagnostic()?;
     export.write_to(file.as_file_mut()).into_diagnostic()?;
-    file.persist(&output).into_diagnostic()?;
+    if force {
+        file.persist(&output).into_diagnostic()?;
+    } else {
+        file.persist_noclobber(&output).map_err(|error| {
+            if error.error.kind() == io::ErrorKind::AlreadyExists {
+                miette!(
+                    "Export output {} already exists. Use --force to replace it.",
+                    output.display()
+                )
+            } else {
+                miette!("could not publish export file: {}", error.error)
+            }
+        })?;
+    }
     Ok(())
 }

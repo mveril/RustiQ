@@ -42,14 +42,13 @@ enum GeometryUnits {
     after_help = "Examples:\n  rustiq init molecule.xyz\n  rustiq init molecule.xyz -o calculation.toml\n  rustiq init molecule.xyz -o calculation.ncl\n  rustiq init molecule.xyz --mp2 -o calculation.ncl\n  rustiq init molecule.xyz -o calculation\n  rustiq init molecule.xyz -o calculation.custom\n\nOutput format:\n  .ncl (case-insensitive) generates Nickel.\n  All other extensions, or no extension, generate TOML.\n  Without --output, the destination is calculation.toml.\n  Use .toml or .ncl to make the format explicit."
 )]
 pub struct InitCommand {
+    #[command(flatten)]
+    output_options: super::OutputOptions,
     /// XYZ geometry file to reference in the calculation
     input: PathBuf,
     /// Calculation file to create: .ncl selects Nickel, otherwise TOML (parent must exist)
     #[arg(short, long, default_value = "calculation.toml")]
     output: PathBuf,
-    /// Replace an existing calculation file
-    #[arg(short, long)]
-    force: bool,
     /// Basis set name (availability is checked by run)
     #[arg(long, default_value = "sto-3g")]
     basis: String,
@@ -160,7 +159,7 @@ impl Runnable for InitCommand {
                 if output.canonicalize().into_diagnostic()? == input {
                     return Err(miette!("Output must not replace the source geometry"));
                 }
-                if !self.force {
+                if !self.output_options.force {
                     return Err(miette!(
                         "{} already exists; use --force to replace it",
                         output.display()
@@ -213,7 +212,7 @@ impl Runnable for InitCommand {
         let mut temporary = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
         temporary.write_all(content.as_bytes()).into_diagnostic()?;
         temporary.flush().into_diagnostic()?;
-        if self.force {
+        if self.output_options.force {
             temporary.persist(&output).into_diagnostic()?;
         } else {
             temporary
@@ -538,7 +537,7 @@ mod tests {
             panic!("expected init")
         };
         assert_eq!(command.output, Path::new("calculation.toml"));
-        assert!(!command.force);
+        assert!(!command.output_options.force);
         for args in [
             vec!["rustiq", "init"],
             vec!["rustiq", "init", "x", "--multiplicity", "0"],

@@ -1806,12 +1806,20 @@ fn assert_molden_file_publication(
     for (index, option, expected) in [("1", "-o", uhf), ("0", "--output", rhf)] {
         let written = export(
             "multi.rustiq",
-            &["--calculation", index, option, "orbitals.molden"],
+            &["--calculation", index, option, "orbitals.molden", "--force"],
         );
         assert!(written.status.success());
         assert_eq!(written.stdout, b"");
         assert_eq!(&fs::read(&output).unwrap(), expected);
     }
+
+    let failure = export(
+        "multi.rustiq",
+        &["--calculation", "1", "-o", "orbitals.molden"],
+    );
+    assert_eq!(failure.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&failure.stderr).contains("--force"));
+    assert_eq!(fs::read(&output).unwrap(), rhf);
 
     fs::create_dir(root.join("directory.molden")).unwrap();
     let before = fs::read_dir(root).unwrap().count();
