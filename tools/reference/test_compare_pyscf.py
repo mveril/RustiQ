@@ -154,7 +154,9 @@ def test_workspace_budgets_select_different_blocks(
     assert results[0] == pytest.approx(results[1], abs=1e-12, rel=0)
 
 
-@pytest.mark.parametrize("name", ["co-sto-3g-rhf-mp2", "oh-6-31g-uhf-mp2"])
+@pytest.mark.parametrize(
+    "name", ["co-sto-3g-rhf-mp2", "h2o-6-31g-rhf-mp2", "oh-6-31g-uhf-mp2"]
+)
 def test_restored_frozen_core_mp2_matches_fresh_and_pyscf(
     name: str,
     tmp_path: Path,

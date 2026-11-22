@@ -1722,6 +1722,12 @@ fn assert_post_scf_split_run_matches_full_mp2_calculation(method: &str, referenc
         )
         .unwrap();
         base_config = base_config.replace("[molecule]\n", "[molecule]\nmultiplicity = 2\n");
+    } else {
+        fs::write(
+            root.join("molecule.xyz"),
+            include_str!("../samples/h2o/h2o.xyz"),
+        )
+        .unwrap();
     }
     let hf_config = format!("{base_config}\n[method.hf]\nmethod = '{method}'\n");
     let mp2_config = include_str!("../samples/h2/sto-3g/postscf.toml");
@@ -1738,7 +1744,9 @@ fn assert_post_scf_split_run_matches_full_mp2_calculation(method: &str, referenc
     fs::remove_file(runfile).unwrap();
     fs::remove_file(root.join("molecule.xyz")).unwrap();
     fs::remove_dir_all(root.join("data")).unwrap();
+    let source = fs::read(root.join("hf.rustiq")).unwrap();
     let output = post_scf(root, "hf.rustiq", &["--artifact", "resumed.rustiq"]);
+    assert_eq!(fs::read(root.join("hf.rustiq")).unwrap(), source);
     assert!(
         output.status.success(),
         "{}",
