@@ -21,11 +21,12 @@ pub(crate) fn print_calculation(result: &CalculationSummary, pretty: bool) -> mi
     print_json(&output, pretty)
 }
 
-pub(crate) fn print_campaign<E: std::fmt::Display>(
+pub(crate) fn print_campaign<E>(
     campaign: &CampaignResult<CalculationSummary, E>,
     pretty: bool,
+    report: impl Fn(&E) -> &miette::Report,
 ) -> miette::Result<()> {
-    let output = BatchOutput::from_campaign(campaign).into_diagnostic()?;
+    let output = BatchOutput::from_campaign(campaign, report).into_diagnostic()?;
     print_json(&output, pretty)
 }
 
@@ -196,8 +197,9 @@ pub(crate) struct BatchOutput {
 }
 
 impl BatchOutput {
-    fn from_campaign<E: std::fmt::Display>(
+    fn from_campaign<E>(
         campaign: &CampaignResult<CalculationSummary, E>,
+        report: impl Fn(&E) -> &miette::Report,
     ) -> serde_json::Result<Self> {
         let calculations = campaign
             .results
@@ -215,11 +217,15 @@ impl BatchOutput {
                             BatchOutcome::NonConverged { result: output }
                         }
                     }
-                    Err(error) => BatchOutcome::Error {
-                        error: BatchError {
-                            message: error.to_string(),
-                        },
-                    },
+                    Err(error) => {
+                        let error = report(error);
+                        BatchOutcome::Error {
+                            error: BatchError {
+                                code: super::diagnostics::code(error.as_ref()),
+                                message: error.to_string(),
+                            },
+                        }
+                    }
                 };
                 Ok(BatchEntry { outcome })
             })
@@ -248,6 +254,7 @@ pub(crate) enum BatchOutcome {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct BatchError {
+    pub code: String,
     pub message: String,
 }
 
@@ -481,9 +488,13 @@ mod tests {
             },
         ]);
         let campaign = CampaignResult {
-            results: vec![Ok(success), Ok(summary(false)), Err("calculation failed")],
+            results: vec![
+                Ok(success),
+                Ok(summary(false)),
+                Err(miette::miette!("calculation failed")),
+            ],
         };
-        let output = BatchOutput::from_campaign(&campaign).unwrap();
+        let output = BatchOutput::from_campaign(&campaign, |error| error).unwrap();
         for pretty in [false, true] {
             let bytes = serialize_json(&output, pretty).unwrap();
             let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -492,6 +503,10 @@ mod tests {
             assert_eq!(value["calculations"][0]["status"], "success");
             assert_eq!(value["calculations"][1]["status"], "non_converged");
             assert_eq!(value["calculations"][2]["status"], "error");
+            assert_eq!(
+                value["calculations"][2]["error"]["code"],
+                "rustiq::unexpected_error"
+            );
             assert_eq!(
                 value["calculations"][2]["error"]["message"],
                 "calculation failed"
@@ -517,10 +532,10 @@ mod tests {
             let mut result = summary(false);
             result.hf.scf.residual_norm = value;
             assert!(result.ensure_finite().is_err());
-            let campaign = CampaignResult::<_, &str> {
+            let campaign = CampaignResult::<_, miette::Report> {
                 results: vec![Ok(summary(true)), Ok(result)],
             };
-            assert!(BatchOutput::from_campaign(&campaign).is_err());
+            assert!(BatchOutput::from_campaign(&campaign, |error| error).is_err());
         }
     }
 }

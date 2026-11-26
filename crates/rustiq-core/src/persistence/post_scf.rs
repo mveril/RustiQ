@@ -131,6 +131,7 @@ impl PostScfMp2Result {
 #[derive(Debug, Error, miette::Diagnostic)]
 pub enum PostScfMp2Error {
     #[error("MP2 produced a non-finite energy")]
+    #[diagnostic(code(rustiq::mp2::non_finite_energy))]
     NonFiniteEnergy,
     #[error(transparent)]
     #[diagnostic(transparent)]

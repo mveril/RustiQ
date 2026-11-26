@@ -125,6 +125,7 @@ fn batch_continues_after_error_and_preserves_order_and_json() {
     assert_eq!(entries[0]["status"], "success");
     assert_eq!(entries[1]["status"], "error");
     assert!(entries[1]["error"]["message"].is_string());
+    assert_eq!(entries[1]["error"]["code"], "rustiq::unexpected_error");
     let schema: serde_json::Value =
         serde_json::from_str(include_str!("../schemas/batch-output-v1.schema.json")).unwrap();
     let error_schema = &schema["properties"]["calculations"]["items"]["oneOf"][1];
@@ -136,7 +137,7 @@ fn batch_continues_after_error_and_preserves_order_and_json() {
         assert!(entries[1].get(field.as_str().unwrap()).is_some());
     }
     assert_eq!(entries[1].as_object().unwrap().len(), 2);
-    assert_eq!(entries[1]["error"].as_object().unwrap().len(), 1);
+    assert_eq!(entries[1]["error"].as_object().unwrap().len(), 2);
     assert_eq!(entries[2]["status"], "success");
     assert_eq!(entries[0]["result"], entries[2]["result"]);
     assert!(!entries[0].as_object().unwrap().contains_key("index"));

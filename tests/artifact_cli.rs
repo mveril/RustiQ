@@ -970,6 +970,10 @@ fn verification_reports_a_size_mismatch_and_checks_the_remaining_artifact() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["status"], "failed");
     assert_eq!(report["artifacts"][0]["status"], "invalid");
+    assert_eq!(
+        report["artifacts"][0]["code"],
+        "rustiq::artifact::verification_failed"
+    );
     assert_eq!(report["artifacts"][1]["status"], "valid");
     assert!(report["artifacts"][0]["errors"][0]
         .as_str()
@@ -1975,11 +1979,47 @@ fn assert_molden_file_publication(
 }
 
 #[test]
-fn offline_missing_basis_explains_how_to_import_it() {
+fn offline_missing_basis_explains_how_to_get_it() {
     let dir = fixture();
     fs::remove_file(dir.path().join("data/rustiq/basis_sets/sto-3g.json")).unwrap();
     let output = command(dir.path(), &["run", "run.toml", "--no-auto-download"]);
     assert!(!output.status.success());
     let diagnostic = String::from_utf8_lossy(&output.stderr);
-    assert!(diagnostic.contains("rustiq basis import"), "{diagnostic}");
+    assert!(
+        diagnostic.contains("rustiq::basis::missing_offline"),
+        "{diagnostic}"
+    );
+    let (_, help) = diagnostic.split_once("help:").expect("missing import help");
+    let help = help.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        help.contains("rustiq basis import <file.json>"),
+        "{diagnostic}"
+    );
+    if cfg!(feature = "online") {
+        assert!(
+            help.contains("rustiq basis download <basis-name>"),
+            "{diagnostic}"
+        );
+        assert!(help.contains("`--auto-download`"), "{diagnostic}");
+        assert!(help.contains("`--no-auto-download`"), "{diagnostic}");
+    } else {
+        assert!(
+            help.contains("This build has no online download support"),
+            "{diagnostic}"
+        );
+        assert!(!help.contains("basis download"), "{diagnostic}");
+        assert!(!help.contains("--auto-download"), "{diagnostic}");
+    }
+}
+
+#[test]
+fn uncoded_io_error_uses_the_cli_fallback_code() {
+    let directory = fixture();
+    let output = command(directory.path(), &["run", "missing.toml"]);
+    assert_eq!(output.status.code(), Some(1));
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        diagnostic.contains("rustiq::unexpected_error"),
+        "{diagnostic}"
+    );
 }

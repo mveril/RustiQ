@@ -8,6 +8,7 @@ pub(crate) use super::nickel::{resolve_nickel, resolve_post_scf};
 pub struct ParsedRunFile {
     #[cfg(test)]
     pub runfile: RunFile,
+    pub basis_name_span: Option<miette::SourceSpan>,
     pub resolved: super::resolved::ResolvedInput,
     /// Scientific options with locations in the original input, not the formatted output.
     pub hf_config: Option<rustiq_core::config::HfConfig>,
@@ -49,6 +50,7 @@ pub fn parsed_calculation(
     Ok(ParsedRunFile {
         #[cfg(test)]
         runfile,
+        basis_name_span: None,
         hf_config: Some(hf_config),
         mp2_config,
         molecule_config: calculation.molecule_config(),
@@ -132,6 +134,7 @@ pub fn parse_runfile(
         #[cfg(test)]
         runfile,
         resolved,
+        basis_name_span: source_map.span(&["basis", "name"]),
         hf_config,
         mp2_config,
         molecule_config,

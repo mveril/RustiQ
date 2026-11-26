@@ -42,6 +42,7 @@ impl Runnable for ExportCommand {
         };
         let export = data.export(format).map_err(|error| match error {
             ExportError::MissingOrbitals => miette!(
+                code = "rustiq::artifact::export_missing_orbitals",
                 "Calculation {index} has no saved converged HF orbitals. Save a converged HF calculation with rustiq run --artifact to export its orbitals."
             ),
             ExportError::Artifact(source) => miette::Report::from_err(source).wrap_err(
@@ -70,7 +71,10 @@ fn write_export_file(
     let output = match fs::canonicalize(output) {
         Ok(path) => {
             if same_file::is_same_file(input, &path).into_diagnostic()? {
-                return Err(miette!("Export output must not replace the input bundle."));
+                return Err(miette!(
+                    code = "rustiq::artifact::export_output_is_input",
+                    "Export output must not replace the input bundle."
+                ));
             }
             path
         }
@@ -83,6 +87,7 @@ fn write_export_file(
         .unwrap_or_else(|| Path::new("."));
     if !force && output.exists() {
         return Err(miette!(
+            code = "rustiq::artifact::export_output_exists",
             "Export output {} already exists. Use --force to replace it.",
             output.display()
         ));
@@ -95,11 +100,16 @@ fn write_export_file(
         file.persist_noclobber(&output).map_err(|error| {
             if error.error.kind() == io::ErrorKind::AlreadyExists {
                 miette!(
+                    code = "rustiq::artifact::export_output_exists",
                     "Export output {} already exists. Use --force to replace it.",
                     output.display()
                 )
             } else {
-                miette!("could not publish export file: {}", error.error)
+                miette!(
+                    code = "rustiq::artifact::export_publish_failed",
+                    "could not publish export file: {}",
+                    error.error
+                )
             }
         })?;
     }

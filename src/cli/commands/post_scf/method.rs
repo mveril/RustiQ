@@ -60,6 +60,7 @@ impl Request {
                     .collect::<Vec<_>>()
                     .join(", ");
                 return Err(miette!(
+                    code = "rustiq::post_scf::method_unavailable",
                     "Post-HF method '{name}' is unavailable. Supported methods: {supported}."
                 ));
             }
@@ -67,11 +68,12 @@ impl Request {
                 .iter()
                 .any(|request| request.method().name() == name)
             {
-                return Err(miette!("Post-HF method '{name}' is not configured. Add [method.{name}] to the Post-HF TOML file."));
+                return Err(miette!(code = "rustiq::post_scf::method_not_configured", "Post-HF method '{name}' is not configured. Add [method.{name}] to the Post-HF TOML file."));
             }
         }
         if configured.is_empty() {
             return Err(miette!(
+                code = "rustiq::post_scf::no_methods",
                 "No Post-HF methods are configured. Add [method.mp2] to the Post-HF TOML file."
             ));
         }
@@ -111,9 +113,10 @@ where
         }
         Err(PostScfError::Restore(error)) => match RestoreError::from(error.as_ref()) {
             RestoreError::Skipped(skip) => Outcome::Skipped(skip),
-            RestoreError::Failed => {
-                Outcome::Failed(miette!("could not restore the saved HF reference: {error}"))
-            }
+            RestoreError::Failed => Outcome::Failed(miette!(
+                code = "rustiq::post_scf::restore_failed",
+                "could not restore the saved HF reference: {error}"
+            )),
         },
         Err(PostScfError::Execution(error)) => Outcome::Failed(miette::Report::new(error)),
     }

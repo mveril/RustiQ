@@ -75,6 +75,7 @@
               "unchecked"
             ]
           },
+          "code": { "type": "string" },
           "errors": {
             "type": "array",
             "minItems": 1,

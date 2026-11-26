@@ -48,6 +48,7 @@ pub(crate) fn resolve_artifact_destination(
             let source = reuse.map(fs::canonicalize).transpose().into_diagnostic()?;
             if source.as_ref() != Some(&canonical) && !force {
                 return Err(miette!(
+                    code = "rustiq::artifact::destination_exists",
                     "artifact destination already exists: {}",
                     path.display()
                 ));

@@ -95,13 +95,21 @@ pub(super) fn run(
             path.extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("rustiq"))
         })
-        .ok_or_else(|| miette!("--post-scf requires a .rustiq input bundle"))?;
+        .ok_or_else(|| {
+            miette!(
+                code = "rustiq::post_scf::input_required",
+                "--post-scf requires a .rustiq input bundle"
+            )
+        })?;
     let destination = artifact
         .map(|path| {
             let (path, replace) =
                 super::artifact_session::resolve_artifact_destination(None, path, force)?;
             if replace && same_file::is_same_file(input, &path).into_diagnostic()? {
-                return Err(miette!("Post-HF output must not replace the input bundle"));
+                return Err(miette!(
+                    code = "rustiq::post_scf::output_is_input",
+                    "Post-HF output must not replace the input bundle"
+                ));
             }
             Ok((path, replace))
         })
@@ -118,6 +126,7 @@ pub(super) fn run(
     if let Some(index) = source_index {
         if index >= calculations.len() {
             return Err(miette!(
+                code = "rustiq::post_scf::calculation_out_of_range",
                 "Calculation index {index} is out of range. Use a zero-based index from 0 to {} or omit --calculation.",
                 calculations.len() - 1
             ));

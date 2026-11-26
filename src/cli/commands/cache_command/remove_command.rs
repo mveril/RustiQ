@@ -38,7 +38,10 @@ impl Runnable for RemoveCommand {
         }
         let target = self.entry.as_deref().expect("clap requires a target");
         if !cache.remove_named(target).into_diagnostic()? {
-            return Err(miette!("No AO ERI cache entry exists for '{target}'"));
+            return Err(miette!(
+                code = "rustiq::cache::entry_not_found",
+                "No AO ERI cache entry exists for '{target}'"
+            ));
         }
         Ok(())
     }

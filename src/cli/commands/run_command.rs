@@ -114,7 +114,27 @@ pub(crate) fn validate_run_arguments(matches: &clap::ArgMatches) -> Result<(), c
 
 #[derive(Debug, thiserror::Error, Diagnostic)]
 #[error("failed to write calculation report: {0}")]
+#[diagnostic(code(rustiq::run::report_write_failed))]
 struct ReportWriteError(#[source] io::Error);
+
+const MISSING_OFFLINE_BASIS_HELP: &str = if cfg!(feature = "online") {
+    "Download the basis with `rustiq basis download <basis-name>` or rerun with `--auto-download` in place of `--no-auto-download` if supplied. You can also import a Basis Set Exchange JSON file with `rustiq basis import <file.json>`."
+} else {
+    "This build has no online download support. Import a Basis Set Exchange JSON file with `rustiq basis import <file.json>`."
+};
+
+#[derive(Debug, thiserror::Error, Diagnostic)]
+#[error("Basis {name} not found in {store}")]
+#[diagnostic(
+    code(rustiq::basis::missing_offline),
+    help("{MISSING_OFFLINE_BASIS_HELP}")
+)]
+struct MissingOfflineBasis {
+    name: String,
+    store: std::path::PathBuf,
+    #[label("This basis is missing from the local store")]
+    span: Option<miette::SourceSpan>,
+}
 
 #[derive(Debug)]
 enum CalculationExecutionError {
@@ -194,12 +214,6 @@ impl Executable for PortableCalculationTask<'_> {
     }
 }
 
-impl std::fmt::Display for CalculationExecutionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{}", self.report())
-    }
-}
-
 impl CalculationExecutionError {
     fn recoverable(error: impl Into<Report>) -> Self {
         Self::Recoverable(error.into())
@@ -239,7 +253,11 @@ impl RunCommand {
             reason = "Online builds use the command download flags; offline builds share the same resolver"
         )
     )]
-    fn resolve_basis(&self, name: &str) -> miette::Result<BasisFile> {
+    fn resolve_basis(
+        &self,
+        name: &str,
+        span: Option<miette::SourceSpan>,
+    ) -> miette::Result<BasisFile> {
         let basis_store = directories::basis_store();
 
         cfg_if::cfg_if! {
@@ -247,10 +265,10 @@ impl RunCommand {
                 if self.resolve_auto_download() {
                     Self::get_basis_online(&basis_store, name)
                 } else {
-                    Self::get_basis_offline(&basis_store, name)
+                    Self::get_basis_offline(&basis_store, name, span)
                 }
             } else {
-                Self::get_basis_offline(&basis_store, name)
+                Self::get_basis_offline(&basis_store, name, span)
             }
         }
     }
@@ -260,16 +278,19 @@ impl RunCommand {
         store.get_or_download(name).into_diagnostic()
     }
 
-    fn get_basis_offline(store: &BasisStore, name: &str) -> miette::Result<BasisFile> {
-        if let Some(basis) = store.get(name).into_diagnostic()? {
-            Ok(basis)
-        } else {
-            Err(miette!(
-                "Basis {} not found in {}. Import a Basis Set Exchange JSON file with `rustiq basis import <file.json>`.",
-                name,
-                store.path().display()
-            ))
-        }
+    fn get_basis_offline(
+        store: &BasisStore,
+        name: &str,
+        span: Option<miette::SourceSpan>,
+    ) -> miette::Result<BasisFile> {
+        store.get(name).into_diagnostic()?.ok_or_else(|| {
+            MissingOfflineBasis {
+                name: name.to_owned(),
+                store: store.path().to_path_buf(),
+                span,
+            }
+            .into()
+        })
     }
 }
 
@@ -290,36 +311,7 @@ impl Runnable for RunCommand {
             path.extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("rustiq"))
         }) {
-            if self.reuse.is_some() {
-                return Err(miette!("--reuse cannot be combined with a .rustiq input; the input archive already supplies reusable artifacts"));
-            }
-            if self.artifact.is_some() {
-                return Err(miette!(
-                    "--artifact is not supported when rerunning a .rustiq input"
-                ));
-            }
-            if self.cache_dir.is_some() {
-                return Err(miette!(
-                    "--cache-dir is not supported when rerunning a .rustiq input"
-                ));
-            }
-            if self.auto_download || self.no_auto_download {
-                return Err(miette!(
-                    "basis download options are not supported when rerunning a .rustiq input"
-                ));
-            }
-            if !json_output {
-                cli::ux::print_startup_banner().into_diagnostic()?;
-            }
-            let bundle = RustiQBundle::open(path).into_diagnostic()?;
-            let calculations = bundle.into_calculations();
-            if calculations.len() == 1 {
-                let data = calculations.into_iter().next().ok_or_else(|| {
-                    miette!("portable archive unexpectedly contained no calculations")
-                })?;
-                return self.execute_portable_single(data, json_output);
-            }
-            return self.execute_portable_batch(calculations, json_output);
+            return self.run_portable_input(path, json_output);
         }
         let artifacts = ArtifactSession::open(
             self.reuse.as_deref(),
@@ -355,7 +347,10 @@ impl Runnable for RunCommand {
         let resolved = crate::runfile::parser::resolve_nickel(&source_name, &source_content)?;
         if resolved.calculations().len() == 1 {
             let calculation = resolved.into_iter().next().ok_or_else(|| {
-                miette!("validated Nickel input unexpectedly contained no calculations")
+                miette!(
+                    code = "rustiq::run::empty_study",
+                    "validated Nickel input unexpectedly contained no calculations"
+                )
             })?;
             let parsed = crate::runfile::parser::parsed_calculation(calculation)?;
             return self.execute_single(
@@ -377,6 +372,45 @@ impl Runnable for RunCommand {
 }
 
 impl RunCommand {
+    fn run_portable_input(&self, path: &std::path::Path, json_output: bool) -> CommandResult {
+        if self.reuse.is_some() {
+            return Err(miette!(code = "rustiq::run::portable_input_reuse", "--reuse cannot be combined with a .rustiq input; the input archive already supplies reusable artifacts"));
+        }
+        if self.artifact.is_some() {
+            return Err(miette!(
+                code = "rustiq::run::portable_input_artifact",
+                "--artifact is not supported when rerunning a .rustiq input"
+            ));
+        }
+        if self.cache_dir.is_some() {
+            return Err(miette!(
+                code = "rustiq::run::portable_input_cache_dir",
+                "--cache-dir is not supported when rerunning a .rustiq input"
+            ));
+        }
+        if self.auto_download || self.no_auto_download {
+            return Err(miette!(
+                code = "rustiq::run::portable_input_download",
+                "basis download options are not supported when rerunning a .rustiq input"
+            ));
+        }
+        if !json_output {
+            cli::ux::print_startup_banner().into_diagnostic()?;
+        }
+        let bundle = RustiQBundle::open(path).into_diagnostic()?;
+        let calculations = bundle.into_calculations();
+        if calculations.len() == 1 {
+            let data = calculations.into_iter().next().ok_or_else(|| {
+                miette!(
+                    code = "rustiq::run::empty_bundle",
+                    "portable archive unexpectedly contained no calculations"
+                )
+            })?;
+            return self.execute_portable_single(data, json_output);
+        }
+        self.execute_portable_batch(calculations, json_output)
+    }
+
     fn execute_portable_single(&self, data: RustiQData, json_output: bool) -> CommandResult {
         let result = self
             .execute_portable_calculation(data)
@@ -542,7 +576,11 @@ impl RunCommand {
         json_output: bool,
     ) -> CommandResult {
         if json_output {
-            return json_output::print_campaign(campaign, self.pretty);
+            return json_output::print_campaign(
+                campaign,
+                self.pretty,
+                CalculationExecutionError::report,
+            );
         }
         for (index, outcome) in campaign.results.iter().enumerate() {
             if let Err(error) = outcome {
@@ -591,7 +629,7 @@ impl RunCommand {
             .wrap_err_with(|| format!("failed to read geometry {}", molecule_path.display()))
             .map_err(CalculationExecutionError::recoverable)?;
         let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
-            .into_diagnostic()
+            .map_err(Report::new)
             .map_err(CalculationExecutionError::recoverable)?;
         if !json_output {
             let mut stdout = cli::color::stdout();
@@ -601,8 +639,16 @@ impl RunCommand {
         }
         let step_start = Instant::now();
         let basis_file = self
-            .resolve_basis(&run.basis.name)
-            .map_err(CalculationExecutionError::recoverable)?;
+            .resolve_basis(&run.basis.name, parsed.basis_name_span)
+            .map_err(|error| {
+                let error = if error.is::<MissingOfflineBasis>() && parsed.basis_name_span.is_some()
+                {
+                    error.with_source_code(NamedSource::new(source_name, source_content.to_owned()))
+                } else {
+                    error
+                };
+                CalculationExecutionError::recoverable(error)
+            })?;
         if !json_output {
             let mut stdout = cli::color::stdout();
             writeln!(
