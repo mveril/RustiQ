@@ -1,3 +1,4 @@
+use crate::cli::ux::diagnostics::with_code;
 mod export;
 
 use std::{
@@ -186,7 +187,9 @@ impl VerificationReport {
 
 impl Runnable for VerifyCommand {
     fn run(&self) -> CommandResult {
-        let summary = RustiQBundle::check_archive(&self.path).into_diagnostic()?;
+        let summary = RustiQBundle::check_archive(&self.path)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let json = matches!(self.format, CalculationOutputFormat::Json);
         let mut report = VerificationReport {
             schema_version: 1,
@@ -286,7 +289,9 @@ impl Runnable for VerifyCommand {
 
 impl InspectCommand {
     fn inspect(&self) -> miette::Result<Inspection> {
-        let bundle = RustiQBundle::open(&self.path).into_diagnostic()?;
+        let bundle = RustiQBundle::open(&self.path)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let sources = bundle
             .sources()
             .map(|source| Source {

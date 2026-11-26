@@ -323,6 +323,10 @@ The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
 manage entries from a run that used a custom cache root.
 
+### Exit status and diagnostics
+
+See [Miette diagnostic codes](diagnostic-codes.md) for the complete reference.
+
 CLI errors carry a diagnostic code. For example,
 `rustiq::cli::invalid_arguments` identifies command-line usage errors, and
 `rustiq::basis::missing_offline` identifies a missing local basis when automatic

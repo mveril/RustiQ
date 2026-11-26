@@ -1,3 +1,4 @@
+use crate::cli::ux::diagnostics::with_code;
 use std::{
     fs,
     io::{self, Read, Write},
@@ -181,7 +182,6 @@ impl Executable for CalculationTask<'_> {
         if self.batch_position.is_some() {
             result
                 .ensure_finite()
-                .into_diagnostic()
                 .map_err(CalculationExecutionError::recoverable)?;
         }
         Ok(result)
@@ -216,7 +216,7 @@ impl Executable for PortableCalculationTask<'_> {
 
 impl CalculationExecutionError {
     fn recoverable(error: impl Into<Report>) -> Self {
-        Self::Recoverable(error.into())
+        Self::Recoverable(with_code(error.into(), "rustiq::run::calculation_failed"))
     }
     fn fatal(error: impl Into<Report>) -> Self {
         Self::FatalInfrastructure(error.into())
@@ -275,7 +275,10 @@ impl RunCommand {
 
     #[cfg(feature = "online")]
     fn get_basis_online(store: &BasisStore, name: &str) -> miette::Result<BasisFile> {
-        store.get_or_download(name).into_diagnostic()
+        store
+            .get_or_download(name)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::basis::resolve_failed"))
     }
 
     fn get_basis_offline(
@@ -283,14 +286,18 @@ impl RunCommand {
         name: &str,
         span: Option<miette::SourceSpan>,
     ) -> miette::Result<BasisFile> {
-        store.get(name).into_diagnostic()?.ok_or_else(|| {
-            MissingOfflineBasis {
-                name: name.to_owned(),
-                store: store.path().to_path_buf(),
-                span,
-            }
-            .into()
-        })
+        store
+            .get(name)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::basis::resolve_failed"))?
+            .ok_or_else(|| {
+                MissingOfflineBasis {
+                    name: name.to_owned(),
+                    store: store.path().to_path_buf(),
+                    span,
+                }
+                .into()
+            })
     }
 }
 
@@ -322,11 +329,18 @@ impl Runnable for RunCommand {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
         let (source_name, source_content) = if let Some(path_toml) = &self.input {
-            let content = fs::read_to_string(path_toml).into_diagnostic()?;
+            let content = fs::read_to_string(path_toml)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("failed to read input {}", path_toml.display()))
+                .map_err(|report| with_code(report, "rustiq::run::input_read_failed"))?;
             (path_toml.display().to_string(), content)
         } else {
             let mut content = String::new();
-            io::stdin().read_to_string(&mut content).into_diagnostic()?;
+            io::stdin()
+                .read_to_string(&mut content)
+                .into_diagnostic()
+                .wrap_err("failed to read calculation input from stdin")
+                .map_err(|report| with_code(report, "rustiq::run::input_read_failed"))?;
             ("<stdin>".to_string(), content)
         };
         let nickel = self
@@ -397,7 +411,9 @@ impl RunCommand {
         if !json_output {
             cli::ux::print_startup_banner().into_diagnostic()?;
         }
-        let bundle = RustiQBundle::open(path).into_diagnostic()?;
+        let bundle = RustiQBundle::open(path)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let calculations = bundle.into_calculations();
         if calculations.len() == 1 {
             let data = calculations.into_iter().next().ok_or_else(|| {
@@ -415,7 +431,7 @@ impl RunCommand {
         let result = self
             .execute_portable_calculation(data)
             .map_err(CalculationExecutionError::into_report)?;
-        result.ensure_finite().into_diagnostic()?;
+        result.ensure_finite()?;
         if json_output {
             json_output::print_calculation(&result, self.pretty)?;
         }
@@ -456,6 +472,7 @@ impl RunCommand {
         let prepared = data
             .prepare_calculation()
             .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::run::portable_prepare_failed"))
             .map_err(CalculationExecutionError::recoverable)?;
         let show_scf = true;
         let json_output = self.format == CalculationOutputFormat::Json;
@@ -471,13 +488,12 @@ impl RunCommand {
                 return Err(CalculationExecutionError::fatal(ReportWriteError(error)));
             }
             outcome
-                .into_diagnostic()
+                .map_err(Report::new)
                 .map_err(CalculationExecutionError::recoverable)?
         };
         let output = collector.finish();
         output
             .ensure_finite()
-            .into_diagnostic()
             .map_err(CalculationExecutionError::recoverable)?;
         Ok(output)
     }
@@ -500,7 +516,7 @@ impl RunCommand {
         }
         .execute()
         .map_err(CalculationExecutionError::into_report)?;
-        result.ensure_finite().into_diagnostic()?;
+        result.ensure_finite()?;
         let publication = artifacts.publish();
         if json_output {
             json_output::print_calculation(&result, self.pretty)?;
@@ -627,6 +643,7 @@ impl RunCommand {
         let xyz_content = fs::read_to_string(&molecule_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("failed to read geometry {}", molecule_path.display()))
+            .map_err(|report| with_code(report, "rustiq::run::geometry_read_failed"))
             .map_err(CalculationExecutionError::recoverable)?;
         let geom = Geometry::from_source(molecule_path.display().to_string(), &xyz_content)
             .map_err(Report::new)
@@ -760,7 +777,6 @@ impl RunCommand {
         let mut output = collector.finish();
         output
             .ensure_finite()
-            .into_diagnostic()
             .map_err(CalculationExecutionError::recoverable)?;
         artifacts
             .retain(

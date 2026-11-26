@@ -1,3 +1,4 @@
+use crate::cli::ux::diagnostics::with_code;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -33,7 +34,9 @@ pub(crate) struct ExportCommand {
 
 impl Runnable for ExportCommand {
     fn run(&self) -> CommandResult {
-        let bundle = RustiQBundle::open_for_restore(&self.path).into_diagnostic()?;
+        let bundle = RustiQBundle::open_for_restore(&self.path)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let calculations = bundle.calculations();
         let index = self.calculation_selection.single(calculations.len())?;
         let data = &calculations[index];

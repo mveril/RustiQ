@@ -2013,13 +2013,13 @@ fn offline_missing_basis_explains_how_to_get_it() {
 }
 
 #[test]
-fn uncoded_io_error_uses_the_cli_fallback_code() {
+fn missing_run_input_has_a_miette_code() {
     let directory = fixture();
     let output = command(directory.path(), &["run", "missing.toml"]);
     assert_eq!(output.status.code(), Some(1));
     let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(
-        diagnostic.contains("rustiq::unexpected_error"),
+        diagnostic.contains("rustiq::run::input_read_failed"),
         "{diagnostic}"
     );
 }

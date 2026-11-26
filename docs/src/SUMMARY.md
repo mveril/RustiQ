@@ -29,6 +29,7 @@
 # Reference and development
 
 - [Command-line reference](reference/cli.md)
+- [Miette diagnostic codes](reference/diagnostic-codes.md)
 - [Existing calculation workflows](reference/existing-workflows.md)
 - [Authoritative references](reference/index.md)
 - [Molecular and basis-set data sources](reference/data-sources.md)

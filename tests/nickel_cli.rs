@@ -125,7 +125,10 @@ fn batch_continues_after_error_and_preserves_order_and_json() {
     assert_eq!(entries[0]["status"], "success");
     assert_eq!(entries[1]["status"], "error");
     assert!(entries[1]["error"]["message"].is_string());
-    assert_eq!(entries[1]["error"]["code"], "rustiq::unexpected_error");
+    assert_eq!(
+        entries[1]["error"]["code"],
+        "rustiq::run::geometry_read_failed"
+    );
     let schema: serde_json::Value =
         serde_json::from_str(include_str!("../schemas/batch-output-v1.schema.json")).unwrap();
     let error_schema = &schema["properties"]["calculations"]["items"]["oneOf"][1];

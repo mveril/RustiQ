@@ -17,8 +17,9 @@ impl ExecutionResult for CalculationSummary {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[error("calculation result contains a non-finite floating-point value")]
+#[diagnostic(code(rustiq::run::non_finite_result))]
 pub(crate) struct NonFiniteResult;
 
 impl CalculationSummary {

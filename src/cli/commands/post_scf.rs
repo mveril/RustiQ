@@ -2,6 +2,7 @@
 mod method;
 mod report;
 
+use crate::cli::ux::diagnostics::with_code;
 use std::{fs, path::Path};
 
 use miette::{miette, Diagnostic, IntoDiagnostic, Report, WrapErr};
@@ -116,11 +117,13 @@ pub(super) fn run(
         .transpose()?;
     let source = fs::read_to_string(config)
         .into_diagnostic()
-        .wrap_err_with(|| format!("could not read Post-HF configuration {}", config.display()))?;
+        .wrap_err_with(|| format!("could not read Post-HF configuration {}", config.display()))
+        .map_err(|report| with_code(report, "rustiq::post_scf::config_read_failed"))?;
     let settings = crate::runfile::parser::resolve_post_scf(&config.to_string_lossy(), &source)?;
     let requests = Request::select(&settings, methods)?;
     let bundle = RustiQBundle::open_for_restore(input)
         .into_diagnostic()
+        .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))
         .wrap_err_with(|| format!("could not open Post-HF input bundle {}", input.display()))?;
     let calculations = bundle.calculations();
     if let Some(index) = source_index {

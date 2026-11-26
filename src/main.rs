@@ -4,7 +4,11 @@
 use std::{env, io::Write, process::ExitCode};
 
 use clap::{CommandFactory, FromArgMatches};
-use cli::{commands::Runnable, ux::diagnostics::CodedHandler, Cli};
+use cli::{
+    commands::Runnable,
+    ux::diagnostics::{with_code, CodedHandler},
+    Cli,
+};
 use miette::IntoDiagnostic;
 
 mod cli;
@@ -68,7 +72,8 @@ fn run() -> miette::Result<()> {
             ));
         }
         return cli::build_info::print_version(&mut std::io::stdout().lock(), app.verbose)
-            .into_diagnostic();
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::cli::version_write_failed"));
     }
     let Some(subcommand) = app.command else {
         exit_clap(&command.error(
