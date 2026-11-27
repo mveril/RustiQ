@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c80ccdbc.js";
+            window.path_to_searchindex_js = "../searchindex-0fcb5379.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-de272c4b.js"></script>
+        <script src="../toc-64b2583a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -260,6 +260,16 @@ agreement, basis quality, and physical validity are distinct checks; see
 <a href="../scientific-scope.html">scientific scope</a>.
 See the <a href="../glossary.html">glossary</a> for shared basis vocabulary.</p>
 <p>Next: <a href="configuration.html">TOML configuration</a>.</p>
+<p>The diagnostic <code>rustiq::basis::missing_offline</code> identifies a basis missing from
+the local store when automatic downloads are unavailable or disabled. For TOML
+input, it highlights the requested basis name.</p>
+<p>With online support, run <code>rustiq basis download &lt;basis-name&gt;</code> or rerun the
+calculation with <code>--auto-download</code>. Replace <code>--no-auto-download</code> if you used it
+in the original command.</p>
+<p>Every build can import a matching Basis Set Exchange JSON file with
+<code>rustiq basis import &lt;file.json&gt;</code>. The diagnostic directs offline builds to
+this option. Use <code>rustiq basis list</code> to check the names available in the
+local store.</p>
 
                     </main>
 

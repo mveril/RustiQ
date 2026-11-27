@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c80ccdbc.js";
+            window.path_to_searchindex_js = "../searchindex-0fcb5379.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-de272c4b.js"></script>
+        <script src="../toc-64b2583a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -487,6 +487,16 @@ publication interface rather than requiring a separate method per combination.</
 as the fourth power of basis dimension, and the MP2 workspace budget covers
 additional transformation buffers rather than the full HF data or process
 memory. See <a href="../reference/existing-workflows.html#mp2-and-its-memory-budget">MP2 memory policy</a>.</p>
+<h2 id="miette-diagnostics"><a class="header" href="#miette-diagnostics">Miette diagnostics</a></h2>
+<p>RustiQ uses <a href="https://docs.rs/miette/latest/miette/">Miette</a> to attach codes, source
+locations, and help to errors.
+The core library implements Miette’s <code>Diagnostic</code> trait on some typed errors.
+The CLI configures terminal rendering and supplies codes for command-specific
+failures. It also includes diagnostic codes in batch and artifact verification
+JSON reports. The CLI determines the numeric process exit status separately.</p>
+<p>When you add or change a diagnostic code, update
+<a href="../user-guide/diagnostic-codes.html">Error messages and exit codes</a> with its
+meaning and what a user can check.</p>
 <h2 id="build-profiles-and-performance-investigation"><a class="header" href="#build-profiles-and-performance-investigation">Build profiles and performance investigation</a></h2>
 <p>Cargo’s default development and test builds favor development speed. Release
 builds optimize execution using thin link-time optimization and one codegen unit,

@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c80ccdbc.js";
+            window.path_to_searchindex_js = "../searchindex-0fcb5379.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-de272c4b.js"></script>
+        <script src="../toc-64b2583a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -479,8 +479,10 @@ in that result and fatal orchestration failures stop the campaign before renderi
 <p>The cache directory path is resolved from the caller’s current working
 directory. Pass the same <code>--cache-dir</code> to <code>cache list</code> or <code>cache remove</code> to
 manage entries from a run that used a custom cache root.</p>
-<p>The CLI reports input, basis, preparation, and calculation errors as diagnostics.
-Exit codes follow the Unix convention: nonzero means the command did not fully
+<h3 id="exit-status-and-diagnostics"><a class="header" href="#exit-status-and-diagnostics">Exit status and diagnostics</a></h3>
+<p>See <a href="../user-guide/diagnostic-codes.html">Error messages and exit codes</a> for
+troubleshooting steps and the diagnostic code catalog.</p>
+<p>Exit codes follow the Unix convention: nonzero means the command did not fully
 succeed. In normal artifact verification, zero permits unsupported artifacts to
 be skipped; use <code>--strict</code> to require exhaustive verification. Codes 3–5 are
 RustiQ-specific.</p>

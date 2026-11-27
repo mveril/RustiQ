@@ -38,10 +38,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c80ccdbc.js";
+            window.path_to_searchindex_js = "searchindex-0fcb5379.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-de272c4b.js"></script>
+        <script src="toc-64b2583a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -606,6 +606,8 @@ To save and reuse the calculation’s AO ERIs, continue with the
 <p>Explore more calculations and workflows in the <a href="#examples">examples index</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="interpreting-output"><a class="header" href="#interpreting-output">Interpreting output</a></h1>
+<p>If your command failed, see <a href="#error-messages-and-exit-codes">Error messages and exit codes</a>
+for help finding the cause.</p>
 <p>The standard <code>run</code> report has three visible parts:</p>
 <ul>
 <li><strong>Requested options:</strong> a canonical TOML representation of the requested
@@ -951,6 +953,16 @@ agreement, basis quality, and physical validity are distinct checks; see
 <a href="#scientific-scope-and-limitations">scientific scope</a>.
 See the <a href="#glossary">glossary</a> for shared basis vocabulary.</p>
 <p>Next: <a href="#toml-calculation-configuration">TOML configuration</a>.</p>
+<p>The diagnostic <code>rustiq::basis::missing_offline</code> identifies a basis missing from
+the local store when automatic downloads are unavailable or disabled. For TOML
+input, it highlights the requested basis name.</p>
+<p>With online support, run <code>rustiq basis download &lt;basis-name&gt;</code> or rerun the
+calculation with <code>--auto-download</code>. Replace <code>--no-auto-download</code> if you used it
+in the original command.</p>
+<p>Every build can import a matching Basis Set Exchange JSON file with
+<code>rustiq basis import &lt;file.json&gt;</code>. The diagnostic directs offline builds to
+this option. Use <code>rustiq basis list</code> to check the names available in the
+local store.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="toml-calculation-configuration"><a class="header" href="#toml-calculation-configuration">TOML calculation configuration</a></h1>
 <p>Examples in this chapter that use <code>samples/</code> or <code>tests/data/</code> require a cloned
@@ -1549,6 +1561,206 @@ such as <code>.custom</code>, or no extension, produces TOML. Avoid <code>.rusti
 reserves it for portable archives and matches it without regard to case.
 Without <code>--output</code>, <code>init</code> creates <code>calculation.toml</code>. Prefer <code>.toml</code> or <code>.ncl</code>
 to make the format explicit. The destination parent directory must exist.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="error-messages-and-exit-codes"><a class="header" href="#error-messages-and-exit-codes">Error messages and exit codes</a></h1>
+<p>When a command fails, read the message in your terminal. It may name a file,
+highlight an input value, or suggest a fix. If the message includes a code
+starting with <code>rustiq::</code>, search for that exact code on this page.</p>
+<p>For example, <code>rustiq::run::input_read_failed</code> means RustiQ could not read the
+calculation input. If the message says the file was not found, check the file
+name and the directory you ran the command from. For
+<code>rustiq::basis::missing_offline</code>, follow the
+<a href="#gaussian-basis-sets">steps for making the basis available locally</a>.</p>
+<h2 id="check-the-exit-code"><a class="header" href="#check-the-exit-code">Check the exit code</a></h2>
+<p>The exit code is a number your shell receives when RustiQ finishes. It tells
+you how the command ended. The <code>rustiq::…</code> code identifies an individual
+problem and can help you decide what to check.</p>
+<p>For example, with <code>rustiq</code> installed, run these commands in Bash or another
+POSIX shell from a directory where <code>missing.toml</code> does not exist:</p>
+<pre><code class="language-sh">status=0
+rustiq run missing.toml || status=$?
+printf 'Exit code: %s\n' "$status"
+</code></pre>
+<p>RustiQ prints <code>rustiq::run::input_read_failed</code> in the error message, and the
+last line printed by the example is <code>Exit code: 1</code>. The shell puts the status
+of the failed command in <code>$?</code>, so the example saves it immediately.</p>
+<p>In PowerShell, save the native process status immediately:</p>
+<pre><code class="language-powershell">rustiq run missing.toml
+$status = $LASTEXITCODE
+Write-Output "Exit code: $status"
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Exit code</th><th>What it means</th><th>What to check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>0</code></td><td>The command completed successfully. Some commands allow skips.</td><td>Read the report if you need to know which items were skipped.</td></tr>
+<tr><td><code>1</code></td><td>The command encountered an error.</td><td>Read the message and look up its diagnostic code below.</td></tr>
+<tr><td><code>2</code></td><td>RustiQ rejected the command-line arguments.</td><td>Run the command with <code>--help</code> to check its syntax and options.</td></tr>
+<tr><td><code>3</code></td><td>No requested calculation succeeded because Hartree–Fock did not converge.</td><td>Review the <a href="#hartreefock-calculations">Hartree–Fock convergence guidance</a>.</td></tr>
+<tr><td><code>4</code></td><td>Some calculations or methods succeeded and others failed or did not converge.</td><td>Review the individual outcomes before using the results.</td></tr>
+<tr><td><code>5</code></td><td>Strict bundle verification skipped some artifacts and found no failures among those it checked.</td><td>Review the skipped entries before relying on the verification.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See the <a href="#exit-status-and-diagnostics">command-line reference</a>
+for the detailed rules for batches and bundle verification. Post-SCF campaigns
+return <code>0</code> when at least one method succeeds and none fails, even with skips;
+<code>4</code> when successes coexist with failures; and <code>1</code> when none succeeds.</p>
+<h2 id="find-codes-in-json-reports"><a class="header" href="#find-codes-in-json-reports">Find codes in JSON reports</a></h2>
+<p>When a JSON report is produced, failed calculations in a batch put the code
+in <code>error.code</code> and the explanation in <code>error.message</code>. In artifact verification
+reports, invalid entries carry <code>code</code> alongside the <code>errors</code> list. Older reports
+may omit these code fields. Post-SCF skipped and failed outcomes use
+<code>diagnostic.code</code>, with the explanation in <code>diagnostic.message</code> and optional
+<code>diagnostic.help</code>. Failures preserve specific codes and use
+<code>rustiq::post_scf::failed</code> only when no code is available.</p>
+<p>These JSON additions are a beta.2 compatibility change within schema version 1.
+Updated schemas accept older reports; consumers validating new reports against
+older strict schemas may need to update their schemas. A command can write a JSON report and still return
+a nonzero exit code, so check both when scripting.</p>
+<h2 id="look-up-a-diagnostic-code"><a class="header" href="#look-up-a-diagnostic-code">Look up a diagnostic code</a></h2>
+<p>Use the message and any highlighted input to narrow down the cause. If you
+ask for help, include the code, the full message, and the command you ran.</p>
+<h3 id="cli-help-and-generated-files"><a class="header" href="#cli-help-and-generated-files">CLI, help, and generated files</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning and what to check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>rustiq::cli::invalid_arguments</code></td><td>The command line was rejected. Check the command’s <code>--help</code> for options and valid combinations.</td></tr>
+<tr><td><code>rustiq::cli::diagnostic_hook</code></td><td>The diagnostic renderer could not be initialized. Report the issue with the RustiQ version and invocation.</td></tr>
+<tr><td><code>rustiq::cli::version_write_failed</code></td><td>Version output could not be written. Check the destination or downstream pipe.</td></tr>
+<tr><td><code>rustiq::docs::browser_failed</code></td><td>RustiQ could not launch a browser. Open the manual location shown in the diagnostic directly.</td></tr>
+<tr><td><code>rustiq::docs::failed</code></td><td>The manual could not be accessed. Check the underlying filesystem error.</td></tr>
+<tr><td><code>rustiq::docs::incomplete_manual</code></td><td>The installed manual directory lacks its entry page. Repair the installation.</td></tr>
+<tr><td><code>rustiq::docs::installation_directory</code></td><td>RustiQ could not find the executable’s installation directory. Check how the executable was installed or invoked.</td></tr>
+<tr><td><code>rustiq::generate::packaging_value</code></td><td><code>RUSTIQ_PACKAGING</code> has an invalid value or is not valid Unicode. Check the packaging environment.</td></tr>
+<tr><td><code>rustiq::generate::unknown_shell</code></td><td>The requested completion shell was not recognized. Use a shell listed in the command help.</td></tr>
+<tr><td><code>rustiq::completions::failed</code></td><td>Completion generation or output failed. Check the cause and the output destination.</td></tr>
+<tr><td><code>rustiq::manpages::failed</code></td><td>Manual-page generation failed. Check the output directory and its permissions.</td></tr>
+<tr><td><code>rustiq::unexpected_error</code></td><td>RustiQ rendered a diagnostic without a more specific code. Use the underlying message when investigating or reporting it.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="input-generation-and-geometry"><a class="header" href="#input-generation-and-geometry">Input generation and geometry</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning and what to check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>rustiq::init::empty_basis</code></td><td>The basis name is empty. Supply a basis name.</td></tr>
+<tr><td><code>rustiq::init::failed</code></td><td>Input generation failed. Check the cause for geometry, configuration, or output errors.</td></tr>
+<tr><td><code>rustiq::init::geometry_path</code></td><td>The geometry path could not be represented in the generated input. Check the path and filename.</td></tr>
+<tr><td><code>rustiq::init::invalid_electron_count</code></td><td>The geometry and charge imply an invalid electron count. Check the atoms and charge.</td></tr>
+<tr><td><code>rustiq::init::output_exists</code></td><td>The destination already exists. Choose another path or use <code>--force</code> to replace it.</td></tr>
+<tr><td><code>rustiq::init::output_filename</code></td><td>RustiQ could not determine a usable output filename. Supply a file path.</td></tr>
+<tr><td><code>rustiq::init::output_is_geometry</code></td><td>The output resolves to the input geometry. Choose a different destination.</td></tr>
+<tr><td><code>rustiq::init::output_type</code></td><td>The destination has an unsupported file type. Choose a regular file destination.</td></tr>
+<tr><td><code>rustiq::geometry::atom_count</code></td><td>The XYZ header has an invalid atom count. Check the first line.</td></tr>
+<tr><td><code>rustiq::geometry::atom_count_mismatch</code></td><td>The file has fewer atom lines than declared. Correct the count or add the missing lines.</td></tr>
+<tr><td><code>rustiq::geometry::atom_lines</code></td><td>One or more atom records are invalid. Read the related diagnostics.</td></tr>
+<tr><td><code>rustiq::geometry::invalid_atom_line</code></td><td>An XYZ atom record is invalid. Check the highlighted element or coordinates.</td></tr>
+<tr><td><code>rustiq::geometry::io</code></td><td>The XYZ input could not be read. Check the input path, permissions, and encoding.</td></tr>
+<tr><td><code>rustiq::geometry::dangling_output</code></td><td>The output path is a symbolic link with a missing target. Repair the link or choose another path.</td></tr>
+<tr><td><code>rustiq::geometry::output_exists</code></td><td>The destination already exists. Choose another path or use <code>--force</code> to replace it.</td></tr>
+<tr><td><code>rustiq::geometry::publish_failed</code></td><td>The temporary geometry output could not be published. Check the destination and directory permissions.</td></tr>
+<tr><td><code>rustiq::geometry::failed</code></td><td>A geometry command failed. Check the underlying calculation or filesystem error.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="basis-sets-and-cache"><a class="header" href="#basis-sets-and-cache">Basis sets and cache</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning and what to check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>rustiq::basis::failed</code></td><td>A basis management operation failed. Read the cause and check the store or download service involved.</td></tr>
+<tr><td><code>rustiq::basis::import_failed</code></td><td>One or more basis imports failed. Read the per-file diagnostics and retry the failed imports.</td></tr>
+<tr><td><code>rustiq::basis::import_file_failed</code></td><td>A specific basis file could not be imported. Check its path, format, and store permissions.</td></tr>
+<tr><td><code>rustiq::basis::missing_offline</code></td><td>The requested basis is absent from the local store and automatic download is disabled or unavailable. Import the basis or use an online build with download enabled.</td></tr>
+<tr><td><code>rustiq::basis::resolve_failed</code></td><td>RustiQ could not load or download the requested basis. Check the local store and, when downloading, the network and basis name.</td></tr>
+<tr><td><code>rustiq::cache::entry_not_found</code></td><td>The named cache entry does not exist. Check <code>cache list</code> and the selected cache directory.</td></tr>
+<tr><td><code>rustiq::cache::failed</code></td><td>Cache listing or removal failed. Check the cache directory and the underlying filesystem error.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="run-inputs-and-calculations"><a class="header" href="#run-inputs-and-calculations">Run inputs and calculations</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning and what to check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>rustiq::runfile::nickel</code></td><td>The input could not be parsed, evaluated, or validated. Check the highlighted input and related errors.</td></tr>
+<tr><td><code>rustiq::runfile::nickel::detail</code></td><td>An individual input error reported with the main runfile diagnostic. Check its message and highlighted field.</td></tr>
+<tr><td><code>rustiq::run::input_read_failed</code></td><td>RustiQ could not read the calculation file or standard input. Check the path, permissions, and UTF-8 encoding.</td></tr>
+<tr><td><code>rustiq::run::geometry_read_failed</code></td><td>RustiQ could not read the XYZ file referenced by the calculation. Check the resolved path, permissions, and UTF-8 encoding.</td></tr>
+<tr><td><code>rustiq::run::empty_bundle</code></td><td>The input bundle contains no calculations. Supply a bundle with a calculation.</td></tr>
+<tr><td><code>rustiq::run::empty_study</code></td><td>Validated Nickel input unexpectedly contains no calculation. Check that the study produces at least one calculation.</td></tr>
+<tr><td><code>rustiq::run::portable_input_artifact</code></td><td><code>--artifact</code> was used with a portable input. Omit the option for this invocation.</td></tr>
+<tr><td><code>rustiq::run::portable_input_cache_dir</code></td><td><code>--cache-dir</code> was used with a portable input. Omit the option for this invocation.</td></tr>
+<tr><td><code>rustiq::run::portable_input_download</code></td><td>A basis auto-download flag was used with a portable input. Omit the flag for this invocation.</td></tr>
+<tr><td><code>rustiq::run::portable_input_reuse</code></td><td><code>--reuse</code> was used with a portable input that already supplies its reusable artifacts. Omit the option.</td></tr>
+<tr><td><code>rustiq::run::portable_prepare_failed</code></td><td>A calculation could not be reconstructed from a bundle. Check the cause and inspect or verify the bundle.</td></tr>
+<tr><td><code>rustiq::run::calculation_failed</code></td><td>An individual calculation failed during input conversion, rendering, or artifact preparation or retention. Check the cause for the affected operation.</td></tr>
+<tr><td><code>rustiq::run::non_finite_result</code></td><td>A calculation result contains a non-finite number. Inspect the calculation’s inputs and numerical settings before using the result.</td></tr>
+<tr><td><code>rustiq::run::incomplete_batch</code></td><td>At least one calculation failed or did not converge. Inspect the per-calculation outcomes.</td></tr>
+<tr><td><code>rustiq::run::report_write_failed</code></td><td>RustiQ could not write calculation progress or a text report. Check the output destination or downstream pipe.</td></tr>
+<tr><td><code>rustiq::run::failed</code></td><td>Run orchestration or report output failed. Read the cause for the specific operation.</td></tr>
+<tr><td><code>rustiq::calculation::basis</code></td><td>The basis could not be applied to the geometry. Check element coverage and the reported basis data.</td></tr>
+<tr><td><code>rustiq::calculation::molecule</code></td><td>The molecular configuration is invalid. Check geometry, charge, and spin multiplicity.</td></tr>
+<tr><td><code>rustiq::calculation::hf_method</code></td><td>The requested HF reference could not be resolved for the molecule. Check the HF method and spin multiplicity.</td></tr>
+<tr><td><code>rustiq::calculation::hf_setup</code></td><td>HF preparation failed. Check the cited SCF setting, input geometry, or basis.</td></tr>
+<tr><td><code>rustiq::calculation::numerical</code></td><td>A numerical operation failed during the calculation. Use the underlying message to identify the affected operation.</td></tr>
+<tr><td><code>rustiq::calculation::diis</code></td><td>The direct inversion in the iterative subspace (DIIS) acceleration step failed. Inspect the SCF diagnostics and DIIS settings.</td></tr>
+<tr><td><code>rustiq::calculation::artifact</code></td><td>A calculation could not use an artifact. Check the cause and verify the input bundle if applicable.</td></tr>
+<tr><td><code>rustiq::calculation::mp2</code></td><td>MP2 preparation or execution failed. Check the cause, including any cited frozen orbitals or workspace settings.</td></tr>
+<tr><td><code>rustiq::scf::non_convergence</code></td><td>HF reached an unconverged outcome. Inspect the SCF history and convergence settings before using the orbitals for MP2.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="portable-bundles-and-post-hf"><a class="header" href="#portable-bundles-and-post-hf">Portable bundles and Post-HF</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning and what to check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>rustiq::artifact::open_failed</code></td><td>RustiQ could not open or read the bundle for the operation. Check the path, permissions, and archive or manifest error.</td></tr>
+<tr><td><code>rustiq::artifact::calculation_out_of_range</code></td><td>The selected calculation index is absent. Use an index shown by <code>artifact inspect</code>.</td></tr>
+<tr><td><code>rustiq::artifact::calculation_required</code></td><td>The bundle has multiple calculations and the operation needs one. Supply <code>--calculation</code>.</td></tr>
+<tr><td><code>rustiq::artifact::destination_exists</code></td><td>The artifact destination already exists. Choose a different path or explicitly allow replacement.</td></tr>
+<tr><td><code>rustiq::artifact::export_missing_orbitals</code></td><td>The selected calculation lacks the orbitals needed for export. Use a bundle with a converged HF solution.</td></tr>
+<tr><td><code>rustiq::artifact::export_output_exists</code></td><td>The export destination already exists. Choose a different path or use <code>--force</code>.</td></tr>
+<tr><td><code>rustiq::artifact::export_output_is_input</code></td><td>The export path resolves to the input bundle. Choose a different destination.</td></tr>
+<tr><td><code>rustiq::artifact::export_publish_failed</code></td><td>RustiQ could not publish the export file. Check the destination and directory permissions.</td></tr>
+<tr><td><code>rustiq::artifact::failed</code></td><td>Bundle inspection, verification, or export failed. Read the cause for the affected operation.</td></tr>
+<tr><td><code>rustiq::artifact::missing_request</code></td><td>The bundle calculation lacks the stored request needed for inspection. Use a bundle containing the request.</td></tr>
+<tr><td><code>rustiq::artifact::verification_batch_failed</code></td><td>Verification found invalid artifacts. Inspect the individual verification errors.</td></tr>
+<tr><td><code>rustiq::artifact::verification_failed</code></td><td>An individual artifact failed verification. Check the cause for the affected bundle entry.</td></tr>
+<tr><td><code>rustiq::artifact::verification_incomplete</code></td><td>Strict verification skipped at least one artifact. Review the skipped entries and their representations.</td></tr>
+<tr><td><code>rustiq::artifact::verification_skipped</code></td><td>An artifact name or representation is unsupported. Check the entry and use a RustiQ build that supports it if available.</td></tr>
+<tr><td><code>rustiq::post_scf::calculation_out_of_range</code></td><td>The selected Post-HF calculation index is absent. Inspect the bundle for valid indices.</td></tr>
+<tr><td><code>rustiq::post_scf::config_read_failed</code></td><td>The Post-HF TOML could not be read. Check its path, permissions, and UTF-8 encoding.</td></tr>
+<tr><td><code>rustiq::post_scf::input_required</code></td><td>The operation requires a portable bundle as input. Supply the input bundle path.</td></tr>
+<tr><td><code>rustiq::post_scf::method_not_configured</code></td><td>The selected method has no configuration in the Post-HF TOML. Add the named method table.</td></tr>
+<tr><td><code>rustiq::post_scf::method_unavailable</code></td><td>The requested Post-HF method is unavailable. Choose a supported method.</td></tr>
+<tr><td><code>rustiq::post_scf::no_methods</code></td><td>No Post-HF method was selected from the configuration. Add or select a supported method.</td></tr>
+<tr><td><code>rustiq::post_scf::no_successful_calculations</code></td><td>Every selected Post-HF calculation failed or was skipped. Read the individual outcomes.</td></tr>
+<tr><td><code>rustiq::post_scf::output_is_input</code></td><td>The Post-HF output resolves to the input bundle. Choose a different path.</td></tr>
+<tr><td><code>rustiq::post_scf::restore_failed</code></td><td>The HF reference could not be restored. Check the cause and verify the source artifact.</td></tr>
+<tr><td><code>rustiq::post_scf::skipped</code></td><td>Post-HF execution was skipped for a selected calculation. Read the reason and help in the diagnostic.</td></tr>
+<tr><td><code>rustiq::post_scf::failed</code></td><td>A Post-HF calculation failed without a more specific identifier. Inspect the underlying error and method configuration.</td></tr>
+<tr><td><code>rustiq::mp2::non_finite_energy</code></td><td>MP2 returned a non-finite energy on a restored reference. Inspect the reference and MP2 settings before using any reported energy.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For contributors, see <a href="#miette-diagnostics">how diagnostics are implemented</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="json-output"><a class="header" href="#json-output">JSON output</a></h1>
 <p>Examples in this chapter that use <code>samples/</code> or <code>tests/data/</code> require a cloned
@@ -2599,8 +2811,10 @@ in that result and fatal orchestration failures stop the campaign before renderi
 <p>The cache directory path is resolved from the caller’s current working
 directory. Pass the same <code>--cache-dir</code> to <code>cache list</code> or <code>cache remove</code> to
 manage entries from a run that used a custom cache root.</p>
-<p>The CLI reports input, basis, preparation, and calculation errors as diagnostics.
-Exit codes follow the Unix convention: nonzero means the command did not fully
+<h3 id="exit-status-and-diagnostics"><a class="header" href="#exit-status-and-diagnostics">Exit status and diagnostics</a></h3>
+<p>See <a href="#error-messages-and-exit-codes">Error messages and exit codes</a> for
+troubleshooting steps and the diagnostic code catalog.</p>
+<p>Exit codes follow the Unix convention: nonzero means the command did not fully
 succeed. In normal artifact verification, zero permits unsupported artifacts to
 be skipped; use <code>--strict</code> to require exhaustive verification. Codes 3–5 are
 RustiQ-specific.</p>
@@ -4529,6 +4743,16 @@ publication interface rather than requiring a separate method per combination.</
 as the fourth power of basis dimension, and the MP2 workspace budget covers
 additional transformation buffers rather than the full HF data or process
 memory. See <a href="#mp2-and-its-memory-budget">MP2 memory policy</a>.</p>
+<h2 id="miette-diagnostics"><a class="header" href="#miette-diagnostics">Miette diagnostics</a></h2>
+<p>RustiQ uses <a href="https://docs.rs/miette/latest/miette/">Miette</a> to attach codes, source
+locations, and help to errors.
+The core library implements Miette’s <code>Diagnostic</code> trait on some typed errors.
+The CLI configures terminal rendering and supplies codes for command-specific
+failures. It also includes diagnostic codes in batch and artifact verification
+JSON reports. The CLI determines the numeric process exit status separately.</p>
+<p>When you add or change a diagnostic code, update
+<a href="#error-messages-and-exit-codes">Error messages and exit codes</a> with its
+meaning and what a user can check.</p>
 <h2 id="build-profiles-and-performance-investigation"><a class="header" href="#build-profiles-and-performance-investigation">Build profiles and performance investigation</a></h2>
 <p>Cargo’s default development and test builds favor development speed. Release
 builds optimize execution using thin link-time optimization and one codegen unit,
