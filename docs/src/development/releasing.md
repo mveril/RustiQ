@@ -8,6 +8,15 @@ Neither workflow creates a release from a GitHub Release event; both are
 explicitly dispatched by promotion after a merge into `main`, and crates.io publication can also be
 started manually for an existing tag.
 
+## Beta.2 review
+
+Rehearse the integrated candidate after the scientific workflow, diagnostic,
+and onboarding changes have been reviewed. Exercise water HF followed by MP2
+from a saved bundle, along with an OH Molden export. Inspect the archive and
+its checksum and run the executable from a clean directory with an imported
+basis. Use the six-target release rehearsal to verify relocated offline
+manuals and platform archives before promotion.
+
 ## Binary releases
 
 The repository-root `dist-workspace.toml` pins dist 0.34.0, selects only the

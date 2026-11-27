@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-beta.2]
+
+### Added
+
+- Save converged RHF and UHF orbitals in portable calculation bundles.
+- Run MP2 from a compatible saved HF reference and AO integrals without
+  repeating SCF. Multi-calculation campaigns report each outcome separately.
+- Export saved HF orbitals to Molden, including both UHF spin channels.
+- Generate Nickel inputs with `rustiq init`.
+
+### Changed
+
+- Artifact verification reports per-artifact outcomes and supports strict checks.
+- File output uses explicit overwrite controls.
+
+### Known limitations
+
+- Saved converged references support Post-SCF execution. Interrupted SCF
+  calculations cannot be continued from a partial state.
+- Molden output supports Cartesian s through g and real spherical d shells,
+  subject to the exporter’s basis-representation checks.
+- RHF, UHF, and MP2 remain experimental. Check results independently before
+  drawing research conclusions.
+
 ### Changed
 
 - Geometry paths in TOML and Nickel accept relative and native absolute paths.
@@ -66,5 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The MP2 workspace budget does not bound total process memory; AO integral
   storage can still grow rapidly with basis size.
 
-[Unreleased]: https://github.com/mveril/RustiQ/compare/v0.1.0-beta.1...HEAD
+[Unreleased]: https://github.com/mveril/RustiQ/compare/v0.1.0-beta.2...HEAD
 [0.1.0-beta.1]: https://github.com/mveril/RustiQ/releases/tag/v0.1.0-beta.1
+[0.1.0-beta.2]: https://github.com/mveril/RustiQ/compare/v0.1.0-beta.1...v0.1.0-beta.2
