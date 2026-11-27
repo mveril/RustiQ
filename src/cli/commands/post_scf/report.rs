@@ -10,7 +10,10 @@ use super::{Campaign, Outcome, ScientificResult, Skip, Summary};
 use crate::cli::{
     color,
     commands::run_command::CalculationOutputFormat,
-    ux::{diagnostics::emit_warning, json_output},
+    ux::{
+        diagnostics::{emit_warning, with_code},
+        json_output,
+    },
 };
 
 const SKIPPED_CODE: &str = "rustiq::post_scf::skipped";
@@ -25,20 +28,25 @@ struct Skipped {
     skip: Skip,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("Calculation {source_index}, method {method}: {error}")]
+#[derive(Debug, Diagnostic)]
+#[diagnostic(forward(error))]
 struct Failed {
     source_index: usize,
     method: &'static str,
     error: Report,
 }
 
-impl Diagnostic for Failed {
-    fn code(&self) -> Option<Box<dyn std::fmt::Display + '_>> {
-        Some(Box::new(FAILED_CODE))
+impl std::fmt::Display for Failed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Calculation {}, method {}: {}",
+            self.source_index, self.method, self.error
+        )
     }
-
-    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+}
+impl std::error::Error for Failed {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(self.error.as_ref())
     }
 }
@@ -90,10 +98,10 @@ struct JsonMp2Result {
 
 #[derive(Serialize)]
 struct JsonDiagnostic<'a> {
-    code: &'static str,
+    code: String,
     message: std::borrow::Cow<'a, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    help: Option<&'a str>,
+    help: Option<std::borrow::Cow<'a, str>>,
 }
 
 impl Campaign {
@@ -122,10 +130,9 @@ impl Campaign {
                         skip,
                     })?,
                     Outcome::Failed(error) => {
-                        let error = error.with_source_code(NamedSource::new(
-                            config.0.to_string_lossy(),
-                            config.1.to_owned(),
-                        ));
+                        let error = with_code(error, FAILED_CODE).with_source_code(
+                            NamedSource::new(config.0.to_string_lossy(), config.1.to_owned()),
+                        );
                         let report = Report::new(Failed {
                             source_index,
                             method,
@@ -196,16 +203,18 @@ impl<'a> From<&'a Outcome> for JsonOutcome<'a> {
             },
             Outcome::Skipped(skip) => Self::Skipped {
                 diagnostic: JsonDiagnostic {
-                    code: SKIPPED_CODE,
+                    code: SKIPPED_CODE.to_owned(),
                     message: skip.reason.as_str().into(),
-                    help: Some(skip.help),
+                    help: Some(skip.help.into()),
                 },
             },
             Outcome::Failed(error) => Self::Failed {
                 diagnostic: JsonDiagnostic {
-                    code: FAILED_CODE,
+                    code: error
+                        .code()
+                        .map_or_else(|| FAILED_CODE.to_owned(), |code| code.to_string()),
                     message: error.to_string().into(),
-                    help: None,
+                    help: error.help().map(|help| help.to_string().into()),
                 },
             },
         }
@@ -276,6 +285,38 @@ pub(super) fn skip_message(source_index: usize, method: super::Method, skip: Ski
 #[cfg(test)]
 mod tests {
     use super::JsonScientificResult;
+
+    #[test]
+    fn failure_codes_and_help_survive_json() {
+        for (error, expected) in [
+            (
+                miette::miette!(code = "rustiq::specific", help = "retry", "failure"),
+                "rustiq::specific",
+            ),
+            (miette::miette!("failure"), super::FAILED_CODE),
+        ] {
+            let terminal = super::Failed {
+                source_index: 0,
+                method: "mp2",
+                error: crate::cli::ux::diagnostics::with_code(error, super::FAILED_CODE),
+            };
+            assert_eq!(
+                miette::Diagnostic::code(&terminal).unwrap().to_string(),
+                expected
+            );
+            assert_eq!(
+                std::error::Error::source(&terminal).unwrap().to_string(),
+                "failure"
+            );
+            let outcome = super::Outcome::Failed(terminal.error);
+            let json = serde_json::to_value(super::JsonOutcome::from(&outcome)).unwrap();
+            assert_eq!(json["diagnostic"]["code"], expected);
+            assert_eq!(json["diagnostic"]["message"], "failure");
+            if expected == "rustiq::specific" {
+                assert_eq!(json["diagnostic"]["help"], "retry");
+            }
+        }
+    }
 
     #[test]
     fn mp2_result_round_trips_without_an_extra_tag() {

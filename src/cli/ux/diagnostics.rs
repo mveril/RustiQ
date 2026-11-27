@@ -120,6 +120,58 @@ pub(crate) fn emit_warning(
 mod tests {
     use super::*;
 
+    #[derive(Debug, thiserror::Error, Diagnostic)]
+    #[error("original message")]
+    #[diagnostic(severity(Warning), help("retry"), url("https://example.com"))]
+    struct Details {
+        #[source_code]
+        source: String,
+        #[label("input")]
+        span: miette::SourceSpan,
+        #[related]
+        related: Vec<miette::MietteDiagnostic>,
+        #[diagnostic_source]
+        diagnostic: miette::MietteDiagnostic,
+        #[source]
+        cause: io::Error,
+    }
+
+    #[test]
+    fn wrappers_preserve_diagnostic_properties() {
+        fn check(d: &dyn Diagnostic) {
+            assert_eq!(d.to_string(), "original message");
+            assert_eq!(d.source().unwrap().to_string(), "cause");
+            assert_eq!(d.severity(), Some(miette::Severity::Warning));
+            assert_eq!(d.help().unwrap().to_string(), "retry");
+            assert_eq!(d.url().unwrap().to_string(), "https://example.com");
+            assert!(d
+                .source_code()
+                .unwrap()
+                .read_span(&(0, 2).into(), 0, 0)
+                .is_ok());
+            let label = d.labels().unwrap().next().unwrap();
+            assert_eq!(label.label(), Some("input"));
+            assert_eq!(label.offset(), 0);
+            assert_eq!(label.len(), 2);
+            assert_eq!(d.related().unwrap().next().unwrap().to_string(), "related");
+            assert_eq!(
+                d.diagnostic_source().unwrap().to_string(),
+                "diagnostic source"
+            );
+        }
+        let details = Details {
+            source: "input".into(),
+            span: (0, 2).into(),
+            related: vec![miette::MietteDiagnostic::new("related")],
+            diagnostic: miette::MietteDiagnostic::new("diagnostic source"),
+            cause: io::Error::other("cause"),
+        };
+        check(&UncodedDiagnostic(&details));
+        let report = with_code(Report::new(details), "rustiq::fallback");
+        check(report.as_ref());
+        assert_eq!(code(report.as_ref()), "rustiq::fallback");
+    }
+
     #[test]
     fn operation_code_preserves_the_original_message_and_cause() {
         let report = Err::<(), _>(io::Error::new(io::ErrorKind::NotFound, "file is missing"))

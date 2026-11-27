@@ -29,6 +29,14 @@ RustiQ prints `rustiq::run::input_read_failed` in the error message, and the
 last line printed by the example is `Exit code: 1`. The shell puts the status
 of the failed command in `$?`, so the example saves it immediately.
 
+In PowerShell, save the native process status immediately:
+
+```powershell
+rustiq run missing.toml
+$status = $LASTEXITCODE
+Write-Output "Exit code: $status"
+```
+
 | Exit code | What it means | What to check |
 | --- | --- | --- |
 | `0` | The command completed successfully. Some commands allow skips. | Read the report if you need to know which items were skipped. |
@@ -39,14 +47,23 @@ of the failed command in `$?`, so the example saves it immediately.
 | `5` | Strict bundle verification skipped some artifacts and found no failures among those it checked. | Review the skipped entries before relying on the verification. |
 
 See the [command-line reference](../reference/cli.md#exit-status-and-diagnostics)
-for the detailed rules for batches and bundle verification.
+for the detailed rules for batches and bundle verification. Post-SCF campaigns
+return `0` when at least one method succeeds and none fails, even with skips;
+`4` when successes coexist with failures; and `1` when none succeeds.
 
 ## Find codes in JSON reports
 
 When a JSON report is produced, failed calculations in a batch put the code
 in `error.code` and the explanation in `error.message`. In artifact verification
 reports, invalid entries carry `code` alongside the `errors` list. Older reports
-may omit these code fields. A command can write a JSON report and still return
+may omit these code fields. Post-SCF skipped and failed outcomes use
+`diagnostic.code`, with the explanation in `diagnostic.message` and optional
+`diagnostic.help`. Failures preserve specific codes and use
+`rustiq::post_scf::failed` only when no code is available.
+
+These JSON additions are a beta.2 compatibility change within schema version 1.
+Updated schemas accept older reports; consumers validating new reports against
+older strict schemas may need to update their schemas. A command can write a JSON report and still return
 a nonzero exit code, so check both when scripting.
 
 ## Look up a diagnostic code
