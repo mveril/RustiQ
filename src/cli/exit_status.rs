@@ -7,10 +7,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Diagnostic)]
 #[error("HF did not converge")]
+#[diagnostic(code(rustiq::scf::non_convergence))]
 pub(crate) struct NonConvergence;
 
 #[derive(Debug, Error, Diagnostic)]
 #[error("batch contains {failed} failed and {non_converged} non-converged calculations")]
+#[diagnostic(code(rustiq::run::incomplete_batch))]
 pub(crate) struct IncompleteBatch {
     pub succeeded: usize,
     pub non_converged: usize,

@@ -87,10 +87,14 @@ fn relative_geometry(input: &Path, directory: &Path) -> miette::Result<PathBuf> 
     for component in input.components().skip(shared) {
         result.push(component.as_os_str());
     }
-    let portable = relative_path::RelativePathBuf::from_path(&result)
-        .map_err(|_| miette!("Geometry path cannot be represented as a portable UTF-8 path"))?;
+    let portable = relative_path::RelativePathBuf::from_path(&result).map_err(|_| {
+        miette!(
+            code = "rustiq::init::geometry_path",
+            "Geometry path cannot be represented as a portable UTF-8 path"
+        )
+    })?;
     crate::runfile::resolved::validate_geometry_path(portable.as_str())
-        .map_err(|message| miette!("{message}"))?;
+        .map_err(|message| miette!(code = "rustiq::init::geometry_path", "{message}"))?;
     Ok(PathBuf::from(portable.as_str()))
 }
 
@@ -101,14 +105,17 @@ impl Runnable for InitCommand {
     )]
     fn run(&self) -> CommandResult {
         if self.basis.trim().is_empty() {
-            return Err(miette!("Basis name must not be empty"));
+            return Err(miette!(
+                code = "rustiq::init::empty_basis",
+                "Basis name must not be empty"
+            ));
         }
         let input = self
             .input
             .canonicalize()
             .into_diagnostic()
             .wrap_err_with(|| format!("Cannot read geometry {}", self.input.display()))?;
-        let geometry = Geometry::from_path(&input).into_diagnostic()?;
+        let geometry = Geometry::from_path(&input)?;
         let nuclear_charge: i64 = geometry
             .atoms
             .iter()
@@ -117,7 +124,10 @@ impl Runnable for InitCommand {
         let electrons = nuclear_charge - i64::from(self.charge);
         if electrons <= 0 || electrons > i64::from(i32::MAX) || nuclear_charge > i64::from(i32::MAX)
         {
-            return Err(miette!("Invalid molecular electron count: {electrons}"));
+            return Err(miette!(
+                code = "rustiq::init::invalid_electron_count",
+                "Invalid molecular electron count: {electrons}"
+            ));
         }
         let multiplicity = self.multiplicity.unwrap_or_else(|| {
             NonZeroU8::new(if electrons % 2 == 0 { 1 } else { 2 })
@@ -144,23 +154,30 @@ impl Runnable for InitCommand {
             .canonicalize()
             .into_diagnostic()
             .wrap_err("Output directory must exist")?;
-        let filename = self
-            .output
-            .file_name()
-            .ok_or_else(|| miette!("Output must name a file"))?;
+        let filename = self.output.file_name().ok_or_else(|| {
+            miette!(
+                code = "rustiq::init::output_filename",
+                "Output must name a file"
+            )
+        })?;
         let output = directory.join(filename);
         match fs::symlink_metadata(&output) {
             Ok(metadata) => {
                 if !metadata.is_file() || metadata.file_type().is_symlink() {
                     return Err(miette!(
+                        code = "rustiq::init::output_type",
                         "Output must be a regular file, not a directory or symbolic link"
                     ));
                 }
                 if output.canonicalize().into_diagnostic()? == input {
-                    return Err(miette!("Output must not replace the source geometry"));
+                    return Err(miette!(
+                        code = "rustiq::init::output_is_geometry",
+                        "Output must not replace the source geometry"
+                    ));
                 }
                 if !self.output_options.force {
                     return Err(miette!(
+                        code = "rustiq::init::output_exists",
                         "{} already exists; use --force to replace it",
                         output.display()
                     ));

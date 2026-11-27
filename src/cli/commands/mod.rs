@@ -67,18 +67,19 @@ pub enum Commands {
 
 impl Runnable for Commands {
     fn run(&self) -> CommandResult {
-        match self {
-            Self::Docs(command) => command.run(),
+        let (result, code) = match self {
+            Self::Docs(command) => (command.run(), "rustiq::docs::failed"),
             #[cfg(feature = "manpages")]
-            Self::Manpages(command) => command.run(),
+            Self::Manpages(command) => (command.run(), "rustiq::manpages::failed"),
             #[cfg(feature = "completions")]
-            Self::Completions(command) => command.run(),
-            Commands::Init(command) => command.run(),
-            Commands::Run(command) => command.run(),
-            Commands::Basis { command } => command.run(),
-            Commands::Cache { command } => command.run(),
-            Commands::Artifact { command } => command.run(),
-            Commands::Geometry { command } => command.run(),
-        }
+            Self::Completions(command) => (command.run(), "rustiq::completions::failed"),
+            Commands::Init(command) => (command.run(), "rustiq::init::failed"),
+            Commands::Run(command) => (command.run(), "rustiq::run::failed"),
+            Commands::Basis { command } => (command.run(), "rustiq::basis::failed"),
+            Commands::Cache { command } => (command.run(), "rustiq::cache::failed"),
+            Commands::Artifact { command } => (command.run(), "rustiq::artifact::failed"),
+            Commands::Geometry { command } => (command.run(), "rustiq::geometry::failed"),
+        };
+        result.map_err(|report| super::ux::diagnostics::with_code(report, code))
     }
 }

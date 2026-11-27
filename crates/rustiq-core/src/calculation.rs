@@ -139,8 +139,10 @@ use crate::{
 #[non_exhaustive]
 pub enum CalculationError {
     #[error(transparent)]
+    #[diagnostic(code(rustiq::calculation::basis))]
     Basis(#[from] BasisError),
     #[error("{error}")]
+    #[diagnostic(code(rustiq::calculation::molecule))]
     Molecule {
         #[source]
         error: MoleculeError,
@@ -150,6 +152,7 @@ pub enum CalculationError {
         multiplicity_span: Option<SourceSpan>,
     },
     #[error("{error}")]
+    #[diagnostic(code(rustiq::calculation::hf_method))]
     Method {
         #[source]
         error: HfMethodResolutionError,
@@ -157,6 +160,7 @@ pub enum CalculationError {
         span: Option<SourceSpan>,
     },
     #[error("{error}")]
+    #[diagnostic(code(rustiq::calculation::hf_setup))]
     HfSetup {
         method: ResolvedHfMethod,
         #[source]
@@ -165,12 +169,16 @@ pub enum CalculationError {
         span: Option<SourceSpan>,
     },
     #[error(transparent)]
+    #[diagnostic(code(rustiq::calculation::numerical))]
     Numerical(#[from] NumericalError),
     #[error(transparent)]
+    #[diagnostic(code(rustiq::calculation::diis))]
     Diis(#[from] DiisError),
     #[error(transparent)]
+    #[diagnostic(code(rustiq::calculation::artifact))]
     Artifact(#[from] crate::persistence::ArtifactError),
     #[error("{error}")]
+    #[diagnostic(code(rustiq::calculation::mp2))]
     Mp2 {
         #[source]
         error: Mp2Error,
@@ -180,6 +188,7 @@ pub enum CalculationError {
     #[error(
         "MP2 requires converged HF orbitals, but HF did not converge after {iterations} iterations"
     )]
+    #[diagnostic(code(rustiq::scf::non_convergence))]
     HfNotConverged { iterations: usize },
 }
 

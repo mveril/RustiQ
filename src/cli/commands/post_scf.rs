@@ -2,6 +2,7 @@
 mod method;
 mod report;
 
+use crate::cli::ux::diagnostics::with_code;
 use std::{fs, path::Path};
 
 use miette::{miette, Diagnostic, IntoDiagnostic, Report, WrapErr};
@@ -95,29 +96,40 @@ pub(super) fn run(
             path.extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("rustiq"))
         })
-        .ok_or_else(|| miette!("--post-scf requires a .rustiq input bundle"))?;
+        .ok_or_else(|| {
+            miette!(
+                code = "rustiq::post_scf::input_required",
+                "--post-scf requires a .rustiq input bundle"
+            )
+        })?;
     let destination = artifact
         .map(|path| {
             let (path, replace) =
                 super::artifact_session::resolve_artifact_destination(None, path, force)?;
             if replace && same_file::is_same_file(input, &path).into_diagnostic()? {
-                return Err(miette!("Post-HF output must not replace the input bundle"));
+                return Err(miette!(
+                    code = "rustiq::post_scf::output_is_input",
+                    "Post-HF output must not replace the input bundle"
+                ));
             }
             Ok((path, replace))
         })
         .transpose()?;
     let source = fs::read_to_string(config)
         .into_diagnostic()
-        .wrap_err_with(|| format!("could not read Post-HF configuration {}", config.display()))?;
+        .wrap_err_with(|| format!("could not read Post-HF configuration {}", config.display()))
+        .map_err(|report| with_code(report, "rustiq::post_scf::config_read_failed"))?;
     let settings = crate::runfile::parser::resolve_post_scf(&config.to_string_lossy(), &source)?;
     let requests = Request::select(&settings, methods)?;
     let bundle = RustiQBundle::open_for_restore(input)
         .into_diagnostic()
+        .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))
         .wrap_err_with(|| format!("could not open Post-HF input bundle {}", input.display()))?;
     let calculations = bundle.calculations();
     if let Some(index) = source_index {
         if index >= calculations.len() {
             return Err(miette!(
+                code = "rustiq::post_scf::calculation_out_of_range",
                 "Calculation index {index} is out of range. Use a zero-based index from 0 to {} or omit --calculation.",
                 calculations.len() - 1
             ));

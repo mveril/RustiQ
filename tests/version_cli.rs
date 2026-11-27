@@ -313,3 +313,15 @@ fn version_color_flags_control_styling_independently_of_hyperlinks() {
     assert!(!never.stdout.windows(2).any(|window| window == b"\x1b["));
     assert!(never.stdout.windows(3).any(|window| window == b"\x1b]8"));
 }
+
+#[test]
+fn clap_errors_have_a_diagnostic_code_and_help_succeeds() {
+    for args in [&["--unknown-option"][..], &["--version", "run"]] {
+        let output = version(args);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("rustiq::cli::invalid_arguments"));
+    }
+    let help = version(&["--help"]);
+    assert!(help.status.success());
+    assert_eq!(help.stderr, b"");
+}

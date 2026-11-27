@@ -351,6 +351,19 @@ as the fourth power of basis dimension, and the MP2 workspace budget covers
 additional transformation buffers rather than the full HF data or process
 memory. See [MP2 memory policy](../reference/existing-workflows.md#mp2-and-its-memory-budget).
 
+## Miette diagnostics
+
+RustiQ uses [Miette](https://docs.rs/miette/latest/miette/) to attach codes, source
+locations, and help to errors.
+The core library implements Miette's `Diagnostic` trait on some typed errors.
+The CLI configures terminal rendering and supplies codes for command-specific
+failures. It also includes diagnostic codes in batch and artifact verification
+JSON reports. The CLI determines the numeric process exit status separately.
+
+When you add or change a diagnostic code, update
+[Error messages and exit codes](../user-guide/diagnostic-codes.md) with its
+meaning and what a user can check.
+
 ## Build profiles and performance investigation
 
 Cargo's default development and test builds favor development speed. Release

@@ -153,11 +153,15 @@
               ],
               "properties": {
                 "code": {
-                  "const": "rustiq::post_scf::failed"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "message": {
                   "type": "string",
                   "minLength": 1
+                },
+                "help": {
+                  "type": "string"
                 }
               }
             }

@@ -1,5 +1,8 @@
 # Interpreting output
 
+If your command failed, see [Error messages and exit codes](../user-guide/diagnostic-codes.md)
+for help finding the cause.
+
 The standard `run` report has three visible parts:
 
 - **Requested options:** a canonical TOML representation of the requested

@@ -14,11 +14,13 @@ impl BundleCalculationSelection {
         match self.calculation {
             Some(index) if index < count => Ok(index),
             Some(index) => Err(miette::miette!(
+                code = "rustiq::artifact::calculation_out_of_range",
                 "Calculation index {index} is out of range. Use a zero-based index from 0 to {}.",
                 count.saturating_sub(1)
             )),
             None if count == 1 => Ok(0),
             None => Err(miette::miette!(
+                code = "rustiq::artifact::calculation_required",
                 "This bundle contains {count} calculations. Use --calculation with a zero-based index."
             )),
         }

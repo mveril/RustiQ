@@ -323,7 +323,11 @@ The cache directory path is resolved from the caller's current working
 directory. Pass the same `--cache-dir` to `cache list` or `cache remove` to
 manage entries from a run that used a custom cache root.
 
-The CLI reports input, basis, preparation, and calculation errors as diagnostics.
+### Exit status and diagnostics
+
+See [Error messages and exit codes](../user-guide/diagnostic-codes.md) for
+troubleshooting steps and the diagnostic code catalog.
+
 Exit codes follow the Unix convention: nonzero means the command did not fully
 succeed. In normal artifact verification, zero permits unsupported artifacts to
 be skipped; use `--strict` to require exhaustive verification. Codes 3–5 are

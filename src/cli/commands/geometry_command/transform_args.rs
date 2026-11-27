@@ -40,6 +40,7 @@ impl TransformArgs {
                     match fs::symlink_metadata(output) {
                         Ok(_) => {
                             return Err(miette!(
+                                code = "rustiq::geometry::dangling_output",
                                 "Geometry output {} is a dangling symbolic link",
                                 output.display()
                             ));
@@ -52,6 +53,7 @@ impl TransformArgs {
             };
             if !self.output_options.force && output.exists() {
                 return Err(miette!(
+                    code = "rustiq::geometry::output_exists",
                     "Geometry output {} already exists; use --force to replace it",
                     output.display()
                 ));
@@ -72,11 +74,13 @@ impl TransformArgs {
             publication.map_err(|error| {
                 if error.error.kind() == io::ErrorKind::AlreadyExists {
                     miette!(
+                        code = "rustiq::geometry::output_exists",
                         "Geometry output {} already exists; use --force to replace it",
                         output.display()
                     )
                 } else {
                     miette!(
+                        code = "rustiq::geometry::publish_failed",
                         "could not publish geometry {}: {}",
                         output.display(),
                         error.error

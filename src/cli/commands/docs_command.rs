@@ -16,9 +16,10 @@ fn online_manual(version: &str, released: bool) -> String {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[error("failed to open the manual at {target}")]
-#[diagnostic(help(
-    "On a headless machine, run `rustiq docs --print-path` and copy the path or URL to a browser."
-))]
+#[diagnostic(
+    code(rustiq::docs::browser_failed),
+    help("On a headless machine, run `rustiq docs --print-path` and copy the path or URL to a browser.")
+)]
 struct BrowserError {
     target: String,
     #[source]
@@ -48,7 +49,10 @@ impl DocsCommand {
             .into_diagnostic()
             .wrap_err("failed to locate the RustiQ executable")?;
         let directory = executable.parent().ok_or_else(|| {
-            miette::miette!("the RustiQ executable has no installation directory")
+            miette::miette!(
+                code = "rustiq::docs::installation_directory",
+                "the RustiQ executable has no installation directory"
+            )
         })?;
         let mut candidates = vec![directory.join("manual/html")];
         if let Some(prefix) = directory.parent() {
@@ -61,6 +65,7 @@ impl DocsCommand {
                 let index: PathBuf = manual.join("index.html");
                 if !index.is_file() {
                     return Err(miette::miette!(
+                        code = "rustiq::docs::incomplete_manual",
                         "installed manual is incomplete: {} is missing; reinstall the complete package or use `rustiq docs --web`",
                         index.display()
                     ));

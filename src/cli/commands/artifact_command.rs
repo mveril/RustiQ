@@ -1,3 +1,4 @@
+use crate::cli::ux::diagnostics::with_code;
 mod export;
 
 use std::{
@@ -147,6 +148,8 @@ struct VerificationEntry {
     name: String,
     representation: String,
     status: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     errors: Vec<String>,
 }
@@ -184,7 +187,9 @@ impl VerificationReport {
 
 impl Runnable for VerifyCommand {
     fn run(&self) -> CommandResult {
-        let summary = RustiQBundle::check_archive(&self.path).into_diagnostic()?;
+        let summary = RustiQBundle::check_archive(&self.path)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let json = matches!(self.format, CalculationOutputFormat::Json);
         let mut report = VerificationReport {
             schema_version: 1,
@@ -204,6 +209,7 @@ impl Runnable for VerifyCommand {
                 name: artifact.name,
                 representation: artifact.representation,
                 status: "valid",
+                code: None,
                 errors: Vec::new(),
             };
             match artifact.status {
@@ -214,12 +220,16 @@ impl Runnable for VerifyCommand {
                     if json {
                         entry.errors = source.chain().map(ToString::to_string).collect();
                     }
-                    errors.push(VerificationFailure {
+                    let failure = VerificationFailure {
                         calculation_index: entry.calculation_index,
                         name: entry.name.clone(),
                         representation: entry.representation.clone(),
                         source: source.into(),
-                    });
+                    };
+                    if json {
+                        entry.code = Some(crate::cli::ux::diagnostics::code(&failure));
+                    }
+                    errors.push(failure);
                 }
                 status => {
                     let (label, reason, help) = match status {
@@ -279,7 +289,9 @@ impl Runnable for VerifyCommand {
 
 impl InspectCommand {
     fn inspect(&self) -> miette::Result<Inspection> {
-        let bundle = RustiQBundle::open(&self.path).into_diagnostic()?;
+        let bundle = RustiQBundle::open(&self.path)
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let sources = bundle
             .sources()
             .map(|source| Source {
@@ -304,9 +316,12 @@ impl InspectCommand {
                         representation: representation.to_owned(),
                     })
                     .collect();
-                let request = data
-                    .request()
-                    .ok_or_else(|| miette!("missing portable request"))?;
+                let request = data.request().ok_or_else(|| {
+                    miette!(
+                        code = "rustiq::artifact::missing_request",
+                        "missing portable request"
+                    )
+                })?;
                 let requested = portable_requested_calculation(request).into_diagnostic()?;
                 let prepared = data.prepare_calculation().into_diagnostic()?;
                 let resolved = resolved_calculation(&prepared).into_diagnostic()?;

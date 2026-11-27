@@ -11,11 +11,13 @@ fn packaging_enabled() -> miette::Result<bool> {
             "1" | "true" => Ok(true),
             "0" | "false" => Ok(false),
             _ => Err(miette::miette!(
+                code = "rustiq::generate::packaging_value",
                 "invalid RUSTIQ_PACKAGING value {value:?}; expected true, false, 1, or 0"
             )),
         },
         Err(std::env::VarError::NotPresent) => Ok(false),
         Err(std::env::VarError::NotUnicode(_)) => Err(miette::miette!(
+            code = "rustiq::generate::packaging_value",
             "RUSTIQ_PACKAGING must be valid UTF-8; expected true, false, 1, or 0"
         )),
     }
@@ -185,6 +187,7 @@ impl Runnable for CompletionsCommand {
 
         let shell = self.shell.or_else(Shell::current).ok_or_else(|| {
             miette::miette!(
+                code = "rustiq::generate::unknown_shell",
                 "could not detect a supported shell; specify bash, zsh, fish, elvish, powershell, or nushell"
             )
         })?;

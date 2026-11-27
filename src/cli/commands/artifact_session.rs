@@ -1,4 +1,5 @@
 //! Portable orchestration; scientific compatibility stays in rustiq-core.
+use crate::cli::ux::diagnostics::with_code;
 use std::{
     cell::RefCell,
     fs,
@@ -48,6 +49,7 @@ pub(crate) fn resolve_artifact_destination(
             let source = reuse.map(fs::canonicalize).transpose().into_diagnostic()?;
             if source.as_ref() != Some(&canonical) && !force {
                 return Err(miette!(
+                    code = "rustiq::artifact::destination_exists",
                     "artifact destination already exists: {}",
                     path.display()
                 ));
@@ -78,7 +80,8 @@ impl ArtifactSession {
         let source = reuse
             .map(RustiQBundle::open)
             .transpose()
-            .into_diagnostic()?;
+            .into_diagnostic()
+            .map_err(|report| with_code(report, "rustiq::artifact::open_failed"))?;
         let (destination, replace) = if let Some(path) = artifact {
             let (path, replace) = resolve_artifact_destination(reuse, path, force)?;
             (Some(path), replace)

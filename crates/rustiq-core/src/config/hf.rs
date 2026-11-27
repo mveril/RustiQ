@@ -199,6 +199,7 @@ pub enum HfMethodResolutionError {
 
 #[derive(Debug, Error, Diagnostic)]
 #[error("{error}")]
+#[diagnostic(code(rustiq::calculation::hf_method))]
 pub struct HfConfigError {
     #[source]
     pub error: HfMethodResolutionError,

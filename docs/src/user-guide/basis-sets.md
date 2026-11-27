@@ -99,3 +99,16 @@ agreement, basis quality, and physical validity are distinct checks; see
 See the [glossary](../glossary.md) for shared basis vocabulary.
 
 Next: [TOML configuration](configuration.md).
+
+The diagnostic `rustiq::basis::missing_offline` identifies a basis missing from
+the local store when automatic downloads are unavailable or disabled. For TOML
+input, it highlights the requested basis name.
+
+With online support, run `rustiq basis download <basis-name>` or rerun the
+calculation with `--auto-download`. Replace `--no-auto-download` if you used it
+in the original command.
+
+Every build can import a matching Basis Set Exchange JSON file with
+`rustiq basis import <file.json>`. The diagnostic directs offline builds to
+this option. Use `rustiq basis list` to check the names available in the
+local store.

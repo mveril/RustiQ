@@ -12,6 +12,7 @@ use crate::molecules::{Geometry, Molecule, MoleculeError, Units};
 /// its source text or depending on calculation orchestration.
 #[derive(Debug, Error, Diagnostic)]
 #[error("{error}")]
+#[diagnostic(code(rustiq::calculation::molecule))]
 pub struct MoleculeConfigError {
     #[source]
     pub error: MoleculeError,
