@@ -1,15 +1,60 @@
-# Miette diagnostic codes
+# Error messages and exit codes
 
-Use the `rustiq::…` identifier in a diagnostic to look up its meaning here.
-Read the accompanying message, source labels, and causes for details about the
-specific input or operation. A code can cover several underlying causes that
-call for the same investigation.
+When a command fails, read the message in your terminal. It may name a file,
+highlight an input value, or suggest a fix. If the message includes a code
+starting with `rustiq::`, search for that exact code on this page.
 
-The CLI prints diagnostics on standard error. Structured batch reports also
-carry codes in JSON. See the [command-line reference](cli.md#exit-status-and-diagnostics)
-for the relationship between diagnostic identifiers and process exit statuses.
+For example, `rustiq::run::input_read_failed` means RustiQ could not read the
+calculation input. If the message says the file was not found, check the file
+name and the directory you ran the command from. For
+`rustiq::basis::missing_offline`, follow the
+[steps for making the basis available locally](basis-sets.md).
 
-## CLI, help, and generated files
+## Check the exit code
+
+The exit code is a number your shell receives when RustiQ finishes. It tells
+you how the command ended. The `rustiq::…` code identifies an individual
+problem and can help you decide what to check.
+
+For example, with `rustiq` installed, run these commands in Bash or another
+POSIX shell from a directory where `missing.toml` does not exist:
+
+```sh
+status=0
+rustiq run missing.toml || status=$?
+printf 'Exit code: %s\n' "$status"
+```
+
+RustiQ prints `rustiq::run::input_read_failed` in the error message, and the
+last line printed by the example is `Exit code: 1`. The shell puts the status
+of the failed command in `$?`, so the example saves it immediately.
+
+| Exit code | What it means | What to check |
+| --- | --- | --- |
+| `0` | The command completed successfully. Some commands allow skips. | Read the report if you need to know which items were skipped. |
+| `1` | The command encountered an error. | Read the message and look up its diagnostic code below. |
+| `2` | RustiQ rejected the command-line arguments. | Run the command with `--help` to check its syntax and options. |
+| `3` | No requested calculation succeeded because Hartree–Fock did not converge. | Review the [Hartree–Fock convergence guidance](hartree-fock.md). |
+| `4` | Some calculations or methods succeeded and others failed or did not converge. | Review the individual outcomes before using the results. |
+| `5` | Strict bundle verification skipped some artifacts and found no failures among those it checked. | Review the skipped entries before relying on the verification. |
+
+See the [command-line reference](../reference/cli.md#exit-status-and-diagnostics)
+for the detailed rules for batches and bundle verification.
+
+## Find codes in JSON reports
+
+When a JSON report is produced, failed calculations in a batch put the code
+in `error.code` and the explanation in `error.message`. In artifact verification
+reports, invalid entries carry `code` alongside the `errors` list. Older reports
+may omit these code fields. A command can write a JSON report and still return
+a nonzero exit code, so check both when scripting.
+
+## Look up a diagnostic code
+
+Use the message and any highlighted input to narrow down the cause. If you
+ask for help, include the code, the full message, and the command you ran.
+
+### CLI, help, and generated files
 
 | Code | Meaning and what to check |
 | --- | --- |
@@ -26,7 +71,7 @@ for the relationship between diagnostic identifiers and process exit statuses.
 | `rustiq::manpages::failed` | Manual-page generation failed. Check the output directory and its permissions. |
 | `rustiq::unexpected_error` | RustiQ rendered a diagnostic without a more specific code. Use the underlying message when investigating or reporting it. |
 
-## Input generation and geometry
+### Input generation and geometry
 
 | Code | Meaning and what to check |
 | --- | --- |
@@ -48,7 +93,7 @@ for the relationship between diagnostic identifiers and process exit statuses.
 | `rustiq::geometry::publish_failed` | The temporary geometry output could not be published. Check the destination and directory permissions. |
 | `rustiq::geometry::failed` | A geometry command failed. Check the underlying calculation or filesystem error. |
 
-## Basis sets and cache
+### Basis sets and cache
 
 | Code | Meaning and what to check |
 | --- | --- |
@@ -60,7 +105,7 @@ for the relationship between diagnostic identifiers and process exit statuses.
 | `rustiq::cache::entry_not_found` | The named cache entry does not exist. Check `cache list` and the selected cache directory. |
 | `rustiq::cache::failed` | Cache listing or removal failed. Check the cache directory and the underlying filesystem error. |
 
-## Run inputs and calculations
+### Run inputs and calculations
 
 | Code | Meaning and what to check |
 | --- | --- |
@@ -90,7 +135,7 @@ for the relationship between diagnostic identifiers and process exit statuses.
 | `rustiq::calculation::mp2` | MP2 preparation or execution failed. Check the cause, including any cited frozen orbitals or workspace settings. |
 | `rustiq::scf::non_convergence` | HF reached an unconverged outcome. Inspect the SCF history and convergence settings before using the orbitals for MP2. |
 
-## Portable bundles and Post-HF
+### Portable bundles and Post-HF
 
 | Code | Meaning and what to check |
 | --- | --- |
@@ -120,3 +165,5 @@ for the relationship between diagnostic identifiers and process exit statuses.
 | `rustiq::post_scf::skipped` | Post-HF execution was skipped for a selected calculation. Read the reason and help in the diagnostic. |
 | `rustiq::post_scf::failed` | A Post-HF calculation failed without a more specific identifier. Inspect the underlying error and method configuration. |
 | `rustiq::mp2::non_finite_energy` | MP2 returned a non-finite energy on a restored reference. Inspect the reference and MP2 settings before using any reported energy. |
+
+For contributors, see [how diagnostics are implemented](../development/contributing.md#miette-diagnostics).

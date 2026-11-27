@@ -20,6 +20,7 @@
 - [Hartree–Fock calculations](user-guide/hartree-fock.md)
 - [MP2 calculations](user-guide/mp2.md)
 - [Nickel studies](user-guide/nickel-studies.md)
+- [Error messages and exit codes](user-guide/diagnostic-codes.md)
 - [JSON output](user-guide/json-output.md)
 - [Portable calculation bundles](user-guide/portable-bundles.md)
 
@@ -29,7 +30,6 @@
 # Reference and development
 
 - [Command-line reference](reference/cli.md)
-- [Miette diagnostic codes](reference/diagnostic-codes.md)
 - [Existing calculation workflows](reference/existing-workflows.md)
 - [Authoritative references](reference/index.md)
 - [Molecular and basis-set data sources](reference/data-sources.md)

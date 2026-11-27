@@ -325,20 +325,9 @@ manage entries from a run that used a custom cache root.
 
 ### Exit status and diagnostics
 
-See [Miette diagnostic codes](diagnostic-codes.md) for the complete reference.
+See [Error messages and exit codes](../user-guide/diagnostic-codes.md) for
+troubleshooting steps and the diagnostic code catalog.
 
-CLI errors carry a diagnostic code. For example,
-`rustiq::cli::invalid_arguments` identifies command-line usage errors, and
-`rustiq::basis::missing_offline` identifies a missing local basis when automatic
-download is disabled or unavailable. Errors without a more specific diagnostic
-use `rustiq::unexpected_error`. The diagnostic includes the underlying message.
-
-JSON batch failures include a diagnostic code in `error.code`. Invalid entries
-in artifact verification JSON include their diagnostic code in `code`, alongside
-the messages in `errors`. The version 1 schemas also accept earlier reports
-that omit these fields.
-
-Diagnostic identifiers are separate from the process exit status.
 Exit codes follow the Unix convention: nonzero means the command did not fully
 succeed. In normal artifact verification, zero permits unsupported artifacts to
 be skipped; use `--strict` to require exhaustive verification. Codes 3–5 are
