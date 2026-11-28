@@ -1,5 +1,9 @@
 # Examples
 
+Read this chapter in the [rendered manual](https://mveril.github.io/RustiQ/user-guide/examples.html)
+to see the complete input files and scripts. The GitHub Markdown preview
+shows mdBook include directives in their place.
+
 Use the installed `rustiq` executable and save the inputs shown below in a
 working directory of your choice. All three tutorials use STO-3G. Download
 the complete basis once with an online build.
