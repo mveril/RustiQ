@@ -1,0 +1,21 @@
+load "benzene.molden"
+background white
+set frank off
+set antialiasDisplay true
+set perspectiveDepth false
+center all
+rotate x 55
+rotate z 20
+zoom 80
+spacefill 18%
+wireframe 0.12
+color atoms cpk
+mo titleFormat ""
+mo cutoff 0.04
+mo resolution 10
+mo color [xB33B32] [x2369A6]
+mo fill noMesh
+mo 21
+write image 1400 1100 png "benzene-homo-jmol.png"
+mo 22
+write image 1400 1100 png "benzene-lumo-jmol.png"

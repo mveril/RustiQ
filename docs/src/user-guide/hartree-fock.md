@@ -1,5 +1,7 @@
 # Hartree–Fock calculations
 
+For hands-on examples, follow the [water RHF](examples.md#water--run-mp2-from-saved-rhf-orbitals), [hydroxyl UHF](examples.md#hydroxyl-radical--inspect-an-unrestricted-solution), or [benzene orbital](examples.md#benzene--export-molecular-orbitals) tutorial.
+
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)

@@ -1,5 +1,7 @@
 # MP2 calculations
 
+Follow the [water tutorial](examples.md#water--run-mp2-from-saved-rhf-orbitals) to run MP2 from a saved RHF reference and interpret the JSON report.
+
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)

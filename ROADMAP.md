@@ -63,9 +63,10 @@ RustiQ currently provides:
   Windows targets, plus a separate crates.io publishing workflow;
 - an mdBook manual and Cargo, Nix, and Dev Container contributor workflows.
 
-These capabilities remain experimental. In particular, portable bundles store
-scientific inputs and AO ERIs, not HF solutions, partial SCF state, DIIS history,
-or MP2 results. Direct archive execution starts a fresh HF calculation.
+Portable bundles can save converged RHF and UHF orbitals. Post-SCF execution
+restores compatible references for MP2, and Molden export uses the saved
+orbitals. Partial SCF state and DIIS history are future work. Direct archive
+execution starts a fresh HF calculation.
 
 The [manual](docs/src/SUMMARY.md), [CLI reference](docs/src/reference/cli.md),
 [schemas](schemas), and [persistence specification](docs/persistence-format-v1.md)
@@ -165,23 +166,11 @@ not research-grade scientific or universal platform guarantees.
 
 ## Remaining priorities
 
-### 1. Persist converged and restartable HF state (#79)
+### 1. Persist restartable HF state (#79)
 
-Portable AO ERI reuse is implemented. The next persistence milestone extends
-typed artifacts beyond integrals, in this order:
-
-1. converged RHF/UHF solutions reusable by post-HF methods;
-2. partial RHF/UHF restart state without DIIS;
-3. optional versioned DIIS continuation state.
-
-A compatible MP2 request should be able to reuse a converged HF solution
-without rerunning SCF. A compatible interrupted HF calculation should be able
-to continue from persisted partial state.
-
-Restart semantics must be scientifically defined and reported explicitly.
-Persistence must never silently claim exact continuation when required state is
-missing or incompatible. Advanced CLI artifact-selection/ignore filters and
-optional pruning remain follow-up work after basic HF persistence is stable.
+Converged RHF and UHF solutions are reusable by MP2. A future persistence
+milestone is to define restart semantics for interrupted RHF and UHF runs
+and determine what state is required to continue DIIS reproducibly.
 
 ### 2. Broaden scientific validation and reproducibility
 

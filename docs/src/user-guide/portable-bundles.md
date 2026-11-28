@@ -1,5 +1,7 @@
 # Portable calculation bundles
 
+The [water tutorial](examples.md#water--run-mp2-from-saved-rhf-orbitals) saves and verifies an HF reference for MP2. The [hydroxyl](examples.md#hydroxyl-radical--inspect-an-unrestricted-solution) and [benzene](examples.md#benzene--export-molecular-orbitals) tutorials export orbitals from a bundle.
+
 Examples in this chapter that use `samples/` or `tests/data/` require a cloned
 repository and should be run from its root. Release binaries do not include
 those files; the [first-calculation guide](../getting-started/first-calculation.md)
