@@ -17,11 +17,17 @@ terminal report or versioned JSON for numerical results. A portable
 available AO integrals. You can reuse the saved reference for MP2 without a
 second SCF run or export the orbitals in Molden format.
 
-The [water, hydroxyl radical, and benzene tutorials](docs/src/user-guide/examples.md) include the inputs you need to run MP2, inspect an open-shell solution, and plot a benzene orbital using an installed RustiQ binary.
+The [water, hydroxyl radical, and benzene tutorials](docs/src/user-guide/examples.md) include the inputs you need to run MP2, inspect an open-shell solution, and render benzene frontier orbitals in Jmol using an installed RustiQ binary.
 The [PySCF reference suite](tools/reference/README.md) documents the comparisons
 and their tolerances. Check results independently before drawing research
 conclusions. HF omits electron correlation, and MP2 can be unreliable for
 strongly correlated systems. See the [scientific scope](docs/src/scientific-scope.md).
+
+<a href="docs/src/user-guide/examples.md#render-the-frontier-orbitals-in-jmol">
+  <img src="docs/src/user-guide/images/benzene-homo-jmol.png" width="360" alt="3D benzene HOMO with red and blue orbital phases">
+</a>
+
+*Benzene HOMO from RustiQ RHF/STO-3G, rendered in Jmol at ±0.04 Bohr⁻³ᐟ².*
 
 ## Quick start
 

@@ -170,15 +170,15 @@ rustiq artifact export hf.rustiq --format molden -o benzene.molden
 The total RHF energy is −227.8908322166 Hartree. Neutral benzene has
 42 electrons, giving 21 doubly occupied spatial orbitals. In the Molden
 file these have occupation 2, and the 15 virtual orbitals have occupation 0.
-Read the frontier energies from the `Ene=` fields of the last two occupied
-and first two virtual records.
+Read the frontier energies in Hartree from the `Ene=` fields in
+`benzene.molden`. Jmol numbers these records starting at 1.
 
-| Orbital | Energy (Hartree) |
-| --- | ---: |
-| HOMO−1 | −0.27982092 |
-| HOMO | −0.27978734 |
-| LUMO | 0.26875127 |
-| LUMO+1 | 0.26879226 |
+| Molden record | Orbital | Occupation | Energy (Hartree) |
+| ---: | --- | ---: | ---: |
+| 20 | HOMO−1 | 2 | −0.27982092 |
+| 21 | HOMO | 2 | −0.27978734 |
+| 22 | LUMO | 0 | 0.26875127 |
+| 23 | LUMO+1 | 0 | 0.26879226 |
 
 The RHF orbital gap, ε(LUMO) − ε(HOMO), is 0.54853861 Hartree.
 Experimental excitation energies are differences between many-electron
@@ -188,6 +188,48 @@ each side of the gap. The supplied coordinates approximate this symmetry.
 The occupied pair splits by about 3.36 × 10⁻⁵ Hartree and the virtual pair
 by about 4.10 × 10⁻⁵ Hartree. The exported symmetry labels are placeholders.
 See [Molden export](portable-bundles.md#export-orbitals-to-molden).
+
+### Render the frontier orbitals in Jmol
+
+The surfaces in each figure mark opposite signs of the orbital amplitude,
+with red for negative and blue for positive. An orbital's overall sign
+is arbitrary. Within an exactly degenerate subspace, rotations give equally
+valid canonical orbitals. With a small energy splitting, the canonical
+orbitals can still be sensitive to small geometry changes.
+
+![Tilted 3D view of the benzene HOMO with red and blue phase surfaces](images/benzene-homo-jmol.png)
+
+*Benzene HOMO (MO 21), RHF/STO-3G. Jmol 16.5.7, orbital amplitude
+isosurfaces at ±0.04 Bohr⁻³ᐟ².*
+
+![Tilted 3D view of the benzene LUMO with red and blue phase surfaces](images/benzene-lumo-jmol.png)
+
+*Benzene LUMO (MO 22), RHF/STO-3G. Jmol 16.5.7, orbital amplitude
+isosurfaces at ±0.04 Bohr⁻³ᐟ².*
+
+Install Java, download the [Jmol 16.5.7 binary archive](https://sourceforge.net/projects/jmol/files/Jmol/Version%2016.5/Jmol%2016.5.7/),
+and extract `Jmol.jar`. The figures were generated with Java 21.0.13.1
+on Linux. Save the script as `benzene/plot_molden_jmol.spt`, beside
+`benzene.molden`.
+
+```text
+{{#include ../../../samples/benzene/plot_molden_jmol.spt}}
+```
+
+From inside `benzene`, run the command below with the path to your Jmol
+JAR. Use a graphical desktop session or a virtual display on Linux.
+
+```sh
+java -jar /path/to/Jmol.jar -n -x -s plot_molden_jmol.spt
+```
+
+The script loads the Molden file, sets the same camera and colors for
+both views, selects orbitals 21 and 22, and writes
+`benzene-homo-jmol.png` and `benzene-lumo-jmol.png` at 1400 × 1100 pixels.
+Jmol 16.5.7 preserves the orbital energy values and leaves their units
+unlabeled. Read them in Hartree using the Molden export and table above.
+
+### Optional orbital slice with PySCF
 
 Save the following script as `benzene/plot_molden.py`.
 
@@ -208,17 +250,9 @@ python -m venv .venv
 PySCF reads the exported orbitals and the script plots the HOMO in the
 plane `z = 1 Bohr`, about 1 Bohr above the ring. Open the PNG in an image
 viewer. The colors mark opposite signs of the orbital amplitude and the
-dots show projected atomic positions. An orbital's overall sign is
-arbitrary. Within an exactly degenerate subspace, rotations give equally
-valid canonical orbitals, so individual plots can differ between solvers.
-With a small energy splitting, the canonical orbitals can still be
-sensitive to small geometry changes.
+dots show projected atomic positions.
 
 ![Benzene HOMO slice plotted from the RustiQ Molden export](images/benzene-homo.png)
-
-Graphical molecular viewer compatibility with these Molden exports has
-not been verified. The PySCF and Matplotlib workflow above reproduces the
-orbital slice.
 
 ## Contributor reproduction and reference checks
 
