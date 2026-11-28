@@ -1,20 +1,27 @@
 # Examples
 
-This curated selection introduces introductory and representative workflows; it is
-not an exhaustive catalog. See the repository’s
-[samples directory](https://github.com/mveril/RustiQ/tree/main/samples)
-for additional molecules and advanced configurations. The binary archives omit the samples. If you installed a release binary,
-download and extract the **Source code** archive for the same version from
-[GitHub Releases](https://github.com/mveril/RustiQ/releases). Run the commands
-from the extracted source directory. Use fresh output filenames when repeating
-a tutorial, or pass `--force` to replace bundle and Molden outputs.
+Use the installed `rustiq` executable and save the inputs shown below in a
+working directory of your choice. All three tutorials use STO-3G. Download
+the complete basis once with an online build.
 
-These guides use the installed `rustiq` executable. Basis sets are not distributed
-with RustiQ: download them explicitly, or import independently obtained JSON files
-with `rustiq basis import /path/to/basis.json` when offline. Automatic downloads
-must be enabled explicitly with `--auto-download` or
-`RUSTIQ_AUTO_DOWNLOAD`; `--no-auto-download` prevents them. See
-[basis availability](basis-sets.md) for offline and online builds.
+```sh
+rustiq basis download sto-3g
+```
+
+For offline use, obtain the complete STO-3G JSON from the
+[Basis Set Exchange](https://www.basissetexchange.org/) on a connected
+computer, transfer it as `sto-3g.json`, and run the import from its directory.
+The tutorials collectively need hydrogen, carbon, and oxygen.
+
+```sh
+rustiq basis import sto-3g.json
+```
+
+On repeat runs, choose fresh output paths or add `--force` to replace
+existing bundles and Molden files. Shell redirection with `>` truncates an
+existing report, so choose a new JSON filename if you want to keep it.
+For failures, see [basis setup](basis-sets.md) and
+[error messages and exit codes](diagnostic-codes.md).
 
 | Example and objective | Basis | Guide and prerequisites |
 | --- | --- | --- |
@@ -30,92 +37,207 @@ must be enabled explicitly with `--auto-download` or
 
 ## Water — run MP2 from saved RHF orbitals
 
-In a source checkout, run these commands from the repository root with an
-installed `rustiq`. Alternatively, use `cargo run --locked --` in place of
-`rustiq`. Import the STO-3G basis before your first run.
+Create a directory named `h2o` with an `inputs` subdirectory. Save the
+geometry as `h2o/h2o.xyz`.
 
-```sh
-rustiq basis import tests/data/sto-3g.json
-rustiq run samples/h2o/sto-3g/calculation.toml --artifact water-hf.rustiq
-rustiq artifact verify water-hf.rustiq
-rustiq run water-hf.rustiq --post-scf samples/h2/sto-3g/postscf.toml --artifact water-mp2.rustiq --format json > water-mp2.json
+```text
+{{#include ../../../samples/h2o/h2o.xyz}}
 ```
 
-The neutral singlet has five doubly occupied spatial orbitals. The Post-SCF
-command reads the converged RHF reference and AO integrals from
-`water-hf.rustiq`. A plain `rustiq run water-hf.rustiq` starts a fresh SCF
-calculation. The MP2 settings file can be shared across molecules because it
-contains only method settings.
+Save the runfile as `h2o/inputs/calculation.toml`. Its geometry path resolves
+relative to the TOML file, one directory up.
 
-In `water-mp2.json`, look for one successful calculation and an RHF reference.
-For this input, the total MP2 energy is approximately −74.998630 Hartree,
-the sum of the total HF energy and a correlation energy of approximately
-−0.035567 Hartree. Keep the JSON report for the energies and the bundle for the
-reference, scientific inputs, and applied settings. The split-run test
-compares fresh and resumed MP2 energies to within 10⁻¹² Hartree. Independent
-water MP2 comparisons use 6-31G and cc-pVDZ. STO-3G is a minimal basis for
-learning the workflow. See the [reference checks](https://github.com/mveril/RustiQ/tree/develop/tools/reference)
-and [MP2 limitations](mp2.md).
+```toml
+{{#include ../../../samples/h2o/sto-3g/calculation.toml}}
+```
 
-From a development checkout, reproduce the split-run check with
-`cargo test --locked --test artifact_cli post_scf_split_run_matches_full_mp2_calculation`.
-For the independent water MP2 and OH HF benchmarks, run
-`uv run --locked pytest tools/reference/test_compare_pyscf.py -k "h2o and mp2 or oh-sto-3g-uhf"`.
+Save the Post-SCF settings as `h2o/postscf.toml`.
+
+```toml
+{{#include ../../../samples/h2/sto-3g/postscf.toml}}
+```
+
+The neutral singlet has five doubly occupied spatial orbitals.
+`frozen_orbitals = 0` includes all five in MP2 correlation. A positive
+count excludes that many of the lowest-energy occupied RHF spatial orbitals.
+`memory_limit` budgets estimated additional MP2 workspace (1 GiB here).
+The resident HF data and AO integrals are outside this budget. The settings
+file contains only MP2 options, so you can reuse it with another compatible
+HF bundle. The bundle supplies the molecule, basis, orbitals, and AO integrals.
+
+From inside `h2o`, save and verify the converged reference, then run MP2
+using that reference without repeating SCF.
+
+```sh
+rustiq run inputs/calculation.toml --artifact hf.rustiq --format json > hf.json
+rustiq artifact verify hf.rustiq
+rustiq run hf.rustiq --post-scf postscf.toml --artifact mp2.rustiq --format json > mp2.json
+rustiq artifact verify mp2.rustiq
+```
+
+To repeat SCF from the archived input, run `rustiq run hf.rustiq`. Adding
+`--post-scf postscf.toml` instead restores the converged reference for MP2.
+
+The HF report gives a total HF energy of −74.9630631541 Hartree. The
+following method record is from `calculations[0].methods[0]` in the
+generated [version 1 JSON report](json-output.md).
+
+```json
+{
+  "method": "mp2",
+  "status": "succeeded",
+  "result": {
+    "reference": "RHF",
+    "correlation_energy": -0.035566837117355324,
+    "electronic_energy": -84.18688840870615,
+    "nuclear_repulsion_energy": 9.188258417450937,
+    "total_energy": -74.99862999125521
+  }
+}
+```
+
+The status confirms that MP2 completed with an RHF reference. Adding the
+MP2 correlation energy (−0.0355668371 Hartree) to the total HF energy gives
+the total MP2 energy (−74.9986299913 Hartree). Keep the portable bundle
+for the scientific inputs, saved HF reference and AO integrals, and applied
+MP2 settings. Keep `mp2.json` for the MP2 status and energies, and `hf.json`
+for the HF report. See [portable bundles](portable-bundles.md) and
+[MP2 limitations](mp2.md).
 
 ## Hydroxyl radical — inspect an unrestricted solution
 
-With STO-3G imported, run the neutral doublet from the repository root.
+Create a directory named `oh` with an `inputs` subdirectory. Save the
+geometry as `oh/oh.xyz`.
 
-```sh
-rustiq run samples/oh/sto-3g/calculation.toml --artifact oh-hf.rustiq
-rustiq artifact export oh-hf.rustiq --format molden -o oh.molden
+```text
+{{#include ../../../samples/oh/oh.xyz}}
 ```
 
-Expect UHF, a total HF energy of about −74.362669 Hartree, and five occupied
-alpha and four occupied beta orbitals. Inspect
-the `Spin=` and `Occup=` records under `[MO]` in `oh.molden`. Each occupied
-spin orbital has occupation 1. The ideal doublet has ⟨S²⟩ = 0.75. The
-difference between the reported value and 0.75 measures spin contamination,
-which can persist after SCF convergence. The PySCF reference suite compares
-this STO-3G HF energy within 5 × 10⁻⁸ Hartree and ⟨S²⟩ within 2 × 10⁻⁵.
-See [Hartree–Fock diagnostics](hartree-fock.md).
+Save the runfile as `oh/inputs/calculation.toml`. Its geometry path resolves
+relative to the TOML file, one directory up.
+
+```toml
+{{#include ../../../samples/oh/sto-3g/calculation.toml}}
+```
+
+Neutral OH has nine electrons. Doublet multiplicity gives one more alpha
+electron than beta electrons, so five are alpha and four are beta. With
+`method = "Auto"`, this open-shell input selects UHF and allows the two
+spin channels to have different spatial orbitals.
+
+From inside `oh`, run HF and export the converged orbitals.
+
+```sh
+rustiq run inputs/calculation.toml --artifact hf.rustiq --format json > hf.json
+rustiq artifact export hf.rustiq --format molden -o oh.molden
+```
+
+The total HF energy is −74.3626692217 Hartree. In the JSON report,
+`calculation.hf.spin.s_squared` is 0.75326194, about 0.00326 above the ideal
+doublet value of 0.75. This excess is spin contamination, indicating a
+small contribution from higher-spin components in the UHF determinant.
+SCF convergence measures numerical self-consistency and does not guarantee
+a spin eigenstate. See [Hartree–Fock diagnostics](hartree-fock.md).
+
+Under `[MO]` in `oh.molden`, each orbital has a `Spin= Alpha` or
+`Spin= Beta` label. Count five alpha and four beta records with occupation
+1. The virtual orbitals in each channel have occupation 0.
 
 ## Benzene — export molecular orbitals
 
-Run from the repository root. Benzene requires STO-3G data for carbon and
-hydrogen. The water fixture covers hydrogen and oxygen. Download the full
-basis with `rustiq basis download sto-3g`, or import a Basis Set Exchange JSON
-file that includes carbon and hydrogen with `rustiq basis import /path/to/full-sto-3g.json`.
-Either operation replaces a stored STO-3G fixture.
+Create a directory named `benzene` with an `inputs` subdirectory. Save the
+geometry as `benzene/benzene.xyz`.
 
-```sh
-rustiq run samples/benzene/sto-3g/calculation.toml --artifact benzene-hf.rustiq
-rustiq artifact export benzene-hf.rustiq --format molden -o benzene.molden
+```text
+{{#include ../../../samples/benzene/benzene.xyz}}
 ```
 
-Expect 21 doubly occupied RHF spatial orbitals. In the Molden file, these
-have occupation 2. Virtual orbitals have occupation 0. The symmetry field
-is a placeholder. For file conventions and supported shells, see
-[Molden export](portable-bundles.md#export-orbitals-to-molden). The independent
-interoperability tests read RustiQ exports with PySCF and reconstruct the
-orbitals for smaller systems, including water and hydroxyl.
+Save the runfile as `benzene/inputs/calculation.toml`. Its geometry path resolves
+relative to the TOML file, one directory up.
 
-To see the orbital shape, use the example Python plotter. With NumPy, PySCF,
-and Matplotlib installed in a Python environment, run the following command.
-Install the dependencies with `python -m pip install numpy pyscf matplotlib`.
-
-```sh
-python samples/benzene/plot_molden.py benzene.molden benzene-homo.png
+```toml
+{{#include ../../../samples/benzene/sto-3g/calculation.toml}}
 ```
 
-The plotter reads the exported file with PySCF and evaluates its highest
-occupied molecular orbital in the plane z = 1 Bohr, approximately 1 Bohr
-above the ring. Open the PNG in an image
-viewer. The two colors show opposite signs of the orbital amplitude, and
-the dots mark projected atomic positions. The overall sign is arbitrary.
-Degenerate orbitals can rotate within their shared subspace.
+Benzene needs both carbon and hydrogen in its STO-3G basis. From inside
+`benzene`, run RHF and export the converged orbitals.
+
+```sh
+rustiq run inputs/calculation.toml --artifact hf.rustiq --format json > hf.json
+rustiq artifact export hf.rustiq --format molden -o benzene.molden
+```
+
+The total RHF energy is −227.8908322166 Hartree. Neutral benzene has
+42 electrons, giving 21 doubly occupied spatial orbitals. In the Molden
+file these have occupation 2, and the 15 virtual orbitals have occupation 0.
+Read the frontier energies from the `Ene=` fields of the last two occupied
+and first two virtual records.
+
+| Orbital | Energy (Hartree) |
+| --- | ---: |
+| HOMO−1 | −0.27982092 |
+| HOMO | −0.27978734 |
+| LUMO | 0.26875127 |
+| LUMO+1 | 0.26879226 |
+
+The RHF orbital gap, ε(LUMO) − ε(HOMO), is 0.54853861 Hartree.
+Experimental excitation energies are differences between many-electron
+states and include effects outside this orbital-energy difference.
+Ideal hexagonal benzene (D₆h) has a doubly degenerate frontier pair on
+each side of the gap. The supplied coordinates approximate this symmetry.
+The occupied pair splits by about 3.36 × 10⁻⁵ Hartree and the virtual pair
+by about 4.10 × 10⁻⁵ Hartree. The exported symmetry labels are placeholders.
+See [Molden export](portable-bundles.md#export-orbitals-to-molden).
+
+Save the following script as `benzene/plot_molden.py`.
+
+```python
+{{#include ../../../samples/benzene/plot_molden.py}}
+```
+
+From inside `benzene`, use Python 3 to create an isolated environment.
+These commands use a POSIX shell. On Windows, use
+`.venv\Scripts\python.exe` in place of `.venv/bin/python`.
+
+```sh
+python -m venv .venv
+.venv/bin/python -m pip install numpy pyscf matplotlib
+.venv/bin/python plot_molden.py benzene.molden benzene-homo.png
+```
+
+PySCF reads the exported orbitals and the script plots the HOMO in the
+plane `z = 1 Bohr`, about 1 Bohr above the ring. Open the PNG in an image
+viewer. The colors mark opposite signs of the orbital amplitude and the
+dots show projected atomic positions. An orbital's overall sign is
+arbitrary. Within an exactly degenerate subspace, rotations give equally
+valid canonical orbitals, so individual plots can differ between solvers.
+With a small energy splitting, the canonical orbitals can still be
+sensitive to small geometry changes.
 
 ![Benzene HOMO slice plotted from the RustiQ Molden export](images/benzene-homo.png)
+
+Graphical molecular viewer compatibility with these Molden exports has
+not been verified. The PySCF and Matplotlib workflow above reproduces the
+orbital slice.
+
+## Contributor reproduction and reference checks
+
+From a source checkout, you can use the files in `samples/h2o`,
+`samples/oh`, and `samples/benzene` directly. The method-only input is
+`samples/h2/sto-3g/postscf.toml`. Use the installed executable or substitute
+`cargo run --locked --` from the repository root.
+
+The split-run integration test checks that fresh and restored water
+STO-3G MP2 energies agree within 10⁻¹² Hartree. Separate PySCF checks cover
+water STO-3G RHF (3 × 10⁻⁸ Hartree), water MP2 with 6-31G and cc-pVDZ,
+and OH STO-3G UHF (5 × 10⁻⁸ Hartree for total energy and 2 × 10⁻⁵
+for ⟨S²⟩). The reference suite does not include water STO-3G MP2 or
+benzene.
+
+```sh
+cargo test --locked --test artifact_cli post_scf_split_run_matches_full_mp2_calculation
+uv run --locked pytest tools/reference/test_compare_pyscf.py -k 'h2o or oh-sto-3g-uhf'
+```
 
 Report scientific discrepancies through the [issue tracker](https://github.com/mveril/RustiQ/issues).
 Include the RustiQ version, input and geometry, basis source, observed and

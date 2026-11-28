@@ -17,7 +17,7 @@ terminal report or versioned JSON for numerical results. A portable
 available AO integrals. You can reuse the saved reference for MP2 without a
 second SCF run or export the orbitals in Molden format.
 
-Start with the [water, hydroxyl radical, and benzene tutorials](docs/src/user-guide/examples.md).
+The [water, hydroxyl radical, and benzene tutorials](docs/src/user-guide/examples.md) include the inputs you need to run MP2, inspect an open-shell solution, and plot a benzene orbital using an installed RustiQ binary.
 The [PySCF reference suite](tools/reference/README.md) documents the comparisons
 and their tolerances. Check results independently before drawing research
 conclusions. HF omits electron correlation, and MP2 can be unreliable for

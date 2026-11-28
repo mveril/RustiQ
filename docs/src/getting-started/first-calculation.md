@@ -107,4 +107,4 @@ Continue with [output interpretation](output.md).
 To save and reuse the calculation's AO ERIs, continue with the
 [portable bundle guide](../user-guide/portable-bundles.md).
 
-Explore more calculations and workflows in the [examples index](../user-guide/examples.md).
+Continue with the [water, hydroxyl radical, and benzene tutorials](../user-guide/examples.md) using your installed executable.
